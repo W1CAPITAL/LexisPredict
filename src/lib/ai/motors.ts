@@ -10,6 +10,7 @@ export type MotorId =
   | 'omni'
   | 'minimax'
   | 'colibri'
+  | 'local_llm'
   | 'local_only'
   | 'claude'
   | 'xai'
@@ -57,6 +58,13 @@ export const MOTORS: MotorDef[] = [
     desc: 'Motor de IA hospedado pela empresa, acessível via COLIBRI_BASE_URL (HTTPS).',
     scope: 'server',
     envKey: 'COLIBRI_BASE_URL',
+  },
+  {
+    id: 'local_llm',
+    label: 'Lexis Local LLM · Qwen 0.5B',
+    short: 'LLM local',
+    desc: 'Modelo real 4-bit que roda no navegador (WebGPU/CPU). Baixa pesos na primeira utilização; não precisa de token.',
+    scope: 'browser',
   },
   {
     id: 'local_only',
@@ -147,6 +155,7 @@ export function getMotor(id?: string | null): MotorDef {
 /** Mapeia ids legados; local fica local; resto pode manter id para preferência de ordem na cascata */
 export function resolveMotorId(id?: string | null): MotorId {
   const s = String(id || 'omni').toLowerCase().trim();
+  if (s === 'local_llm' || s === 'browser_llm' || s === 'qwen-local') return 'local_llm';
   if (s === 'local_only' || s === 'local' || s === 'lexis') return 'local_only';
   if (s === 'omni' || s === 'auto') return 'omni';
   if (s.includes('minimax')) return 'minimax';

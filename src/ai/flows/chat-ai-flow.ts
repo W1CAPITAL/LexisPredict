@@ -7,6 +7,7 @@
 import { runCascade, type ChatTurn, type VisionImage } from '@/lib/ai/cascade';
 import { normalizeAssistantMotorChoice } from '@/lib/ai/chat-preference';
 import { parseThinkingAnswer, isSimplePrompt } from '@/lib/ai/chat-parse';
+import { localQuickReply } from '@/lib/ai/local-quick';
 import { extractCnjFromText } from '@/lib/ai/motors';
 import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
 import { retrieveMemory } from '@/lib/cognitive/memory';
@@ -115,6 +116,22 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     };
   }
 
+  // Resposta determinística para saudações: funciona sem Colibri, GPU,
+  // modelos cloud ou créditos. O rótulo não finge que houve inferência LLM.
+  const cleanedPrompt = pergunta.includes('Instruções ativas do usuário:')
+    ? pergunta.split(/\n\n/).at(-1)?.trim() || pergunta
+    : pergunta;
+  const quick = !hasImg && !hasPdf ? localQuickReply(cleanedPrompt) : null;
+  if (quick) {
+    return {
+      resposta: quick,
+      thinking: null,
+      engineUtilizada: 'LOCAL_RESPOSTA_RAPIDA',
+      latencia: 0,
+      tokensConsumidos: 0,
+      sucesso: true,
+    };
+  }
   const simple = isSimplePrompt(pergunta, hasImg || hasPdf);
   const preferred = normalizeAssistantMotorChoice(input.preferred || input.preferredModel);
   const cognitivePlan = buildCognitivePlan({
