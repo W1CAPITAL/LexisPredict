@@ -742,7 +742,7 @@ export async function generateOmniReportAction(
       sources: registered.map((s) => ({
         id: s.id,
         name: s.name,
-        kind: s.kind,
+        kind: s.kind || 'fonte',
         chars: s.text.length,
       })),
       generatedAt,
@@ -773,7 +773,7 @@ export async function generateOmniReportAction(
       sources: registered.map((s) => ({
         id: s.id,
         name: s.name,
-        kind: s.kind,
+        kind: s.kind || 'fonte',
         chars: s.text.length,
       })),
       stats: {
