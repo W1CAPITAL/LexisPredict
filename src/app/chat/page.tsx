@@ -41,6 +41,8 @@ import {
 } from "@/lib/ai/motors";
 import { DataJudDisclaimer } from "@/components/ui/datajud-disclaimer";
 import { cn } from "@/lib/utils";
+import { localQuickReply } from "@/lib/ai/local-quick";
+import { generateBrowserLocalLLM, stopBrowserLocalLLM } from "@/lib/ai/browser-local-llm";
 
 function splitThinking(raw: string): { thinking: string | null; answer: string } {
   const t = String(raw || "");
@@ -91,12 +93,13 @@ export default function AssistentePage() {
     {
       role: "assistant",
       content:
-        "Assistente Lexis (Claude via OmniRoute). Pergunte qualquer coisa. Anexe PDF ou imagem — leio o teor, mostro o raciocínio quando fizer sentido e respondo de forma clara.",
+        "Assistente Lexis. Escolha Colibri (servidor), LLM local no navegador ou cascata online. Saudações funcionam sem créditos; anexos e tarefas complexas precisam de um motor compatível.",
     },
   ]);
   const [input, setInput] = useState("");
   const [activeInstructions, setActiveInstructions] = useState<string[]>(["conciso", "cliente"]);
   const [loading, setLoading] = useState(false);
+  const [localProgress, setLocalProgress] = useState<string | null>(null);
   const [model, setModel] = useState<MotorId>("omni");
   const [baClaude, setBaClaude] = useState(false);
   const [pendingImage, setPendingImage] = useState<{
@@ -176,13 +179,56 @@ export default function AssistentePage() {
         .slice(-12)
         .map((x) => ({ role: x.role, content: x.content }));
 
-      const res = await perguntarChatbotIndependente(text || "Analise o material anexado.", history, model, {
-        baClaudeDjen: baClaude,
-        images: img ? [img] : undefined,
-        pdfText: pdf?.text,
-        pdfName: pdf?.name,
-        max_tokens: 4096,
-      });
+      const quick = !img && !pdf ? localQuickReply(displayText) : null;
+      if (quick) {
+        setMessages(m => [...m, { role: "assistant", content: quick, engine: "LOCAL_RESPOSTA_RAPIDA" }]);
+        return;
+      }
+
+      const tryBrowserLocal = async (reason: string) => {
+        if (img) throw new Error("O LLM local Qwen 0.5B não interpreta imagens. Use um motor com visão conectado.");
+        setLocalProgress(reason);
+        const local = await generateBrowserLocalLLM(
+          (displayText || text) + (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
+          history,
+          (p) => setLocalProgress(p.status === "progress" ? `Baixando LLM local: ${p.progress ?? 0}%` : p.message || (p.status === "generating" ? "LLM local gerando resposta..." : "Preparando LLM local...")),
+        );
+        return {
+          resposta: local.text, thinking: null, sucesso: true,
+          engineUtilizada: "LOCAL_BROWSER:" + local.model,
+          engine: "LOCAL_BROWSER:" + local.model,
+        };
+      };
+
+      let res: {
+        resposta: string; thinking?: string | null; engineUtilizada?: string; engine?: string; sucesso?: boolean;
+      };
+      if (model === "local_llm") {
+        res = await tryBrowserLocal("Iniciando Qwen local no navegador...");
+      } else {
+        res = await perguntarChatbotIndependente(text || "Analise o material anexado.", history, model, {
+          baClaudeDjen: baClaude,
+          images: img ? [img] : undefined,
+          pdfText: pdf?.text,
+          pdfName: pdf?.name,
+          max_tokens: 4096,
+        });
+        const unavailable = !res.sucesso && /FALLBACK|MOTORES_INDISPONIVEIS|COLIBRI_INDISPONIVEL|ALL_PROVIDERS_FAILED|ERROR/i.test(String(res.engineUtilizada || res.engine || ""));
+        if (unavailable && !img) {
+          try {
+            res = await tryBrowserLocal(model === "colibri"
+              ? "Colibri desconectado. Iniciando Qwen local no navegador..."
+              : "Provedores indisponíveis. Tentando LLM local no navegador...");
+          } catch (localError: any) {
+            res = {
+              ...res,
+              resposta: `O motor online não respondeu e o modelo local também não iniciou: ${localError?.message || String(localError)}. Para a primeira execução, permita o download do modelo e confira a memória do navegador.`,
+              engineUtilizada: "MOTORES_E_LOCAL_INDISPONIVEIS",
+              sucesso: false,
+            };
+          }
+        }
+      }
 
       const raw = res.resposta || "Sem resposta.";
       const fromServer = (res as any).thinking as string | null;
@@ -203,6 +249,7 @@ export default function AssistentePage() {
       ]);
     } finally {
       setLoading(false);
+      setLocalProgress(null);
     }
   };
 
@@ -281,7 +328,7 @@ export default function AssistentePage() {
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-xs">
                 <Loader2 className="animate-spin" size={14} />
-                Claude está pensando…
+                {localProgress || (model === "colibri" ? "Consultando Colibri..." : "Processando sua pergunta...")}
               </div>
             ) : null}
             <div ref={bottomRef} />
@@ -358,6 +405,11 @@ export default function AssistentePage() {
               className="h-12 rounded-xl"
               disabled={loading}
             />
+            {loading && localProgress ? (
+              <Button type="button" variant="outline" className="h-12 rounded-xl shrink-0" onClick={() => stopBrowserLocalLLM()}>
+                Cancelar
+              </Button>
+            ) : null}
             <Button
               type="submit"
               disabled={loading || (!input.trim() && !pendingImage && !pendingPdf)}
