@@ -30,7 +30,7 @@ type Config = NonNullable<ReturnType<typeof colibriConfig>>;
 const modelCache = new Map<string, { model: string; expires: number }>();
 const modelEndpoint = (endpoint: string) => endpoint.replace(/\/chat\/completions\/?$/, '/models');
 
-function authHeaders(cfg: Config): HeadersInit {
+function authHeaders(cfg: Config): Record<string, string> {
   return cfg.key ? { Authorization: 'Bearer ' + cfg.key } : {};
 }
 
