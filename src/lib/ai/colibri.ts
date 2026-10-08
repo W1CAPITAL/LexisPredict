@@ -59,7 +59,18 @@ export async function probeColibri() {
   const cfg = colibriConfig();
   if (!cfg) return { configured: false, reachable: false, model: null, reason: 'COLIBRI_BASE_URL ausente ou inválida (HTTPS obrigatório em produção)' };
   try {
-    const model = await discoverColibriModel(cfg);
+    // Saúde exige verificação real: COLIBRI_MODEL fixo não prova conectividade.
+    const response = await fetch(modelEndpoint(cfg.endpoint), {
+      method: 'GET',
+      headers: authHeaders(cfg),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(Math.min(4000, cfg.timeoutMs)),
+    });
+    if (!response.ok) throw new Error('models unavailable');
+    const body = await response.json().catch(() => null);
+    const models = Array.isArray(body?.data) ? body.data.map((m: any) => String(m?.id || '')).filter(Boolean) : [];
+    const model = cfg.model === 'auto' ? models[0] : cfg.model;
+    if (!models.includes(model)) throw new Error('model not loaded');
     return { configured: true, reachable: true, model, reason: null };
   } catch {
     return { configured: true, reachable: false, model: null, reason: 'Servidor Colibri inacessível ou sem modelo ativo' };
