@@ -7,6 +7,7 @@ describe('assistant automatic routing', () => {
   });
   it('allows selecting Colibri or a specific provider', () => {
     expect(normalizeAssistantMotorChoice('colibri')).toBe('colibri');
+    expect(normalizeAssistantMotorChoice('minicpm')).toBe('minicpm');
     expect(normalizeAssistantMotorChoice('claude')).toBe('claude');
     expect(normalizeAssistantMotorChoice('groq-llama')).toBe('groq');
   });
