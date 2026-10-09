@@ -82,7 +82,7 @@ const nextConfig: NextConfig = {
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.jsdelivr.net https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
             "worker-src 'self' blob: https://cdn.jsdelivr.net",
             "child-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com",
-            "frame-src 'self' blob: https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com https://*.highrevenueformat.com",
+            "frame-src 'self' blob: https://vercel.live https://www.highrevenueformat.com https://www.highperformanceformat.com https://www.profitableratecpmnetwork.com https://*.profitableratecpmnetwork.com https://pl31113566.profitableratecpmnetwork.com https://pl31113976.profitableratecpmnetwork.com https://*.highrevenueformat.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
             "font-src 'self' https://fonts.gstatic.com data:",
