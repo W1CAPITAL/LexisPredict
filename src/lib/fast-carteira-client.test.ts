@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchFastCarteira } from './fast-carteira-client';
+import { fetchFastCarteira, fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from './fast-carteira-client';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); invalidateFastCarteiraCache(); });
 
 describe('Fast tenant-scoped carteira client', () => {
   it('uses same-origin JSON and bounded company pagination', async () => {
@@ -28,4 +28,25 @@ describe('Fast tenant-scoped carteira client', () => {
     vi.stubGlobal('fetch', async () => new Response('<html>failed</html>', { status: 503, headers: { 'content-type': 'text/html' } }));
     await expect(fetchFastCarteira('mine')).rejects.toThrow('formato inesperado');
   });
+  it('reaproveita paginas recentes sem misturar logins ou empresas', async () => {
+    const payload = {
+      ok: true, cases: [{ id: '1', protocolo: 'CNJ', cliente: 'TESTE' }],
+      summary: { total: 2643, ativos: 815, encerrados: 1828, vencidos: 395, baixas: 829, procedentes: 238, cumprimentos: 509, novidades: 330 },
+      totalCount: 2643, hasMore: true, offset: 0, limit: 60,
+    };
+    const fn = vi.fn(async () => new Response(JSON.stringify(payload), {
+      headers: { 'content-type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fn);
+    await fetchFastCarteiraCached('empresa', 60, 0, 'empresa-a', 'operador-a');
+    await fetchFastCarteiraCached('empresa', 60, 0, 'empresa-a', 'operador-a');
+    expect(fn).toHaveBeenCalledTimes(1);
+    await fetchFastCarteiraCached('empresa', 60, 0, 'empresa-a', 'operador-b');
+    await fetchFastCarteiraCached('empresa', 60, 0, 'empresa-b', 'operador-a');
+    expect(fn).toHaveBeenCalledTimes(3);
+    expect(peekFastCarteiraCache('empresa', 60, 0, 'empresa-a', 'operador-a')?.data.totalCount).toBe(2643);
+    invalidateFastCarteiraCache();
+    expect(peekFastCarteiraCache('empresa', 60, 0, 'empresa-a', 'operador-a')).toBeNull();
+  });
+
 });
