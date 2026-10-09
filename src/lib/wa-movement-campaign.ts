@@ -127,7 +127,7 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     // Publication campaigns are enabled by the manager's click to start; do not
     // request a redundant checkbox. Per-recipient documented opt-in remains
     // mandatory in preparePublicationNotice, including when run from cron.
-    if (kind !== 'publication' && confirmed !== true)
+    if (kind === 'movement' && confirmed !== true)
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
     const health = await waAutoHealth();
     if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
@@ -138,7 +138,7 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
 
     const {entries}=await collectPortfolio(ctx.empresa_id,kind);
     if (!entries.length) throw new Error(
-      kind === 'publication'
+      kind !== 'movement'
         ? 'Nenhum aviso elegível: confira consentimentos individuais registrados, mérito confirmado e status da carteira. Não foram criadas mensagens.'
         : 'Nenhum processo com telefone válido e movimentação identificada.'
     );
@@ -243,7 +243,7 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
       await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
       return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
     }
-    if(isPublication.data?.campaign_kind!=='movement') {
+    if(isPublication) {
       const check=preparePublicationNotice(current as PublicationSourceRow,{includeClosed:campaign.campaign_kind==='closure_scan'});
       if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
