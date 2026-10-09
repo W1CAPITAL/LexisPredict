@@ -73,6 +73,9 @@ export function MovementCampaignControl() {
           if(!result.ok&&result.error) {
             toast({title:"Fila de movimentações",description:result.error,variant:"destructive"});
           }
+          if(result.warning) {
+            toast({title:"Envio aceito, mas revisão necessária",description:result.warning,variant:"destructive"});
+          }
           await reload();
         }catch{
           if(alive)toast({title:"Falha de conexão com a fila",description:"Confira os envios antes de retomar.",variant:"destructive"});
