@@ -77,8 +77,6 @@ export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
     .some(k=>yes(meta[k])) || ['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>k in meta && no(meta[k]));
   if(blocked)return {notice:null,reason:'blocked'};
   // Legal case data must not be broadcast to unconsenting recipients.
-  if(!['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>yes(meta[k])))
-    return {notice:null,reason:'consent_missing'};
   const phone=phoneOf(row.telefone || meta.telefone || meta.TELEFONE);
   if(!phone)return {notice:null,reason:'phone'};
   const candidates=[
@@ -90,6 +88,11 @@ export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
   // date with a terminal event recorded in a stale separate flag.
   const chosen=candidates[0];
   if(!chosen)return {notice:null,reason:'no_terminal'};
+  // An event recorded after the terminal marker can indicate reactivation.
+  // Review manually instead of describing the old terminal event as current.
+  const latest=[eventDate(row.datajud_ultimo_movimento),eventDate(row.djen_ultima_data)]
+    .reduce((max,date)=>Math.max(max,date),0);
+  if(latest>chosen.date)return {notice:null,reason:'no_terminal'};
   if(row.alert_delivered_at && eventDate(row.alert_delivered_at)>=chosen.date)
     return {notice:null,reason:'already_notified'};
   const verdictSources=[
@@ -98,8 +101,10 @@ export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
   ];
   const results=[...new Set(verdictSources.map(verdictIn).filter(v=>v!=='indeterminado'))];
   if(results.length>1)return {notice:null,reason:'review_conflict'};
-  const verdict=results[0]||'indeterminado';
-  if(verdict==='indeterminado')return {notice:null,reason:'review_verdict'};
+  if(!results.length)return {notice:null,reason:'review_verdict'};
+  const verdict=results[0] as Exclude<Verdict,'indeterminado'>;
+  if(!['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>yes(meta[k])))
+    return {notice:null,reason:'consent_missing'};
   // A "procedente" boolean by itself does not prove whether the judgment
   // was partial, superseded or subsequently reversed.
   const name=normalized(row.cliente||meta.cliente||'Cliente').slice(0,90);
