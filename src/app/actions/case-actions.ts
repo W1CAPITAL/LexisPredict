@@ -563,7 +563,7 @@ export async function auditCaseCoreSystem(
         !!patch.precisa_enriquecer_teor ||
         !!(analise2 as any).oportunidade_instaurar?.texto_pobre ||
         !!(analise2 as any).oportunidade_instaurar?.precisa_enriquecer_teor;
-      if (precisaTeor && (mode === 'both' || mode === 'djen' || mode === 'datajud')) {
+      if (precisaTeor && !options.cloudBudget && (mode === 'both' || mode === 'djen' || mode === 'datajud')) {
         try {
           const wideStart = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000)
             .toISOString()
@@ -724,7 +724,7 @@ export async function auditCaseCoreSystem(
     // Claude/OmniRoute só se o operador ativar no Scanner (useClaudeAi)
     // ou SCAN_AI_FORCE=1 no ambiente
     const forceEnv = process.env.SCAN_AI_FORCE === '1' || process.env.SCAN_AI_FORCE === 'true';
-    const useClaude = options.useClaudeAi === true || forceEnv;
+    const useClaude = !options.cloudBudget && (options.useClaudeAi === true || forceEnv);
     if (!useClaude) {
       // skip IA — heurística DataJud/DJEN já aplicada no patch
     } else {
@@ -741,7 +741,7 @@ export async function auditCaseCoreSystem(
     aiEngine = enriched.aiEngine;
     aiLogLine = enriched.aiLogLine || (
       enriched.aiEngine
-        ? `[Claude AI / ${enriched.aiEngine}] ${patch.evento_resumo || 'análise concluída'}${patch.ai_flags_label ? ' | ' + patch.ai_flags_label : ''}`
+        ? `[IA: ${enriched.aiEngine}] ${patch.evento_resumo || 'análise concluída'}${patch.ai_flags_label ? ' | ' + patch.ai_flags_label : ''}`
         : null
     );
     if (enriched.aiEngine) {
