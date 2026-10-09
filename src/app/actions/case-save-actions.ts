@@ -532,7 +532,11 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado.' };
     if (!(await canAccessExistingCase(ctx, existing))) {
-      return { success: false, message: 'Você só pode excluir processos da sua própria carteira.' };
+      return { success: false, message: 'Processo fora da empresa.' };
+    }
+    // Editar e atender e permitido para todos; excluir exige propriedade ou supervisao.
+    if (!(ctx.isSupervisor || ctx.isSuperAdmin) && String(existing.created_by || '') !== String(ctx.auth_id)) {
+      return { success: false, message: 'Somente o proprietario ou a supervisao pode excluir este processo.' };
     }
 
     const { error } = await admin
