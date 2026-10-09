@@ -8,6 +8,7 @@ import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
 import { getWaAutoConfig, waAutoHealth } from '@/lib/wa-auto-client';
 import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
+import { preparePublicationNotice, type PublicationSourceRow } from '@/lib/wa-publication-builder';
 
 
 async function requireManager() {
@@ -19,41 +20,82 @@ async function requireManager() {
   return ctx as typeof ctx & { auth_id: string; empresa_id: string };
 }
 
-async function collectPortfolio(empresaId: string) {
+type CampaignKind='movement'|'publication';
+
+const PUBLICATION_SOURCE_COLUMNS='id,empresa_id,cliente,telefone,protocolo_ref,status,status_interno,alert_delivered_at,datajud_ultimo_movimento,datajud_ultimo_nome,datajud_encerrado_tribunal,datajud_encerrado_motivo,djen_ultima_data,djen_ultimo_resumo,data_transito_julgado,is_procedente,procedente_motivo,detalhes_execucao,status_executivo,dados';
+
+/** Supabase outbound history is not necessarily complete. Never claim that
+ * absence of a message here proves the customer was never informed elsewhere.
+ */
+async function previousPublications(empresaId:string) {
+  const db=await getSupabaseAdmin();
+  const noticed=new Set<string>();
+  for(let start=0;start<25000;start+=500) {
+    const {data,error}=await db.from('whatsapp_messages')
+      .select('contact_number,phone,message_text,body')
+      .eq('empresa_id',empresaId).eq('from_me',true)
+      .order('created_at',{ascending:true}).range(start,start+499);
+    if(error)throw new Error('Histórico de avisos indisponível; não iniciar campanha: '+error.message);
+    const entries=data||[];
+    for(const msg of entries) {
+      const phone=String(msg.contact_number||msg.phone||'').replace(/\D/g,'');
+      const body=String(msg.message_text||msg.body||'');
+      if(!/(?:TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA)/i.test(body))continue;
+      for(const cnj of body.match(/\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g)||[])
+        noticed.add(phone+':'+cnj.replace(/\D/g,''));
+    }
+    if(entries.length<500)return noticed;
+  }
+  throw new Error('Histórico grande demais para conferência segura nesta execução. Revise o histórico antes de enviar avisos.');
+}
+
+async function collectPortfolio(empresaId: string, kind:CampaignKind='movement') {
   const db = await getSupabaseAdmin();
   const entries: Alert[] = [];
-  const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0 };
+  const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0,
+    alreadyClosed:0,consentMissing:0,needsReview:0,alreadyNotified:0 };
+  const previous=kind==='publication'?await previousPublications(empresaId):new Set<string>();
   const seen = new Set<string>();
   // Supabase caps the number of records per request. Pagination covers the entire company.
   for (let offset=0; offset<100000; offset+=400) {
     const {data,error} = await db.from('processos')
-      .select('id,empresa_id,cliente,telefone,protocolo_ref,datajud_ultimo_movimento,datajud_ultimo_nome,djen_ultima_data,djen_ultimo_resumo,dados')
+      .select(kind==='publication'?PUBLICATION_SOURCE_COLUMNS:'id,empresa_id,cliente,telefone,protocolo_ref,datajud_ultimo_movimento,datajud_ultimo_nome,djen_ultima_data,djen_ultimo_resumo,dados')
       .eq('empresa_id',empresaId).order('id',{ascending:true}).range(offset,offset+399);
     if (error) throw new Error('Carteira: ' + error.message);
     const rows = (data || []) as SourceRow[];
     for (const row of rows) {
       counts.scanned++;
-      const result = prepareMovementAlert(row);
-      if (!result.alert) {
-        if (result.reason==='phone') counts.withoutPhone++;
-        else if (result.reason==='blocked') counts.blocked++;
+      const prepared=kind==='publication'?preparePublicationNotice(row as PublicationSourceRow):null;
+      const result=kind==='publication'?null:prepareMovementAlert(row);
+      const alert=kind==='publication'?prepared?.notice:result?.alert;
+      const reason=kind==='publication'?prepared?.reason:result?.reason;
+      if (!alert) {
+        if (reason==='phone') counts.withoutPhone++;
+        else if (reason==='blocked') counts.blocked++;
+        else if (reason==='already_closed') counts.alreadyClosed++;
+        else if (reason==='consent_missing') counts.consentMissing++;
+        else if (reason==='review_verdict'||reason==='review_conflict') counts.needsReview++;
+        else if (reason==='already_notified') counts.alreadyNotified++;
         else counts.withoutEvent++;
         continue;
       }
-      const key = result.alert.processo_id + ':' + result.alert.event_hash;
+      if(kind==='publication'&&previous.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
+        counts.alreadyNotified++;continue;
+      }
+      const key = alert.processo_id + ':' + alert.event_hash;
       if (seen.has(key)) { counts.samePhone++; continue; }
       seen.add(key);
-      entries.push(result.alert);
+      entries.push(alert);
     }
     if (rows.length < 400) break;
   }
   return { entries, counts };
 }
 
-export async function previewMovementCampaign() {
+export async function previewMovementCampaign(kind:CampaignKind='movement') {
   try {
     const ctx = await requireManager();
-    const { entries, counts } = await collectPortfolio(ctx.empresa_id);
+    const { entries, counts } = await collectPortfolio(ctx.empresa_id,kind);
     const db = await getSupabaseAdmin();
     // Preview excludes already queued/sent versions (database uniqueness also guards races).
     const {data,error} = await db.from('wa_movement_dispatches')
@@ -62,15 +104,16 @@ export async function previewMovementCampaign() {
     const prior = new Set((data || []).map(x => x.processo_id + ':' + x.event_hash));
     const pending = entries.filter(x => !prior.has(x.processo_id + ':' + x.event_hash));
     return {
-      ok: true as const, counts: { ...counts, alreadyQueued: entries.length - pending.length, eligible: pending.length },
-      samples: pending.slice(0,5).map(x => ({ client: x.client_name, cnj: x.protocolo, source: x.source, date: x.event_at, message: x.message })),
+      ok: true as const,kind, counts: { ...counts, alreadyQueued: entries.length - pending.length, eligible: pending.length },
+      samples: pending.slice(0,5).map(x => ({ client: x.client_name, cnj: x.protocolo, source: x.source, date: x.event_at, message: x.message,
+        verdict:(x as any).verdict||null,kind:(x as any).kind||null })),
     };
   } catch (e: any) {
     return {ok:false as const,error:String(e?.message||e)};
   }
 }
 
-export async function createMovementCampaign(confirmed: boolean) {
+export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement') {
   try {
     const ctx=await requireManager();
     if (confirmed !== true) throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
@@ -81,16 +124,20 @@ export async function createMovementCampaign(confirmed: boolean) {
       .eq('empresa_id',ctx.empresa_id).eq('status','running').limit(1);
     if (existing?.length) throw new Error('Já existe uma campanha ativa desta empresa. Pause ou conclua antes de criar outra.');
 
-    const {entries}=await collectPortfolio(ctx.empresa_id);
+    const {entries}=await collectPortfolio(ctx.empresa_id,kind);
     if (!entries.length) throw new Error('Nenhum processo com telefone válido e movimentação identificada.');
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
-      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:true,status:'running' })
+      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:true,status:'running',campaign_kind:kind })
       .select('id').single();
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
     try {
       for(let offset=0;offset<entries.length;offset+=150) {
-        const values=entries.slice(offset,offset+150).map(x=>({...x,campaign_id:campaign.id}));
+        const values=entries.slice(offset,offset+150).map(x=>({
+          empresa_id:x.empresa_id,processo_id:x.processo_id,protocolo:x.protocolo,
+          phone:x.phone,client_name:x.client_name,source:x.source,event_at:x.event_at,
+          event_hash:x.event_hash,message:x.message,campaign_id:campaign.id,
+        }));
         const {data,error}=await db.from('wa_movement_dispatches').upsert(values,{
           onConflict:'empresa_id,processo_id,event_hash',ignoreDuplicates:true,
         }).select('id');
@@ -117,7 +164,7 @@ export async function getMovementCampaign() {
     const ctx=await requireManager();
     const db=await getSupabaseAdmin();
     const {data,error}=await db.from('wa_movement_campaigns')
-      .select('id,status,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
+      .select('id,status,campaign_kind,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
       .eq('empresa_id',ctx.empresa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(error) throw error;
     return {ok:true as const,campaign:data};
@@ -170,6 +217,31 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Responsável sem autorização ativa'});
     await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
     return {ok:false as const,error:'Sessão responsável sem autorização'};
+  }
+  if (campaign.status==='running') {
+    const {data:current,error:rowError}=await db.from('processos')
+      .select(PUBLICATION_SOURCE_COLUMNS)
+      .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
+    const isPublication=await db.from('wa_movement_campaigns').select('campaign_kind').eq('id',campaign.id).single();
+    if(rowError || !current) {
+      await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
+      return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
+    }
+    if(isPublication.data?.campaign_kind==='publication') {
+      const check=preparePublicationNotice(current as PublicationSourceRow);
+      if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
+        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
+        return {ok:false as const,error:'Aviso não enviado: dados ou consentimento alterados'};
+      }
+      const {data:already}=await db.from('wa_movement_dispatches')
+        .select('id').eq('empresa_id',campaign.empresa_id)
+        .eq('processo_id',claimed.processo_id).eq('status','sent')
+        .neq('id',claimed.id).limit(1);
+      if(already?.length) {
+        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Já consta aviso enviado para este processo; revisar histórico'});
+        return {ok:false as const,error:'Processo já possui aviso registrado'};
+      }
+    }
   }
   const cfg=getWaAutoConfig();
   if(!cfg.integrationToken) {
