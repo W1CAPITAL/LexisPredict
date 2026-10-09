@@ -7,7 +7,7 @@ import {processNextDueReturn} from '@/lib/wa-daily-return-service';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 function authenticated(request:Request){
- const secret=String(process.env.WA_MOVEMENT_CRON_SECRET||'');
+ const secret=String(process.env.CRON_SECRET||process.env.WA_MOVEMENT_CRON_SECRET||'');
  const token=String(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'').trim();
  return secret.length>=20 && token.length===secret.length &&
    timingSafeEqual(Buffer.from(secret),Buffer.from(token));
