@@ -1096,12 +1096,13 @@ function WhatsAppTerminalInner() {
         if ((res as any).provider === "waauto" || (res as any).provider === "evolution") {
           setBridgeProvider((res as any).provider);
         }
+        const deliveryConfirmed = (res as any).deliveryConfirmed === true;
         const msg: ChatMsg = {
           id: `evo-${Date.now()}`,
           direction: "out",
           body: draft.trim(),
           at: new Date().toISOString(),
-          source: String((res as any).provider || bridgeProvider || "whatsapp"),
+          source: deliveryConfirmed ? String((res as any).provider || bridgeProvider || 'whatsapp') : 'Aceito pela API · entrega não confirmada',
         };
         const next = [...history.filter((h) => h.direction !== "system"), msg];
         setHistory(next);
@@ -1110,7 +1111,10 @@ function WhatsAppTerminalInner() {
           void loadHistory(selected);
         }
         setDraft("");
-        if ((res as any).persisted === false) {
+        if (!deliveryConfirmed) {
+          toast({title:'Aceito pela API, mas entrega não confirmada',
+            description:'O provedor não confirmou recebimento no dispositivo. Verifique a conversa antes de reenviar.',variant:'destructive'});
+        } else if ((res as any).persisted === false) {
           toast({
             title: "Enviado no WhatsApp, mas NÃO gravou no Supabase",
             description: (res as any).persistError || "Confira SUPABASE_SERVICE_ROLE_KEY e a tabela",
