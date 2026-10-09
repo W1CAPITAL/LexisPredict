@@ -127,6 +127,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
     for (const row of found.values()) {
       const dados = row.dados && typeof row.dados === "object" ? row.dados : {};
       const base = {
+        ...dados, // o JSON legado é fallback; colunas SQL atualizadas sempre prevalecem
         id: row.id,
         db_id: row.id,
         protocolo: row.protocolo_ref || dados.protocolo,
@@ -164,7 +165,6 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
         created_by: row.created_by,
         atendido_por: row.atendido_por || dados.atendido_por,
         dados,
-        ...dados,
       };
       try {
         const processed = processarCaso(base as any);
