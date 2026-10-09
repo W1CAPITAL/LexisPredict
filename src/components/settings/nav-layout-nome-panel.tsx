@@ -19,9 +19,17 @@ export function NavLayoutNomePanel() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setMode(loadNavLayout());
-    setNome(String(profile?.nome || ""));
-  }, [profile?.nome]);
+    const syncMode = () => setMode(loadNavLayout());
+    syncMode();
+    window.addEventListener('lexis-nav-layout', syncMode);
+    window.addEventListener('storage', syncMode);
+    return () => {
+      window.removeEventListener('lexis-nav-layout', syncMode);
+      window.removeEventListener('storage', syncMode);
+    };
+  }, []);
+
+  useEffect(() => { setNome(String(profile?.nome || '')); }, [profile?.nome]);
 
   const applyMode = (m: NavLayoutMode) => {
     setMode(m);
