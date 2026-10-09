@@ -290,8 +290,8 @@ function WhatsAppTerminalInner() {
       });
     const onWaStatus=(event:Event)=>{
       const detail=(event as CustomEvent<{ready:boolean}>).detail;
-      if(detail?.ready){
-        setEvolutionOk(true);
+      if(typeof detail?.ready==='boolean'){
+        setEvolutionOk(detail.ready);
         setBridgeProvider('waauto');
       }
     };
@@ -1185,7 +1185,9 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  Andamentos · IA · histórico · WA.Auto conectado
+                  {bridgeProvider==='waauto' && evolutionOk===true
+                    ? 'Andamentos · IA · histórico · WA.Auto conectado'
+                    : 'Andamentos · IA · histórico · confirme a conexão WhatsApp'}
                 </p>
               </div>
             </div>
