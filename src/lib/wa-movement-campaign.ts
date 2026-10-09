@@ -5,7 +5,7 @@
 import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
-import { waAutoHealth, waAutoForOwner, sendViaWaAuto } from '@/lib/wa-auto-client';
+import { waAutoForOwner, sendViaWaAuto } from '@/lib/wa-auto-client';
 import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
@@ -31,7 +31,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement',
     alreadyClosed:0, consentMissing:0, needsReview:0, alreadyNotified:0, missingReturn:0, noNewMovement:0 };
   let after=0;
   for (;;) {
-    const {data,error}=await db.rpc('wa_notice_portfolio_rows',{p_empresa:empresaId,p_after:after,p_limit:600});
+    const {data,error}=await db.rpc('wa_notice_portfolio_rows',{p_empresa:empresaId,p_after:after,p_limit:3000});
     if(error)throw new Error('Carteira: '+error.message);
     const rows=(data||[]) as SourceRow[];
     for(const row of rows) {
@@ -48,7 +48,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement',
         else counts.withoutEvent++;
       } else entries.push(alert);
     }
-    if(rows.length<600)break;
+    if(rows.length<3000)break;
     after=Number(rows[rows.length-1].id);
   }
   return {entries,counts};
@@ -58,10 +58,14 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
   try {
     const ctx = await requireManager();
     const settings=await getDailyReturnSettings(ctx.empresa_id);
-    const { entries, counts } = await collectPortfolio(ctx.empresa_id,kind,settings.consentAttested);
     const db = await getSupabaseAdmin();
+    const [portfolio, priorResponse] = await Promise.all([
+      collectPortfolio(ctx.empresa_id,kind,settings.consentAttested),
+      db.rpc('wa_notice_prior',{p_empresa:ctx.empresa_id}),
+    ]);
+    const {entries,counts}=portfolio;
     // Preview excludes already queued/sent versions (database uniqueness also guards races).
-    const {data,error} = await db.rpc('wa_notice_prior',{p_empresa:ctx.empresa_id});
+    const {data,error}=priorResponse;
     if (error) throw new Error('Fila não instalada no Supabase. Aplique a migração: ' + error.message);
     const prior = new Set((data || []).map((x:{processo_id:number;event_hash:string}) => x.processo_id + ':' + x.event_hash));
     const pending = entries.filter(x => !prior.has(x.processo_id + ':' + x.event_hash));
@@ -82,7 +86,9 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     const settings=await getDailyReturnSettings(ctx.empresa_id);
     if (!settings.consentAttested && confirmed !== true)
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
-    const health = await waAutoHealth();
+    // Health must use the SAME server credential as the background dispatch.
+    // A browser-connected session alone did not validate automated sends (401).
+    const health = await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
     if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
     const db=await getSupabaseAdmin();
     const {data: existing} = await db.from('wa_movement_campaigns').select('id')
@@ -102,13 +108,15 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
     try {
-      for(let offset=0;offset<entries.length;offset+=12) {
-        const results=await Promise.all(entries.slice(offset,offset+12).map(notice=>
-          db.rpc('wa_add_campaign_notice',{p_campaign:campaign.id,p_notice:notice})));
-        for(const result of results) {
-          if(result.error)throw new Error(result.error.message);
-          if(result.data)inserted++;
-        }
+      // One atomic SQL batch per 300 records rather than 150+ sequential
+      // network round trips for a portfolio of ~2,600 cases.
+      for(let offset=0;offset<entries.length;offset+=300) {
+        const batch=entries.slice(offset,offset+300);
+        const {data:accepted,error:batchError}=await db.rpc('wa_add_campaign_notices',{
+          p_campaign:campaign.id,p_notices:batch,
+        });
+        if(batchError)throw new Error('Não foi possível preparar os avisos: '+batchError.message);
+        inserted+=Number(accepted||0);
       }
       await db.from('wa_movement_campaigns').update({total:inserted,status:inserted?'running':'completed'}).eq('id',campaign.id).eq('empresa_id',ctx.empresa_id);
       if(!inserted) {
