@@ -35,7 +35,7 @@ export async function fetchFastCarteira(
 
 /** Cache de snapshot de listagem empresarial. Sempre particionado pelo login. */
 const FAST_KEY = 'lexis_fast_carteira_v1:';
-const FAST_TTL_MS = 2 * 60_000;
+const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
 function keyFor(scope: 'mine' | 'empresa', limit: number, offset: number, empresaId: string, userId: string) {
