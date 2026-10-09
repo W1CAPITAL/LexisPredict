@@ -1,6 +1,6 @@
 import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
-import {waAutoForOwner} from '@/lib/wa-auto-client';
+import {waAutoForOwner,waAutoDeliveryConfirmed} from '@/lib/wa-auto-client';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
 import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
@@ -76,6 +76,16 @@ export async function processOneDailyReturn(input:{
     const failure=send.rejected?'send_rejected':'send_uncertain';
     await check(failure);
     return {ok:false,reason:failure,error:send.error,sent:false,requiresManualReview:!send.rejected};
+  }
+  if(!waAutoDeliveryConfirmed(send.raw)) {
+    // A API pode aceitar uma mensagem que o destinatario ainda nao consegue
+    // decifrar. Nao registrar atendimento nem data sem recibo de entrega.
+    await db.from('wa_daily_return_sends').update({
+      status:'uncertain',last_error:'Aceito pela ponte; não houve confirmação de entrega no aparelho',
+    }).eq('id',id).eq('empresa_id',input.empresaId);
+    await check('send_uncertain');
+    return {ok:false,reason:'send_uncertain',sent:false,requiresManualReview:true,
+      error:'WA.Auto aceitou o envio, mas não confirmou entrega legível. Confira o WhatsApp antes de reenviar.'};
   }
   const persisted=await persistWhatsAppMessage({
     contactNumber:notice.phone,messageText:notice.message,fromMe:true,
