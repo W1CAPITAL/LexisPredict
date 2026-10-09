@@ -140,6 +140,7 @@ export function MovementCampaignControl() {
           className="h-9 gap-1.5 rounded-xl border border-primary/30 bg-primary/10 text-foreground hover:bg-primary/20 text-[11px] font-bold">
           <FileClock size={14}/><span className="hidden sm:inline">Avisar publicações pendentes</span><span className="sm:hidden">Publicações</span>
         </Button>
+        <Button type="button" onClick={()=>void inspect("closure_scan")} size="sm">Scanner de encerramentos</Button>
         {campaign&&(
           <div className="flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1 text-[10px]">
             <span className="truncate max-w-[170px]" title={campaign.status}>
