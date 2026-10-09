@@ -26,8 +26,8 @@ export async function GET(request:Request){
  for(const config of configs||[]){
   const {count,error:countError}=await db.from('wa_daily_return_sends').select('id',{count:'exact',head:true})
     .eq('empresa_id',config.empresa_id).eq('local_day',day).eq('status','sent');
-  if(countError||Number(count||0)>=25)continue;
-  const result=await processNextDueReturn(config.empresa_id,config.interval_days);
+  if(countError||Number(count||0)>=120)continue;
+  const result=await processNextDueReturn(config.empresa_id,config.interval_days,true);
   if((result as any).processed)return NextResponse.json({ok:result.ok,processed:true,
     reason:(result as any).reason||null,sent:(result as any).sent===true},
     {headers:{'Cache-Control':'private, no-store'}});

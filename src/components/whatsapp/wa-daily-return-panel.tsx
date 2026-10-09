@@ -4,6 +4,7 @@ import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Checkbox} from '@/components/ui/checkbox';
 import {useToast} from '@/hooks/use-toast';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {useAdmin} from '@/hooks/use-admin';
 import {
  getWaDailyReturnDashboardAction,saveWaDailyReturnSettingsAction,
@@ -16,6 +17,7 @@ const captions:Record<string,string>={
  no_new_movement:'Nenhuma movimentação posterior ao último retorno: nada enviado',
  invalid_cnj:'CNJ inválido',outside_service_window:'Sem conversa aberta nas últimas 24 horas; exige template oficial aprovado',
  opt_out:'Cliente solicitou não receber avisos',already_contacted_today:'Cliente já recebeu comunicado hoje',
+ send_rejected:'WA.Auto rejeitou o envio; confira a conexão',
  sent:'Aviso aceito e retornos atualizados',send_uncertain:'Resultado da entrega incerto; verificar conversa antes de reenviar',
  history_unavailable:'Histórico do WhatsApp indisponível',sent_history_unsaved:'Mensagem aceita, mas histórico indisponível: revisar',
  sent_dates_review:'Mensagem aceita; atualização de datas exige revisão',no_due_cases:'Nenhum retorno vencido não conferido hoje',
@@ -23,6 +25,7 @@ const captions:Record<string,string>={
 function caption(raw:unknown){const v=String(raw||'');return captions[v]||v;}
 export function WaDailyReturnPanel(){
  const {isViewer}=useAdmin(),{toast}=useToast();
+ const [open,setOpen]=useState(false);
  const [dash,setDash]=useState<Dashboard|null>(null);
  const [enabled,setEnabled]=useState(false),[interval,setIntervalDays]=useState(1);
  const [cnj,setCnj]=useState(''),[preview,setPreview]=useState<any>(null);
@@ -34,7 +37,7 @@ export function WaDailyReturnPanel(){
   const r=await getWaDailyReturnDashboardAction();setDash(r);
   if(r.ok&&r.settings){setEnabled(r.settings.enabled);setIntervalDays(r.settings.intervalDays);}
  };
- useEffect(()=>{if(!isViewer)void load();return()=>{live.current=false;if(timer.current)clearTimeout(timer.current);};},[isViewer]);
+ useEffect(()=>{if(!isViewer&&open)void load();return()=>{live.current=false;if(timer.current)clearTimeout(timer.current);};},[isViewer,open]);
  const save=async(value=enabled)=>{
   setBusy(true);
   try{
@@ -79,7 +82,13 @@ export function WaDailyReturnPanel(){
   }finally{setBusy(false);}
  };
  if(isViewer)return null;
- return <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
+ return <>
+  <Button size="sm" variant="outline" className="h-9 rounded-xl text-[10px] font-bold uppercase" onClick={()=>setOpen(true)}>Retorno inteligente</Button>
+  <Dialog open={open} onOpenChange={value=>{setOpen(value);if(!value)stop();}}>
+   <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto overscroll-contain rounded-2xl">
+    <DialogHeader><DialogTitle>Retorno inteligente da carteira</DialogTitle>
+     <DialogDescription>Processos abertos com novidade posterior ao último retorno, de todos os responsáveis da empresa.</DialogDescription></DialogHeader>
+  <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
   <div className="flex flex-wrap items-center justify-between gap-3">
    <div><h3 className="font-semibold text-sm">Retorno inteligente · 1 comunicado por dia</h3>
     <p className="text-xs text-muted-foreground">Compara DataJud/DJEN com o último retorno. Sem movimento novo, não envia e não altera as datas.</p></div>
@@ -102,7 +111,7 @@ export function WaDailyReturnPanel(){
     <Button size="sm" disabled={busy||running} onClick={start}>Iniciar varredura</Button>
     <Button size="sm" variant="destructive" disabled={!running} onClick={stop}>Parar scanner</Button>
    </div>
-   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. A varredura manual continua enquanto esta aba permanecer aberta. A automação pelo servidor depende de agendador configurado.</p>
+   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. A varredura manual continua enquanto esta aba permanecer aberta. O scanner da carteira também prepara avisos quando a automação está ativa.</p>
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Verificar apenas um processo</p>
@@ -116,7 +125,8 @@ export function WaDailyReturnPanel(){
     <Button size="sm" disabled={busy||!preview.preview} onClick={()=>void sendOne()}>Verificar e enviar se houver novidade</Button>
    </div>}
   </div>
+  {dash&&!dash.ok&&<p role="alert" className="text-xs text-destructive">{dash.error}</p>}
   {last&&<p role="status" className="rounded-lg bg-muted/40 p-2 text-xs">Última verificação: {caption(last.reason||last.error)}{last.nextReturn?' · próximo retorno '+last.nextReturn:''}</p>}
-  <p className="text-[11px] text-muted-foreground">Para comunicações iniciadas pela empresa fora da janela de 24h, utilize templates oficiais aprovados. O WA Auto não comprova essa aprovação; nesses casos o sistema não envia mensagem livre. Não ativa contatos sem consentimento ou que tenham respondido SAIR.</p>
- </section>;
+  <p className="text-[11px] text-muted-foreground">Ao ativar, você confirma o consentimento e opt-in contratual dos clientes desta carteira. A fila respeita bloqueios, SAIR, intervalo entre mensagens e um aviso por telefone por dia.</p>
+ </section></DialogContent></Dialog></>;
 }

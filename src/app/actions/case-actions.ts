@@ -810,6 +810,13 @@ export async function auditCaseCoreSystem(
     };
   }
 
+  if(datajudOk || djenOk) {
+    try {
+      const {enqueueScannedMovement}=await import('@/lib/wa-movement-campaign');
+      await enqueueScannedMovement(empresaId,Number(dbItem.id));
+    } catch(e:any) { console.warn('[scanner-wa] fila indisponível',e?.message); }
+  }
+
   // Log visível: auto-encerrar / revisão
   try {
     if (patch.via_scan_auto_encerrar || patch.dados?.via_scan_auto_encerrar) {

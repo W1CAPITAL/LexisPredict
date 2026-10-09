@@ -51,6 +51,12 @@ describe('retorno inteligente DataJud/DJEN',()=>{
  it('schedules a configurable interval after a confirmed future send',()=>{
   expect(prepareDailyReturn(base,{mode:'single',today:'2026-10-09',intervalDays:7}).ready?.nextReturn).toBe('2026-10-16');
  });
+ it('compares Brazilian contact dates at the UTC midnight boundary',()=>{
+  expect(prepareDailyReturn({...base,ultimo_retorno:'2026-10-07',datajud_ultimo_movimento:'2026-10-08T01:00:00Z',djen_ultima_data:null},{mode:'single'}).reason).toBe('no_new_movement');
+ });
+ it('accepts Brazilian date strings and unformatted CNJ without losing the cutoff',()=>{
+  expect(prepareDailyReturn({...base,ultimo_retorno:'07/10/2026',protocolo_ref:'10089806020258260577'},{mode:'single'}).reason).toBe('ok');
+ });
  it('normalizes Brazilian numbers without guessing missing digits',()=>{
   expect(normalizePhone('(11) 99999-4321')).toBe('5511999994321');
   expect(normalizePhone('1234')).toBe('');

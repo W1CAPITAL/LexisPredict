@@ -9,7 +9,7 @@ const base: SourceRow = {
   datajud_ultimo_nome:'Despacho de mero expediente',
   djen_ultima_data:'2026-10-05',
   djen_ultimo_resumo:'Intimação disponibilizada',
-  dados:{},
+  dados:{whatsapp_opt_in:true}, ultimo_retorno:'2026-10-01', status:'EM ANDAMENTO',
 };
 describe('Avisos processuais WA.Auto',()=>{
   it('uses the dated latest verified movement between DJEN and DataJud',()=>{
@@ -21,8 +21,8 @@ describe('Avisos processuais WA.Auto',()=>{
     expect(r.alert?.phone).toBe('5511999991234');
   });
   it('does not manufacture a movement or date from empty cached data',()=>{
-    expect(prepareMovementAlert({...base,datajud_ultimo_nome:null,djen_ultimo_resumo:null}).reason).toBe('event');
-    expect(prepareMovementAlert({...base,datajud_ultimo_movimento:null,djen_ultima_data:null}).reason).toBe('event');
+    expect(prepareMovementAlert({...base,datajud_ultimo_nome:null,djen_ultimo_resumo:null}).reason).toBe('no_new_movement');
+    expect(prepareMovementAlert({...base,datajud_ultimo_movimento:null,djen_ultima_data:null}).reason).toBe('no_new_movement');
   });
   it('requires a valid Brazilian phone',()=>{
     expect(prepareMovementAlert({...base,telefone:'1234'}).reason).toBe('phone');
@@ -31,6 +31,15 @@ describe('Avisos processuais WA.Auto',()=>{
     expect(prepareMovementAlert({...base,dados:{nao_contatar:true}}).reason).toBe('blocked');
     expect(prepareMovementAlert({...base,dados:{whatsapp_opt_in:false}}).reason).toBe('blocked');
     expect(prepareMovementAlert({...base,dados:{consentimento_whatsapp:'não'}}).reason).toBe('blocked');
+  });
+  it('excludes closed and already-reported events',()=>{
+    expect(prepareMovementAlert({...base,status:'ENCERRADO'}).reason).toBe('closed');
+    expect(prepareMovementAlert({...base,ultimo_retorno:'2026-10-05'}).reason).toBe('no_new_movement');
+    expect(prepareMovementAlert({...base,ultimo_retorno:null}).reason).toBe('missing_return');
+  });
+  it('accepts documented portfolio consent without overriding refusal',()=>{
+    expect(prepareMovementAlert({...base,dados:{}},true).reason).toBe('ok');
+    expect(prepareMovementAlert({...base,dados:{whatsapp_opt_in:false}},true).reason).toBe('blocked');
   });
   it('makes stable unique fingerprints for the same process/movement',()=>{
     const a=prepareMovementAlert(base).alert!;

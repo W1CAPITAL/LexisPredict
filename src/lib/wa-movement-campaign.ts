@@ -5,10 +5,11 @@
 import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
-import { getWaAutoConfig, waAutoHealth } from '@/lib/wa-auto-client';
+import { waAutoHealth, waAutoForOwner, sendViaWaAuto } from '@/lib/wa-auto-client';
 import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
-import { preparePublicationNotice, type PublicationSourceRow } from '@/lib/wa-publication-builder';
+import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
+import {brazilToday} from '@/lib/wa-daily-return-policy';
 
 
 async function requireManager() {
@@ -23,97 +24,49 @@ async function requireManager() {
 type CampaignKind='movement'|'publication';
 
 
-/** Supabase outbound history is not necessarily complete. Never claim that
- * absence of a message here proves the customer was never informed elsewhere.
- */
-async function previousPublications(empresaId:string) {
-  const db=await getSupabaseAdmin();
-  const noticed=new Set<string>();
-  const optedOut=new Set<string>();
-  for(let start=0;start<25000;start+=500) {
-    const {data,error}=await db.from('whatsapp_messages')
-      .select('contact_number,phone,message_text,body,from_me')
-      .eq('empresa_id',empresaId)
-      .order('created_at',{ascending:true}).range(start,start+499);
-    if(error)throw new Error('Histórico de avisos indisponível; não iniciar campanha: '+error.message);
-    const entries=data||[];
-    for(const msg of entries) {
-      let phone=String(msg.contact_number||msg.phone||'').replace(/\D/g,'');
-      if(phone.length===10||phone.length===11)phone='55'+phone;
-      const body=String(msg.message_text||msg.body||'').trim();
-      if(msg.from_me===false) {
-        if(/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\s.!?]*$/i.test(body))optedOut.add(phone);
-        continue;
-      }
-      if(!/(?:TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA)/i.test(body))continue;
-      for(const cnj of body.match(/\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g)||[])
-        noticed.add(phone+':'+cnj.replace(/\D/g,''));
-    }
-    if(entries.length<500)return {noticed,optedOut};
-  }
-  throw new Error('Histórico grande demais para conferência segura nesta execução. Revise o histórico antes de enviar avisos.');
-}
-
-async function collectPortfolio(empresaId: string, kind:CampaignKind='movement') {
+async function collectPortfolio(empresaId: string, kind:CampaignKind='movement', attested=false) {
   const db = await getSupabaseAdmin();
   const entries: Alert[] = [];
-  const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0,
-    alreadyClosed:0,consentMissing:0,needsReview:0,alreadyNotified:0 };
-  const previous=kind==='publication'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
-  const seen = new Set<string>();
-  // Supabase caps the number of records per request. Pagination covers the entire company.
-  for (let offset=0; offset<100000; offset+=400) {
-    const {data,error} = await db.from('processos')
-      .select('*')
-      .eq('empresa_id',empresaId).order('id',{ascending:true}).range(offset,offset+399);
-    if (error) throw new Error('Carteira: ' + error.message);
-    const rows = (data || []) as SourceRow[];
-    for (const row of rows) {
+  const counts = { scanned:0, withoutPhone:0, withoutEvent:0, blocked:0, samePhone:0,
+    alreadyClosed:0, consentMissing:0, needsReview:0, alreadyNotified:0, missingReturn:0, noNewMovement:0 };
+  let after=0;
+  for (;;) {
+    const {data,error}=await db.rpc('wa_notice_portfolio_rows',{p_empresa:empresaId,p_after:after,p_limit:600});
+    if(error)throw new Error('Carteira: '+error.message);
+    const rows=(data||[]) as SourceRow[];
+    for(const row of rows) {
       counts.scanned++;
-      const prepared=kind==='publication'?preparePublicationNotice(row as PublicationSourceRow):null;
-      const result=kind==='publication'?null:prepareMovementAlert(row);
-      const alert=kind==='publication'?prepared?.notice:result?.alert;
-      const reason=kind==='publication'?prepared?.reason:result?.reason;
-      if (!alert) {
-        if (reason==='phone') counts.withoutPhone++;
-        else if (reason==='blocked') counts.blocked++;
-        else if (reason==='already_closed') counts.alreadyClosed++;
-        else if (reason==='consent_missing') counts.consentMissing++;
-        else if (reason==='review_verdict'||reason==='review_conflict') counts.needsReview++;
-        else if (reason==='already_notified') counts.alreadyNotified++;
+      const {alert,reason}=prepareMovementAlert(row,attested);
+      if(!alert) {
+        if(reason==='phone')counts.withoutPhone++;
+        else if(reason==='blocked')counts.blocked++;
+        else if(reason==='closed')counts.alreadyClosed++;
+        else if(reason==='no_consent')counts.consentMissing++;
+        else if(reason==='missing_return')counts.missingReturn++;
+        else if(reason==='no_new_movement')counts.noNewMovement++;
         else counts.withoutEvent++;
-        continue;
-      }
-      if(kind==='publication'&&previous.optedOut.has(alert.phone)){
-        counts.blocked++;continue;
-      }
-      if(kind==='publication'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
-        counts.alreadyNotified++;continue;
-      }
-      const key = alert.processo_id + ':' + alert.event_hash;
-      if (seen.has(key)) { counts.samePhone++; continue; }
-      seen.add(key);
-      entries.push(alert);
+      } else entries.push(alert);
     }
-    if (rows.length < 400) break;
+    if(rows.length<600)break;
+    after=Number(rows[rows.length-1].id);
   }
-  return { entries, counts };
+  return {entries,counts};
 }
 
 export async function previewMovementCampaign(kind:CampaignKind='movement') {
   try {
     const ctx = await requireManager();
-    const { entries, counts } = await collectPortfolio(ctx.empresa_id,kind);
+    const settings=await getDailyReturnSettings(ctx.empresa_id);
+    const { entries, counts } = await collectPortfolio(ctx.empresa_id,kind,settings.consentAttested);
     const db = await getSupabaseAdmin();
     // Preview excludes already queued/sent versions (database uniqueness also guards races).
-    const {data,error} = await db.from('wa_movement_dispatches')
-      .select('processo_id,event_hash').eq('empresa_id',ctx.empresa_id).limit(100000);
+    const {data,error} = await db.rpc('wa_notice_prior',{p_empresa:ctx.empresa_id});
     if (error) throw new Error('Fila não instalada no Supabase. Aplique a migração: ' + error.message);
-    const prior = new Set((data || []).map(x => x.processo_id + ':' + x.event_hash));
+    const prior = new Set((data || []).map((x:{processo_id:number;event_hash:string}) => x.processo_id + ':' + x.event_hash));
     const pending = entries.filter(x => !prior.has(x.processo_id + ':' + x.event_hash));
     return {
       ok: true as const,kind, counts: { ...counts, alreadyQueued: entries.length - pending.length, eligible: pending.length },
-      samples: pending.slice(0,5).map(x => ({ client: x.client_name, cnj: x.protocolo, source: x.source, date: x.event_at, message: x.message,
+      consentAttested:settings.consentAttested, samples: pending.slice(0,5).map(x => ({ client: x.client_name, cnj: x.protocolo, source: x.source, date: x.event_at, message: x.message,
         verdict:(x as any).verdict||null,kind:(x as any).kind||null })),
     };
   } catch (e: any) {
@@ -124,10 +77,9 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
 export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement') {
   try {
     const ctx=await requireManager();
-    // Publication campaigns are enabled by the manager's click to start; do not
-    // request a redundant checkbox. Per-recipient documented opt-in remains
-    // mandatory in preparePublicationNotice, including when run from cron.
-    if (kind !== 'publication' && confirmed !== true)
+    // Recorded portfolio consent avoids repeated prompts; individual refusal always wins.
+    const settings=await getDailyReturnSettings(ctx.empresa_id);
+    if (!settings.consentAttested && confirmed !== true)
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
     const health = await waAutoHealth();
     if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
@@ -136,31 +88,28 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
       .eq('empresa_id',ctx.empresa_id).eq('status','running').limit(1);
     if (existing?.length) throw new Error('Já existe uma campanha ativa desta empresa. Pause ou conclua antes de criar outra.');
 
-    const {entries}=await collectPortfolio(ctx.empresa_id,kind);
+    if(confirmed)await upsertDailyReturnSettings(ctx.empresa_id,ctx.auth_id,settings.enabled,settings.intervalDays,true);
+    const {entries}=await collectPortfolio(ctx.empresa_id,kind,confirmed||settings.consentAttested);
     if (!entries.length) throw new Error(
       kind === 'publication'
-        ? 'Nenhum aviso elegível: confira consentimentos individuais registrados, mérito confirmado e status da carteira. Não foram criadas mensagens.'
+        ? 'Nenhum aviso elegível: confira telefone, data do último retorno e novidade em processos abertos.'
         : 'Nenhum processo com telefone válido e movimentação identificada.'
     );
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
-      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind })
+      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed || settings.consentAttested,status:'paused',campaign_kind:kind })
       .select('id').single();
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
     try {
-      for(let offset=0;offset<entries.length;offset+=150) {
-        const values=entries.slice(offset,offset+150).map(x=>({
-          empresa_id:x.empresa_id,processo_id:x.processo_id,protocolo:x.protocolo,
-          phone:x.phone,client_name:x.client_name,source:x.source,event_at:x.event_at,
-          event_hash:x.event_hash,message:x.message,campaign_id:campaign.id,
-        }));
-        const {data,error}=await db.from('wa_movement_dispatches').upsert(values,{
-          onConflict:'empresa_id,processo_id,event_hash',ignoreDuplicates:true,
-        }).select('id');
-        if(error) throw new Error(error.message);
-        inserted+=(data||[]).length;
+      for(let offset=0;offset<entries.length;offset+=12) {
+        const results=await Promise.all(entries.slice(offset,offset+12).map(notice=>
+          db.rpc('wa_add_campaign_notice',{p_campaign:campaign.id,p_notice:notice})));
+        for(const result of results) {
+          if(result.error)throw new Error(result.error.message);
+          if(result.data)inserted++;
+        }
       }
-      await db.from('wa_movement_campaigns').update({total:inserted}).eq('id',campaign.id).eq('empresa_id',ctx.empresa_id);
+      await db.from('wa_movement_campaigns').update({total:inserted,status:inserted?'running':'completed'}).eq('id',campaign.id).eq('empresa_id',ctx.empresa_id);
       if(!inserted) {
         await db.from('wa_movement_campaigns').update({status:'completed'}).eq('id',campaign.id);
         throw new Error('Todos os movimentos já estavam na fila ou já foram enviados. Não serão duplicados.');
@@ -234,82 +183,53 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
     return {ok:false as const,error:'Sessão responsável sem autorização'};
   }
-  if (campaign.status==='running') {
-    const {data:current,error:rowError}=await db.from('processos')
-      .select('*')
-      .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
-    const isPublication=await db.from('wa_movement_campaigns').select('campaign_kind').eq('id',campaign.id).single();
-    if(rowError || !current) {
-      await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
-      return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
-    }
-    if(isPublication.data?.campaign_kind==='publication') {
-      const check=preparePublicationNotice(current as PublicationSourceRow);
-      if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
-        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
-        return {ok:false as const,error:'Aviso não enviado: dados ou consentimento alterados'};
-      }
-      // A client may opt out after the preview but before the queued send.
-      const {data:replies,error:replyError}=await db.from('whatsapp_messages')
-        .select('message_text,body,from_me').eq('empresa_id',campaign.empresa_id)
-        .eq('from_me',false)
-        .or('contact_number.eq.'+claimed.phone+',phone.eq.'+claimed.phone)
-        .order('created_at',{ascending:false}).limit(150);
-      if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
-        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Cliente solicitou parar ou não foi possível conferir opt-out'});
-        return {ok:false as const,error:'Aviso cancelado: preferência de contato deve ser verificada'};
-      }
-      const {data:already}=await db.from('wa_movement_dispatches')
-         .select('id,message').eq('empresa_id',campaign.empresa_id)
-        .eq('processo_id',claimed.processo_id).eq('status','sent')
-        .neq('id',claimed.id).limit(150);
-      if((already||[]).some(x=>/TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA/i.test(String(x.message||'')))) {
-        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Já consta aviso enviado para este processo; revisar histórico'});
-        return {ok:false as const,error:'Processo já possui aviso registrado'};
-      }
-    }
+  const settings=await getDailyReturnSettings(campaign.empresa_id);
+  const {data:current,error:rowError}=await db.from('processos').select('*')
+    .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
+  const check=current ? prepareMovementAlert(current as SourceRow,settings.consentAttested) : null;
+  if(rowError || !check?.alert || check.alert.event_hash!==claimed.event_hash || check.alert.phone!==claimed.phone) {
+    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Carteira alterada ou retorno já registrado: aviso cancelado'});
+    return {ok:true as const,processed:true as const,status:'skipped',reason:check?.reason||'case_missing'};
   }
-  const cfg=getWaAutoConfig();
-  if(!cfg.integrationToken) {
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'uncertain',p_error:'WA_INTEGRATION_TOKEN ausente'});
-    return {ok:false as const,error:'Integração WA.Auto sem token no servidor'};
+  // Check current opt-out before EACH delivery, not only at preparation.
+  const {data:replies,error:replyError}=await db.from('whatsapp_messages')
+    .select('message_text,body').eq('empresa_id',campaign.empresa_id).eq('from_me',false)
+    .or('contact_number.eq.'+claimed.phone+',phone.eq.'+claimed.phone+',contact_number.eq.'+claimed.phone.slice(2)+',phone.eq.'+claimed.phone.slice(2))
+    .order('created_at',{ascending:false}).limit(150);
+  if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
+    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Opt-out ou histórico indisponível; não enviado'});
+    return {ok:true as const,processed:true as const,status:'skipped'};
   }
-  let result:'sent'|'failed'|'uncertain'='uncertain';
-  let failure='';
-  let responsePayload:any=null;
-  try {
-    const response=await fetch(cfg.baseUrl+'/api/integrations/lexispredict/send',{
-      method:'POST',
-      headers:{
-        Authorization:'Bearer '+cfg.integrationToken,
-        'x-wa-integration-token':cfg.integrationToken,
-        'x-lexis-user-id':String(campaign.owner_auth_id),
-        'Content-Type':'application/json',
-      },
-      body:JSON.stringify({to:claimed.phone,message:claimed.message}),
-      cache:'no-store',
-      signal:AbortSignal.timeout(40000),
-    });
-    responsePayload=await response.json().catch(()=>null);
-    if(response.ok && responsePayload?.ok!==false) {
-      result='sent';
-      await persistWhatsAppMessage({
-        contactNumber:claimed.phone,messageText:claimed.message,fromMe:true,
-        source:'lexis-waauto-movement',empresaId:campaign.empresa_id,
-        timestamp:new Date().toISOString(),raw:responsePayload,
-        messageId:String(responsePayload?.key?.id||responsePayload?.messageId||claimed.id),
-      }).catch(()=>({ok:false}));
-    } else {
-      // HTTP 4xx returned by the transport is explicitly rejected; never retry.
-      result='failed';failure='WA.Auto rejeitou a mensagem (HTTP '+response.status+').';
-    }
-  } catch {
-    // Request may have succeeded remotely before our timeout: never retry.
-    result='uncertain';failure='Resposta do WA.Auto desconhecida. Verifique a conversa antes de retomar.';
+  const today=brazilToday();
+  const {data:reservation,error:reserveError}=await db.rpc('wa_reserve_return',{
+    p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,p_phone:claimed.phone,p_hash:claimed.event_hash,
+    p_source:claimed.source,p_event_at:claimed.event_at,p_mode:'movement',p_message:check.alert.message,
+  });
+  if(reserveError)throw new Error(reserveError.message);
+  if(!reservation) {
+    // Another path may have contacted this phone or reached the common quota.
+    await db.from('wa_movement_dispatches').update({status:'pending',claimed_at:null})
+      .eq('id',claimed.id).eq('status','processing');
+    return {ok:true as const,processed:false as const,reason:'contact_or_quota_reserved'};
   }
-  const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:failure||null});
-  if(finishError) return {ok:false as const,error:'Falha ao confirmar o histórico do envio: '+finishError.message};
-  return {ok:result==='sent',processed:true as const,status:result,error:failure||null};
+  const send=options.verifiedOwner ? await sendViaWaAuto(claimed.phone,check.alert.message)
+    : await waAutoForOwner(campaign.owner_auth_id,campaign.empresa_id,claimed.phone,check.alert.message);
+  const result=send.ok?'sent':send.rejected?'failed':'uncertain';
+  const failure=send.ok?null:send.error;
+  await db.from('wa_daily_return_sends').update({status:send.ok?'sent':send.rejected?'rejected':'uncertain',
+    sent_at:send.ok?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
+  if(send.ok) {
+    const history=await persistWhatsAppMessage({contactNumber:claimed.phone,messageText:check.alert.message,
+      fromMe:true,source:'lexis-waauto-movement',empresaId:campaign.empresa_id,
+      messageId:'wa-return-'+reservation,raw:send.raw});
+    if(history.ok)await db.rpc('wa_record_return',{p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,
+      p_prior:current.ultimo_retorno||null,p_day:today,p_interval:settings.intervalDays,p_send:reservation});
+  }
+  const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:failure});
+  if(!send.ok && send.rejected && (send.httpStatus===401||send.httpStatus===403||send.httpStatus===409))
+    await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
+  if(finishError)return {ok:false as const,error:'Histórico do envio: '+finishError.message};
+  return {ok:send.ok,processed:true as const,status:result,error:failure};
 }
 
 export async function deliverMovementFromOperator(campaignId:string) {
@@ -322,4 +242,20 @@ export async function deliverMovementFromOperator(campaignId:string) {
     if(campaign.owner_auth_id !== ctx.auth_id) throw new Error('Somente o WhatsApp do responsável pode executar esta campanha.');
     return await deliverNextMovement({campaignId,verifiedOwner:ctx.auth_id});
   }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
+}
+
+/** Scanner hook: queues a dated newer event for ALL owners in this tenant.
+ * No remote WhatsApp call delays the tribunal scanner. */
+export async function enqueueScannedMovement(empresaId:string,processId:number) {
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled||!settings.ownerAuthId)return {queued:false};
+  const db=await getSupabaseAdmin();
+  const {data:row,error}=await db.rpc('wa_notice_portfolio_rows',{p_empresa:empresaId,p_after:processId-1,p_limit:1});
+  const current=(row||[])[0] as SourceRow|undefined;
+  if(error||!current||Number(current.id)!==processId)return {queued:false};
+  const prepared=prepareMovementAlert(current,settings.consentAttested);
+  if(!prepared.alert)return {queued:false,reason:prepared.reason};
+  const {data,error:queueError}=await db.rpc('wa_enqueue_notice',{p_empresa:empresaId,p_owner:settings.ownerAuthId,p_notice:prepared.alert});
+  if(queueError)throw new Error(queueError.message);
+  return {queued:!!data};
 }

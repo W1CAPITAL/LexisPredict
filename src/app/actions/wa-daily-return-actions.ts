@@ -23,7 +23,7 @@ export async function getWaDailyReturnDashboardAction(){
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 export async function saveWaDailyReturnSettingsAction(enabled:boolean,intervalDays:number) {
- try{const me=await manager();await upsertDailyReturnSettings(me.empresaId,me.authId,enabled,intervalDays);
+ try{const me=await manager();await upsertDailyReturnSettings(me.empresaId,me.authId,enabled,intervalDays,enabled);
   return {ok:true as const};
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
@@ -46,7 +46,7 @@ export async function previewWaReturnCnjAction(cnj:string){
   if(error)throw new Error(error.message);
   if((data||[]).length!==1)throw new Error('CNJ inexistente ou duplicado; selecione o processo correto na carteira.');
   const settings=await getDailyReturnSettings(me.empresaId);
-  const result=prepareDailyReturn(data![0],{mode:'single',intervalDays:settings.intervalDays});
+  const result=prepareDailyReturn(data![0],{mode:'single',intervalDays:settings.intervalDays,consentAttested:settings.consentAttested});
   return {ok:true as const,processId:data![0].id,cnj:formatted,
     reason:result.reason,preview:result.ready?.message||null,
     eventAt:result.ready?.eventAt||null,source:result.ready?.source||null};

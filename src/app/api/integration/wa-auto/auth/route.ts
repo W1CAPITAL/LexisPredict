@@ -2,6 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { resolveWaAutoPermissions } from "@/lib/wa-auto-permissions";
 
+import {verifyWaWorkerIdentity} from '@/lib/wa-worker-auth';
+import {getWaAutoConfig} from '@/lib/wa-auto-client';
+
 export const dynamic = "force-dynamic";
 
 
@@ -37,6 +40,27 @@ export async function GET(request: Request) {
       { ok: false, error: "missing_bearer" },
       { status: 401 }
     );
+  }
+
+  // Background sends use the same server credential without relying on a
+  // browser cookie or requiring WA.Auto and Lexis to share identical tokens.
+  if (token.startsWith('lexiswa1.')) {
+    const identity=verifyWaWorkerIdentity(token,getWaAutoConfig().integrationToken);
+    if(!identity || !serviceKey) return NextResponse.json({ok:false,error:'invalid_worker'},{status:401});
+    const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const {data:profile}=await db.from('usuarios').select('empresa_id,cargo')
+      .eq('auth_user_id',identity.userId).eq('empresa_id',identity.empresaId).maybeSingle();
+    const permission=resolveWaAutoPermissions(profile);
+    const [{data:settings},{data:campaign}]=await Promise.all([
+      db.from('wa_daily_return_settings').select('empresa_id').eq('empresa_id',identity.empresaId)
+        .eq('owner_auth_id',identity.userId).eq('enabled',true).maybeSingle(),
+      db.from('wa_movement_campaigns').select('id').eq('empresa_id',identity.empresaId)
+        .eq('owner_auth_id',identity.userId).eq('status','running').limit(1).maybeSingle(),
+    ]);
+    if(!profile || !permission.canManage || (!settings && !campaign))
+      return NextResponse.json({ok:false,error:'worker_not_authorized'},{status:403});
+    return NextResponse.json({ok:true,userId:identity.userId,empresaId:identity.empresaId,
+      role:permission.role,canManage:permission.canManage},{headers:{'Cache-Control':'private, no-store'}});
   }
 
   const verifier = createClient(url, publicKey, {

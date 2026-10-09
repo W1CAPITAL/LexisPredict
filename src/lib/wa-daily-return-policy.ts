@@ -20,14 +20,15 @@ export type ReturnDecision={ready:PreparedReturn|null;reason:'ok'|'not_due'|'clo
 export function brazilToday(now:Date=new Date()):string {
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 }
-const affirmative=(v:unknown)=>v===true||['sim','true','1','yes'].includes(String(v??'').toLowerCase());
+const affirmative=(v:unknown)=>v===true||['sim','s','true','1','yes'].includes(String(v??'').trim().toLowerCase());
+const denied=(v:unknown)=>v===false||['não','nao','n','false','0','no'].includes(String(v??'').trim().toLowerCase());
 const blockedValue=(v:unknown)=>affirmative(v);
 export function normalizePhone(value:unknown):string {
   let s=String(value??'').replace(/\D/g,'');
   if(s.length===10||s.length===11)s='55'+s;
   return /^55\d{10,11}$/.test(s)?s:'';
 }
-function validDay(raw:unknown):string|null {
+export function validReturnDay(raw:unknown):string|null {
   const s=String(raw||'').trim();
   const pt=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   const day=pt?`${pt[3]}-${pt[2]}-${pt[1]}`:s.slice(0,10);
@@ -37,8 +38,8 @@ function validDay(raw:unknown):string|null {
 }
 function eventMillis(raw:unknown):number {
   const value=String(raw||'').trim();
-  const day=validDay(value);
-  const ms=Date.parse(day && value.length===10?day+'T12:00:00Z':value);
+  const day=validReturnDay(value);
+  const ms=Date.parse(day && (value.length===10 || /^\d{2}\/\d{2}\/\d{4}$/.test(value))?day+'T12:00:00Z':value);
   return Number.isFinite(ms)&&ms>946684800000&&ms<=Date.now()+86400000?ms:0;
 }
 const text=(s:unknown)=>String(s||'').replace(/<[^>]*>/g,' ').replace(/[\u0000-\u001f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,650);
@@ -59,29 +60,33 @@ export function isStatusRequest(input:string):boolean {
  * A date-only last-return record cannot distinguish two events on the same day.
  */
 export function prepareDailyReturn(row:ReturnCase,opts:{
-  mode:ReturnMode;today?:string;intervalDays?:number;
+  mode:ReturnMode;today?:string;intervalDays?:number;consentAttested?:boolean;
 }):ReturnDecision {
   const meta=row.dados||{};
   if(isCasoEncerrado(row))return {ready:null,reason:'closed'};
   const hasOptIn=['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>affirmative(meta[k]));
-  if(['nao_contatar','não_contatar','whatsapp_opt_out','optOut','optout','bloquear_whatsapp'].some(k=>blockedValue(meta[k])))
+  if(['nao_contatar','não_contatar','whatsapp_opt_out','optOut','optout','bloquear_whatsapp','naoEnviarWhatsapp'].some(k=>blockedValue(meta[k])) || ['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>denied(meta[k])))
     return {ready:null,reason:'blocked'};
-  if(!hasOptIn)return {ready:null,reason:'no_consent'};
+  if(!hasOptIn && opts.consentAttested!==true)return {ready:null,reason:'no_consent'};
   const phone=normalizePhone(row.telefone||meta.telefone||meta.TELEFONE);
   if(!phone)return {ready:null,reason:'phone'};
   const today=opts.today||brazilToday();
-  const due=validDay(row.proximo_retorno||meta.proximoRetorno||meta.proximo_retorno);
+  const due=validReturnDay(row.proximo_retorno||meta.proximoRetorno||meta.proximo_retorno);
   if(opts.mode==='due' && (!due||due>today))return {ready:null,reason:'not_due'};
-  const last=validDay(row.ultimo_retorno||meta.ultimoRetorno||meta.ultimo_retorno);
+  const last=validReturnDay(row.ultimo_retorno||meta.ultimoRetorno||meta.ultimo_retorno);
   if(!last)return {ready:null,reason:'missing_return'};
   const candidates=[
     {source:'DataJud' as const,date:eventMillis(row.datajud_ultimo_movimento),text:text(row.datajud_ultimo_nome)},
     {source:'DJEN' as const,date:eventMillis(row.djen_ultima_data),text:text(row.djen_ultimo_resumo)},
   ].filter(c=>c.date>0&&c.text).sort((a,b)=>b.date-a.date);
   const latest=candidates[0];
-  const threshold=Date.parse(last+'T23:59:59.999Z');
-  if(!latest||latest.date<=threshold)return {ready:null,reason:'no_new_movement'};
-  const cnj=String(row.protocolo_ref||'').trim();
+  // The return is a local date. Compare event calendar days to avoid midnight
+  // UTC movements being treated as new on the same Brazilian contact day.
+  const latestDay=latest ? (latest.source==='DJEN' ? validReturnDay(row.djen_ultima_data)! : brazilToday(new Date(latest.date))) : '';
+  const threshold=last;
+  if(!latest||latestDay<=threshold)return {ready:null,reason:'no_new_movement'};
+  const digits=String(row.protocolo_ref||meta.protocolo||'').replace(/\D/g,'');
+  const cnj=digits.length===20 ? `${digits.slice(0,7)}-${digits.slice(7,9)}.${digits.slice(9,13)}.${digits.slice(13,14)}.${digits.slice(14,16)}.${digits.slice(16)}` : '';
   if(!/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(cnj))
     return {ready:null,reason:'invalid_cnj'};
   const name=text(row.cliente||meta.cliente||'Cliente').split(' ')[0]||'cliente';

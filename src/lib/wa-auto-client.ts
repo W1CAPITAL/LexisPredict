@@ -170,7 +170,7 @@ export async function sendViaWaAuto(to: string, message: string) {
     if (!res.ok || body?.ok === false) {
       return {
         ok: false as const,
-        configured: true,
+        configured: true, rejected: res.status>=400 && res.status<500, httpStatus:res.status,
         error: String(body?.error || `WA.Auto HTTP ${res.status}`),
       };
     }
@@ -338,4 +338,23 @@ export async function logoutWaAuto() {
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha ao desconectar WA.Auto" };
   }
+}
+
+/** Already-authorized background identity; never accepts identity from a browser argument. */
+export async function waAutoForOwner(userId:string,empresaId:string,to?:string,message?:string) {
+  const cfg=getWaAutoConfig();
+  try {
+    const {signWaWorkerIdentity}=await import('@/lib/wa-worker-auth');
+    const token=signWaWorkerIdentity(userId,empresaId,cfg.integrationToken);
+    const response=await fetch(cfg.baseUrl+'/api/integrations/lexispredict/'+(to?'send':'status'),{
+      method:to?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      ...(to?{body:JSON.stringify({to,message})}:{}),cache:'no-store',signal:AbortSignal.timeout(to?40000:12000),
+    });
+    const body=await readJson(response);
+    if(!response.ok||body?.ok===false)return {ok:false as const,rejected:response.status>=400&&response.status<500,
+      httpStatus:response.status,error:String(body?.error||'WA.Auto HTTP '+response.status),raw:body};
+    if(!to && body?.connection?.status!=='ready')return {ok:false as const,rejected:true,
+      httpStatus:409,error:'WhatsApp do responsável desconectado',raw:body};
+    return {ok:true as const,raw:body};
+  }catch(e:any){return {ok:false as const,rejected:false,error:String(e?.message||'WA.Auto indisponível')};}
 }
