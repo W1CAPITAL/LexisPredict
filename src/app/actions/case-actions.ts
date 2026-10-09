@@ -153,7 +153,7 @@ export async function auditCaseCoreSystem(
   protocolo: string,
   empresaId: string,
   mode: 'datajud' | 'djen' | 'both' = 'both',
-  options: { fast?: boolean; useClaudeAi?: boolean } = {}
+  options: { fast?: boolean; useClaudeAi?: boolean; cloudBudget?: boolean } = {}
 ) {
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
@@ -194,12 +194,13 @@ export async function auditCaseCoreSystem(
       fetchDataJud(protoSafe, 1, { ...options, fast: options.fast !== false }),
       fetchDjenComunicacoes(protoSafe, {
         dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        cloudBudget: options.cloudBudget,
       }),
     ]);
     if (djS.status === 'fulfilled') preDataJud = djS.value;
     if (djenS.status === 'fulfilled') preDjen = djenS.value;
     // Retry DJEN se falhou na paralela
-    if (!preDjen || preDjen.success === false) {
+    if ((!preDjen || preDjen.success === false) && !options.cloudBudget) {
       try {
         await new Promise((r) => setTimeout(r, 800));
         preDjen = await fetchDjenComunicacoes(protoSafe, {
@@ -210,7 +211,7 @@ export async function auditCaseCoreSystem(
       }
     }
     // Retry DataJud se erro — attempt=2 fura o cache (attempt=1 só lê memória)
-    if (!preDataJud || preDataJud.error) {
+    if ((!preDataJud || preDataJud.error) && !options.cloudBudget) {
       try {
         await new Promise((r) => setTimeout(r, 600));
         preDataJud = await fetchDataJud(protoSafe, 2, { ...options, fast: false });
@@ -369,8 +370,9 @@ export async function auditCaseCoreSystem(
               dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
                 .toISOString()
                 .split('T')[0],
+              cloudBudget: options.cloudBudget,
             });
-      if ((!djenRes || djenRes.success === false) && mode === 'djen') {
+      if ((!djenRes || djenRes.success === false) && mode === 'djen' && !options.cloudBudget) {
         await new Promise((r) => setTimeout(r, 900));
         djenRes = await fetchDjenComunicacoes(protoSafe || protocolo, {
           dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
@@ -421,7 +423,7 @@ export async function auditCaseCoreSystem(
   }
 
   // Ultima chance sequencial se ainda vazio (Sugerir resposta) — attempt=2 fura o cache
-  if (mode === 'both' && movimentos.length === 0 && comunicacoes.length === 0) {
+  if (mode === 'both' && movimentos.length === 0 && comunicacoes.length === 0 && !options.cloudBudget) {
     try {
       const dj = await fetchDataJud(protoSafe || protocolo, 2, { fast: false });
       if (dj && !dj.error && Array.isArray(dj.movimentos) && dj.movimentos.length) {
