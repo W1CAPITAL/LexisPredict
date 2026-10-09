@@ -37,7 +37,7 @@ async function initialize(requestId) {
         emit(requestId, 'loading', { message: 'Baixando modelo local pela primeira vez...' });
       }
     };
-    const opts = { dtype: 'q4', device: self.navigator?.gpu ? 'webgpu' : 'wasm', progress_callback };
+    const opts = { dtype: self.navigator?.gpu ? 'q4' : 'q8', device: self.navigator?.gpu ? 'webgpu' : 'wasm', progress_callback };
     try {
       generator = await lib.pipeline('text-generation', MODEL, opts);
     } catch (error) {
