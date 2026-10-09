@@ -61,7 +61,6 @@ import { WaAutoConnectionCard } from "@/components/whatsapp/wa-auto-connection-c
 import { MovementCampaignControl } from "@/components/whatsapp/movement-campaign-control";
 import { WaDailyReturnPanel } from "@/components/whatsapp/wa-daily-return-panel";
 import {
-  fetchRepoCasesPageAction,
   registrarAtendimentoAction,
   registrarAtendimentoCompletoAction,
   scanSingleCaseAction,
@@ -80,6 +79,8 @@ import {
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
+import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
+import { peekCarteiraCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst} from "@/lib/djen";
 import { buildUnifiedTimeline } from "@/lib/timeline-normalize";
@@ -158,7 +159,10 @@ function todayBR() {
 
 function WhatsAppTerminalInner() {
   const { toast } = useToast();
-  const { canCopy, canExport, canScan, isViewer } = useAdmin();
+  const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
+  const empresaId = String(profile?.empresa_id || '');
+  const authUserId = String(profile?.auth_user_id || '');
+  const WHATSAPP_PAGE_SIZE = 100;
   const searchParams = useSearchParams();
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 
@@ -229,29 +233,42 @@ function WhatsAppTerminalInner() {
       catch { return item as LegalCase; }
     });
   const loadCases = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetchRepoCasesPageAction(350,0,true);
-      const page = Array.isArray(response) ? response : [];
-      setCases(mapCases(page));
-      setHasMoreCases(page.length===350);
-    } catch {
-      toast({title:"Falha ao carregar carteira",variant:"destructive"});
-    } finally {
+    if(!empresaId||!authUserId){setLoading(false);return;}
+    const snapshot=peekCarteiraCache(empresaId,'empresa',authUserId,'whatsapp-portfolio');
+    if(snapshot?.cases?.length){
+      setCases(mapCases(snapshot.cases));
+      setHasMoreCases(snapshot.cases.length>=WHATSAPP_PAGE_SIZE);
       setLoading(false);
-    }
-  },[toast]);
+      // Voltar para a aba nao refaz a busca se os dados têm poucos minutos.
+      if(snapshot.ageMs<3*60_000)return;
+    } else setLoading(true);
+    try {
+      const response=await fetchCarteiraPageClient({empresaId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:0});
+      const page=mapCases(response);
+      setCases(old=>{
+        const merged=mergeCarteiraPages(page,old);
+        writeCarteiraCache(merged,empresaId,'empresa',authUserId,'whatsapp-portfolio',false);
+        return merged;
+      });
+      setHasMoreCases(response.length===WHATSAPP_PAGE_SIZE);
+    } catch {
+      toast({title:'Carteira indisponível; exibindo últimos dados salvos',variant:'destructive'});
+    } finally {setLoading(false);}
+  },[empresaId,authUserId,toast]);
 
   const loadMoreCases = async () => {
-    if(loading||loadingMoreCases||!hasMoreCases)return;
+    if(loading||loadingMoreCases||!hasMoreCases||!empresaId)return;
     setLoadingMoreCases(true);
     try {
-      const response = await fetchRepoCasesPageAction(350,cases.length,true);
-      const page = Array.isArray(response) ? response : [];
-      setCases(prev=>[...prev,...mapCases(page)]);
-      setHasMoreCases(page.length===350);
+      const page=await fetchCarteiraPageClient({empresaId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:cases.length});
+      setCases(prev=>{
+        const merged=mergeCarteiraPages(prev,mapCases(page));
+        writeCarteiraCache(merged,empresaId,'empresa',authUserId,'whatsapp-portfolio',false);
+        return merged;
+      });
+      setHasMoreCases(page.length===WHATSAPP_PAGE_SIZE);
     } catch {
-      toast({title:"Falha ao carregar a próxima página",variant:"destructive"});
+      toast({title:'Não foi possível buscar a próxima página',variant:'destructive'});
     } finally {setLoadingMoreCases(false);}
   };
 
