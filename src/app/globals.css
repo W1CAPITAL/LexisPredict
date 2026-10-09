@@ -421,6 +421,11 @@ body:has([data-lexis-commercial-sidebar]) main {
 [data-lexis-commercial-topbar] {
   left: 228px;
 }
+@media (min-width: 768px) {
+  /* Dock horizontal elimina o espaco reservado a sidebar vertical. */
+  body:has([data-lexis-desktop-dock]) [data-lexis-commercial-topbar] { left: 0; }
+  body:has([data-lexis-desktop-dock]) main { padding-bottom: 92px; }
+}
 
 body:has([data-lexis-commercial-sidebar]) .texture-bg,
 body:has([data-lexis-commercial-sidebar]) .glass-header {
