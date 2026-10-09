@@ -103,7 +103,7 @@ export function WaDailyReturnPanel(){
      {[1,3,7,14,30].map(n=><option key={n} value={n}>{n} dia{n>1?'s':''}</option>)}
     </select></label>
    <Button size="sm" variant="outline" onClick={()=>void save()} disabled={busy}>Salvar periodicidade</Button>
-   {dash?.ok?<span className="text-muted-foreground">Retornos vencidos: {dash.due||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
+   {dash?.ok?<span className="text-muted-foreground">Retornos agendados vencidos (antes dos filtros): {dash.due||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Scanner de retornos · um processo por vez</p>
@@ -112,7 +112,7 @@ export function WaDailyReturnPanel(){
     <Button size="sm" disabled={busy||running} onClick={start}>Iniciar varredura</Button>
     <Button size="sm" variant="destructive" disabled={!running} onClick={stop}>Parar scanner</Button>
    </div>
-   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. A varredura manual continua enquanto esta aba permanecer aberta. O scanner da carteira também prepara avisos quando a automação está ativa.</p>
+   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. A verificação ocorre um processo por vez. O total vencido inclui casos encerrados, sem telefone e sem andamento novo; nenhum deles é disparado sem validação. O scanner da carteira também prepara avisos apenas quando a automação está ativa.</p>
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Verificar apenas um processo</p>
