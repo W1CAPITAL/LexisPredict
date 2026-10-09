@@ -50,7 +50,7 @@ interface DataJudScanState {
   pending: number;
   cycles: number;
   cloudStartedAt: string | null;
-  cloudCursorId: string;
+  cloudCursorId: number;
   cloudSuccesses: number;
   cloudFailures: number;
 
@@ -103,7 +103,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   pending: 0,
   cycles: 0,
   cloudStartedAt: null,
-  cloudCursorId: '',
+  cloudCursorId: 0,
   cloudSuccesses: 0,
   cloudFailures: 0,
 
@@ -195,7 +195,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       isMinimized: false,
       cycles: resume ? get().cycles : 0,
       cloudStartedAt,
-      cloudCursorId: resume ? get().cloudCursorId : '',
+      cloudCursorId: resume ? get().cloudCursorId : 0,
       cloudSuccesses: resume ? get().cloudSuccesses : 0,
       cloudFailures: resume ? get().cloudFailures : 0,
       done: resume ? get().done : 0,
@@ -659,7 +659,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       pending: 0,
       cycles: 0,
       cloudStartedAt: null,
-  cloudCursorId: '',
+  cloudCursorId: 0,
   cloudSuccesses: 0,
   cloudFailures: 0,
       manualStatus: 'idle',
@@ -725,7 +725,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       set({
         total: totalForMode,
         done: attempted,
-        cloudCursorId: worker.lastId ? String(worker.lastId) : st.cloudCursorId,
+        cloudCursorId: Math.max(st.cloudCursorId, Number(worker.lastId || 0)),
         cloudFailures: failures,
         cloudSuccesses: successes,
         pending: Math.max(0, totalForMode - attempted),
