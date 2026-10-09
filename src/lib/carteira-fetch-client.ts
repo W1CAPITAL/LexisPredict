@@ -169,7 +169,10 @@ export async function fetchCarteiraAllClient(opts: {
       });
     } catch (error) {
       opts.onError?.(error);
-      if (all.length) return all;
+      if (all.length) {
+        // Uma falha no meio das paginas nao pode ser cacheada como carteira completa.
+        return Object.assign(all, { __incomplete: true });
+      }
       throw error;
     }
     offset += next.length;
