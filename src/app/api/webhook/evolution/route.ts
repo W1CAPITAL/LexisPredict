@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     // Tenant is resolved only from server-controlled instance configuration;
     // never trust an empresa_id supplied by a public webhook payload.
     const boundCompany=String(process.env.WA_DAILY_WEBHOOK_EMPRESA_ID||'').trim();
-    const boundInstance=String(process.env.WA_DAILY_WEBHOOK_INSTANCE||'').trim();
+    const boundInstance=String(process.env.WA_DAILY_WEBHOOK_INSTANCE||process.env.EVOLUTION_INSTANCE||'').trim();
     const instance=String(payload.instance||'');
     const company=(boundCompany && boundInstance && instance===boundInstance)
       ? boundCompany : null;
