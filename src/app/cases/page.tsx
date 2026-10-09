@@ -45,7 +45,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
-import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache, peekCarteiraCache } from '@/lib/session-carteira-cache';
 import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
 import { searchCompanyProcessosAction } from '@/app/actions/search-processos-action';
@@ -307,6 +307,8 @@ function CasesContent() {
     setLoading(true);
     setInitialPageReady(false);
     setCarteiraError('');
+    // Guardar as paginas ja exibidas antes da revalidacao da primeira pagina.
+    const oldSnapshot = peekCarteiraCache(empresaId, caseScope, authUserId, 'cases-detail');
     try {
       await loadCarteiraComCache({
         fetchNetwork: async () => {
@@ -330,7 +332,13 @@ function CasesContent() {
         onShow: (data, source) => {
           // Cache isolado por usuario/empresa/tela: exibe imediatamente e valida no servidor.
           if (Array.isArray(data)) {
-            setCases(data);
+            if (source === 'network' && oldSnapshot?.cases?.length) {
+              const merged = mergeCarteiraPages(data, oldSnapshot.cases as LegalCase[]);
+              setCases(merged);
+              writeCarteiraCache(merged, empresaId, caseScope, authUserId, 'cases-detail', false);
+            } else {
+              setCases(data);
+            }
             if (source === 'cache') {
               setRemoteHasMore(data.length >= INITIAL_PAGE_SIZE);
               setLoading(false);
