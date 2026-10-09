@@ -72,12 +72,12 @@ export function readCarteiraCache(
 
 export function writeCarteiraCache(
   cases: unknown[], empresaId?: string | null, scope: CarteiraScope = "mine",
-  userId?: string | null, viewKey = "list"
+  userId?: string | null, viewKey = "list", complete = true
 ) {
   if (!empresaId || !userId) return;
   const list = Array.isArray(cases) ? cases.slice(0, 10000) : [];
   const payload: CarteiraPayload = {
-    v: 6, at: Date.now(), empresaId, scope, complete: true, cases: list,
+    v: 6, at: Date.now(), empresaId, scope, complete, cases: list,
   };
   memory.set(memKey(empresaId, scope, userId, viewKey), payload);
   // Session storage reapresenta a PRIMEIRA pagina apos refresh. Apenas uma
@@ -85,7 +85,7 @@ export function writeCarteiraCache(
   if (typeof window === 'undefined' || !list.length) return;
   try {
     const snapshot: CarteiraPayload = { ...payload,
-      complete: list.length <= SESSION_ROWS,
+      complete: complete && list.length <= SESSION_ROWS,
       cases: list.slice(0, SESSION_ROWS),
     };
     const encoded = JSON.stringify(snapshot);
@@ -171,7 +171,7 @@ export async function loadCarteiraComCache(opts: {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
     if (list.length) {
-      writeCarteiraCache(list, opts.empresaId, scope, opts.userId, viewKey);
+      writeCarteiraCache(list, opts.empresaId, scope, opts.userId, viewKey, (remote as any).__incomplete !== true);
       opts.onShow(list, "network");
       opts.onKpiSafe?.(list, "network");
       return { cases: list, source: "network" };
