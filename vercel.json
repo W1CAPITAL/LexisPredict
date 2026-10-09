@@ -6,11 +6,5 @@
     "api/inbound-lead.ts": {
       "maxDuration": 15
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/wa-daily-return",
-      "schedule": "*/5 12-20 * * 1-5"
-    }
-  ]
+  }
 }

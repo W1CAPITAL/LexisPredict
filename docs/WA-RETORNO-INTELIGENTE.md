@@ -15,7 +15,7 @@ O envio é uma transação única **empresa + telefone + dia** e integra pedidos
 - "Sem novidade" = nenhum WhatsApp e nenhuma alteração nas datas
 
 ## Agendamento
-`vercel.json` configura chamada a `GET /api/cron/wa-daily-return` a cada cinco minutos nos dias úteis 9:00–17:55 BRT. O endpoint usa o `CRON_SECRET` (ou `WA_MOVEMENT_CRON_SECRET`) configurado na Vercel e limita os envios a 25/empresa/dia. Checa somente um CNJ por invocação, portanto não se promete esgotar uma carteira grande no mesmo dia. Se o provedor falhar, é registrada conferência sem enviar; pode ser conferido manualmente.
+**Supabase pg_cron + pg_net** chama `GET /api/cron/wa-daily-return` a cada cinco minutos em dias úteis 9:00–17:55 BRT. Vercel Hobby não permite múltiplos crons por dia; não usar `vercel.json` para isto. O agendador usa token aleatório armazenado no Supabase Vault e como variável `WA_DAILY_CRON_SECRET` criptografada na Vercel. O endpoint limita a 25 envios/empresa/dia e checa um CNJ por execução. Carteiras grandes podem levar mais de um dia; falhas de fonte não geram mensagens.
 
 ## Pedidos de cliente no WhatsApp
 `/api/webhook/evolution` tem assinatura/segredo existente. Só auto-responde quando **WA_DAILY_WEBHOOK_EMPRESA_ID** é definido no Vercel e a instância da mensagem coincide com **WA_DAILY_WEBHOOK_INSTANCE** (ou `EVOLUTION_INSTANCE`).
