@@ -19,7 +19,7 @@ import {
 } from "@/app/actions/whatsapp-movement-campaign-actions";
 
 type Sample = {client:string;cnj:string;source:string;date:string;message:string;verdict?:string|null;kind?:string|null};
-type CampaignKind = "movement" | "publication";
+type CampaignKind = "movement" | "publication" | "closure_scan";
 type Preview = {
   ok:boolean;error?:string;kind?:CampaignKind;counts?:{
     scanned:number;withoutPhone:number;withoutEvent:number;blocked:number;samePhone:number;
@@ -28,7 +28,7 @@ type Preview = {
   }; samples?:Sample[];
 };
 type Campaign = {
-  id:string;campaign_kind?:CampaignKind;status:'running'|'paused'|'completed'|'cancelled';total:number;
+  id:string;campaign_kind?:CampaignKind;auto_close_after_sent?:boolean;status:'running'|'paused'|'completed'|'cancelled';total:number;
   sent_count:number;failed_count:number;uncertain_count:number;
   next_send_at:string;created_at:string;
 };
@@ -43,6 +43,7 @@ export function MovementCampaignControl() {
   const [consent,setConsent]=useState(false);
   const [kind,setKind]=useState<CampaignKind>("movement");
   const [showTemplates,setShowTemplates]=useState(false);
+  const [autoCloseAfterSent,setAutoCloseAfterSent]=useState(false);
   const [preview,setPreview]=useState<Preview|null>(null);
   const [campaign,setCampaign]=useState<Campaign|null>(null);
   const busy=useRef(false);
@@ -90,7 +91,7 @@ export function MovementCampaignControl() {
   if(!allowed)return null;
 
   const inspect=async(selectedKind:CampaignKind)=>{
-    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);
+    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);setAutoCloseAfterSent(false);
     try{
       const result=await previewWhatsAppMovementCampaignAction(selectedKind);
       setPreview(result as Preview);
@@ -102,7 +103,7 @@ export function MovementCampaignControl() {
     if((kind==='movement'&&!consent)||!preview?.ok||!preview.counts?.eligible)return;
     setLoading(true);
     try{
-      const result=await startWhatsAppMovementCampaignAction(kind==='movement' ? consent : false,kind);
+      const result=await startWhatsAppMovementCampaignAction(kind==='movement' ? consent : false,kind,autoCloseAfterSent);
       if(!result.ok){
         toast({title:"Campanha não iniciada",description:result.error,variant:"destructive"});
         return;
