@@ -276,12 +276,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     let allLocal = useAppStore.getState().cases || [];
     if (!resume || scope === 'cumprimento' || allLocal.length === 0) {
       try {
-        const { fetchRepoCases } = await import('@/app/actions/case-actions');
-        const remote = await fetchRepoCases();
+        const { fetchScannerQueueAction } = await import('@/app/actions/case-actions');
+        const remote = await fetchScannerQueueAction();
         if (Array.isArray(remote) && remote.length > 0) {
-          const setCases = useAppStore.getState().setCases;
-          if (typeof setCases === 'function') setCases(remote);
-          try { writeCarteiraCache(remote); } catch { /* */ }
+          // Fila leve: nao sobrescreve a carteira detalhada que esta nas outras telas.
           allLocal = remote;
           get().addLog({
             protocolo: 'SISTEMA',
@@ -334,13 +332,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     // Lote4: store vazia OU escopo cumprimento sem candidatos na memória → busca servidor
     if (cases.length === 0) {
       try {
-        const { fetchRepoCases } = await import('@/app/actions/case-actions');
-        const remote = await fetchRepoCases();
+        const { fetchScannerQueueAction } = await import('@/app/actions/case-actions');
+        const remote = await fetchScannerQueueAction();
         if (Array.isArray(remote) && remote.length > 0) {
-          const setCases = useAppStore.getState().setCases;
-
-          if (typeof setCases === 'function') setCases(remote);
-          writeCarteiraCache(remote);
+          // Nao substituir memoria/cache de clientes por uma lista resumida de scanner.
           const nEncR = remote.filter((c: any) => isCasoEncerrado(c)).length;
           cases = prioritizeScanQueue(remote);
           const scopedR = filterQueueByScanScope(cases, scope);
