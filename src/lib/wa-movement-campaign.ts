@@ -309,6 +309,16 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   }
   const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:failure||null});
   if(finishError) return {ok:false as const,error:'Falha ao confirmar o histórico do envio: '+finishError.message};
+  if (result==='sent' && campaign.campaign_kind==='closure_scan' && campaign.auto_close_after_sent) {
+    const {closeAfterConfirmedNotice}=await import('@/lib/wa-closure-after-send');
+    const closure=await closeAfterConfirmedNotice({
+      empresaId:campaign.empresa_id,processoId:claimed.processo_id,
+      campaignId:campaign.id,dispatchId:claimed.id,eventHash:claimed.event_hash,
+    }).catch(()=>({closed:false,reason:'Falha ao registrar encerramento'}));
+    if(!closure.closed && closure.reason)
+      return {ok:true as const,processed:true as const,status:'sent' as const,
+        warning:'Aviso enviado; cadastro não encerrado: '+closure.reason};
+  }
   return {ok:result==='sent',processed:true as const,status:result,error:failure||null};
 }
 
