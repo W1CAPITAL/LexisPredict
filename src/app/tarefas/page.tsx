@@ -282,6 +282,10 @@ export default function TarefasPage() {
           pageSize: 300,
           scope: taskCaseScope,
           onPage: (partial, page) => {
+            // Entrega incremental: cada lote fica reaproveitavel ao trocar de aba.
+            if (page === 0 || page % 2 === 0) {
+              writeCarteiraCache(partial, empresaId, taskCaseScope, authUserId, 'tarefas', false);
+            }
             if (page === 0) {
               setCases(partial);
               setLoading(false);
