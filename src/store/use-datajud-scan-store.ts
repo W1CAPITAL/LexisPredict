@@ -53,6 +53,8 @@ interface DataJudScanState {
   cloudCursorId: string;
   cloudSuccesses: number;
   cloudFailures: number;
+  cloudBusy: boolean;
+  cloudLastCnj: string | null;
 
   manualStatus: ScanStatus;
   manualTotal: number;
@@ -106,6 +108,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   cloudCursorId: '',
   cloudSuccesses: 0,
   cloudFailures: 0,
+  cloudBusy: false,
+  cloudLastCnj: null,
 
   manualStatus: 'idle',
   manualTotal: 0,
@@ -200,6 +204,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudFailures: resume ? get().cloudFailures : 0,
       done: resume ? get().done : 0,
       pending: resume ? get().pending : 0,
+      cloudBusy: false,
+      cloudLastCnj: resume ? get().cloudLastCnj : null,
+      lastLogs: resume ? get().lastLogs : [],
     });
     get().addLog({
       protocolo: 'SISTEMA',
@@ -680,6 +687,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   pollStatus: async () => {
     if (get().status !== 'running' || cloudPollBusy) return;
     cloudPollBusy = true;
+    set({cloudBusy:true});
 
     try {
       const st = get();
@@ -706,16 +714,32 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (!workerResult?.worker) throw new Error('Resposta invalida do worker.');
       if (get().status !== 'running') return;
       const worker = workerResult.worker;
+      // Salvar cursor assim que o trabalhador terminar: falha na leitura de KPIs
+      // nao pode executar de novo o mesmo CNJ e causar consulta duplicada.
+      if (/^\d+$/.test(String(worker.lastId || ''))) set({ cloudCursorId: String(worker.lastId) });
+      const audited = Array.isArray(worker.caseResults) ? worker.caseResults : [];
+      for(const item of audited){
+        const cnj=String(item.cnj||'').trim();
+        if(!cnj)continue;
+        set({cloudLastCnj:cnj});
+        get().addLog({
+          protocolo:cnj,engine:'Nuvem',
+          message:item.success ? `Consulta oficial concluída · DataJud: ${item.datajudOk?'OK':'não confirmado'} · DJEN: ${item.djenOk?'OK':'não confirmado'}` : `Falha de consulta · ${String(item.error||'fonte indisponível').slice(0,140)}`,
+          latency:Number(item.durationMs||0),success:item.success===true,
+          type:item.success?'ok':'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+        });
+      }
       consecutiveCloudFailures = worker.failedCount > 0 && worker.successCount === 0
         ? consecutiveCloudFailures + 1 : 0;
 
       const params = new URLSearchParams({ mode, scope, since });
-      const res = await fetch(`/api/datajud-status?${params.toString()}`, {
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error('status');
-
-      const metrics = await res.json();
+      let metrics: any = {};
+      try {
+        const res = await fetch(`/api/datajud-status?${params.toString()}`, {
+          cache:'no-store',signal:AbortSignal.timeout(8000),
+        });
+        if (res.ok) metrics = await res.json();
+      } catch { /* KPIs opcionais: cursor e resultados do worker continuam válidos */ }
       const pendingForMode = Number(metrics.pending ?? 0);
       const totalForMode = Number(metrics.total ?? 0);
       const attempted = st.done + Math.max(0, Number(worker.processed || 0));
@@ -789,6 +813,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       }
     } finally {
       cloudPollBusy = false;
+      set({cloudBusy:false});
     }
   },
 }));
