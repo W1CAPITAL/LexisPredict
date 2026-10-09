@@ -20,9 +20,9 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resolveRole } from "@/lib/roles";
 import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
-import { fetchFastCarteira } from '@/lib/fast-carteira-client';
+import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
-import { peekCarteiraCache, writeCarteiraCache } from "@/lib/session-carteira-cache";
+import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
@@ -146,6 +146,8 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const empresaId = String((profile as any)?.empresa_id || '');
+  const authUserId = String((profile as any)?.auth_user_id || '');
   const canManageItem = (item: LegalCase): boolean => {
     if (!(profile as any)?.auth_user_id || !(profile as any)?.empresa_id) return false;
     const rowTenant = (item as any).empresa_id;
@@ -197,34 +199,64 @@ export default function ProcessosEmpresaPage() {
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (force = false) => {
+    if (!empresaId || !authUserId) return;
     setCarteiraError('');
+    const previous = peekCarteiraCache(empresaId, 'empresa', authUserId, 'processos-empresa');
+    const first = peekFastCarteiraCache('empresa', 60, 0, empresaId, authUserId);
+    if (previous?.cases?.length) {
+      setCases(previous.cases as LegalCase[]);
+      setListOffset(previous.cases.length);
+      setLoading(false);
+    } else if (first?.data) {
+      setCases(first.data.cases);
+      setListOffset(first.data.cases.length);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    if (first?.data) {
+      setTotalCount(first.data.totalCount);
+      setAtivosCount(first.data.summary.ativos);
+      setVencidosCount(first.data.summary.vencidos);
+      setHasServerMore((previous?.cases?.length || first.data.cases.length) < first.data.totalCount);
+    }
     try {
-      // First render: one short HTTP request for 60 cases + one DB summary.
-      // Never wait for full ranking, DJEN audits or all case JSON.
-      const res = await fetchFastCarteira('empresa', 60, 0);
-      setCases(res.cases);
-      setListOffset(res.cases.length);
+      const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
+      // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
+      // revalidada fica antes das demais, inclusive apos mudar de aba.
+      const all = [...res.cases, ...((previous?.cases || []) as LegalCase[])];
+      const seen = new Set<string>();
+      const merged = all.filter((c) => {
+        const key = String(c.id || c.protocolo || '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setCases(merged);
+      setListOffset(merged.length);
       setTotalCount(res.totalCount);
       setAtivosCount(res.summary.ativos);
       setVencidosCount(res.summary.vencidos);
-      setHasServerMore(res.hasMore);
+      setHasServerMore(merged.length < res.totalCount);
       setOnlyAtivosList(false);
+      writeCarteiraCache(merged, empresaId, 'empresa', authUserId, 'processos-empresa');
     } catch (error) {
       setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
-      toast({
-        title: 'Erro ao carregar carteira da empresa',
-        description: error instanceof Error ? error.message : 'O servidor não respondeu.',
-        variant: 'destructive',
-      });
-      // Keep previously loaded data if a temporary network issue occurs.
+      if (!previous?.cases?.length && !first?.data) {
+        toast({
+          title: 'Erro ao carregar carteira da empresa',
+          description: error instanceof Error ? error.message : 'O servidor não respondeu.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  // Em outros perfis o contexto pode chegar apos a montagem do componente.
+  useEffect(() => { if (empresaId && authUserId) void load(); }, [empresaId, authUserId]);
 
   // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
   useEffect(() => {
@@ -314,7 +346,9 @@ export default function ProcessosEmpresaPage() {
         });
         setEditOpen(false);
         setEditing(null);
-        await load();
+        invalidateFastCarteiraCache();
+        invalidateCarteiraCache();
+        await load(true);
         toast({
           title: "Processo salvo",
           description: editing.cliente || editing.protocolo,
@@ -362,7 +396,9 @@ export default function ProcessosEmpresaPage() {
       if (res.success) {
         setAttendingOpen(false);
         setAttending(null);
-        await load();
+        invalidateFastCarteiraCache();
+        invalidateCarteiraCache();
+        await load(true);
         toast({
           title: "Atendimento registrado",
           description: res.message,
@@ -402,7 +438,9 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("encerramento", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
         });
-        await load();
+        invalidateFastCarteiraCache();
+        invalidateCarteiraCache();
+        await load(true);
         toast({ title: "Processo encerrado", description: c.cliente });
       } else {
         toast({ title: "Falha ao encerrar", description: res.message, variant: "destructive" });
@@ -436,7 +474,9 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("edicao", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-reabrir", acao: "reabrir" },
         });
-        await load();
+        invalidateFastCarteiraCache();
+        invalidateCarteiraCache();
+        await load(true);
         toast({ title: "Processo reaberto", description: c.cliente || c.protocolo });
       } else {
         toast({
@@ -547,12 +587,14 @@ export default function ProcessosEmpresaPage() {
     if (loadingMore || !hasServerMore) return;
     setLoadingMore(true);
     try {
-      const res = await fetchFastCarteira('empresa', 100, listOffset);
+      const res = await fetchFastCarteiraCached('empresa', 100, listOffset, empresaId, authUserId);
       const batch = res.cases;
       setTotalCount(res.totalCount);
       setCases((prev) => {
         const seen = new Set(prev.map((c) => String(c.id || c.protocolo)));
-        return [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
+        const merged = [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
+        writeCarteiraCache(merged, empresaId, 'empresa', authUserId, 'processos-empresa');
+        return merged;
       });
       setListOffset(listOffset + batch.length);
       setVisibleCount((v) => v + batch.length);
