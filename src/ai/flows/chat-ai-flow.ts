@@ -16,6 +16,7 @@ import { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
 import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 import { bpmnSkillContext } from '@/lib/bpmn-skill';
 import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
+import { retrieveNeedleEvidence, retrieveCuratedLexisEvidence, formatKnowledgeEvidence } from '@/lib/ai/needle-rag';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
 Hoje: ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
@@ -214,13 +215,22 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
   const skillSystem = lexisAgentGuidance(pergunta);
+  // Internal curated knowledge is available without tokens.
+  // Needle is a separate optional RAG source for safe, generic questions only:
+  // never send PDFs, images, case IDs, or personal data to an external index.
+  const evidence = simple ? [] : [
+    ...retrieveCuratedLexisEvidence(pergunta),
+    ...await retrieveNeedleEvidence(pergunta,{hasAttachment:hasPdf || hasImg || Boolean(cnj)}),
+  ];
+  const evidenceSystem = formatKnowledgeEvidence(evidence);
+
 
   try {
     const r = await runCascade({
       preferred,
       forceEngineId: preferred === 'auto' ? undefined : preferred,
       surface: simple ? 'chat-fast' : 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + evidenceSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
@@ -238,7 +248,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     let tokens = r.tokens || 0;
 
     // Só gasta uma segunda chamada quando a primeira saída é claramente inválida.
-    if (!simple && !gate.ok) {
+    if (!simple && !gate.ok && preferred === 'auto') {
       const repair = await runCascade({
         preferred: 'auto',
         surface: 'chat-repair',
@@ -274,9 +284,11 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     return {
       resposta: preferred === 'colibri'
         ? 'O Colibri não está disponível. Configure um servidor HTTPS externo com um modelo carregado e a variável COLIBRI_BASE_URL na Vercel. Sua pergunta não foi enviada para provedores externos.'
-        : 'Os motores de IA configurados não responderam. Verifique as chaves e limites dos provedores; para usar Colibri, é necessário um servidor próprio HTTPS ativo.',
+        : preferred === 'minicpm' || preferred === 'minicpm-v'
+          ? 'O MiniCPM não respondeu. Inicie o servidor Ollama/vLLM/llama.cpp com MiniCPM e configure MINICPM_BASE_URL na Vercel. Seu conteúdo não foi encaminhado a outros provedores.'
+          : 'Os motores configurados não responderam. No navegador, selecione Lexis Local LLM para gerar localmente sem créditos; confira também a conexão com Colibri e MiniCPM.',
       thinking: null,
-      engineUtilizada: preferred === 'colibri' ? 'COLIBRI_INDISPONIVEL' : 'MOTORES_INDISPONIVEIS',
+      engineUtilizada: preferred === 'colibri' ? 'COLIBRI_INDISPONIVEL' : (preferred === 'minicpm' || preferred === 'minicpm-v') ? 'MINICPM_INDISPONIVEL' : 'MOTORES_INDISPONIVEIS',
       latencia: 0,
       tokensConsumidos: 0,
       sucesso: false,
