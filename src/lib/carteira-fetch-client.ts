@@ -1,6 +1,6 @@
 "use client";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
-import { fetchRepoCasesPageAction } from "@/app/actions/case-actions";
+
 const KEY='lexis_carteira_client_v4';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
@@ -68,10 +68,8 @@ function rowToLegalCase(item: any): LegalCase {
 }
 
 /**
- * Leitura rápida da carteira direto do Supabase browser.
- * O RLS decide o escopo:
- * - Operador/Administrador: created_by = auth.uid()
- * - Supervisor/Superadmin: empresa inteira
+ * Leitura leve via endpoint HTTP autenticado. O servidor define tenant e dono:
+ * a solicitacao nunca transmite um empresa_id ou responsavel confiavel.
  */
 export async function fetchCarteiraPageClient(opts: {
   empresaId: string;
@@ -79,14 +77,33 @@ export async function fetchCarteiraPageClient(opts: {
   offset?: number;
   onlyAtivos?: boolean;
   includeDetails?: boolean;
+  scope?: 'mine' | 'empresa';
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
-  const limit = Math.max(1, Math.min(Number(opts.limit || 200), 500));
+  const limit = Math.max(1, Math.min(Number(opts.limit || 200), 400));
   const offset = Math.max(0, Number(opts.offset || 0));
-  // Server verifies authenticated tenant and owner/company scope for each page.
-  const data = await fetchRepoCasesPageAction(limit, offset, false, !!opts.includeDetails);
-  if (!Array.isArray(data)) throw new Error('Falha ao consultar carteira no servidor');
-  return data as LegalCase[];
+  const qs = new URLSearchParams({
+    scope: opts.scope || 'mine',
+    limit: String(limit),
+    offset: String(offset),
+    details: opts.includeDetails ? '1' : '0',
+    summary: '0', // nao calcular as mesmas contagens a cada pagina
+  });
+  const response = await fetch('/api/carteira/fast?' + qs.toString(), {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!(response.headers.get('content-type') || '').includes('application/json')) {
+    throw new Error('A consulta retornou um formato inesperado. Tente recarregar a pagina.');
+  }
+  const result = await response.json();
+  if (!response.ok || !result?.ok || !Array.isArray(result.cases)) {
+    throw new Error(result?.error || 'Falha ao consultar a carteira.');
+  }
+  return result.cases as LegalCase[];
 }
 
 export function mergeCarteiraPages(
@@ -129,6 +146,7 @@ export async function fetchCarteiraAllClient(opts: {
   maxRows?: number;
   onPage?: (cases: LegalCase[], page: number) => void;
   onError?: (error: unknown) => void;
+  scope?: "mine" | "empresa";
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
   const pageSize = Math.max(40, Math.min(Number(opts.pageSize || 160), 250));
@@ -147,6 +165,7 @@ export async function fetchCarteiraAllClient(opts: {
         limit,
         offset,
         onlyAtivos: opts.onlyAtivos,
+        scope: opts.scope,
       });
     } catch (error) {
       opts.onError?.(error);
