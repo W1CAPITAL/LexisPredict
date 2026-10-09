@@ -71,7 +71,7 @@ function applySecurityHeaders(res: NextResponse) {
         "img-src 'self' data: blob: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
         "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.x.ai https://api.groq.com https://api.anthropic.com https://openrouter.ai https://*.vercel.app https://vercel.live https://api.ocr.space https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co https://cdn.jsdelivr.net https://unpkg.com https://tessdata.projectnaptha.com https://comunicaapi.pje.jus.br",
-        "frame-src 'self' blob:",
+        "frame-src 'self' blob: https://vercel.live",
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
