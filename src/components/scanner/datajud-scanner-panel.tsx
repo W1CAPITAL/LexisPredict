@@ -44,7 +44,7 @@ import { planTemScanner } from '@/lib/planos-pacotes';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, cloudSuccesses, cloudFailures, alerts, cloudDjenAlerts, closed, pending, cycles,
+    status, total, done, cloudSuccesses, cloudFailures, cloudBusy, cloudLastCnj, alerts, cloudDjenAlerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, resumeManualScan, pauseManualScan, resetScan,
@@ -262,6 +262,14 @@ export function DataJudScannerPanel() {
                     <span className="text-[10px] font-black tabular-nums">{cloudPct}%</span>
                   </div>
                   <Progress value={cloudPct} className="h-2 border-2 border-black bg-white [&>div]:bg-black" />
+                  <div role="status" aria-live="polite" className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] text-blue-950">
+                    <div className="flex items-center gap-2 font-semibold">
+                      {cloudBusy && status === 'running' ? <Activity className="animate-pulse" size={14}/> : <CheckCircle2 size={14}/>}
+                      {cloudBusy && status === 'running' ? 'Consultando fontes oficiais agora…' : status === 'paused' ? 'Scanner pausado; posição preservada' : status === 'done' ? 'Fila desta sessão finalizada' : 'Aguardando próximo CNJ'}
+                    </div>
+                    <p className="mt-1 break-all">{cloudLastCnj ? `Último CNJ efetivamente consultado: ${cloudLastCnj}` : 'Nenhuma consulta concluída nesta sessão ainda.'}</p>
+                    <p className="mt-1 opacity-80">O histórico abaixo informa o CNJ, se DataJud/DJEN confirmou resposta, duração e falhas. Consulta OK não significa novo andamento.</p>
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-2">
                     <DashboardMiniKpi label="Tribunal Alertas" value={alerts} color="text-red-600" />
@@ -288,7 +296,7 @@ export function DataJudScannerPanel() {
                 <p className="text-[8px] text-muted-foreground font-medium mt-0.5">
                   {scanScope === "cumprimento"
                     ? "Sincroniza carteira → filtra candidatos → DataJud+DJEN 1 a 1. Use BOTH para teor completo."
-                    : "Varredura sequencial da carteira na tela."}
+                    : "Fila sequencial obtida da empresa inteira no Supabase."}
                 </p>
              </div>
 
