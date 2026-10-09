@@ -28,5 +28,5 @@ export function matchingDjenNoticeEvidence(value: unknown, cnj: string, date: st
 }
 
 export function usableMovementDescription(text: string): boolean {
-  return !!text.trim() && !/^(?:c[oó]d(?:igo)?\.?\s*:?[\s#]*\d+|movimenta[cç][aã]o(?:\s+n[aã]o\s+identificada)?|publica[cç][aã]o|sem\s+descri[cç][aã]o)\s*$/i.test(text.trim());
+  return !!text.trim() && !/^(?:c[oó]d(?:igo)?\.?\s*:?[\s#]*\d+|movimenta[cç][aã]o(?:\s+n[aã]o\s+identificada)?|publica[cç][aã]o|sem\s+descri[cç][aã]o|definitiv[oa]|provis[oó]ri[oa]|outros?|complemento|(?:com|sem)\s+resolu[cç][aã]o\s+(?:de|do)\s+m[eé]rito)\s*$/i.test(text.trim());
 }

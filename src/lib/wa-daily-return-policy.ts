@@ -89,6 +89,9 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
   const latestDay=latest ? (latest.source==='DJEN' ? validReturnDay(row.djen_ultima_data)! : brazilToday(new Date(latest.date))) : '';
   const threshold=last;
   if(!latest||latestDay<=threshold)return {ready:null,reason:'no_new_movement'};
+  const court=meta.tribunal_conferencia as {cnj?:string;ultimo_evento_em?:string}|undefined;
+  if(court?.cnj?.replace(/\D/g,'')===String(row.protocolo_ref||meta.protocolo||'').replace(/\D/g,'') &&
+      Date.parse(court.ultimo_evento_em||'')>latest.date)return {ready:null,reason:'needs_source_review'};
   let messageDetail=latest.text;
   if(latest.source==='DataJud') {
     const consulted=Date.parse(String(row.datajud_consultado_em||meta.datajud_consultado_em||''));

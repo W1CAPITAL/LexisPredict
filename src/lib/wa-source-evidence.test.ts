@@ -32,6 +32,7 @@ describe('customer notices use official content, never keyword classifications',
   it('never sends a bare numeric movement code, or an old DataJud lookup',()=>{
     const movement={...row,djen_ultima_data:null,datajud_ultimo_movimento:'2026-09-28T21:23:41-03:00',datajud_ultimo_nome:'Cód. 15417',datajud_consultado_em:new Date().toISOString()};
     expect(prepareDailyReturn(movement,{mode:'single'}).reason).toBe('needs_source_review');
+    expect(prepareDailyReturn({...movement,datajud_ultimo_nome:'Definitivo'},{mode:'single'}).reason).toBe('needs_source_review');
     expect(prepareDailyReturn({...movement,datajud_ultimo_nome:'Conclusos para despacho',datajud_consultado_em:'2026-08-01T00:00:00Z'},{mode:'single'}).reason).toBe('needs_source_review');
   });
   it('uses Brazilian time for greetings and does not invent an appointment',()=>{
@@ -44,5 +45,8 @@ describe('customer notices use official content, never keyword classifications',
   it('selects the latest dated publication only for the same CNJ',()=>{
     const base={id:1,data_disponibilizacao:'2026-08-20',siglaTribunal:'TJSP',tipoComunicacao:'Intimação',nomeOrgao:null,texto:'Teor oficial',numero_processo:cnj,meio:'D',link:null,tipoDocumento:'Despacho',nomeClasse:null};
     expect(latestDjenNoticeEvidence(cnj,[{...base,numero_processo:'wrong',data_disponibilizacao:'2026-09-30'},base])?.eventAt).toBe('2026-08-20');
+  });
+  it('holds an API event superseded by a newer court consultation supplied by the responsible user',()=>{
+    expect(prepareDailyReturn({...row,dados:{...row.dados,tribunal_conferencia:{cnj,ultimo_evento_em:'2026-09-28T21:23:41-03:00'}}},{mode:'single'}).reason).toBe('needs_source_review');
   });
 });
