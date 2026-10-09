@@ -6,6 +6,7 @@
 import { startOfDay, parseISO, isAfter, subDays, parse, isValid } from 'date-fns';
 import { scoreOportunidadeCumprimentoHonorarios, type OportunidadeInstaurarCumprimento } from './oportunidade-cumprimento';
 import { isTutelaLiminarNaoEncerramento } from './nao-encerrar-tutela';
+import { confirmedTerminalEvent } from './judicial-terminal-evidence';
 
 export function gerarHashAuditoria(movimentos: any[]): string {
   if (!movimentos || movimentos.length === 0) return "EMPTY";
@@ -93,6 +94,7 @@ export function detectarEncerradoNoTribunal(movimentos: any[]): {
     const text = constructedWindow[i];
     // Tutela/liminar indeferida ou condicionada a depósito ≠ encerramento
     if (isTutelaLiminarNaoEncerramento(text)) continue;
+    if (!confirmedTerminalEvent(text)) continue;
     for (const group of patternGroups) {
       if (group.patterns.some((p) => text.includes(p))) {
         // Evita "BAIXA DA LIMINAR" contando como baixa do processo

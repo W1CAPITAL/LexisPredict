@@ -6,10 +6,11 @@ const base: SourceRow = {
   cliente:'Cliente Exemplo',telefone:'(11) 99999-1234',
   protocolo_ref:'1234567-89.2026.8.26.0100',
   datajud_ultimo_movimento:'2026-10-04T12:00:00Z',
+  datajud_consultado_em:new Date().toISOString(),
   datajud_ultimo_nome:'Despacho de mero expediente',
   djen_ultima_data:'2026-10-05',
   djen_ultimo_resumo:'Intimação disponibilizada',
-  dados:{whatsapp_opt_in:true}, ultimo_retorno:'2026-10-01', status:'EM ANDAMENTO',
+  dados:{whatsapp_opt_in:true,wa_djen_evidence:{origin:'official-djen',cnj:'12345678920268260100',eventAt:'2026-10-05',text:'Intimação disponibilizada',checkedAt:new Date().toISOString()}}, ultimo_retorno:'2026-10-01', status:'EM ANDAMENTO',
 };
 describe('Avisos processuais WA.Auto',()=>{
   it('uses the dated latest verified movement between DJEN and DataJud',()=>{
@@ -38,14 +39,15 @@ describe('Avisos processuais WA.Auto',()=>{
     expect(prepareMovementAlert({...base,ultimo_retorno:null}).reason).toBe('missing_return');
   });
   it('accepts documented portfolio consent without overriding refusal',()=>{
-    expect(prepareMovementAlert({...base,dados:{}},true).reason).toBe('ok');
+    expect(prepareMovementAlert({...base,dados:{wa_djen_evidence:base.dados?.wa_djen_evidence}},true).reason).toBe('ok');
     expect(prepareMovementAlert({...base,dados:{whatsapp_opt_in:false}},true).reason).toBe('blocked');
   });
   it('makes stable unique fingerprints for the same process/movement',()=>{
     const a=prepareMovementAlert(base).alert!;
     const b=prepareMovementAlert({...base,cliente:'Cliente Atualizado'}).alert!;
     expect(a.event_hash).toBe(b.event_hash);
-    const c=prepareMovementAlert({...base,djen_ultimo_resumo:'Outra intimação'}).alert!;
+    expect(prepareMovementAlert({...base,djen_ultimo_resumo:'Outro resumo calculado'}).alert!.event_hash).toBe(a.event_hash);
+    const c=prepareMovementAlert({...base,dados:{...base.dados,wa_djen_evidence:{...(base.dados!.wa_djen_evidence as object),text:'Outra intimação'}}}).alert!;
     expect(c.event_hash).not.toBe(a.event_hash);
   });
   it('ignores future dates instead of stating an unsupported movement',()=>{

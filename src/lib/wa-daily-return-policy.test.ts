@@ -7,6 +7,7 @@ const base:ReturnCase={
  ultimo_retorno:'2026-10-07',proximo_retorno:'2026-10-09',status:'EM ANDAMENTO',
  datajud_ultimo_movimento:'2026-10-08T13:20:00Z',
  datajud_ultimo_nome:'Conclusos para julgamento',
+ datajud_consultado_em:new Date().toISOString(),
  djen_ultima_data:'2026-10-08',djen_ultimo_resumo:'Publicação de intimação para especificação de provas',
  dados:{whatsapp_opt_in:true},
 };
@@ -21,10 +22,11 @@ describe('retorno inteligente DataJud/DJEN',()=>{
  it('returns the latest literal movement after the previous return',()=>{
   const x=prepareDailyReturn(base,{mode:'due',today:'2026-10-09'});
   expect(x.reason).toBe('ok');
-  expect(x.ready?.message).toContain('Conclusos para julgamento');
+  expect(x.ready?.message).toContain('encaminhado ao juiz para julgamento');
   expect(x.ready?.source).toBe('DataJud');
   expect(x.ready?.nextReturn).toBe('2026-10-10');
-  expect(x.ready?.message).toContain('07/10/2026');
+  expect(x.ready?.priorReturn).toBe('2026-10-07');
+  expect(x.ready?.message).toContain('Setor Processual');
  });
  it('never sends when the event was already available on previous return',()=>{
   const x=prepareDailyReturn({...base,ultimo_retorno:'2026-10-08'},{mode:'due',today:'2026-10-09'});

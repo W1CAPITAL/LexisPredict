@@ -30,6 +30,7 @@ type Preview = {
 type Campaign = {
   id:string;campaign_kind?:CampaignKind;status:'running'|'paused'|'completed'|'cancelled';total:number;
   sent_count:number;failed_count:number;uncertain_count:number;
+  pending_count?:number;review_count?:number;
   next_send_at:string;created_at:string;
 };
 
@@ -130,7 +131,7 @@ export function MovementCampaignControl() {
     }finally{setLoading(false);}
   };
 
-  const pending=campaign?Math.max(0,campaign.total-campaign.sent_count-campaign.failed_count-campaign.uncertain_count):0;
+  const pending=campaign?(campaign.pending_count??Math.max(0,campaign.total-campaign.sent_count-campaign.failed_count-campaign.uncertain_count)):0;
   const hasActive=campaign&&(campaign.status==='running'||campaign.status==='paused');
   return (
     <>
@@ -149,6 +150,7 @@ export function MovementCampaignControl() {
               {campaign.campaign_kind==='publication'?'Publicações · ':'Movimentos · '}
               {campaign.status==='running'?'Enviando':campaign.status==='paused'?'Pausado':campaign.status==='completed'?'Concluído':'Cancelado'}:
               {" "}{campaign.sent_count}/{campaign.total}
+              {campaign.review_count?` · ${campaign.review_count} em conferência`:''}
             </span>
             {sending?<Loader2 size={12} className="animate-spin text-primary"/>:null}
             {hasActive&&(
@@ -198,6 +200,7 @@ export function MovementCampaignControl() {
                     <p><strong>{preview.counts.consentMissing||0}</strong> sem autorização expressa de WhatsApp (excluídos)</p>
                     <p><strong>{preview.counts.noNewMovement||0}</strong> sem novidade após o último retorno (excluídos)</p>
                     <p><strong>{preview.counts.missingReturn||0}</strong> sem data de último retorno para comparar</p>
+                    <p><strong>{preview.counts.needsReview||0}</strong> aguardando conferência do teor oficial ou situação atual do processo (não enviados)</p>
                     <p><strong>{preview.counts.alreadyNotified||0}</strong> com aviso posterior ao evento registrado (excluídos)</p>
                     <p>Sem aviso no banco <strong>não comprova</strong> que o cliente nunca foi avisado em outro WhatsApp ou ligação.</p>
                   </div>

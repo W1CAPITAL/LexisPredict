@@ -15,6 +15,7 @@ const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
  no_new_movement:'Nenhuma movimentação posterior ao último retorno: nada enviado',
+ needs_source_review:'Teor oficial, descrição ou situação atual precisam de conferência: nada enviado',
  invalid_cnj:'CNJ inválido',outside_service_window:'Sem conversa aberta nas últimas 24 horas; exige template oficial aprovado',
  opt_out:'Cliente solicitou não receber avisos',already_contacted_today:'Cliente já recebeu comunicado hoje',
  send_rejected:'WA.Auto rejeitou o envio; confira a conexão',

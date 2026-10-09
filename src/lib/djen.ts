@@ -1,5 +1,6 @@
 import { perfCached, PerfKeys } from '@/lib/performance-motor';
 import { detectarAudienciaPendente } from './audiencia-detect';
+import { confirmedTerminalEvent, conditionalTerminalMention } from './judicial-terminal-evidence';
 /**
  * @fileOverview Motor de Consulta e Higiene DJEN v8.6 — PROTOCOLO BRASIL (gru1)
  * API oficial: https://comunicaapi.pje.jus.br/api/v1/comunicacao
@@ -215,8 +216,12 @@ export function summarizeDjenForAlert(plainText: string, type?: string): string 
   if (!plainText) return 'Publicação oficial sem conteúdo legível.';
   const upper = plainText.toUpperCase();
 
-  if (/(EXTINÇÃO|EXTINTO|485|290|CANCELAMENTO DA DISTRIBUIÇÃO)/.test(upper)) {
+  const terminal = confirmedTerminalEvent(plainText);
+  if (terminal === 'extincao') {
     return 'RITO DE EXTINÇÃO: Identificada sentença de extinção ou cancelamento da distribuição.';
+  }
+  if (!terminal && conditionalTerminalMention(plainText)) {
+    return 'Intimação para providências: a extinção ou o cancelamento é uma consequência condicionada, não um encerramento já confirmado.';
   }
   if (/(EMENDA|EMENDE|ADITE|ADITAMENTO)/.test(upper)) {
     return 'EMENDA À INICIAL: Juiz determinou adequação ou aditamento da petição inicial.';
@@ -227,8 +232,8 @@ export function summarizeDjenForAlert(plainText: string, type?: string): string 
   if (/(REDISTRIBUIÇÃO|DECLÍNIO|INCOMPETÊNCIA)/.test(upper)) {
     return 'REDISTRIBUIÇÃO: Processo movido para nova vara ou declínio de competência.';
   }
-  if (/(TRÂNSITO|BAIXA DEFINITIVA|ARQUIVAMENTO)/.test(upper)) {
-    return 'BAIXA/TRÂNSITO: Publicação confirma o encerramento definitivo do caso.';
+  if (terminal) {
+    return summarizeDjenKeywords(plainText);
   }
   return `Publicação DJEN (${type || 'Comunicação'}): ` + plainText.substring(0, 180).trim() + '...';
 }
@@ -242,11 +247,13 @@ export function summarizeDjenKeywords(raw: string | null | undefined): string {
 
   const upper = plain.toUpperCase();
   // Prefer descriptive phrases over cryptic tags (operator readability)
-  if (/(TRÂNSITO\s+EM\s+JULGADO)/.test(upper)) return 'Trânsito em julgado';
-  if (/(BAIXA\s+DEFINITIVA|ARQUIVAMENTO)/.test(upper)) return 'Baixa definitiva / arquivamento';
-  if (/(EXTINÇÃO|EXTINTO|EXTINGU|ART\.?\s*485|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
+  const terminal = confirmedTerminalEvent(plain);
+  if (terminal === 'transito') return 'Trânsito em julgado';
+  if (terminal === 'baixa' || terminal === 'arquivamento') return 'Baixa definitiva / arquivamento';
+  if (terminal === 'extincao') {
     return 'Extinção / cancelamento da distribuição';
   }
+  if (!terminal && conditionalTerminalMention(plain)) return 'Intimação para providências (consequência condicionada)';
   if (/(PARCIALMENTE\s+PROCEDENTE|PROCEDÊNCIA\s+PARCIAL)/.test(upper)) return 'Sentença parcialmente procedente';
   if (/(SENTENÇA).*(IMPROCEDENTE)|IMPROCEDENTE/.test(upper)) return 'Sentença improcedente';
   if (/(SENTENÇA).*(PROCEDENTE)|JULGADO\s+PROCEDENTE/.test(upper) && !/IMPROCEDENTE/.test(upper)) {
@@ -302,9 +309,10 @@ export function classifyEventFromText(
   const upper = plainTextFromDjen(String(text || '')).toUpperCase();
   if (!upper) return { tipo: 'rotina', label: 'Rotina' };
 
-  if (/(TRÂNSITO\s+EM\s+JULGADO|BAIXA\s+DEFINITIVA|ARQUIVAMENTO|EXTINÇÃO|EXTINTO|CANCELAMENTO\s+DA\s+DISTRIBUIÇÃO)/.test(upper)) {
+  if (confirmedTerminalEvent(plainTextFromDjen(String(text || '')))) {
     return { tipo: 'transito_ou_baixa', label: 'Trânsito / Baixa' };
   }
+  if (conditionalTerminalMention(upper)) return { tipo: 'rotina', label: 'Intimação para providências' };
   if (/(SENTENÇA).*(IMPROCEDENTE)|IMPROCEDENTE/.test(upper)) {
     return { tipo: 'sentenca_improcedente', label: 'Sentença Improcedente' };
   }

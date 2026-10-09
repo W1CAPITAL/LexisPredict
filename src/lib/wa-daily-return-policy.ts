@@ -1,10 +1,14 @@
 import {createHash} from 'node:crypto';
 import {isCasoEncerrado} from '@/lib/status-encerrado';
+import {buildClientMovementMessage,clientFirstName} from '@/lib/wa-client-notice';
+import {matchingDjenNoticeEvidence,usableMovementDescription} from '@/lib/wa-source-evidence';
+import {confirmedTerminalEvent} from '@/lib/judicial-terminal-evidence';
 
 export type ReturnCase={
   id:number;empresa_id:string;cliente?:string|null;telefone?:string|null;protocolo_ref?:string|null;
   ultimo_retorno?:string|null;proximo_retorno?:string|null;
   datajud_ultimo_movimento?:string|null;datajud_ultimo_nome?:string|null;
+  datajud_consultado_em?:string|null;
   djen_ultima_data?:string|null;djen_ultimo_resumo?:string|null;
   status?:string|null;status_interno?:string|null;
   dados?:Record<string,unknown>|null;
@@ -15,7 +19,7 @@ export type PreparedReturn={
   source:'DataJud'|'DJEN';eventAt:string;eventHash:string;
   message:string;nextReturn:string;priorReturn:string;
 };
-export type ReturnDecision={ready:PreparedReturn|null;reason:'ok'|'not_due'|'closed'|'no_consent'|'blocked'|'phone'|'missing_return'|'no_new_movement'|'invalid_cnj'};
+export type ReturnDecision={ready:PreparedReturn|null;reason:'ok'|'not_due'|'closed'|'no_consent'|'blocked'|'phone'|'missing_return'|'no_new_movement'|'invalid_cnj'|'needs_source_review'};
 
 export function brazilToday(now:Date=new Date()):string {
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
@@ -85,18 +89,35 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
   const latestDay=latest ? (latest.source==='DJEN' ? validReturnDay(row.djen_ultima_data)! : brazilToday(new Date(latest.date))) : '';
   const threshold=last;
   if(!latest||latestDay<=threshold)return {ready:null,reason:'no_new_movement'};
+  let messageDetail=latest.text;
+  if(latest.source==='DataJud') {
+    const consulted=Date.parse(String(row.datajud_consultado_em||meta.datajud_consultado_em||''));
+    if(!Number.isFinite(consulted)||consulted>Date.now()+60000||Date.now()-consulted>86400000)
+      return {ready:null,reason:'needs_source_review'};
+    if(/^(?:extin[cç][aã]o|extint[oa]|baixa|arquivamento|arquivad[oa]|tr[aâ]nsito|encerramento|encerrad[oa])\b/i.test(latest.text))
+      return {ready:null,reason:'needs_source_review'};
+  }
+  if(latest.source==='DJEN') {
+    const evidence=matchingDjenNoticeEvidence(meta.wa_djen_evidence,String(row.protocolo_ref||meta.protocolo||''),String(row.djen_ultima_data||''));
+    // A cached keyword/AI summary is never the actual text of a publication.
+    if(!evidence)return {ready:null,reason:'needs_source_review'};
+    const consulted=Date.parse(evidence.checkedAt);
+    if(!Number.isFinite(consulted)||consulted>Date.now()+60000||Date.now()-consulted>86400000)
+      return {ready:null,reason:'needs_source_review'};
+    latest.text=text(evidence.text);
+    messageDetail=evidence.text;
+    // Terminal acts require review of the current court status; do not announce
+    // a closure while the portfolio still says the case is open.
+    if(confirmedTerminalEvent(evidence.text))return {ready:null,reason:'needs_source_review'};
+  }
+  if(!usableMovementDescription(latest.text))return {ready:null,reason:'needs_source_review'};
   const digits=String(row.protocolo_ref||meta.protocolo||'').replace(/\D/g,'');
   const cnj=digits.length===20 ? `${digits.slice(0,7)}-${digits.slice(7,9)}.${digits.slice(9,13)}.${digits.slice(13,14)}.${digits.slice(14,16)}.${digits.slice(16)}` : '';
   if(!/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(cnj))
     return {ready:null,reason:'invalid_cnj'};
-  const name=text(row.cliente||meta.cliente||'Cliente').split(' ')[0]||'cliente';
-  const when=new Date(latest.date).toLocaleDateString('pt-BR',{timeZone:'UTC'});
-  const message=[
-    `Olá, ${name}. Conforme solicitado/previsto para o acompanhamento do processo nº ${cnj}, identificamos uma movimentação desde o último retorno de ${last.split('-').reverse().join('/')}.`,
-    `Último andamento registrado em ${when} — fonte ${latest.source}:\n“${latest.text}”`,
-    'Este é o teor do registro disponível, não uma confirmação independente de procedência, pagamento ou encerramento. Para esclarecer seus efeitos, responda a esta conversa.',
-    'Para não receber novos avisos, responda SAIR.',
-  ].join('\n\n');
+  const name=clientFirstName(text(row.cliente||meta.cliente||'Cliente'));
+  const when=latestDay.split('-').reverse().join('/');
+  const message=buildClientMovementMessage({firstName:name,cnj,date:when,detail:messageDetail});
   return {reason:'ok',ready:{
     processoId:Number(row.id),empresaId:row.empresa_id,phone,cnj,name,
     source:latest.source,eventAt:new Date(latest.date).toISOString(),

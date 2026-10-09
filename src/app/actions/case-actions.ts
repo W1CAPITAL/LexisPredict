@@ -14,6 +14,7 @@ import {
   getSupabaseAdmin
 } from '@/lib/server-db';
 import { normalizeMovimentosList } from '@/lib/timeline-normalize';
+import { latestDjenNoticeEvidence } from '@/lib/wa-source-evidence';
 import { LegalCase, processarCaso, EventoTipo } from '@/lib/case-logic';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
@@ -797,6 +798,7 @@ export async function auditCaseCoreSystem(
     console.warn('[reconciliar-cumprimento] skip', e?.message || e);
   }
 
+  if (djenOk) patch.wa_djen_evidence = latestDjenNoticeEvidence(protoSafe || protocolo, comunicacoes);
   const saved = await updateCaseDataJudSystem(dbItem.id, patch);
   if (!saved.success) {
     console.error('[auditCaseCoreSystem] persist failed', protocolo, saved.error);
@@ -1013,6 +1015,7 @@ export async function applyBrowserDjenResultAction(
     null;
 
   const patch: Record<string, any> = {
+    wa_djen_evidence: latestDjenNoticeEvidence(digits, comunicacoes),
     djen_nova_comunicacao:
       djenSync.alerta === true ||
       (!!target.djen_nova_comunicacao &&

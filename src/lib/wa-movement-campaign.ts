@@ -43,6 +43,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement',
         else if(reason==='closed')counts.alreadyClosed++;
         else if(reason==='no_consent')counts.consentMissing++;
         else if(reason==='missing_return')counts.missingReturn++;
+        else if(reason==='needs_source_review')counts.needsReview++;
         else if(reason==='no_new_movement')counts.noNewMovement++;
         else counts.withoutEvent++;
       } else entries.push(alert);
@@ -132,7 +133,15 @@ export async function getMovementCampaign() {
       .select('id,status,campaign_kind,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
       .eq('empresa_id',ctx.empresa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(error) throw error;
-    return {ok:true as const,campaign:data};
+    if(!data)return {ok:true as const,campaign:null};
+    const [pending,review]=await Promise.all([
+      db.from('wa_movement_dispatches').select('id',{count:'exact',head:true})
+        .eq('empresa_id',ctx.empresa_id).eq('campaign_id',data.id).in('status',['pending','processing']),
+      db.from('wa_movement_dispatches').select('id',{count:'exact',head:true})
+        .eq('empresa_id',ctx.empresa_id).eq('campaign_id',data.id).eq('status','cancelled').like('last_error','source_review:%'),
+    ]);
+    if(pending.error||review.error)throw new Error('Não foi possível conferir o progresso da fila.');
+    return {ok:true as const,campaign:{...data,pending_count:pending.count||0,review_count:review.count||0}};
   } catch(e:any) {return {ok:false as const,error:String(e?.message||e)};}
 }
 
@@ -188,6 +197,13 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
   const check=current ? prepareMovementAlert(current as SourceRow,settings.consentAttested) : null;
   if(rowError || !check?.alert || check.alert.event_hash!==claimed.event_hash || check.alert.phone!==claimed.phone) {
+    if(!rowError && check?.reason==='needs_source_review') {
+      const held=await db.from('wa_movement_dispatches').update({status:'cancelled',claimed_at:null,
+        last_error:'source_review: Aguardando teor oficial, descrição legível ou situação atual; nenhum envio realizado.'})
+        .eq('id',claimed.id).eq('status','processing');
+      if(held.error)throw new Error(held.error.message);
+      return {ok:true as const,processed:true as const,status:'review',reason:'needs_source_review'};
+    }
     await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Carteira alterada ou retorno já registrado: aviso cancelado'});
     return {ok:true as const,processed:true as const,status:'skipped',reason:check?.reason||'case_missing'};
   }
@@ -257,5 +273,7 @@ export async function enqueueScannedMovement(empresaId:string,processId:number) 
   if(!prepared.alert)return {queued:false,reason:prepared.reason};
   const {data,error:queueError}=await db.rpc('wa_enqueue_notice',{p_empresa:empresaId,p_owner:settings.ownerAuthId,p_notice:prepared.alert});
   if(queueError)throw new Error(queueError.message);
+  if(data)await db.from('wa_movement_dispatches').update({last_error:'source_review_resolved: Teor oficial conferido; versão válida preparada.'})
+    .eq('empresa_id',empresaId).eq('processo_id',processId).eq('status','cancelled').like('last_error','source_review:%');
   return {queued:!!data};
 }

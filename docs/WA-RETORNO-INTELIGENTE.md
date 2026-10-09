@@ -39,3 +39,10 @@ O scanner DataJud/DJEN salva os registros e prepara a mesma fila de novidades, q
 `wa_reserve_return` usa trava transacional por empresa, unicidade por telefone/dia e por evento, intervalo de 45s e limite comum de 120 avisos. Não há reenvio após resposta ambígua. `wa_record_return` mescla as datas no JSON atual e evita sobrescrever retorno manual alterado durante o envio.
 
 Para cron, a identidade do responsável é assinada no servidor por 90 segundos e validada pelo callback existente do WA.Auto. O callback confere cargo, empresa e automação/fila ativa; não aceita identidade arbitrária de navegador nem publica credenciais.
+
+## Conferência do conteúdo e tom do atendimento
+As mensagens se identificam como Setor Processual, usam o primeiro nome formatado e a saudação do horário de Brasília. Não prometem contato em uma data sem agendamento nem avisos sem novidade.
+
+`djen_ultimo_resumo` é uma classificação de palavras-chave, não o teor original. A automação exige `wa_djen_evidence` com texto oficial, CNJ, data e consulta recente, separado do resumo. DataJud precisa de consulta nas últimas 24h e descrição legível: códigos isolados, consultas antigas, publicações sem teor verificável e atos finais em processos ainda abertos vão para conferência, sem envio. O evento e a regra de não duplicar permanecem independentes da redação.
+
+“Sob pena de extinção”, pedido de extinção e citações aos artigos 290/485 não comprovam encerramento. A classificação só reconhece ato final afirmativo. Uma consulta pública mais recente fornecida pelo responsável fica registrada com sua origem, sem substituir artificialmente os dados do DataJud por dados de outra fonte.

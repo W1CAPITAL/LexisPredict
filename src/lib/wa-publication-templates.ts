@@ -5,6 +5,7 @@
  */
 export type PublicationEvent = 'baixa'|'transito'|'extincao'|'arquivamento'|'encerramento';
 export type PublicationMerit = 'procedente'|'parcial'|'improcedente'|'sem_merito';
+import {clientGreeting,CLIENT_NOTICE_CLOSING,CLIENT_NOTICE_OPT_OUT} from './wa-client-notice';
 
 export const PUBLICATION_EVENT_LABELS:Record<PublicationEvent,string>={
   baixa:'Baixa definitiva',
@@ -33,11 +34,12 @@ export function buildPublicationMessage(input:{
 }):string {
   const {firstName,cnj,date,source,kind,verdict}=input;
   return [
-    `Olá, ${firstName}. Temos uma atualização sobre o processo nº ${cnj}.`,
-    PUBLICATION_EVENT_TEXT[kind](date,source),
+    clientGreeting(firstName),
+    `Passando para atualizar você sobre o processo nº ${cnj}. ${PUBLICATION_EVENT_TEXT[kind](date,source)}`,
     PUBLICATION_MERIT_LABELS[verdict],
-    'Esse andamento não confirma, isoladamente, valores a receber, pagamento ou a conclusão de eventual cumprimento de sentença.',
-    'Se desejar conferir o registro ou conversar sobre os próximos passos, responda a esta conversa. Para deixar de receber avisos, responda SAIR.',
+    'Esse registro, por si só, não significa que já exista algum valor liberado para receber.',
+    CLIENT_NOTICE_CLOSING,
+    CLIENT_NOTICE_OPT_OUT,
   ].join('\n\n');
 }
 
