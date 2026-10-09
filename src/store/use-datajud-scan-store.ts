@@ -275,7 +275,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     // Assim uma tela paginada com 200 itens não limita um tenant com 2.000+ processos.
     let allLocal = useAppStore.getState().cases || [];
     // Retomada tambem refaz a fila completa; a memoria do usuario pode estar paginada.
-    if (true) {
+    {
       try {
         const { fetchScannerQueueAction } = await import('@/app/actions/case-actions');
         const remote = await fetchScannerQueueAction();
