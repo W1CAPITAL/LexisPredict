@@ -16,13 +16,13 @@ export async function POST(request: Request) {
     let mode = 'both';
     let scope = 'full';
     let since: string | null = null;
-    let afterId = 0;
+    let afterId: string | null = null;
     try {
       const body = await request.clone().json().catch(() => ({}));
       if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
       if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
       if (body?.since) since = String(body.since);
-      if (Number.isSafeInteger(body?.afterId) && body.afterId >= 0) afterId = body.afterId;
+      if (typeof body?.afterId === 'string' && body.afterId.trim()) afterId = body.afterId.trim();
     } catch {
       /* ignore */
     }

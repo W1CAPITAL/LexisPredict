@@ -461,7 +461,7 @@ export async function getGlobalPendingProcessesSystem(
     scope?: 'full' | 'cumprimento';
     mode?: 'datajud' | 'djen' | 'both';
     since?: string | null;
-    afterId?: number;
+    afterId?: string | null;
   }
 ): Promise<LegalCase[]> {
   const scope = opts?.scope === 'cumprimento' ? 'cumprimento' : 'full';
@@ -499,7 +499,7 @@ export async function getGlobalPendingProcessesSystem(
     // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
     let query = admin.from('processos').select('*')
       .eq('empresa_id', empresaId).or(combined);
-    if (opts?.afterId && opts.afterId > 0) query = query.gt('id', opts.afterId);
+    if (opts?.afterId) query = query.gt('id', opts.afterId);
     const { data: sessionRows, error: sessionError } = await query
       .order('id', { ascending: true })
       .limit(Math.max(limit, 3));

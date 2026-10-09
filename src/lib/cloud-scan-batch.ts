@@ -21,7 +21,7 @@ export async function runCloudScanBatch(input: {
   mode: CloudScanMode;
   scope: CloudScanScope;
   since?: string | null;
-  afterId?: number;
+  afterId?: string | null;
 }) {
   const startedAt = Date.now();
 
@@ -32,7 +32,7 @@ export async function runCloudScanBatch(input: {
       scope: input.scope,
       mode: input.mode,
       since: input.since || null,
-      afterId: input.afterId || 0,
+      afterId: input.afterId || null,
     }
   );
 
@@ -46,20 +46,21 @@ export async function runCloudScanBatch(input: {
       scope: input.scope,
       since: input.since || null,
       durationMs: Date.now() - startedAt,
-      lastId: input.afterId || 0,
+      lastId: input.afterId || null,
       message: 'Fila da sessão concluída.',
     };
   }
 
   let successCount = 0;
   let failedCount = 0;
-  let lastId = input.afterId || 0;
+  let lastId = input.afterId || null;
 
   for (let i = 0; i < casesToAudit.length; i++) {
     if (Date.now() - startedAt > MAX_RUNTIME_MS) break;
 
     const item = casesToAudit[i];
-    lastId = Number((item as any).db_id || item.id || lastId);
+    const itemId = String((item as any).db_id || item.id || '').trim();
+    if (itemId) lastId = itemId;
 
     try {
       const result = await auditCaseCoreSystem(
