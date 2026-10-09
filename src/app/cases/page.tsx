@@ -45,7 +45,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
-import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
+import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
 import { searchCompanyProcessosAction } from '@/app/actions/search-processos-action';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
@@ -680,6 +681,8 @@ function CasesContent() {
         } catch (error: any) { failures.push(`${c.protocolo}: ${error?.message || 'Falha ao salvar'}`); }
       }
       if (ok > 0) {
+        invalidateCarteiraCache();
+        invalidateFastCarteiraCache();
         {
           const prev = useAppStore.getState().cases;
           setCases(
@@ -960,6 +963,8 @@ function CasesContent() {
       if (cnjChanged) {
         const res = await updateCaseCnjAction(String(editingCase.protocolo || ''), updatedCase);
         if (res?.success) {
+          invalidateCarteiraCache();
+          invalidateFastCarteiraCache();
           if ((updatedCase as any).force_transfer_owner) {
             await saveOneCaseAction(slimCaseForSave(updatedCase) as any);
           }
@@ -995,6 +1000,8 @@ function CasesContent() {
       // 2) Demais campos do processo
       const res = await saveOneCaseAction(slimCaseForSave(updatedCase) as any);
       if (res.success) {
+        invalidateCarteiraCache();
+        invalidateFastCarteiraCache();
         const saved = { ...(res as any).case, ...updatedCase, created_by: nextOwner || (updatedCase as any).created_by };
         const updatedList = cases.map(c => (c.id === editingCase.id ? { ...c, ...saved } : c));
         setCases(updatedList);
@@ -1049,6 +1056,8 @@ function CasesContent() {
     }
     const res = await saveOneCaseAction(slimCaseForSave(novo) as any);
     if (res.success) {
+      invalidateCarteiraCache();
+      invalidateFastCarteiraCache();
       const updatedList = [res.case || novo, ...cases];
       setCases(updatedList);
       setIsModalOpen(false);
@@ -1075,6 +1084,8 @@ function CasesContent() {
         ? await deleteOneCaseAction(proto)
         : { success: false, message: 'Protocolo não encontrado' };
       if (res.success) {
+        invalidateCarteiraCache();
+        invalidateFastCarteiraCache();
         removeCase(id);
         setCases(useAppStore.getState().cases.filter((c: LegalCase) => c.id !== id));
         toast({ title: 'Processo removido' });
