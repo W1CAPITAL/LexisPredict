@@ -1151,9 +1151,9 @@ function WhatsAppTerminalInner() {
 
   return (
     <>
-      <div className="flex h-[calc(100dvh-64px)] min-h-0 bg-background text-foreground overflow-hidden">
+      <div className="flex min-h-[calc(100dvh-64px)] w-full bg-background text-foreground">
         <Sidebar />
-        <main className="lexis-main-pad flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto overscroll-contain pb-[82px] md:pb-[78px]">
+        <main className="lexis-main-pad flex-1 min-w-0 flex flex-col overflow-visible pb-[110px] md:pb-[96px]">
           <header className="shrink-0 border-b border-border/60 bg-card/80 backdrop-blur px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
@@ -1220,7 +1220,7 @@ function WhatsAppTerminalInner() {
 
           <WaAutoConnectionCard />
 
-          <div className="flex-1 min-h-[560px] shrink-0 grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden">
+          <div className="flex-1 min-h-[560px] grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden" style={{height:"min(760px, max(560px, calc(100dvh - 235px)))"}}>
             {/* Lista */}
             <aside className="md:col-span-4 xl:col-span-3 border-r border-border/50 border-b md:border-b-0 flex flex-col min-h-0 bg-card/40 overflow-hidden">
               <div className="p-3 border-b border-border/40">

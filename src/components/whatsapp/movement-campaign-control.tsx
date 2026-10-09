@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, FileClock, CheckCircle2, Clock3, Loader2, Pause, Play, RefreshCcw, Send, ShieldCheck, Square, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { PUBLICATION_TEMPLATE_PREVIEWS } from "@/lib/wa-publication-templates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -41,7 +40,7 @@ export function MovementCampaignControl() {
   const [open,setOpen]=useState(false);
   const [loading,setLoading]=useState(false);
   const [sending,setSending]=useState(false);
-  const [consent,setConsent]=useState(false);
+
   const [kind,setKind]=useState<CampaignKind>("movement");
   const [showTemplates,setShowTemplates]=useState(false);
   const [preview,setPreview]=useState<Preview|null>(null);
@@ -74,6 +73,9 @@ export function MovementCampaignControl() {
           if(!result.ok&&result.error) {
             toast({title:"Fila de movimentações",description:result.error,variant:"destructive"});
           }
+          if(result.warning) {
+            toast({title:"Envio aceito, mas revisão necessária",description:result.warning,variant:"destructive"});
+          }
           await reload();
         }catch{
           if(alive)toast({title:"Falha de conexão com a fila",description:"Confira os envios antes de retomar.",variant:"destructive"});
@@ -91,23 +93,22 @@ export function MovementCampaignControl() {
   if(!allowed)return null;
 
   const inspect=async(selectedKind:CampaignKind)=>{
-    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);
+    setKind(selectedKind);setOpen(true);setLoading(true);setPreview(null);setShowTemplates(false);
     try{
       const result=await Promise.race([
         previewWhatsAppMovementCampaignAction(selectedKind),
         new Promise<never>((_,reject)=>window.setTimeout(()=>reject(new Error('A consulta demorou demais. Tente atualizar a prévia.')),25000)),
       ]);
-      if(result.ok)setConsent(result.consentAttested===true);
       setPreview(result as Preview);
     }catch(e:any){setPreview({ok:false,error:e?.message||"Não foi possível consultar a carteira."});}
     finally{setLoading(false);}
   };
 
   const start=async()=>{
-    if((!consent)||!preview?.ok||!preview.counts?.eligible)return;
+    if(!preview?.ok||!preview.counts?.eligible)return;
     setLoading(true);
     try{
-      const result=await startWhatsAppMovementCampaignAction(consent,kind);
+      const result=await startWhatsAppMovementCampaignAction(true,kind);
       if(!result.ok){
         toast({title:"Campanha não iniciada",description:result.error,variant:"destructive"});
         return;
@@ -206,6 +207,14 @@ export function MovementCampaignControl() {
                   </div>
                 )}
               </div>
+              {preview.counts.eligible===0&&(
+                <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+                  Nenhum comunicado está pronto neste momento. Retornos vencidos não são envios aptos.
+                  O scanner DataJud + DJEN pode conferir casos individuais; somente novidades oficiais
+                  posteriores ao último retorno entram na fila. Casos encerrados e telefones ausentes
+                  permanecem excluídos.
+                </div>
+              )}
               <div className="rounded-xl border border-border overflow-hidden">
                 <div className="bg-muted/50 px-3 py-2 text-xs font-bold">Prévia individualizada — até 5 exemplos</div>
                 <div className="max-h-[220px] overflow-y-auto divide-y divide-border">
@@ -244,15 +253,11 @@ export function MovementCampaignControl() {
                   </p>
                 </div>
               ) : null}
-              {!preview.consentAttested ? (
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                  <Checkbox checked={consent} onCheckedChange={v=>setConsent(v===true)} className="mt-0.5"/>
-                  <span className="text-xs leading-relaxed">
-                    <strong>Confirmo que os clientes desta carteira autorizaram contatos de acompanhamento processual por WhatsApp.</strong>
-                    Mensagens serão efetivamente enviadas ao iniciar.
-                  </span>
-                </label>
-              ) : <p className="text-xs text-emerald-700">Consentimento e opt-in da carteira já confirmados.</p>}
+              <p className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 text-xs text-foreground">
+                Envio sem confirmação repetitiva: ao iniciar, o gestor utiliza a autorização contratual
+                declarada para a carteira desta empresa. O sistema ainda exclui números inválidos,
+                processos encerrados, retornos sem novidade e contatos com recusa expressa ou SAIR.
+              </p>
               <p className="text-[11px] text-muted-foreground">
                 {kind==='publication'
                   ? 'Publicações: até 25 mensagens por dia, intervalo mínimo de 3 minutos, só em horário comercial de dias úteis, no máximo uma por número a cada 24h. Esses controles não garantem ausência de bloqueio; a política do WhatsApp e os modelos aprovados quando exigidos continuam obrigatórios.'
@@ -262,9 +267,9 @@ export function MovementCampaignControl() {
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={()=>setOpen(false)}>Cancelar</Button>
-                <Button onClick={()=>void start()} disabled={!consent||loading||!preview.counts.eligible||campaign?.status==='running'}>
+                <Button onClick={()=>void start()} disabled={loading||!preview.counts.eligible||campaign?.status==='running'}>
                   {loading?<Loader2 size={14} className="mr-2 animate-spin"/>:<Send size={14} className="mr-2"/>}
-                  {kind==='publication'?'Iniciar automaticamente ':'Iniciar '}{preview.counts.eligible} avisos
+                  {'Iniciar envio sequencial de '}{preview.counts.eligible} avisos
                 </Button>
               </div>
               {campaign?.status==='running'&&<p className="text-xs text-amber-700 dark:text-amber-300">Pause ou conclua a fila em andamento antes de iniciar uma nova.</p>}
