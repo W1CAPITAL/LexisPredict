@@ -28,8 +28,8 @@ const CLEAN_FALLBACK: AssinaturaStatus = {
 };
 
 type CommercialState = Awaited<ReturnType<typeof getMinhaAssinaturaAction>>;
-const PLAN_STATE_TTL_MS = 2 * 60 * 1000;
-const VALIDATED_LOCAL_TTL_MS = 2 * 60 * 1000;
+const PLAN_STATE_TTL_MS = 10 * 60 * 1000;
+const VALIDATED_LOCAL_TTL_MS = 30 * 60 * 1000;
 const planStateCache = new Map<string, { at: number; value: CommercialState }>();
 const planStateInflight = new Map<string, Promise<CommercialState>>();
 
@@ -252,12 +252,18 @@ export function usePlano() {
       setSelfServiceUnlocked(!!res.selfServiceUnlocked);
       setOnboardingCompleted(!!res.onboardingCompleted);
       const serverNav: NavLayoutMode = res.navLayout === "vertical" ? "vertical" : "dock";
-      setNavLayout(serverNav);
+      // A preferencia salva no dispositivo vence a sugestao padrao da empresa.
+      const locallyChosenMode = (() => {
+        try { return localStorage.getItem('lexis_nav_layout_v1'); } catch { return null; }
+      })();
+      const resolvedNav = locallyChosenMode === 'dock' || locallyChosenMode === 'vertical'
+        ? locallyChosenMode : serverNav;
+      setNavLayout(resolvedNav);
       setSidebarCompact(!!res.sidebarCompact);
       blockedRef.current = next.blocked;
 
       if (res.onboardingCompleted) {
-        saveNavLayout(serverNav);
+        if (locallyChosenMode !== 'dock' && locallyChosenMode !== 'vertical') saveNavLayout(serverNav);
         try {
           localStorage.setItem("lexis-sidebar-compact-v2", res.sidebarCompact ? "1" : "0");
           window.dispatchEvent(
@@ -302,7 +308,7 @@ export function usePlano() {
       live = false;
       window.clearInterval(id);
     };
-  }, [empresaId, profile, isSuperAdmin, user, authLoading]);
+  }, [empresaId, profile?.auth_user_id, isSuperAdmin, user?.id, authLoading]);
 
   const left = daysLeft(ass.expiresAt);
   const subscriptionAuthoritative =
