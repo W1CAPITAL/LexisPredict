@@ -9,6 +9,7 @@ import { sendTextMessageSafe, normalizeBrPhone, evolutionHealthCheck } from '@/l
 import {
   isWaAutoConfigured,
   sendViaWaAuto,
+  waAutoDeliveryConfirmed,
   waAutoHealth,
   listWaAutoChats,
   fetchWaAutoChatByJid,
@@ -53,9 +54,10 @@ export async function sendWhatsAppAction(to: string, message: string) {
     provider = 'evolution';
     raw = evo.raw;
   }
+  const deliveryConfirmed = provider === 'waauto' && waAutoDeliveryConfirmed(raw);
   const timestamp = new Date().toISOString();
   if (isGroup) return {
-    success: true, timestamp, phone: recipient, data: raw, provider,
+    success: true, timestamp, phone: recipient, data: raw, provider, deliveryConfirmed,
     persisted: false, persistError: 'Histórico de grupos permanece na sessão do WA.Auto.',
   };
   try {
@@ -66,11 +68,11 @@ export async function sendWhatsAppAction(to: string, message: string) {
       timestamp, empresaId: ctx.empresa_id, raw,
     });
     return {
-      success: true, timestamp, phone, data: raw, provider,
+      success: true, timestamp, phone, data: raw, provider, deliveryConfirmed,
       persisted: stored.ok, persistError: stored.error || null,
     };
   } catch (e: any) {
-    return { success: true, timestamp, phone, data: raw, provider,
+    return { success: true, timestamp, phone, data: raw, provider, deliveryConfirmed,
       persisted: false, persistError: e?.message || 'Falha ao gravar no Supabase' };
   }
 }
