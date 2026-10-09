@@ -114,6 +114,45 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
   return await getStoredCasesPageForEmpresa(ctx.empresa_id, limit, offset, adminView, { includeDetails });
 }
 
+/**
+ * Lista leve da carteira inteira para o scanner local.
+ * Nunca substitui o estado da UI: traz somente os campos necessarios para
+ * selecionar e percorrer CNJs, sem transportar o JSON de cada processo.
+ */
+export async function fetchScannerQueueAction() {
+  const ctx = await getUserContext();
+  if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) throw new Error('Sessao sem permissao para scanner.');
+  const db = await getSupabaseAdmin();
+  const rows: any[] = [];
+  for (let offset = 0; offset < 10000; offset += 500) {
+    const { data, error } = await db.from('processos')
+      .select('id,empresa_id,protocolo_ref,status,status_interno,created_by,datajud_consultado_em,djen_consultado_em,datajud_encerrado_tribunal,em_cumprimento_sentenca,is_procedente,cumprimento_pendente_necessario,tem_atualizacao_pos_retorno,djen_nova_comunicacao')
+      .eq('empresa_id',ctx.empresa_id)
+      .order('id',{ascending:true})
+      .range(offset,offset+499);
+    if (error) throw new Error('Falha na fila do scanner: '+error.message);
+    for (const item of data || []) {
+      if (!item.protocolo_ref) continue;
+      rows.push({
+        id: String(item.id), db_id: String(item.id),
+        empresa_id: item.empresa_id, created_by: item.created_by,
+        protocolo: item.protocolo_ref, status: item.status,
+        situacao: item.status_interno,
+        datajud_consultado_em: item.datajud_consultado_em,
+        djen_consultado_em: item.djen_consultado_em,
+        datajud_encerrado_tribunal: item.datajud_encerrado_tribunal,
+        em_cumprimento_sentenca: item.em_cumprimento_sentenca,
+        is_procedente: item.is_procedente,
+        cumprimento_pendente_necessario: item.cumprimento_pendente_necessario,
+        tem_atualizacao_pos_retorno: item.tem_atualizacao_pos_retorno,
+        djen_nova_comunicacao: item.djen_nova_comunicacao,
+      });
+    }
+    if (!data || data.length < 500) break;
+  }
+  return rows as LegalCase[];
+}
+
 export async function fetchRepoCases() {
   const ctx = await getUserContext();
   if ((ctx as any).safety) {
