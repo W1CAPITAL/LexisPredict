@@ -37,10 +37,12 @@ export function Sidebar() {
 
     media.addEventListener?.("change", syncViewport);
     window.addEventListener("lexis-nav-layout", onLayoutChange);
+    window.addEventListener("storage", syncMode);
 
     return () => {
       media.removeEventListener?.("change", syncViewport);
       window.removeEventListener("lexis-nav-layout", onLayoutChange);
+      window.removeEventListener("storage", syncMode);
     };
   }, []);
 
