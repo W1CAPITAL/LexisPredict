@@ -461,6 +461,7 @@ export async function getGlobalPendingProcessesSystem(
     scope?: 'full' | 'cumprimento';
     mode?: 'datajud' | 'djen' | 'both';
     since?: string | null;
+    afterId?: number;
   }
 ): Promise<LegalCase[]> {
   const scope = opts?.scope === 'cumprimento' ? 'cumprimento' : 'full';
@@ -484,18 +485,18 @@ export async function getGlobalPendingProcessesSystem(
               `djen_consultado_em.lt.${since}`,
             ].join(',');
 
-    const { data: sessionRows, error: sessionError } = await admin
-      .from('processos')
-      .select('*')
-      .eq('empresa_id', empresaId)
-      .or(condition)
-      .order('scan_priority', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(Math.max(limit * 20, 120));
+    // Cursor crescente: um tribunal indisponível não pode travar a carteira
+    // no mesmo CNJ eternamente. Cada tentativa avança o cursor da sessão.
+    let query = admin.from('processos').select('*')
+      .eq('empresa_id', empresaId).or(condition);
+    if (opts?.afterId && opts.afterId > 0) query = query.gt('id', opts.afterId);
+    const { data: sessionRows, error: sessionError } = await query
+      .order('id', { ascending: true })
+      .limit(scope === 'cumprimento' ? 600 : Math.max(limit, 3));
 
     if (sessionError) {
       console.error('[getGlobalPendingProcessesSystem] session', sessionError);
-      return [];
+      throw new Error(`Falha ao preparar fila DataJud/DJEN: ${sessionError.message}`);
     }
 
     let sessionCases = (sessionRows || []).map(mapProcessoRow);
