@@ -16,6 +16,8 @@ export async function POST(request: Request) {
   let scope = (searchParams.get('scope') as 'full' | 'cumprimento') || 'full';
   if (!['full', 'cumprimento'].includes(scope)) scope = 'full';
   let since = searchParams.get('since');
+  const afterIdParam = Number(searchParams.get('afterId') || 0);
+  const afterId = Number.isSafeInteger(afterIdParam) && afterIdParam >= 0 ? afterIdParam : 0;
 
   try {
     const body = await request.clone().json().catch(() => ({}));
@@ -44,7 +46,8 @@ export async function POST(request: Request) {
       mode,
       scope,
       since,
-    });
+      afterId,
+  });
 
     return NextResponse.json(result);
   } catch (error: any) {
