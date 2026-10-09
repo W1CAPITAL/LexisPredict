@@ -144,7 +144,7 @@ function Kpi({ icon, label, value, hint, tone = "default" }: {
 }
 
 export default function ProcessosEmpresaPage() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const empresaId = String((profile as any)?.empresa_id || '');
   const authUserId = String((profile as any)?.auth_user_id || '');
@@ -256,7 +256,14 @@ export default function ProcessosEmpresaPage() {
   };
 
   // Em outros perfis o contexto pode chegar apos a montagem do componente.
-  useEffect(() => { if (empresaId && authUserId) void load(); }, [empresaId, authUserId]);
+  useEffect(() => {
+    if (empresaId && authUserId) {
+      void load();
+    } else if (!authLoading) {
+      setLoading(false);
+      setCarteiraError('O perfil da empresa não foi carregado. Confira sua sessão e atualize a página.');
+    }
+  }, [empresaId, authUserId, authLoading]);
 
   // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
   useEffect(() => {
