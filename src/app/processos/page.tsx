@@ -221,6 +221,8 @@ export default function ProcessosEmpresaPage() {
       setVencidosCount(first.data.summary.vencidos);
       setHasServerMore((previous?.cases?.length || first.data.cases.length) < first.data.totalCount);
     }
+    // Voltar para a rota nao pode disparar a mesma consulta se o snapshot ainda e recente.
+    if (!force && first?.data && first.ageMs < 5 * 60_000 && previous?.cases?.length) return;
     try {
       const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
