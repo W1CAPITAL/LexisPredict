@@ -17,7 +17,7 @@ export const PUBLICATION_MERIT_LABELS:Record<PublicationMerit,string>={
   procedente:'A decisão registrada julgou o pedido procedente.',
   parcial:'A decisão registrada julgou o pedido parcialmente procedente.',
   improcedente:'A decisão registrada julgou o pedido improcedente.',
-  sem_merito:'O registro indica extinção sem julgamento do mérito; não se trata de procedência ou improcedência do pedido.',
+  sem_merito:'O registro indica extinção sem análise do mérito; não se trata de procedência ou improcedência do pedido.',
 };
 export const PUBLICATION_EVENT_TEXT:Record<PublicationEvent,(date:string,source:string)=>string>={
   baixa:(date,source)=>`Consta baixa definitiva em ${date}, segundo o registro de ${source}. Essa informação diz respeito à movimentação do processo.`,
