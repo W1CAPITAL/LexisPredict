@@ -29,6 +29,13 @@ const PUBLIC_API = [
   '/api/webhooks',
 ]
 
+// Estas rotas autenticam o agendador com seu segredo próprio no handler.
+// A exceção é exata: outras rotas e subrotas continuam exigindo sessão.
+const MACHINE_AUTH_API = new Set([
+  '/api/cron/wa-movement',
+  '/api/cron/wa-daily-return',
+])
+
 const OPERATIONAL_API = [
   '/api/datajud-search',
   '/api/datajud-status',
@@ -83,7 +90,7 @@ export async function middleware(request: NextRequest) {
   const isTenantSetupPage = path === '/setup-empresa'
   const isFirstRunPage = path === '/primeiro-acesso'
   const isStaticFile = /\.[a-z0-9]+$/i.test(path)
-  const isPublicApi = starts(path, PUBLIC_API)
+  const isPublicApi = starts(path, PUBLIC_API) || MACHINE_AUTH_API.has(path)
   const isPublic = isAuthPage || path.startsWith('/termos') || path === '/modo-seguranca' || isPublicApi || isStaticFile
   const isGuest = request.cookies.get('lexis_guest')?.value === '1'
 
