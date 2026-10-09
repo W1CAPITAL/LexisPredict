@@ -2,7 +2,7 @@
  * Deterministic OmniReport: no provider, tokens, fabricated rulings or background
  * scraping. The text is an indexed documentary report, not LLM analysis.
  */
-export type OfflineSource = {id:string;name:string;kind:string;text:string};
+export type OfflineSource = {id:string;name:string;kind?:string;text:string};
 export type OfflineSection = {number:string;title:string;body:string};
 
 const MARKERS = /(?:\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b|\b\d{20}\b)/g;
