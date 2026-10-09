@@ -2,7 +2,7 @@ import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {sendViaWaAuto} from '@/lib/wa-auto-client';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
-import {brazilToday,normalizePhone,prepareDailyReturn,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
+import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
 export async function getDailyReturnSettings(empresaId:string) {
   const db=await getSupabaseAdmin();
@@ -118,4 +118,23 @@ export async function processNextDueReturn(empresaId:string,intervalDays:number)
   if(error)throw new Error('Scanner indisponível: '+error.message);
   if(!data)return {ok:true,processed:false,reason:'no_due_cases'};
   return {...await processOneDailyReturn({empresaId,processId:Number(data),mode:'due',intervalDays,today}),processed:true};
+}
+
+/** Called only by a signed webhook after the inbound text was persisted in
+ * the correct tenant. If a phone matches several cases, reveal nothing.
+ */
+export async function processIncomingReturnRequest(empresaId:string,phoneInput:string,text:string){
+  if(!isStatusRequest(text))return {ok:true,sent:false,reason:'not_status_request'};
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled)return {ok:true,sent:false,reason:'automation_disabled'};
+  const phone=normalizePhone(phoneInput);
+  if(!phone)return {ok:true,sent:false,reason:'invalid_phone'};
+  const db=await getSupabaseAdmin();
+  const {data,error}=await db.from('processos').select('id,telefone')
+    .eq('empresa_id',empresaId).ilike('telefone','%'+phone.slice(-8)+'%').limit(30);
+  if(error)return {ok:false,sent:false,reason:'lookup_failed'};
+  const matches=(data||[]).filter(x=>normalizePhone(x.telefone)===phone);
+  if(matches.length!==1)return {ok:true,sent:false,reason:matches.length?'ambiguous_case':'case_not_found'};
+  return processOneDailyReturn({empresaId,processId:matches[0].id,mode:'requested',
+    intervalDays:settings.intervalDays});
 }
