@@ -57,10 +57,10 @@ const verdictIn=(v:unknown):Verdict=>{
   if(/\bPROCEDENTE\b|\bPROCEDENCIA\b|\bJULGO PROCEDENTES?\b/.test(t))return 'procedente';
   return 'indeterminado';
 };
-export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
+export function preparePublicationNotice(row:PublicationSourceRow, opts:{includeClosed?:boolean}={}):Preparation {
   const meta=(row.dados&&typeof row.dados==='object')?row.dados:{};
   // Closed portfolio records are excluded even if DataJud flags are outdated.
-  if(isCasoEncerrado({status:row.status,status_interno:row.status_interno,dados:meta}))return {notice:null,reason:'already_closed'};
+  if(!opts.includeClosed && isCasoEncerrado({status:row.status,status_interno:row.status_interno,dados:meta}))return {notice:null,reason:'already_closed'};
   const blocked=['nao_contatar','não_contatar','whatsapp_opt_out','optOut','optout','bloquear_whatsapp','naoEnviarWhatsapp']
     .some(k=>yes(meta[k])) || ['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>k in meta && no(meta[k]));
   if(blocked)return {notice:null,reason:'blocked'};

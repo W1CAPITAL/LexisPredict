@@ -19,7 +19,7 @@ import {
 } from "@/app/actions/whatsapp-movement-campaign-actions";
 
 type Sample = {client:string;cnj:string;source:string;date:string;message:string;verdict?:string|null;kind?:string|null};
-type CampaignKind = "movement" | "publication";
+type CampaignKind = "movement" | "publication" | "closure_scan";
 type Preview = {
   ok:boolean;error?:string;kind?:CampaignKind;counts?:{
     scanned:number;withoutPhone:number;withoutEvent:number;blocked:number;samePhone:number;
@@ -28,7 +28,7 @@ type Preview = {
   }; samples?:Sample[];
 };
 type Campaign = {
-  id:string;campaign_kind?:CampaignKind;status:'running'|'paused'|'completed'|'cancelled';total:number;
+  id:string;campaign_kind?:CampaignKind;auto_close_after_sent?:boolean;status:'running'|'paused'|'completed'|'cancelled';total:number;
   sent_count:number;failed_count:number;uncertain_count:number;
   next_send_at:string;created_at:string;
 };
@@ -43,6 +43,7 @@ export function MovementCampaignControl() {
   const [consent,setConsent]=useState(false);
   const [kind,setKind]=useState<CampaignKind>("movement");
   const [showTemplates,setShowTemplates]=useState(false);
+  const [autoCloseAfterSent,setAutoCloseAfterSent]=useState(false);
   const [preview,setPreview]=useState<Preview|null>(null);
   const [campaign,setCampaign]=useState<Campaign|null>(null);
   const busy=useRef(false);
@@ -90,7 +91,7 @@ export function MovementCampaignControl() {
   if(!allowed)return null;
 
   const inspect=async(selectedKind:CampaignKind)=>{
-    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);
+    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);setAutoCloseAfterSent(false);
     try{
       const result=await previewWhatsAppMovementCampaignAction(selectedKind);
       setPreview(result as Preview);
@@ -102,7 +103,7 @@ export function MovementCampaignControl() {
     if((kind==='movement'&&!consent)||!preview?.ok||!preview.counts?.eligible)return;
     setLoading(true);
     try{
-      const result=await startWhatsAppMovementCampaignAction(kind==='movement' ? consent : false,kind);
+      const result=await startWhatsAppMovementCampaignAction(kind==='movement' ? consent : false,kind,autoCloseAfterSent);
       if(!result.ok){
         toast({title:"Campanha não iniciada",description:result.error,variant:"destructive"});
         return;
@@ -139,6 +140,7 @@ export function MovementCampaignControl() {
           className="h-9 gap-1.5 rounded-xl border border-primary/30 bg-primary/10 text-foreground hover:bg-primary/20 text-[11px] font-bold">
           <FileClock size={14}/><span className="hidden sm:inline">Avisar publicações pendentes</span><span className="sm:hidden">Publicações</span>
         </Button>
+        <Button type="button" onClick={()=>void inspect("closure_scan")} size="sm">Scanner de encerramentos</Button>
         {campaign&&(
           <div className="flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1 text-[10px]">
             <span className="truncate max-w-[170px]" title={campaign.status}>
@@ -164,7 +166,7 @@ export function MovementCampaignControl() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base"><BellRing size={18}/> {kind==='publication'?'Avisar publicações e encerramentos pendentes':'Avisar clientes — última movimentação'}</DialogTitle>
             <DialogDescription>
-              {kind==='publication'
+              {kind!=='movement'
                 ? 'Considera apenas processos ainda abertos na carteira que possuam registro de baixa, trânsito, arquivamento ou extinção e resultado da decisão identificado. Sem julgamento claro, sem permissão expressa ou com aviso registrado: não envia.'
                 : 'Consulta a carteira inteira da sua empresa no Supabase, prepara um aviso por processo com movimentação datada e envia pela sua sessão WA.Auto, sem disparar mensagens antigas novamente.'}
             </DialogDescription>
@@ -178,7 +180,7 @@ export function MovementCampaignControl() {
                   ["Processos",preview.counts.scanned],
                   ["Aptos",preview.counts.eligible],
                   ["Sem telefone",preview.counts.withoutPhone],
-                  [kind==='publication'?"Sem evento final":"Sem movimento",preview.counts.withoutEvent],
+                  [kind!=='movement'?"Sem evento final":"Sem movimento",preview.counts.withoutEvent],
                 ].map(([title,value])=>(
                   <div key={String(title)} className="rounded-xl border bg-muted/30 px-3 py-2">
                     <div className="text-[11px] text-muted-foreground">{title}</div>
@@ -188,7 +190,7 @@ export function MovementCampaignControl() {
               </div>
               <div className="text-xs text-muted-foreground">
                 {preview.counts.blocked} bloqueados/não contatar; {preview.counts.alreadyQueued} já preparados ou enviados (não duplicar).
-                {kind==='publication'?(
+                {kind!=='movement'?(
                   <div className="mt-2 space-y-1 rounded-xl border bg-muted/40 p-3 text-xs">
                     <p><strong>{preview.counts.alreadyClosed||0}</strong> já encerrados na carteira (excluídos)</p>
                     <p><strong>{preview.counts.consentMissing||0}</strong> sem autorização expressa de WhatsApp (excluídos)</p>
@@ -210,7 +212,7 @@ export function MovementCampaignControl() {
                   ))}
                 </div>
               </div>
-              {kind==='publication' ? (
+              {kind!=='movement' ? (
                 <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -246,17 +248,23 @@ export function MovementCampaignControl() {
                 </label>
               )}
               <p className="text-[11px] text-muted-foreground">
-                {kind==='publication'
+                {kind!=='movement'
                   ? 'Publicações: até 25 mensagens por dia, intervalo mínimo de 3 minutos, só em horário comercial de dias úteis, no máximo uma por número a cada 24h. Esses controles não garantem ausência de bloqueio; a política do WhatsApp e os modelos aprovados quando exigidos continuam obrigatórios.'
                   : 'Última movimentação: intervalo mínimo de 45 segundos, com limite de 120 mensagens confirmadas por empresa/dia.'}
                 {' '}A fila fica gravada no Supabase. Se não houver agendador ativo, <strong>mantenha esta aba aberta</strong>.
                 Resultados de entrega incertos pausam a fila para conferência.
               </p>
+              {kind==='closure_scan'&&(
+                <label className="flex items-start gap-2 rounded-xl border bg-muted/30 p-3 text-xs">
+                  <Checkbox checked={autoCloseAfterSent} onCheckedChange={v=>setAutoCloseAfterSent(v===true)} />
+                  <span>Encerrar na carteira após envio confirmado (opcional). Não encerra por trânsito em julgado isolado nem quando existir cumprimento pendente. Pode pausar ou cancelar o scanner.</span>
+                </label>
+              )}
               <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={()=>setOpen(false)}>Cancelar</Button>
                 <Button onClick={()=>void start()} disabled={(kind==='movement'&&!consent)||loading||!preview.counts.eligible||Boolean(hasActive)}>
                   {loading?<Loader2 size={14} className="mr-2 animate-spin"/>:<Send size={14} className="mr-2"/>}
-                  {kind==='publication'?'Iniciar automaticamente ':'Iniciar '}{preview.counts.eligible} avisos
+                  {kind!=='movement'?'Iniciar automaticamente ':'Iniciar '}{preview.counts.eligible} avisos
                 </Button>
               </div>
               {hasActive&&<p className="text-xs text-amber-700 dark:text-amber-300">Pause ou conclua a fila em andamento antes de iniciar uma nova.</p>}

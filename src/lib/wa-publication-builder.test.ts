@@ -25,6 +25,11 @@ describe('WA Auto: publicações finais pendentes',()=>{
     expect(preparePublicationNotice({...base,status:'ENCERRADO'}).reason).toBe('already_closed');
     expect(preparePublicationNotice({...base,status_interno:'ARQUIVADO'}).reason).toBe('already_closed');
   });
+  it('can include already closed records only in the special scan',()=>{
+    const record={...base,status:'ENCERRADO'};
+    expect(preparePublicationNotice(record).reason).toBe('already_closed');
+    expect(preparePublicationNotice(record,{includeClosed:true}).reason).toBe('ok');
+  });
   it('requires affirmative individual consent; attestation alone cannot override it',()=>{
     expect(preparePublicationNotice({...base,dados:{}}).reason).toBe('consent_missing');
     expect(preparePublicationNotice({...base,dados:{whatsapp_opt_in:false}}).reason).toBe('blocked');

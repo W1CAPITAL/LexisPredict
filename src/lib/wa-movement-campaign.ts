@@ -20,7 +20,7 @@ async function requireManager() {
   return ctx as typeof ctx & { auth_id: string; empresa_id: string };
 }
 
-type CampaignKind='movement'|'publication';
+type CampaignKind='movement'|'publication'|'closure_scan';
 
 
 /** Supabase outbound history is not necessarily complete. Never claim that
@@ -59,7 +59,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
   const entries: Alert[] = [];
   const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0,
     alreadyClosed:0,consentMissing:0,needsReview:0,alreadyNotified:0 };
-  const previous=kind==='publication'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
+  const previous=kind!=='movement'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
   const seen = new Set<string>();
   // Supabase caps the number of records per request. Pagination covers the entire company.
   for (let offset=0; offset<100000; offset+=400) {
@@ -70,10 +70,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
     const rows = (data || []) as SourceRow[];
     for (const row of rows) {
       counts.scanned++;
-      const prepared=kind==='publication'?preparePublicationNotice(row as PublicationSourceRow):null;
-      const result=kind==='publication'?null:prepareMovementAlert(row);
-      const alert=kind==='publication'?prepared?.notice:result?.alert;
-      const reason=kind==='publication'?prepared?.reason:result?.reason;
+      const prepared=kind!=='movement'?preparePublicationNotice(row as PublicationSourceRow,{includeClosed:kind==='closure_scan'}):null;
+      const result=kind!=='movement'?null:prepareMovementAlert(row);
+      const alert=kind!=='movement'?prepared?.notice:result?.alert;
+      const reason=kind!=='movement'?prepared?.reason:result?.reason;
       if (!alert) {
         if (reason==='phone') counts.withoutPhone++;
         else if (reason==='blocked') counts.blocked++;
@@ -84,10 +84,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
         else counts.withoutEvent++;
         continue;
       }
-      if(kind==='publication'&&previous.optedOut.has(alert.phone)){
+      if(kind!=='movement'&&previous.optedOut.has(alert.phone)){
         counts.blocked++;continue;
       }
-      if(kind==='publication'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
+      if(kind!=='movement'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
         counts.alreadyNotified++;continue;
       }
       const key = alert.processo_id + ':' + alert.event_hash;
@@ -121,13 +121,13 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
   }
 }
 
-export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement') {
+export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement',autoCloseAfterSent=false) {
   try {
     const ctx=await requireManager();
     // Publication campaigns are enabled by the manager's click to start; do not
     // request a redundant checkbox. Per-recipient documented opt-in remains
     // mandatory in preparePublicationNotice, including when run from cron.
-    if (kind !== 'publication' && confirmed !== true)
+    if (kind === 'movement' && confirmed !== true)
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
     const health = await waAutoHealth();
     if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
@@ -138,12 +138,12 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
 
     const {entries}=await collectPortfolio(ctx.empresa_id,kind);
     if (!entries.length) throw new Error(
-      kind === 'publication'
+      kind !== 'movement'
         ? 'Nenhum aviso elegível: confira consentimentos individuais registrados, mérito confirmado e status da carteira. Não foram criadas mensagens.'
         : 'Nenhum processo com telefone válido e movimentação identificada.'
     );
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
-      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind })
+      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind,auto_close_after_sent:kind==='closure_scan'&&autoCloseAfterSent })
       .select('id').single();
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
@@ -180,7 +180,7 @@ export async function getMovementCampaign() {
     const ctx=await requireManager();
     const db=await getSupabaseAdmin();
     const {data,error}=await db.from('wa_movement_campaigns')
-      .select('id,status,campaign_kind,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
+      .select('id,status,campaign_kind,auto_close_after_sent,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
       .eq('empresa_id',ctx.empresa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(error) throw error;
     return {ok:true as const,campaign:data};
@@ -219,7 +219,7 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   const claimed=(data||[])[0] as (Alert & {id:string;campaign_id:string})|undefined;
   if(!claimed) return {ok:true as const,processed:false as const};
   const {data:campaign}=await db.from('wa_movement_campaigns')
-    .select('id,empresa_id,owner_auth_id,status').eq('id',claimed.campaign_id).single();
+    .select('id,empresa_id,owner_auth_id,status,campaign_kind,auto_close_after_sent').eq('id',claimed.campaign_id).single();
   if(!campaign || campaign.empresa_id!==claimed.empresa_id || campaign.status!=='running') {
     await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Campanha indisponível'});
     return {ok:false as const,error:'Campanha não está ativa'};
@@ -238,13 +238,13 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     const {data:current,error:rowError}=await db.from('processos')
       .select('*')
       .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
-    const isPublication=await db.from('wa_movement_campaigns').select('campaign_kind').eq('id',campaign.id).single();
+    const isPublication=campaign.campaign_kind!=='movement';
     if(rowError || !current) {
       await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
       return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
     }
-    if(isPublication.data?.campaign_kind==='publication') {
-      const check=preparePublicationNotice(current as PublicationSourceRow);
+    if(isPublication) {
+      const check=preparePublicationNotice(current as PublicationSourceRow,{includeClosed:campaign.campaign_kind==='closure_scan'});
       if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
         return {ok:false as const,error:'Aviso não enviado: dados ou consentimento alterados'};
@@ -309,6 +309,16 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   }
   const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:failure||null});
   if(finishError) return {ok:false as const,error:'Falha ao confirmar o histórico do envio: '+finishError.message};
+  if (result==='sent' && campaign.campaign_kind==='closure_scan' && campaign.auto_close_after_sent) {
+    const {closeAfterConfirmedNotice}=await import('@/lib/wa-closure-after-send');
+    const closure=await closeAfterConfirmedNotice({
+      empresaId:campaign.empresa_id,processoId:claimed.processo_id,
+      campaignId:campaign.id,dispatchId:claimed.id,eventHash:claimed.event_hash,
+    }).catch(()=>({closed:false,reason:'Falha ao registrar encerramento'}));
+    if(!closure.closed && closure.reason)
+      return {ok:true as const,processed:true as const,status:'sent' as const,
+        warning:'Aviso enviado; cadastro não encerrado: '+closure.reason};
+  }
   return {ok:result==='sent',processed:true as const,status:result,error:failure||null};
 }
 
