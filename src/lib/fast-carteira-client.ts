@@ -38,6 +38,7 @@ const FAST_KEY = 'lexis_fast_carteira_v1:';
 const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
+const inFlightPages = new Map<string, Promise<FastCarteiraResponse>>();
 function keyFor(scope: 'mine' | 'empresa', limit: number, offset: number, empresaId: string, userId: string) {
   return FAST_KEY + [empresaId, userId, scope, limit, offset].join(':');
 }
@@ -90,7 +91,12 @@ export async function fetchFastCarteiraCached(
 ): Promise<FastCarteiraResponse> {
   const cached = peekFastCarteiraCache(scope, limit, offset, empresaId, userId);
   if (!force && cached && cached.ageMs < FAST_TTL_MS) return cached.data;
-  const next = await fetchFastCarteira(scope, limit, offset, AbortSignal.timeout(25_000));
-  rememberFastCarteira(scope, limit, offset, empresaId, userId, next);
-  return next;
+  const key = keyFor(scope, limit, offset, empresaId, userId);
+  const running = inFlightPages.get(key);
+  if (running) return running;
+  const request = fetchFastCarteira(scope, limit, offset, AbortSignal.timeout(25_000))
+    .then((next) => { rememberFastCarteira(scope, limit, offset, empresaId, userId, next); return next; })
+    .finally(() => inFlightPages.delete(key));
+  inFlightPages.set(key, request);
+  return request;
 }
