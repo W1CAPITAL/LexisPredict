@@ -64,7 +64,7 @@ import { Button } from '@/components/ui/button';
 import { MetalButton } from '@/components/ui/metal-button';
 import { Badge } from '@/components/ui/badge';
 import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
-import { fetchFastCarteira, type CarteiraSnapshot } from '@/lib/fast-carteira-client';
+import { fetchFastCarteiraCached, peekFastCarteiraCache, type CarteiraSnapshot } from '@/lib/fast-carteira-client';
 import { fetchBaHitProtocolosAction } from '@/app/actions/ba-metrics-actions';
 import { countBaFromCases } from '@/lib/flags-operacionais';
 import { ordenarFilaCritica, pesoFila } from '@/lib/fila-prioridade';
@@ -119,12 +119,16 @@ export default function Dashboard() {
     const empId = (profile as any)?.empresa_id || null;
     const uid = (profile as any)?.auth_user_id || null;
     if (!empId || !uid) return;
-    setLoading(true);
+    const cached = peekFastCarteiraCache(caseScope, 100, 0, String(empId), String(uid));
+    if (cached?.data) {
+      setCases(cached.data.cases);
+      setPortfolioSummary(cached.data.summary);
+      setLoading(false);
+    } else setLoading(true);
     setCarteiraError('');
     try {
-      // Display the first 100 current cases quickly, without blocking the
-      // entire UI on 9 sequential Server Actions and large JSON downloads.
-      const res = await fetchFastCarteira(caseScope, 100, 0);
+      // Reutilizar o snapshot leve recente entre navegacoes sem refazer todas as consultas.
+      const res = await fetchFastCarteiraCached(caseScope, 100, 0, String(empId), String(uid));
       setCases(res.cases);
       setPortfolioSummary(res.summary);
       updateLastSync();
