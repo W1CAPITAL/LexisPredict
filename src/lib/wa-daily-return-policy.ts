@@ -50,7 +50,8 @@ function advanceDay(day:string,days:number):string {
 export function isStatusRequest(input:string):boolean {
   const q=String(input||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   if(q.length<6||q.length>700)return false;
-  return /(ultima|nova|recent[e]s?|houve|teve|saiu|qual|quero|preciso|tem|andamento|status|situacao|noticia|informacao|atualiza|movimenta|retorno|processo)/.test(q)
+  if(/^(novidades?|atualizac(?:ao|oes)|movimentacao|andamento|processo|status|retorno|sentenca|decisao)[\s?!.]*$/.test(q))return true;
+  return /(ultima|nova|novidade|recent[e]s?|houve|teve|saiu|qual|quero|preciso|tem|andamento|status|situacao|noticia|informacao|atualiza|movimenta|retorno|processo)/.test(q)
     && /(processo|acao|judicial|andamento|moviment|atualiza|retorno|situacao|status|decisao|sentenca|novidade)/.test(q)
     && !/(sair|stop|pare de|nao me envi|não me envi)/.test(q);
 }
