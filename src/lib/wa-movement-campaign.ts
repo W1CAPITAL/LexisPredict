@@ -124,7 +124,11 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
 export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement') {
   try {
     const ctx=await requireManager();
-    if (confirmed !== true) throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
+    // Publication campaigns are enabled by the manager's click to start; do not
+    // request a redundant checkbox. Per-recipient documented opt-in remains
+    // mandatory in preparePublicationNotice, including when run from cron.
+    if (kind !== 'publication' && confirmed !== true)
+      throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
     const health = await waAutoHealth();
     if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
     const db=await getSupabaseAdmin();
@@ -133,9 +137,13 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     if (existing?.length) throw new Error('Já existe uma campanha ativa desta empresa. Pause ou conclua antes de criar outra.');
 
     const {entries}=await collectPortfolio(ctx.empresa_id,kind);
-    if (!entries.length) throw new Error('Nenhum processo com telefone válido e movimentação identificada.');
+    if (!entries.length) throw new Error(
+      kind === 'publication'
+        ? 'Nenhum aviso elegível: confira consentimentos individuais registrados, mérito confirmado e status da carteira. Não foram criadas mensagens.'
+        : 'Nenhum processo com telefone válido e movimentação identificada.'
+    );
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
-      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:true,status:'running',campaign_kind:kind })
+      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind })
       .select('id').single();
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
