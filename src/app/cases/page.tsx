@@ -247,6 +247,7 @@ function CasesContent() {
   const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [initialPageReady, setInitialPageReady] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [remoteHasMore, setRemoteHasMore] = useState(false);
   const [loadingMoreRemote, setLoadingMoreRemote] = useState(false);
@@ -304,6 +305,7 @@ function CasesContent() {
   const loadData = useCallback(async () => {
     if (!empresaId || !authUserId) return;
     setLoading(true);
+    setInitialPageReady(false);
     setCarteiraError('');
     try {
       await loadCarteiraComCache({
@@ -337,6 +339,7 @@ function CasesContent() {
       });
     } finally {
       setLoading(false);
+      setInitialPageReady(true);
     }
   }, [setCases, empresaId, authUserId, caseScope]);
 
@@ -379,10 +382,10 @@ function CasesContent() {
   // Fill the first few screens progressively, without forcing a transfer of
   // the entire company's detailed JSON or blocking route navigation.
   useEffect(() => {
-    if (loading || loadingMoreRemote || !remoteHasMore || cases.length >= 350 || !authUserId) return;
+    if (!initialPageReady || loading || loadingMoreRemote || !remoteHasMore || cases.length >= 350 || !authUserId) return;
     const id = window.setTimeout(() => void loadMoreFromSupabase(), 350);
     return () => window.clearTimeout(id);
-  }, [loading, loadingMoreRemote, remoteHasMore, cases.length, authUserId, loadMoreFromSupabase]);
+  }, [initialPageReady, loading, loadingMoreRemote, remoteHasMore, cases.length, authUserId, loadMoreFromSupabase]);
 
   useEffect(() => {
     if (searchParams.get('new') === '1' && isOperador) {
