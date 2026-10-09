@@ -57,10 +57,10 @@ const verdictIn=(v:unknown):Verdict=>{
   if(/\bPROCEDENTE\b|\bPROCEDENCIA\b|\bJULGO PROCEDENTES?\b/.test(t))return 'procedente';
   return 'indeterminado';
 };
-export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
+export function preparePublicationNotice(row:PublicationSourceRow, options:{includeClosed?:boolean}={}):Preparation {
   const meta=(row.dados&&typeof row.dados==='object')?row.dados:{};
   // Closed portfolio records are excluded even if DataJud flags are outdated.
-  if(isCasoEncerrado({status:row.status,status_interno:row.status_interno,dados:meta}))return {notice:null,reason:'already_closed'};
+  if(!options.includeClosed && isCasoEncerrado({status:row.status,status_interno:row.status_interno,dados:meta}))return {notice:null,reason:'already_closed'};
   const blocked=['nao_contatar','não_contatar','whatsapp_opt_out','optOut','optout','bloquear_whatsapp','naoEnviarWhatsapp']
     .some(k=>yes(meta[k])) || ['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>k in meta && no(meta[k]));
   if(blocked)return {notice:null,reason:'blocked'};
@@ -103,10 +103,16 @@ export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
   const first=name.split(/\s+/)[0]||'cliente';
   // Variations reflect different verifiable case facts, NOT random text churn
   // designed to bypass WhatsApp anti-spam filters.
-  const content=buildPublicationMessage({
+  const alreadyClosed=isCasoEncerrado({status:row.status,status_interno:row.status_interno,dados:meta});
+  const contentBase=buildPublicationMessage({
     firstName:first,cnj,date:when,source:chosen.source,kind:chosen.kind!,
     verdict,
   });
+  const content=options.includeClosed
+    ? contentBase + (alreadyClosed
+      ? '\\n\\nO processo já consta como encerrado na nossa carteira; este aviso é uma atualização informativa, não uma nova decisão.'
+      : '\\n\\nNosso cadastro ainda está em conferência para refletir o encerramento judicial. Havendo obrigações ou providências pendentes, elas continuarão acompanhadas.')
+    : contentBase;
   const hash=createHash('sha256').update(
     [row.empresa_id,row.id,'publicacao_v1',chosen.kind,chosen.source,chosen.date,chosen.text,verdict].join('|')
   ).digest('hex');
