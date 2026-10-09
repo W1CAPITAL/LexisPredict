@@ -5,7 +5,7 @@
 import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
-import { waAutoForOwner, sendViaWaAuto } from '@/lib/wa-auto-client';
+import { waAutoForOwner, sendViaWaAuto, waAutoDeliveryConfirmed } from '@/lib/wa-auto-client';
 import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
@@ -162,6 +162,8 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
     if(error||!campaign) throw new Error('Campanha não encontrada nesta empresa.');
     if(action==='resume' && campaign.status!=='paused') throw new Error('Só é possível retomar campanhas pausadas.');
     if(action==='resume') {
+      const health=await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
+      if(!health.ok) throw new Error('Conecte seu WhatsApp nesta empresa antes de retomar. '+(health.error||''));
       const {data:other}=await db.from('wa_movement_campaigns').select('id')
         .eq('empresa_id',ctx.empresa_id).eq('status','running').neq('id',id).limit(1);
       if(other?.length) throw new Error('Outra campanha já está ativa.');
@@ -169,7 +171,8 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
     if(action!=='resume' && campaign.status!=='running' && campaign.status!=='paused') throw new Error('Campanha já finalizada.');
     const newStatus= action==='resume'?'running':action==='pause'?'paused':'cancelled';
     const {error:changeError}=await db.from('wa_movement_campaigns')
-      .update({status:newStatus,next_send_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+      .update({status:newStatus,next_send_at:new Date().toISOString(),updated_at:new Date().toISOString(),
+        ...(action==='resume'?{owner_auth_id:ctx.auth_id}:{})})
       .eq('empresa_id',ctx.empresa_id).eq('id',id);
     if(changeError) throw changeError;
     if(action==='cancel') await db.from('wa_movement_dispatches').update({status:'cancelled'})
@@ -238,12 +241,14 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   }
   const send=options.verifiedOwner ? await sendViaWaAuto(claimed.phone,check.alert.message)
     : await waAutoForOwner(campaign.owner_auth_id,campaign.empresa_id,claimed.phone,check.alert.message);
-  const result=send.ok?'sent':send.rejected?'failed':'uncertain';
-  const failure=send.ok?null:send.error;
-  await db.from('wa_daily_return_sends').update({status:send.ok?'sent':send.rejected?'rejected':'uncertain',
-    sent_at:send.ok?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
+  const delivered=send.ok && waAutoDeliveryConfirmed(send.raw);
+  // Aceite HTTP nao prova que o aparelho recebeu/decifrou a mensagem.
+  const result=delivered?'sent':send.ok?'uncertain':send.rejected?'failed':'uncertain';
+  const failure=send.ok&&!delivered?'Aceito pelo WA.Auto, entrega não confirmada':(send.ok?null:send.error);
+  await db.from('wa_daily_return_sends').update({status:delivered?'sent':send.rejected?'rejected':'uncertain',
+    sent_at:delivered?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
   let historyWarning:string|null=null;
-  if(send.ok) {
+  if(delivered) {
     const history=await persistWhatsAppMessage({contactNumber:claimed.phone,messageText:check.alert.message,
       fromMe:true,source:'lexis-waauto-movement',empresaId:campaign.empresa_id,
       messageId:'wa-return-'+reservation,raw:send.raw});
@@ -258,10 +263,10 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     }
   }
   const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:historyWarning||failure});
-  if(!send.ok && send.rejected && (send.httpStatus===401||send.httpStatus===403||send.httpStatus===409))
+  if(result==='uncertain' || (!send.ok && send.rejected && (send.httpStatus===401||send.httpStatus===403||send.httpStatus===409)))
     await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
   if(finishError)return {ok:false as const,error:'Histórico do envio: '+finishError.message};
-  return {ok:send.ok,processed:true as const,status:result,error:failure,warning:historyWarning};
+  return {ok:delivered,processed:true as const,status:result,error:failure,warning:historyWarning};
 }
 
 export async function deliverMovementFromOperator(campaignId:string) {
@@ -269,9 +274,17 @@ export async function deliverMovementFromOperator(campaignId:string) {
     const ctx=await requireManager();
     const db=await getSupabaseAdmin();
     const {data:campaign}=await db.from('wa_movement_campaigns')
-      .select('id,owner_auth_id').eq('empresa_id',ctx.empresa_id).eq('id',campaignId).maybeSingle();
+      .select('id,owner_auth_id,status').eq('empresa_id',ctx.empresa_id).eq('id',campaignId).maybeSingle();
     if(!campaign) throw new Error('Campanha inexistente nesta empresa.');
-    if(campaign.owner_auth_id !== ctx.auth_id) throw new Error('Somente o WhatsApp do responsável pode executar esta campanha.');
+    if(campaign.status !== 'running') return {ok:false as const,error:'Campanha pausada; nenhum envio realizado.'};
+    if(campaign.owner_auth_id !== ctx.auth_id) {
+      const health=await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
+      if(!health.ok) throw new Error('Conecte seu WA.Auto para assumir esta campanha.');
+      const {error:transfer}=await db.from('wa_movement_campaigns')
+        .update({owner_auth_id:ctx.auth_id,updated_at:new Date().toISOString()})
+        .eq('id',campaign.id).eq('empresa_id',ctx.empresa_id).eq('status','running');
+      if(transfer) throw new Error('Falha ao mudar responsável da campanha: '+transfer.message);
+    }
     return await deliverNextMovement({campaignId,verifiedOwner:ctx.auth_id});
   }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
