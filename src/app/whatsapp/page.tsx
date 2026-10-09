@@ -59,6 +59,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { WaAutoConnectionCard } from "@/components/whatsapp/wa-auto-connection-card";
 import { MovementCampaignControl } from "@/components/whatsapp/movement-campaign-control";
+import { WaDailyReturnPanel } from "@/components/whatsapp/wa-daily-return-panel";
 import {
   fetchRepoCasesPageAction,
   registrarAtendimentoAction,
@@ -1169,6 +1170,7 @@ function WhatsAppTerminalInner() {
             </div>
             <div className="flex min-w-0 items-center gap-1.5 flex-wrap justify-end">
               <MovementCampaignControl />
+              <WaDailyReturnPanel />
               <Button
                 type="button"
                 variant="outline"
