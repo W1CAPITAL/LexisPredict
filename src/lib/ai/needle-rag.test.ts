@@ -1,10 +1,10 @@
 import {describe,expect,it} from 'vitest';
 import {needleConfig,safeNeedleQuery,formatKnowledgeEvidence,retrieveCuratedLexisEvidence} from './needle-rag';
 describe('Needle retrieval privacy',()=>{
-  it('is disabled unless deliberately enabled with key and collection',()=>{
-    expect(needleConfig({NEEDLE_RAG_ENABLED:'0',NEEDLE_API_KEY:'abc',NEEDLE_COLLECTION_ID:'docs'})).toBeNull();
-    expect(needleConfig({NEEDLE_RAG_ENABLED:'1',NEEDLE_API_KEY:'key',NEEDLE_COLLECTION_ID:'public_docs'})?.endpoint)
-      .toMatch(/collections\/public_docs\/search$/);
+  it('only configures a private Cactus Needle server URL',()=>{
+    expect(needleConfig({NODE_ENV:'production',NEEDLE_ROUTER_URL:'http://localhost:8751'})).toBeNull();
+    expect(needleConfig({NODE_ENV:'production',NEEDLE_ROUTER_URL:'https://needle.example.com'})?.endpoint)
+      .toBe('https://needle.example.com/route');
   });
   it('never forwards process numbers and CPF text to optional Needle',()=>{
     expect(safeNeedleQuery('Processo nº 1234567-89.2026.8.26.0100')).toBeNull();
