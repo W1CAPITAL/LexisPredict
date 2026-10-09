@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { buildPublicationMessage } from '@/lib/wa-publication-templates';
 import type { Alert, SourceRow } from '@/lib/wa-movement-builder';
 
 /**
@@ -56,19 +57,6 @@ const verdictIn=(v:unknown):Verdict=>{
   if(/\bPROCEDENTE\b|\bPROCEDENCIA\b|\bJULGO PROCEDENTES?\b/.test(t))return 'procedente';
   return 'indeterminado';
 };
-const outcomeLabel:Record<Exclude<Verdict,'indeterminado'>,string>={
-  procedente:'há registro de julgamento procedente',
-  parcial:'há registro de julgamento parcialmente procedente',
-  improcedente:'há registro de julgamento improcedente',
-  sem_merito:'há registro de extinção sem análise do mérito',
-};
-const eventLabel:Record<TerminalKind,string>={
-  baixa:'baixa definitiva',
-  arquivamento:'arquivamento definitivo',
-  transito:'trânsito em julgado',
-  extincao:'extinção do processo',
-  encerramento:'encerramento processual',
-};
 export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
   const meta=(row.dados&&typeof row.dados==='object')?row.dados:{};
   // Closed portfolio records are excluded even if DataJud flags are outdated.
@@ -115,13 +103,10 @@ export function preparePublicationNotice(row:PublicationSourceRow):Preparation {
   const first=name.split(/\s+/)[0]||'cliente';
   // Variations reflect different verifiable case facts, NOT random text churn
   // designed to bypass WhatsApp anti-spam filters.
-  const content=[
-    `Olá, ${first}. Esta é uma atualização do acompanhamento do processo nº ${cnj}.`,
-    `Consta ${eventLabel[chosen.kind!]} em ${when}, conforme o registro disponível no ${chosen.source}.`,
-    `Quanto à decisão, ${outcomeLabel[verdict as Exclude<Verdict,'indeterminado'>]}.`,
-    'Isso se refere ao andamento registrado e não confirma, por si só, pagamento, valores a receber ou encerramento de eventual cumprimento de sentença.',
-    'Se desejar conferir a publicação ou esclarecer os próximos passos, responda a esta conversa. Para deixar de receber avisos, responda SAIR.',
-  ].join('\n\n');
+  const content=buildPublicationMessage({
+    firstName:first,cnj,date:when,source:chosen.source,kind:chosen.kind!,
+    verdict,
+  });
   const hash=createHash('sha256').update(
     [row.empresa_id,row.id,'publicacao_v1',chosen.kind,chosen.source,chosen.date,chosen.text,verdict].join('|')
   ).digest('hex');
