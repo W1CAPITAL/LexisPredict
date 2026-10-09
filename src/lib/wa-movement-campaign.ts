@@ -22,7 +22,6 @@ async function requireManager() {
 
 type CampaignKind='movement'|'publication';
 
-const PUBLICATION_SOURCE_COLUMNS='id,empresa_id,cliente,telefone,protocolo_ref,status,status_interno,alert_delivered_at,datajud_ultimo_movimento,datajud_ultimo_nome,datajud_encerrado_tribunal,datajud_encerrado_motivo,djen_ultima_data,djen_ultimo_resumo,data_transito_julgado,is_procedente,procedente_motivo,detalhes_execucao,status_executivo,dados';
 
 /** Supabase outbound history is not necessarily complete. Never claim that
  * absence of a message here proves the customer was never informed elsewhere.
@@ -248,14 +247,14 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
         .eq('from_me',false)
         .or('contact_number.eq.'+claimed.phone+',phone.eq.'+claimed.phone)
         .order('created_at',{ascending:false}).limit(150);
-      if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
+      if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Cliente solicitou parar ou não foi possível conferir opt-out'});
         return {ok:false as const,error:'Aviso cancelado: preferência de contato deve ser verificada'};
       }
       const {data:already}=await db.from('wa_movement_dispatches')
          .select('id,message').eq('empresa_id',campaign.empresa_id)
         .eq('processo_id',claimed.processo_id).eq('status','sent')
-        .neq('id',claimed.id).limit(1);
+        .neq('id',claimed.id).limit(150);
       if((already||[]).some(x=>/TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA/i.test(String(x.message||'')))) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Já consta aviso enviado para este processo; revisar histórico'});
         return {ok:false as const,error:'Processo já possui aviso registrado'};
