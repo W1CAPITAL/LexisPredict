@@ -50,6 +50,9 @@ interface DataJudScanState {
   pending: number;
   cycles: number;
   cloudStartedAt: string | null;
+  cloudCursorId: number;
+  cloudSuccesses: number;
+  cloudFailures: number;
 
   manualStatus: ScanStatus;
   manualTotal: number;
@@ -88,7 +91,7 @@ interface DataJudScanState {
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let cloudPollBusy = false;
 let consecutiveCloudFailures = 0;
-const CLOUD_POLL_MS = 15000; // espera worker terminar DataJud antes do próximo tiro
+const CLOUD_POLL_MS = 5000; // lote sequencial: cloudPollBusy previne sobreposicao
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
@@ -100,6 +103,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   pending: 0,
   cycles: 0,
   cloudStartedAt: null,
+  cloudCursorId: 0,
+  cloudSuccesses: 0,
+  cloudFailures: 0,
 
   manualStatus: 'idle',
   manualTotal: 0,
@@ -182,14 +188,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     consecutiveCloudFailures = 0;
     const scope = get().scanScope || 'full';
     const mode = get().scanMode || 'both';
-    const cloudStartedAt = new Date().toISOString();
+    const resume = get().status === 'paused' && !!get().cloudStartedAt;
+    const cloudStartedAt = resume ? get().cloudStartedAt : new Date().toISOString();
     set({
       status: 'running',
       isMinimized: false,
-      cycles: 0,
+      cycles: resume ? get().cycles : 0,
       cloudStartedAt,
-      done: 0,
-      pending: 0,
+      cloudCursorId: resume ? get().cloudCursorId : 0,
+      cloudSuccesses: resume ? get().cloudSuccesses : 0,
+      cloudFailures: resume ? get().cloudFailures : 0,
+      done: resume ? get().done : 0,
+      pending: resume ? get().pending : 0,
     });
     get().addLog({
       protocolo: 'SISTEMA',
@@ -651,6 +661,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       pending: 0,
       cycles: 0,
       cloudStartedAt: null,
+  cloudCursorId: 0,
+  cloudSuccesses: 0,
+  cloudFailures: 0,
       manualStatus: 'idle',
       manualDone: 0,
       manualTotal: 0,
@@ -683,7 +696,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const trigger = await fetch('/api/datajud-trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, scope, since }),
+        body: JSON.stringify({ mode, scope, since, afterId: st.cloudCursorId }),
+        signal: AbortSignal.timeout(55000),
       });
 
       if (!trigger.ok) {
@@ -691,10 +705,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         throw error;
       }
       const workerResult = await trigger.json().catch(() => null);
-      if (workerResult?.worker?.failedCount > 0 && workerResult.worker?.successCount === 0) {
-        throw new Error('Fonte indisponível neste micro-lote; a consulta será retomada após conferência.');
-      }
-      consecutiveCloudFailures = 0;
+      if (!workerResult?.worker) throw new Error('Resposta invalida do worker.');
+      if (get().status !== 'running') return;
+      const worker = workerResult.worker;
+      consecutiveCloudFailures = worker.failedCount > 0 && worker.successCount === 0
+        ? consecutiveCloudFailures + 1 : 0;
 
       const params = new URLSearchParams({ mode, scope, since });
       const res = await fetch(`/api/datajud-status?${params.toString()}`, {
@@ -705,12 +720,17 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const metrics = await res.json();
       const pendingForMode = Number(metrics.pending ?? 0);
       const totalForMode = Number(metrics.total ?? 0);
-      const auditedForMode = Math.max(0, totalForMode - pendingForMode);
+      const attempted = st.done + Math.max(0, Number(worker.processed || 0));
+      const failures = st.cloudFailures + Number(worker.failedCount || 0);
+      const successes = st.cloudSuccesses + Number(worker.successCount || 0);
 
       set({
         total: totalForMode,
-        done: auditedForMode,
-        pending: pendingForMode,
+        done: attempted,
+        cloudCursorId: Math.max(st.cloudCursorId, Number(worker.lastId || 0)),
+        cloudFailures: failures,
+        cloudSuccesses: successes,
+        pending: Math.max(0, totalForMode - attempted),
         alerts: metrics.alerts ?? 0,
         cloudDjenAlerts: metrics.djenAlerts ?? 0,
         closed: metrics.closed ?? 0,
@@ -722,21 +742,27 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         );
       }
 
-      if (totalForMode > 0 && pendingForMode === 0) {
+      if (Number(worker.processed || 0) === 0 || (totalForMode > 0 && attempted >= totalForMode)) {
         if (pollTimer) {
           clearInterval(pollTimer);
           pollTimer = null;
         }
-        set({ status: 'done', done: totalForMode, pending: 0 });
+        set({ status: 'done', pending: Math.max(0, totalForMode - attempted) });
         get().addLog({
           protocolo: 'SISTEMA',
-          message: `Varredura de nuvem concluída: ${totalForMode}/${totalForMode} processo(s) nesta sessão`,
+          message: `Fila percorrida: ${successes} sucessos, ${failures} falhas, ${attempted} tentativas. Reinicie para reprocessar eventuais falhas.`,
           latency: 0,
           success: true,
           type: 'ok',
           engine: 'Nuvem',
           source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
         });
+      } else if (consecutiveCloudFailures >= 3) {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        set({ status: 'paused' });
+        get().addLog({ protocolo: 'SISTEMA', message: 'Scanner pausado apos tres lotes sem sucesso. O cursor foi preservado.', latency: 0, success: false, type: 'error', engine: 'Nuvem' });
+      } else if (Number(worker.failedCount || 0) > 0) {
+        get().addLog({ protocolo: 'SISTEMA', message: 'Alguns CNJs falharam neste lote; seguindo sem registrar falso sucesso.', latency: Number(worker.durationMs || 0), success: false, type: 'error', engine: 'Nuvem' });
       }
     } catch (e: any) {
       console.warn('[Cloud Scan Error]', e);
