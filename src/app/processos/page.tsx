@@ -9,7 +9,7 @@ import { ProcessosCommandCenter } from '@/components/processos/processos-command
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  * Processos da Empresa — leitura empresarial para todos os usuários autenticados.
- * Escrita restrita ao responsável do processo ou supervisão.
+ * Edição e atendimento permitidos a todos os perfis autenticados da mesma empresa.
  * Trilha separa atendimento de edição para preservar crédito operacional.
  */
 
@@ -147,14 +147,9 @@ export default function ProcessosEmpresaPage() {
   const { profile } = useAuth();
   const { toast } = useToast();
   const canManageItem = (item: LegalCase): boolean => {
-    const role = resolveRole(profile as any);
-    if (role === 'Supervisor' || role === 'Superadmin') return true;
-    if (role === 'Visualizador' || role === 'Desconhecido') return false;
-    // Administrador pode regularizar encerrados da empresa, mesmo sem
-    // responsável em cadastros legados. O servidor verifica empresa e cargo.
-    if (role === 'Administrador' && isCasoEncerrado(item)) return true;
-    return !!(profile as any)?.auth_user_id &&
-      String((item as any).created_by || '') === String((profile as any).auth_user_id);
+    if (!(profile as any)?.auth_user_id || !(profile as any)?.empresa_id) return false;
+    const rowTenant = (item as any).empresa_id;
+    return !rowTenant || String(rowTenant) === String((profile as any).empresa_id);
   };
   /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
   const canRodarEmpresa = canRodarEmpresaScan(profile as any);
@@ -292,7 +287,7 @@ export default function ProcessosEmpresaPage() {
 
   const saveEdit = async () => {
     if (!editing || !canManageItem(editing)) {
-      toast({ title: 'Acesso somente para consulta', description: 'Você só pode alterar os processos de sua carteira.', variant: 'destructive' });
+      toast({ title: 'Acesso somente para consulta', description: 'Este processo não pertence à sua empresa.', variant: 'destructive' });
       return;
     }
     setSaving(true);
