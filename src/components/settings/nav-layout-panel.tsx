@@ -13,8 +13,15 @@ export function NavLayoutPanel() {
     const read = () => { try { setCompact(localStorage.getItem('lexis-sidebar-compact-v2') === '1'); } catch {} };
     read();
     try { setMode(loadNavLayout()); } catch {}
+    const syncMode = () => setMode(loadNavLayout());
     window.addEventListener('lexis-nav-display', read);
-    return () => window.removeEventListener('lexis-nav-display', read);
+    window.addEventListener('lexis-nav-layout', syncMode);
+    window.addEventListener('storage', syncMode);
+    return () => {
+      window.removeEventListener('lexis-nav-display', read);
+      window.removeEventListener('lexis-nav-layout', syncMode);
+      window.removeEventListener('storage', syncMode);
+    };
   }, []);
   const persist = (nextMode: NavLayoutMode, nextCompact: boolean) => {
     void completeCommercialFirstRunAction({
