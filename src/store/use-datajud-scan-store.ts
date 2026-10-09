@@ -55,6 +55,8 @@ interface DataJudScanState {
   cloudFailures: number;
   cloudBusy: boolean;
   cloudLastCnj: string | null;
+  cloudTenantId: string;
+  cloudUserId: string;
 
   manualStatus: ScanStatus;
   manualTotal: number;
@@ -78,7 +80,8 @@ interface DataJudScanState {
 
   toggleMinimize: () => void;
   openScanner: () => void;
-  startCloudScan: () => void;
+  startCloudScan: (empresaId?: string,userId?: string) => void;
+  restoreCloudScan: (empresaId:string,userId:string) => void;
   pauseCloudScan: () => void;
   startManualScan: (opts?: { resume?: boolean; scope?: ScanScope }) => Promise<void>;
   resumeManualScan: () => Promise<void>;
@@ -94,6 +97,27 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let cloudPollBusy = false;
 let consecutiveCloudFailures = 0;
 const CLOUD_POLL_MS = 5000; // lote sequencial: cloudPollBusy previne sobreposicao
+const CLOUD_CHECKPOINT_KEY = 'lexis_scan_cloud_checkpoint_v2:';
+function cloudKey(empresaId:string,userId:string) {return CLOUD_CHECKPOINT_KEY+empresaId+':'+userId;}
+function loadCloudCheckpoint(empresaId:string,userId:string):any|null {
+  if(typeof window==='undefined'||!empresaId||!userId)return null;
+  try{const raw=localStorage.getItem(cloudKey(empresaId,userId));const saved=raw?JSON.parse(raw):null;
+    if(!saved||Date.now()-Number(saved.at)>12*60*60*1000)return null;
+    return saved;
+  }catch{return null;}
+}
+function persistCloudCheckpoint(state:DataJudScanState) {
+  if(typeof window==='undefined'||!state.cloudTenantId||!state.cloudUserId)return;
+  try{localStorage.setItem(cloudKey(state.cloudTenantId,state.cloudUserId),JSON.stringify({
+    at:Date.now(),startedAt:state.cloudStartedAt,cursor:state.cloudCursorId,
+    done:state.done,total:state.total,successes:state.cloudSuccesses,failures:state.cloudFailures,
+    mode:state.scanMode,scope:state.scanScope,
+  }));}catch{/* storage unavailable */}
+}
+function clearCloudCheckpoint(state:DataJudScanState){
+  if(typeof window==='undefined'||!state.cloudTenantId||!state.cloudUserId)return;
+  try{localStorage.removeItem(cloudKey(state.cloudTenantId,state.cloudUserId));}catch{/* */}
+}
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   status: 'idle',
@@ -110,6 +134,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   cloudFailures: 0,
   cloudBusy: false,
   cloudLastCnj: null,
+  cloudTenantId: '',
+  cloudUserId: '',
 
   manualStatus: 'idle',
   manualTotal: 0,
@@ -188,7 +214,20 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     }
   },
 
-  startCloudScan: () => {
+  restoreCloudScan: (empresaId,userId) => {
+    if(get().status!=='idle')return;
+    const cp=loadCloudCheckpoint(empresaId,userId);
+    if(!cp?.startedAt||!/^[0-9]*$/.test(String(cp.cursor||'')))return;
+    set({status:'paused',isMinimized:false,cloudTenantId:empresaId,cloudUserId:userId,
+      cloudStartedAt:String(cp.startedAt),cloudCursorId:String(cp.cursor||''),
+      done:Number(cp.done||0),total:Number(cp.total||0),
+      cloudSuccesses:Number(cp.successes||0),cloudFailures:Number(cp.failures||0),
+      scanMode:['both','datajud','djen'].includes(cp.mode)?cp.mode:'both',
+      scanScope:cp.scope==='cumprimento'?'cumprimento':'full',
+    });
+  },
+
+  startCloudScan: (empresaId,userId) => {
     consecutiveCloudFailures = 0;
     const scope = get().scanScope || 'full';
     const mode = get().scanMode || 'both';
@@ -206,6 +245,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       pending: resume ? get().pending : 0,
       cloudBusy: false,
       cloudLastCnj: resume ? get().cloudLastCnj : null,
+      cloudTenantId: empresaId||get().cloudTenantId,
+      cloudUserId: userId||get().cloudUserId,
       lastLogs: resume ? get().lastLogs : [],
     });
     get().addLog({
@@ -227,6 +268,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   pauseCloudScan: () => {
     set({ status: 'paused' });
+    persistCloudCheckpoint(get());
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -652,6 +694,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   pauseManualScan: () => set({ manualStatus: 'paused' }),
 
   resetScan: () => {
+    clearCloudCheckpoint(get());
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -666,9 +709,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       pending: 0,
       cycles: 0,
       cloudStartedAt: null,
-  cloudCursorId: '',
-  cloudSuccesses: 0,
-  cloudFailures: 0,
+      cloudCursorId: '',
+      cloudSuccesses: 0,
+      cloudFailures: 0,
+      cloudBusy: false,
+      cloudLastCnj: null,
+      cloudTenantId: '',
+      cloudUserId: '',
       manualStatus: 'idle',
       manualDone: 0,
       manualTotal: 0,
@@ -758,6 +805,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         closed: metrics.closed ?? 0,
       });
 
+      persistCloudCheckpoint(get());
       if (metrics.recentLogs?.length > 0) {
         metrics.recentLogs.forEach((log: ScanLog) =>
           get().addLog({ ...log, engine: log.engine || 'Nuvem' })
@@ -770,6 +818,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           pollTimer = null;
         }
         set({ status: 'done', pending: Math.max(0, totalForMode - attempted) });
+        clearCloudCheckpoint(get());
         get().addLog({
           protocolo: 'SISTEMA',
           message: `Fila percorrida: ${successes} sucessos, ${failures} falhas, ${attempted} tentativas. Reinicie para reprocessar eventuais falhas.`,
