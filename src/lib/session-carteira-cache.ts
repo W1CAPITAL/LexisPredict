@@ -1,9 +1,9 @@
 const CARTEIRA_KEY = "lexis_carteira_persistente_v6";
 const LEGACY_KEYS = ["lexis_carteira_persistente_v4", "lexis_carteira_sessao_v3"];
 const SCAN_KEY = "lexis_scan_progress_v1";
-const TTL_MS = 10 * 60 * 1000;
-const SESSION_ROWS = 60;
-const SESSION_BYTES = 350_000;
+const TTL_MS = 30 * 60 * 1000;
+const SESSION_ROWS = 120;
+const SESSION_BYTES = 700_000;
 
 export type CacheSource = "cache" | "network" | "empty";
 export type CarteiraScope = "mine" | "empresa";
