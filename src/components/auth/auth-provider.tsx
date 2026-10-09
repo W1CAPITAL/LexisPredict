@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { registrarLoginAction } from '@/app/actions/auditoria-actions';
 import { disableGuestMode, isGuestMode } from '@/lib/guest-mode';
+import { invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
 
 interface AuthContextType {
   user: any | null;
@@ -42,12 +44,14 @@ function clearLexisCookies() {
 }
 
 function clearSessionCaches() {
+  // Descarta informacoes de clientes do navegador ao sair/trocar de conta.
+  invalidateCarteiraCache();
+  invalidateFastCarteiraCache();
   try {
     sessionStorage.removeItem('lexis_carteira_sessao_v2');
     sessionStorage.removeItem('lexis_scan_progress_v1');
-  } catch {
-    /* */
-  }
+    localStorage.removeItem('lexis_carteira_client_v4');
+  } catch { /* armazenamento indisponivel */ }
 }
 
 const MIN_REFRESH_GAP_MS = 25 * 60 * 1000; // refresh de segurança, nunca por troca de aba
