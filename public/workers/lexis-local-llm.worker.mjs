@@ -12,7 +12,24 @@ async function initialize(requestId) {
   if (loading) return loading;
   loading = (async () => {
     emit(requestId, 'loading', { message: 'Carregando o motor local no navegador...' });
-    const lib = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+    // Give a clear, actionable error if the site security header, CDN, or
+    // local network prevents model downloads. The URL is pinned to a public
+    // tokenizer configuration, never sends the user's prompt.
+    try {
+      const probe = await fetch('https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/config.json', {
+        cache: 'force-cache', signal: AbortSignal.timeout(12000),
+      });
+      if (!probe.ok) throw new Error('Hugging Face respondeu HTTP ' + probe.status);
+    } catch (e) {
+      throw new Error('Não foi possível acessar os arquivos do Qwen no Hugging Face. Verifique a rede ou bloqueios do navegador (CSP). Detalhe: ' + String(e?.message || e));
+    }
+    emit(requestId,'loading',{message:'Baixando carregador Transformers.js...'});
+    let lib;
+    try {
+      lib = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+    } catch(e) {
+      throw new Error('Não foi possível carregar Transformers.js da CDN. Verifique bloqueios de extensões, a rede e a política CSP. Detalhe: ' + String(e?.message || e));
+    }
     const progress_callback = p => {
       if (p?.status === 'progress') {
         emit(requestId, 'progress', { progress: Math.max(0, Math.min(100, Math.round(p.progress || 0))), file: String(p.file || '') });
@@ -24,9 +41,14 @@ async function initialize(requestId) {
     try {
       generator = await lib.pipeline('text-generation', MODEL, opts);
     } catch (error) {
-      if (opts.device !== 'webgpu') throw error;
+      if (opts.device !== 'webgpu') {
+        const detail=String(error?.message || error);
+        throw new Error(/fetch|network|load/i.test(detail)
+          ? 'Download do modelo indisponível; verifique rede, cache do navegador e permissões de acesso ao Hugging Face. ' + detail
+          : detail);
+      }
       emit(requestId, 'loading', { message: 'WebGPU indisponível. Tentando processador (WASM)...' });
-      generator = await lib.pipeline('text-generation', MODEL, { ...opts, device: 'wasm' });
+      generator = await lib.pipeline('text-generation', MODEL, { ...opts, device: 'wasm', dtype: 'q8' });
     }
     return generator;
   })();
