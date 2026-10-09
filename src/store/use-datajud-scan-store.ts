@@ -87,6 +87,7 @@ interface DataJudScanState {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let cloudPollBusy = false;
+let consecutiveCloudFailures = 0;
 const CLOUD_POLL_MS = 15000; // espera worker terminar DataJud antes do próximo tiro
 
 export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
@@ -178,6 +179,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   startCloudScan: () => {
+    consecutiveCloudFailures = 0;
     const scope = get().scanScope || 'full';
     const mode = get().scanMode || 'both';
     const cloudStartedAt = new Date().toISOString();
@@ -430,7 +432,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     } else {
       get().addLog({
         protocolo: 'SISTEMA',
-        message: 'Scanner sem Claude AI (só DataJud/DJEN). Ative o botão Claude AI para análise neural.',
+        message: 'Scanner com fontes oficiais DataJud/DJEN, sem classificação neural adicional.',
         latency: 0,
         success: true,
         type: 'ok',
@@ -482,7 +484,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       if (useClaude) {
         get().addLog({
           protocolo: c.protocolo,
-          message: 'Claude AI trabalhando neste CNJ…',
+          message: 'Análise neural solicitada para este CNJ…',
           latency: 0,
           success: true,
           type: 'ai',
@@ -580,7 +582,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
                 ? 'ok'
                 : 'error',
         engine: 'Local',
-        source: aiEng ? 'Claude' : srcLabel,
+        source: aiEng ? undefined : srcLabel,
         aiEngine: aiEng,
       });
 
@@ -685,8 +687,14 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
 
       if (!trigger.ok) {
-        throw new Error(`worker HTTP ${trigger.status}`);
+        const error = new Error(`worker HTTP ${trigger.status}`);
+        throw error;
       }
+      const workerResult = await trigger.json().catch(() => null);
+      if (workerResult?.worker?.failedCount > 0 && workerResult.worker?.successCount === 0) {
+        throw new Error('Fonte indisponível neste micro-lote; a consulta será retomada após conferência.');
+      }
+      consecutiveCloudFailures = 0;
 
       const params = new URLSearchParams({ mode, scope, since });
       const res = await fetch(`/api/datajud-status?${params.toString()}`, {
@@ -732,14 +740,29 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       }
     } catch (e: any) {
       console.warn('[Cloud Scan Error]', e);
-      get().addLog({
-        protocolo: 'SISTEMA',
-        message: `Falha no micro-lote de nuvem: ${e?.message || e}`,
-        latency: 0,
-        success: false,
-        type: 'error',
-        engine: 'Nuvem',
-      });
+      consecutiveCloudFailures += 1;
+      const temporary = /504|503|502|timeout|esgotado|indisponível|falha no fetch/i.test(String(e?.message || e));
+      // Do not hammer Vercel/tribunals every 15s when a source is offline.
+      if (consecutiveCloudFailures >= 3) {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        set({ status: 'paused' });
+        get().addLog({
+          protocolo: 'SISTEMA',
+          message: 'Nuvem pausada após 3 micro-lotes sem resposta. O progresso foi preservado. Confira a conexão e clique em escanear para retomar.',
+          latency: 0, success: false, type: 'error', engine: 'Nuvem',
+        });
+      } else if (!temporary || consecutiveCloudFailures === 1) {
+        get().addLog({
+          protocolo: 'SISTEMA',
+          message: temporary
+            ? 'Worker/tribunal indisponível. Aguardando sem alterar os dados dos processos.'
+            : `Falha no micro-lote de nuvem: ${e?.message || e}`,
+          latency: 0, success: false, type: 'error', engine: 'Nuvem',
+        });
+      }
     } finally {
       cloudPollBusy = false;
     }
