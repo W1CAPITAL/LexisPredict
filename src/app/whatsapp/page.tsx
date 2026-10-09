@@ -1220,7 +1220,7 @@ function WhatsAppTerminalInner() {
 
           <WaAutoConnectionCard />
 
-          <div className="flex-1 h-[min(760px,max(560px,calc(100dvh-235px)))] min-h-[560px] grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden">
+          <div className="flex-1 min-h-[560px] grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden" style={{height:"min(760px, max(560px, calc(100dvh - 235px)))"}}>
             {/* Lista */}
             <aside className="md:col-span-4 xl:col-span-3 border-r border-border/50 border-b md:border-b-0 flex flex-col min-h-0 bg-card/40 overflow-hidden">
               <div className="p-3 border-b border-border/40">
