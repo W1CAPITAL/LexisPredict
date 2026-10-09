@@ -39,6 +39,7 @@ export function WaAutoConnectionCard() {
     try {
       const res = await waAutoConnectionAction();
       if (!res.success) {
+        window.dispatchEvent(new CustomEvent('lexis-waauto-status',{detail:{ready:false}}));
         setConnection({ status: 'offline', message: res.error || 'Serviço WA.Auto indisponível' });
         if (!silent) {
           toast({
@@ -54,6 +55,7 @@ export function WaAutoConnectionCard() {
         detail: { ready: String((res.connection as any)?.status || "").toLowerCase() === "ready" },
       }));
     } catch (error: any) {
+      window.dispatchEvent(new CustomEvent('lexis-waauto-status',{detail:{ready:false}}));
       setConnection({ status: 'offline', message: error?.message || 'Falha de comunicação com WA.Auto' });
     } finally {
       if (!silent) setLoading(false);
