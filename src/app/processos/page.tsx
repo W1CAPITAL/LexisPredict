@@ -651,6 +651,12 @@ export default function ProcessosEmpresaPage() {
         <DataJudScannerPanel />
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          {totalCount > 0 && (
+            <p className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
+              Carteira de toda a empresa: <strong>{totalCount.toLocaleString('pt-BR')}</strong> processos de todos os responsáveis ·
+              {' '}{cases.length.toLocaleString('pt-BR')} carregados nesta aba. A busca consulta também os demais registros.
+            </p>
+          )}
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}
@@ -668,7 +674,7 @@ export default function ProcessosEmpresaPage() {
             onSilencioOnlyChange={setSilencioOnly}
             sortOps={sortOps}
             onSortOpsChange={setSortOps}
-            onRefresh={() => void load()}
+            onRefresh={() => void load(true)}
             hasMore={hasServerMore}
             loadingMore={loadingMore}
             onLoadMore={loadMoreFromServer}
