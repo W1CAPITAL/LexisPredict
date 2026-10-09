@@ -19,7 +19,7 @@ describe('OmniReport grátis documental',()=>{
     const r=buildOfflineOmniReport('Investigue prazo',sources,'maximo');
     const all=r.sections.map(x=>x.body).join(' ');
     expect(all).toContain('não verificadas judicialmente');
-    expect(all).toContain('consulta judicial'); 
+    expect(all).toContain('consultas externas'); 
   });
   it('does not hallucinate court findings when given only an instruction',()=>{
     const r=buildOfflineOmniReport('Relatório',[], 'normal');
