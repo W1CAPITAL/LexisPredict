@@ -254,6 +254,12 @@ export function MovementCampaignControl() {
                 {' '}A fila fica gravada no Supabase. Se não houver agendador ativo, <strong>mantenha esta aba aberta</strong>.
                 Resultados de entrega incertos pausam a fila para conferência.
               </p>
+              {kind==='closure_scan'&&(
+                <label className="flex items-start gap-2 rounded-xl border bg-muted/30 p-3 text-xs">
+                  <Checkbox checked={autoCloseAfterSent} onCheckedChange={v=>setAutoCloseAfterSent(v===true)} />
+                  <span>Encerrar na carteira após envio confirmado (opcional). Não encerra por trânsito em julgado isolado nem quando existir cumprimento pendente. Pode pausar ou cancelar o scanner.</span>
+                </label>
+              )}
               <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={()=>setOpen(false)}>Cancelar</Button>
                 <Button onClick={()=>void start()} disabled={(kind==='movement'&&!consent)||loading||!preview.counts.eligible||Boolean(hasActive)}>
