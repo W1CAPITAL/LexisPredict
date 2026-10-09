@@ -341,20 +341,47 @@ export async function logoutWaAuto() {
 }
 
 /** Already-authorized background identity; never accepts identity from a browser argument. */
+/**
+ * WA.Auto Cloud expects the shared integration token plus x-lexis-user-id.
+ * The older lexishwa1 HMAC credential is not accepted by its integration
+ * middleware and caused every server-side queue send to return HTTP 401.
+ * Caller resolves company ownership and management permission before here.
+ */
 export async function waAutoForOwner(userId:string,empresaId:string,to?:string,message?:string) {
   const cfg=getWaAutoConfig();
+  const validId=/^[0-9a-f-]{36}$/i;
+  if(!validId.test(userId)||!validId.test(empresaId))return {
+    ok:false as const,rejected:true,httpStatus:403,error:'Responsável pela sessão não identificado.'
+  };
+  if(!cfg.integrationToken)return {
+    ok:false as const,rejected:true,httpStatus:503,
+    error:'WA_INTEGRATION_TOKEN não configurado no LexisPredict para envios do servidor.'
+  };
   try {
-    const {signWaWorkerIdentity}=await import('@/lib/wa-worker-auth');
-    const token=signWaWorkerIdentity(userId,empresaId,cfg.integrationToken);
     const response=await fetch(cfg.baseUrl+'/api/integrations/lexispredict/'+(to?'send':'status'),{
-      method:to?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      ...(to?{body:JSON.stringify({to,message})}:{}),cache:'no-store',signal:AbortSignal.timeout(to?40000:12000),
+      method:to?'POST':'GET',
+      headers:{
+        Authorization:'Bearer '+cfg.integrationToken,
+        'x-wa-integration-token':cfg.integrationToken,
+        'x-lexis-user-id':userId,
+        'Content-Type':'application/json',
+      },
+      ...(to?{body:JSON.stringify({to,message})}:{}),
+      cache:'no-store',
+      signal:AbortSignal.timeout(to?40000:12000),
     });
     const body=await readJson(response);
-    if(!response.ok||body?.ok===false)return {ok:false as const,rejected:response.status>=400&&response.status<500,
-      httpStatus:response.status,error:String(body?.error||'WA.Auto HTTP '+response.status),raw:body};
-    if(!to && body?.connection?.status!=='ready')return {ok:false as const,rejected:true,
-      httpStatus:409,error:'WhatsApp do responsável desconectado',raw:body};
+    if(!response.ok||body?.ok===false)return {
+      ok:false as const,rejected:response.status>=400&&response.status<500,
+      httpStatus:response.status,
+      error:response.status===401
+        ? 'WA.Auto rejeitou a credencial do servidor (HTTP 401). Confira WA_INTEGRATION_TOKEN em ambas as plataformas; a campanha foi bloqueada.'
+        : String(body?.error||'WA.Auto HTTP '+response.status),raw:body,
+    };
+    if(!to && body?.connection?.status!=='ready')return {
+      ok:false as const,rejected:true,httpStatus:409,
+      error:'WhatsApp do responsável desconectado no WA.Auto.',raw:body,
+    };
     return {ok:true as const,raw:body};
   }catch(e:any){return {ok:false as const,rejected:false,error:String(e?.message||'WA.Auto indisponível')};}
 }
