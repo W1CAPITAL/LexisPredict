@@ -180,7 +180,7 @@ export async function getMovementCampaign() {
     const ctx=await requireManager();
     const db=await getSupabaseAdmin();
     const {data,error}=await db.from('wa_movement_campaigns')
-      .select('id,status,campaign_kind,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
+      .select('id,status,campaign_kind,auto_close_after_sent,total,sent_count,failed_count,uncertain_count,next_send_at,created_at')
       .eq('empresa_id',ctx.empresa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(error) throw error;
     return {ok:true as const,campaign:data};
@@ -219,7 +219,7 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   const claimed=(data||[])[0] as (Alert & {id:string;campaign_id:string})|undefined;
   if(!claimed) return {ok:true as const,processed:false as const};
   const {data:campaign}=await db.from('wa_movement_campaigns')
-    .select('id,empresa_id,owner_auth_id,status').eq('id',claimed.campaign_id).single();
+    .select('id,empresa_id,owner_auth_id,status,campaign_kind,auto_close_after_sent').eq('id',claimed.campaign_id).single();
   if(!campaign || campaign.empresa_id!==claimed.empresa_id || campaign.status!=='running') {
     await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Campanha indisponível'});
     return {ok:false as const,error:'Campanha não está ativa'};
