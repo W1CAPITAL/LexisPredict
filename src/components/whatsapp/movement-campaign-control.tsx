@@ -207,6 +207,14 @@ export function MovementCampaignControl() {
                   </div>
                 )}
               </div>
+              {preview.counts.eligible===0&&(
+                <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+                  Nenhum comunicado está pronto neste momento. Retornos vencidos não são envios aptos.
+                  O scanner DataJud + DJEN pode conferir casos individuais; somente novidades oficiais
+                  posteriores ao último retorno entram na fila. Casos encerrados e telefones ausentes
+                  permanecem excluídos.
+                </div>
+              )}
               <div className="rounded-xl border border-border overflow-hidden">
                 <div className="bg-muted/50 px-3 py-2 text-xs font-bold">Prévia individualizada — até 5 exemplos</div>
                 <div className="max-h-[220px] overflow-y-auto divide-y divide-border">
