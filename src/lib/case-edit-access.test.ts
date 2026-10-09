@@ -23,8 +23,8 @@ describe('case edit permission - closed cases in /processos', () => {
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('Encerrado'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('ARQUIVADO', ''))).toBe(true);
   });
-  it('keeps administrators restricted to their own active cases', async () => {
-    expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO'))).toBe(false);
+  it('permits administrators to attend active cases from the same company', async () => {
+    expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO', 'auth-1'))).toBe(true);
   });
   it('prevents cross-company access for any role', async () => {
@@ -33,7 +33,7 @@ describe('case edit permission - closed cases in /processos', () => {
     }
   });
   it('retains operator ownership and viewer read-only restrictions', async () => {
-    expect(await canAccessExistingCase(makeCtx('Operador') as any, processo('ENCERRADO'))).toBe(false);
+    expect(await canAccessExistingCase(makeCtx('Operador') as any, processo('ENCERRADO'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Operador') as any, processo('ENCERRADO', 'auth-1'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Visualizador') as any, processo('ENCERRADO', 'auth-1'))).toBe(false);
   });
