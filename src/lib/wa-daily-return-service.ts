@@ -104,17 +104,25 @@ export async function processNextDueReturn(empresaId:string,intervalDays:number,
   if(error)throw new Error('Scanner indisponível: '+error.message);
   if(!data)return {ok:true,processed:false,reason:'no_due_cases'};
   const processId=Number(data);
-  // Refresh exactly this one case before deciding whether its latest event
-  // is truly newer than the client's last return. No paid LLM involved.
-  const {data:row}=await db.from('processos').select('protocolo_ref')
+  // Uma consulta oficial de ate 10 minutos pode ser reutilizada sem fazer
+  // novo round-trip aos tribunais para o mesmo CNJ. Nao usa LLM nem dados nao oficiais.
+  const {data:row}=await db.from('processos')
+    .select('protocolo_ref,datajud_consultado_em,djen_consultado_em,datajud_last_ok,djen_last_ok')
     .eq('empresa_id',empresaId).eq('id',processId).maybeSingle();
   if(!row?.protocolo_ref)return {ok:false,processed:true,sent:false,reason:'case_missing'};
-  let hasOfficialRecord=false;
+  const cutoff=Date.now()-10*60*1000;
+  const recentlyVerified=Boolean(
+    (row.datajud_last_ok===true && row.datajud_consultado_em && new Date(row.datajud_consultado_em).getTime()>=cutoff) ||
+    (row.djen_last_ok===true && row.djen_consultado_em && new Date(row.djen_consultado_em).getTime()>=cutoff)
+  );
+  let hasOfficialRecord=recentlyVerified;
   try {
+    if (!recentlyVerified) {
     const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
     const scanned=await auditCaseCoreSystem(row.protocolo_ref,empresaId,'both',
       {fast:true,cloudBudget:true,useClaudeAi:false});
     hasOfficialRecord=scanned.success===true && (scanned.sourceStatus?.datajud.ok===true || scanned.sourceStatus?.djen.ok===true);
+    }
   } catch {hasOfficialRecord=false;}
   if(!hasOfficialRecord) {
     await db.from('wa_daily_return_checks').upsert({
