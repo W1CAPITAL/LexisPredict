@@ -95,7 +95,15 @@ export async function POST(request: Request) {
       auth: { persistSession: false },
     });
 
+    // Tenant is resolved only from server-controlled instance configuration;
+    // never trust an empresa_id supplied by a public webhook payload.
+    const boundCompany=String(process.env.WA_DAILY_WEBHOOK_EMPRESA_ID||'').trim();
+    const boundInstance=String(process.env.WA_DAILY_WEBHOOK_INSTANCE||'').trim();
+    const instance=String(payload.instance||'');
+    const company=(boundCompany && boundInstance && instance===boundInstance)
+      ? boundCompany : null;
     const { error } = await supabase.from('whatsapp_messages').insert({
+      ...(company?{empresa_id:company}:{}),
       instance_name: payload.instance || 'Lexis',
       contact_number: contactNumber,
       contact_name: data.pushName || 'Contato WhatsApp',
@@ -113,6 +121,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Insert failed' }, { status: 500 });
     }
 
+    if(company && data.key?.fromMe!==true && messageText.trim()){
+      try {
+        const {processIncomingReturnRequest}=await import('@/lib/wa-daily-return-service');
+        const result=await processIncomingReturnRequest(company,contactNumber,messageText);
+        return NextResponse.json({success:true,returnAutomation:{processed:result.sent===true,reason:result.reason}});
+      } catch {
+        // Inbound message was persisted; an unavailable AI/WA bridge should not
+        // force the Evolution provider to retry the entire webhook.
+        return NextResponse.json({success:true,returnAutomation:{processed:false,reason:'queue_unavailable'}});
+      }
+    }
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
