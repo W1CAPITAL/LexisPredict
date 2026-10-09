@@ -278,7 +278,8 @@ export default function TarefasPage() {
         fetchNetwork: () => fetchCarteiraAllClient({
           empresaId,
           firstPageSize: 36,
-          pageSize: 160,
+          pageSize: 300,
+          scope: taskCaseScope,
           onPage: (partial, page) => {
             if (page === 0) {
               setCases(partial);
@@ -292,6 +293,9 @@ export default function TarefasPage() {
         empresaId,
         scope: taskCaseScope,
         userId: authUserId,
+        viewKey: 'tarefas',
+        reuseFreshCache: true,
+        maxAgeMs: 2 * 60_000,
         onShow: (data, source) => {
           if (Array.isArray(data)) startTransition(() => setCases(data));
           if (source === 'cache') setLoading(false);
