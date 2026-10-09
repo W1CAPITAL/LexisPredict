@@ -33,8 +33,8 @@ describe('Avisos processuais WA.Auto',()=>{
     expect(prepareMovementAlert({...base,dados:{whatsapp_opt_in:false}}).reason).toBe('blocked');
     expect(prepareMovementAlert({...base,dados:{consentimento_whatsapp:'não'}}).reason).toBe('blocked');
   });
-  it('excludes closed and already-reported events',()=>{
-    expect(prepareMovementAlert({...base,status:'ENCERRADO'}).reason).toBe('closed');
+  it('includes closed cases with verified updates, but excludes already-reported events',()=>{
+    expect(prepareMovementAlert({...base,status:'ENCERRADO'}).reason).toBe('ok');
     expect(prepareMovementAlert({...base,ultimo_retorno:'2026-10-05'}).reason).toBe('no_new_movement');
     expect(prepareMovementAlert({...base,ultimo_retorno:null}).reason).toBe('missing_return');
   });

@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {isStatusRequest,normalizePhone,prepareDailyReturn,type ReturnCase} from './wa-daily-return-policy';
+import {prepareMovementAlert} from './wa-movement-builder';
 const base:ReturnCase={
  id:1,empresa_id:'11111111-1111-1111-1111-111111111111',
  cliente:'Maria de Souza',telefone:'(11) 99999-4321',
@@ -42,6 +43,16 @@ describe('retorno inteligente DataJud/DJEN',()=>{
  it('rejects claims without comparison date and closed cases',()=>{
   expect(prepareDailyReturn({...base,ultimo_retorno:null},{mode:'due',today:'2026-10-09'}).reason).toBe('missing_return');
   expect(prepareDailyReturn({...base,status:'ENCERRADO'},{mode:'due',today:'2026-10-09'}).reason).toBe('closed');
+ });
+ it('includes closed cases only in verified movement campaigns, not routine due returns',()=>{
+  const closed={...base,status:'ENCERRADO'};
+  const allowed=prepareMovementAlert(closed);
+  expect(allowed.reason).toBe('ok');
+  expect(allowed.alert?.message).toContain('Setor Processual');
+  expect(allowed.alert?.message).not.toMatch(/seu processo foi encerrado|seu processo foi extinto/i);
+  expect(prepareDailyReturn(closed,{mode:'due',today:'2026-10-09'}).reason).toBe('closed');
+  expect(prepareMovementAlert({...closed,ultimo_retorno:'2026-10-08'}).reason).toBe('no_new_movement');
+  expect(prepareMovementAlert({...closed,dados:{whatsapp_opt_in:true,whatsapp_opt_out:true}}).reason).toBe('blocked');
  });
  it('requires explicit opt-in and honors opt-out',()=>{
   expect(prepareDailyReturn({...base,dados:{}},{mode:'due',today:'2026-10-09'}).reason).toBe('no_consent');

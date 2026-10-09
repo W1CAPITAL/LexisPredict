@@ -64,10 +64,13 @@ export function isStatusRequest(input:string):boolean {
  * A date-only last-return record cannot distinguish two events on the same day.
  */
 export function prepareDailyReturn(row:ReturnCase,opts:{
-  mode:ReturnMode;today?:string;intervalDays?:number;consentAttested?:boolean;
+  mode:ReturnMode;today?:string;intervalDays?:number;consentAttested?:boolean;includeClosed?:boolean;
 }):ReturnDecision {
   const meta=row.dados||{};
-  if(isCasoEncerrado(row))return {ready:null,reason:'closed'};
+  // Movimento posterior confirmado pode ocorrer em uma carteira marcada como encerrada.
+  // Apenas os avisos de movimentação da carteira optam por incluir esses casos;
+  // um status interno nunca é prova de encerramento definitivo no tribunal.
+  if(isCasoEncerrado(row) && !opts.includeClosed)return {ready:null,reason:'closed'};
   const hasOptIn=['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>affirmative(meta[k]));
   if(['nao_contatar','não_contatar','whatsapp_opt_out','optOut','optout','bloquear_whatsapp','naoEnviarWhatsapp'].some(k=>blockedValue(meta[k])) || ['whatsapp_opt_in','consentimento_whatsapp','whatsapp_autorizado'].some(k=>denied(meta[k])))
     return {ready:null,reason:'blocked'};

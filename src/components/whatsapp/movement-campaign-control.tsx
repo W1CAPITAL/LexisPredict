@@ -22,7 +22,7 @@ type CampaignKind = "movement" | "publication";
 type Preview = {
   ok:boolean;error?:string;consentAttested?:boolean;kind?:CampaignKind;counts?:{
     scanned:number;withoutPhone:number;withoutEvent:number;blocked:number;samePhone:number;
-    alreadyQueued:number;eligible:number;alreadyClosed?:number;consentMissing?:number;
+    alreadyQueued:number;eligible:number;alreadyClosed?:number;closedEligible?:number;consentMissing?:number;
     needsReview?:number;alreadyNotified?:number;missingReturn?:number;noNewMovement?:number;
   }; samples?:Sample[];
 };
@@ -172,8 +172,8 @@ export function MovementCampaignControl() {
             <DialogTitle className="flex items-center gap-2 text-base"><BellRing size={18}/> {kind==='publication'?'Avisar novidades pendentes da carteira':'Avisar clientes — última movimentação'}</DialogTitle>
             <DialogDescription>
               {kind==='publication'
-                ? 'Considera toda a carteira da empresa, de todos os responsáveis. Envia apenas para processos abertos com movimentação DataJud/DJEN posterior ao último retorno marcado. Eventos antigos e processos encerrados são excluídos.'
-                : 'Consulta toda a carteira da empresa. Prepara um aviso somente quando há movimentação posterior ao último retorno, excluindo encerrados, bloqueados e avisos já registrados.'}
+                ? 'Considera toda a carteira da empresa, de todos os responsáveis. Considera também processos marcados como encerrados. Envia somente movimentação DataJud/DJEN posterior ao último retorno, com teor oficial verificável, consentimento e sem bloqueio.'
+                : 'Consulta toda a carteira da empresa. Prepara um aviso por novidade posterior ao último retorno, inclusive de processos marcados como encerrados. Bloqueios, avisos repetidos e eventos sem prova verificável são excluídos.'}
             </DialogDescription>
           </DialogHeader>
           {loading&&!preview?<div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="animate-spin" size={18}/> Conferindo todos os processos...</div>:null}
@@ -197,7 +197,7 @@ export function MovementCampaignControl() {
                 {preview.counts.blocked} bloqueados/não contatar; {preview.counts.alreadyQueued} já preparados ou enviados (não duplicar).
                 {(
                   <div className="mt-2 space-y-1 rounded-xl border bg-muted/40 p-3 text-xs">
-                    <p><strong>{preview.counts.alreadyClosed||0}</strong> já encerrados na carteira (excluídos)</p>
+                    <p><strong>{preview.counts.closedEligible||0}</strong> marcados como encerrados com aviso verificável elegível (incluídos na seleção)</p>
                     <p><strong>{preview.counts.consentMissing||0}</strong> sem autorização expressa de WhatsApp (excluídos)</p>
                     <p><strong>{preview.counts.noNewMovement||0}</strong> sem novidade após o último retorno (excluídos)</p>
                     <p><strong>{preview.counts.missingReturn||0}</strong> sem data de último retorno para comparar</p>
@@ -211,8 +211,8 @@ export function MovementCampaignControl() {
                 <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
                   Nenhum comunicado está pronto neste momento. Retornos vencidos não são envios aptos.
                   O scanner DataJud + DJEN pode conferir casos individuais; somente novidades oficiais
-                  posteriores ao último retorno entram na fila. Casos encerrados e telefones ausentes
-                  permanecem excluídos.
+                  posteriores ao último retorno entram na fila. Casos sem novidade verificável e telefones ausentes
+                  permanecem excluídos, independentemente do status interno.
                 </div>
               )}
               <div className="rounded-xl border border-border overflow-hidden">
