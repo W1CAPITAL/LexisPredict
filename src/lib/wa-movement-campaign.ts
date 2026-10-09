@@ -121,7 +121,7 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
   }
 }
 
-export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement') {
+export async function createMovementCampaign(confirmed: boolean,kind:CampaignKind='movement',autoCloseAfterSent=false) {
   try {
     const ctx=await requireManager();
     // Publication campaigns are enabled by the manager's click to start; do not
@@ -143,7 +143,7 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
         : 'Nenhum processo com telefone válido e movimentação identificada.'
     );
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
-      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind })
+      .insert({ empresa_id:ctx.empresa_id,owner_auth_id:ctx.auth_id,consent_attested:confirmed === true,status:'running',campaign_kind:kind,auto_close_after_sent:kind==='closure_scan'&&autoCloseAfterSent })
       .select('id').single();
     if (createErr || !campaign) throw new Error(createErr?.message || 'Não foi possível criar a campanha.');
     let inserted=0;
