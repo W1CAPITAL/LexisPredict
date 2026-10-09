@@ -154,6 +154,25 @@ export async function waAutoHealth(): Promise<WaAutoHealth> {
   }
 }
 
+/**
+ * Um HTTP 200 do WA.Auto confirma apenas aceite pela ponte, nao que a mensagem
+ * foi recebida/decifrada no WhatsApp do destinatario. Sem comprovante de entrega
+ * retornado pelo provedor, campanhas nunca podem registrar "sent".
+ */
+export function waAutoDeliveryConfirmed(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false;
+  const obj = raw as Record<string, any>;
+  const candidates = [obj, obj.data, obj.message, obj.result, obj.raw].filter(
+    (x): x is Record<string, any> => !!x && typeof x === 'object'
+  );
+  return candidates.some((v) => {
+    const ack = v.ack ?? v.messageAck ?? v.deliveryAck;
+    return (typeof ack === 'number' && ack >= 3) ||
+      v.delivered === true || v.deliveryConfirmed === true ||
+      ['delivered','read','played'].includes(String(v.deliveryStatus || '').toLowerCase());
+  });
+}
+
 export async function sendViaWaAuto(to: string, message: string) {
   const { baseUrl } = getWaAutoConfig();
   if (!baseUrl) {
