@@ -493,9 +493,18 @@ export async function getGlobalPendingProcessesSystem(
       'cumprimento_pendente_necessario.eq.true',
       'datajud_encerrado_tribunal.eq.true',
     ].join(',');
+    // Evita reconsultar processo conferido nas ultimas 24h quando nenhuma nova
+    // movimentacao/publicacao exige acompanhamento. Nao e cache eterno:
+    // apos 24h ele volta a fila para identificar fatos novos oficiais.
+    const cutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    const freshConditions = mode === 'datajud'
+      ? `datajud_consultado_em.is.null,datajud_consultado_em.lt.${cutoff},tem_atualizacao_pos_retorno.eq.true`
+      : mode === 'djen'
+        ? `djen_consultado_em.is.null,djen_consultado_em.lt.${cutoff},djen_nova_comunicacao.eq.true`
+        : `datajud_consultado_em.is.null,datajud_consultado_em.lt.${cutoff},djen_consultado_em.is.null,djen_consultado_em.lt.${cutoff},tem_atualizacao_pos_retorno.eq.true,djen_nova_comunicacao.eq.true`;
     const combined = scope === 'cumprimento'
-      ? `and(or(${condition}),or(${candidateCondition}))`
-      : condition;
+      ? `and(or(${condition}),or(${freshConditions}),or(${candidateCondition}))`
+      : `and(or(${condition}),or(${freshConditions}))`;
     // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
     let query = admin.from('processos').select('*')
       .eq('empresa_id', empresaId).or(combined);
