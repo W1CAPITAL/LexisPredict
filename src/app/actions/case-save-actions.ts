@@ -410,7 +410,7 @@ export async function registrarAtendimentoCompletoAction(input: {
 }): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase; mirror?: Awaited<ReturnType<typeof mirrorAtendimento>> }> {
   try {
     const ctx = await getUserContext();
-    if (!ctx.empresa_id || !ctx.auth_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
+    if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer || !input?.protocolo) return { success: false, message: ctx.isViewer ? 'Acesso somente para leitura.' : 'Sessão expirada ou protocolo inválido.' };
     const admin = await getSupabaseAdmin();
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);

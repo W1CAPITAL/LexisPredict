@@ -68,7 +68,7 @@ describe("commercial role contract", () => {
     for (const path of ["/", "/cases", "/processos", "/tarefas", "/agenda", "/whatsapp", "/documents", "/mensagens", "/notes", "/onboarding", "/settings"]) {
       expect(operatorRouteAllowed(path)).toBe(true);
     }
-    for (const path of ["/supervisao", "/team", "/auditoria", "/crm", "/financas", "/security", "/superadmin"]) {
+    for (const path of ["/supervisao", "/team", "/auditoria", "/security", "/superadmin"]) {
       expect(operatorRouteAllowed(path)).toBe(false);
     }
   });

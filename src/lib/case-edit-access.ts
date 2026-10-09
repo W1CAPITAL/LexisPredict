@@ -8,6 +8,6 @@ type Context = Awaited<ReturnType<typeof getUserContext>>;
  * Nunca permite acesso a outra empresa; transferências e exclusões têm ACL própria.
  */
 export async function canAccessExistingCase(ctx: Context, row: Record<string, any> | null): Promise<boolean> {
-  if (!row || !ctx.auth_id || !ctx.empresa_id) return false;
+  if (!row || !ctx.auth_id || !ctx.empresa_id || ctx.isViewer) return false;
   return String(row.empresa_id || '') === String(ctx.empresa_id);
 }
