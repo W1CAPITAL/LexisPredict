@@ -12,6 +12,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HOST = os.environ.get("NEEDLE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("NEEDLE_PORT", "8751"))
 TOKEN = os.environ.get("NEEDLE_ROUTER_TOKEN", "")
+# Avoid telemetry on sensitive corporate deployments.
+os.environ.setdefault("NEEDLE_TELEMETRY","0")
+os.environ.setdefault("DO_NOT_TRACK","1")
 MODEL = None
 STARTUP_ERROR = None
 
