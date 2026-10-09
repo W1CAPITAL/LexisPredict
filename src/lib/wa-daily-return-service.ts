@@ -117,7 +117,27 @@ export async function processNextDueReturn(empresaId:string,intervalDays:number)
   const {data,error}=await db.rpc('wa_next_due_return',{p_empresa:empresaId,p_day:today});
   if(error)throw new Error('Scanner indisponível: '+error.message);
   if(!data)return {ok:true,processed:false,reason:'no_due_cases'};
-  return {...await processOneDailyReturn({empresaId,processId:Number(data),mode:'due',intervalDays,today}),processed:true};
+  const processId=Number(data);
+  // Refresh exactly this one case before deciding whether its latest event
+  // is truly newer than the client's last return. No paid LLM involved.
+  const {data:row}=await db.from('processos').select('protocolo_ref')
+    .eq('empresa_id',empresaId).eq('id',processId).maybeSingle();
+  if(!row?.protocolo_ref)return {ok:false,processed:true,sent:false,reason:'case_missing'};
+  let hasOfficialRecord=false;
+  try {
+    const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
+    const scanned=await auditCaseCoreSystem(row.protocolo_ref,empresaId,'both',
+      {fast:true,cloudBudget:true,useClaudeAi:false});
+    hasOfficialRecord=scanned.success===true && scanned.offline!==true;
+  } catch {hasOfficialRecord=false;}
+  if(!hasOfficialRecord) {
+    await db.from('wa_daily_return_checks').upsert({
+      empresa_id:empresaId,processo_id:processId,local_day:today,
+      mode:'due',result:'court_unavailable',checked_at:new Date().toISOString(),
+    },{onConflict:'empresa_id,processo_id,local_day,mode'});
+    return {ok:true,processed:true,sent:false,reason:'court_unavailable'};
+  }
+  return {...await processOneDailyReturn({empresaId,processId,mode:'due',intervalDays,today}),processed:true};
 }
 
 /** Called only by a signed webhook after the inbound text was persisted in
