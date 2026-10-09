@@ -195,6 +195,31 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     }
   }
 
+  // MiniCPM is a distinct runtime from Colibri (Ollama/vLLM/llama.cpp).
+  // In automatic mode prefer a company-hosted MiniCPM before paid services.
+  // In explicit MiniCPM mode never fall through to third-party clouds.
+  if (preferred === 'auto' || preferred === 'minicpm' || preferred === 'minicpm-v') {
+    try {
+      const { miniCpmConfig, callMiniCpm } = await import('@/lib/ai/minicpm');
+      if (miniCpmConfig()) {
+        const turns: ChatTurn[] = [];
+        if (system) turns.push({ role: 'system', content: system });
+        turns.push(...history, { role: 'user', content: String(user) });
+        const result = await callMiniCpm(turns, {
+          maxTokens: opts.max_tokens, temperature: opts.temperature, images: opts.images,
+        });
+        if (!isLowQualityAiText(result.text)) {
+          return {text:result.text,engineId:'minicpm',model:result.model,latencyMs:result.latencyMs};
+        }
+      }
+    } catch(error:any) {
+      errors.push('minicpm: ' + String(error?.message || 'unavailable').slice(0,140));
+    }
+    if (preferred === 'minicpm' || preferred === 'minicpm-v') {
+      throw new Error('MINICPM_UNAVAILABLE_OR_NOT_CONFIGURED');
+    }
+  }
+
   // Respostas simples: fallback leve e limitado para o modo automático.
   // Colibri tem prioridade quando configurado. NUNCA usar isto no modo
   // exclusivo Colibri, que permanece local/privado por escolha do usuário.
