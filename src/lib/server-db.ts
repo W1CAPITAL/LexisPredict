@@ -420,6 +420,11 @@ function mapProcessoRow(item: any): LegalCase {
   const statusManual = resolveStatusManualFromRow(item, dados, situacao);
   return processarCaso({
     ...dados,
+    protocolo:item.protocolo_ref||dados.protocolo||dados.PROTOCOLO||'',
+    cliente:item.cliente||dados.cliente||dados.CLIENTE||'SEM NOME',
+    status:item.status||dados.status||'EM ANDAMENTO',
+    advogado:item.advogado||dados.advogado||null,
+    tribunal:item.tribunal||dados.tribunal||null,
     id: item.id.toString(),
     db_id: item.id.toString(),
     empresa_id: item.empresa_id,
@@ -506,7 +511,10 @@ export async function getGlobalPendingProcessesSystem(
       ? `and(or(${condition}),or(${freshConditions}),or(${candidateCondition}))`
       : `and(or(${condition}),or(${freshConditions}))`;
     // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
-    let query = admin.from('processos').select('*')
+    // FULL usa projeção leve (sem JSON dados); em cumprimento o JSON legado
+    // ainda pode conter indicios executivos necessários para a triagem.
+    let query = admin.from('processos')
+      .select(scope === 'cumprimento' ? '*' : PROCESSOS_LIST_COLUMNS)
       .eq('empresa_id', empresaId).or(combined);
     if (opts?.afterId) query = query.gt('id', opts.afterId);
     const { data: sessionRows, error: sessionError } = await query
