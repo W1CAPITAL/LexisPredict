@@ -8,7 +8,7 @@ export type CloudScanScope = 'full' | 'cumprimento';
 
 // Vercel has a 60s max invocation. Use one bounded CNJ per request;
  // the browser periodically dispatches the next batch.
-const BATCH_SIZE = 1;
+const BATCH_SIZE = 3;
 const MAX_RUNTIME_MS = 38_000;
 const DELAY_BETWEEN_MS = 0;
 
@@ -21,6 +21,7 @@ export async function runCloudScanBatch(input: {
   mode: CloudScanMode;
   scope: CloudScanScope;
   since?: string | null;
+  afterId?: number;
 }) {
   const startedAt = Date.now();
 
@@ -31,6 +32,7 @@ export async function runCloudScanBatch(input: {
       scope: input.scope,
       mode: input.mode,
       since: input.since || null,
+      afterId: input.afterId || 0,
     }
   );
 
@@ -44,17 +46,20 @@ export async function runCloudScanBatch(input: {
       scope: input.scope,
       since: input.since || null,
       durationMs: Date.now() - startedAt,
+      lastId: input.afterId || 0,
       message: 'Fila da sessão concluída.',
     };
   }
 
   let successCount = 0;
   let failedCount = 0;
+  let lastId = input.afterId || 0;
 
   for (let i = 0; i < casesToAudit.length; i++) {
     if (Date.now() - startedAt > MAX_RUNTIME_MS) break;
 
     const item = casesToAudit[i];
+    lastId = Number((item as any).db_id || item.id || lastId);
 
     try {
       const result = await auditCaseCoreSystem(
@@ -81,6 +86,7 @@ export async function runCloudScanBatch(input: {
     processed: successCount + failedCount,
     successCount,
     failedCount,
+    lastId,
     mode: input.mode,
     scope: input.scope,
     since: input.since || null,
