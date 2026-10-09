@@ -8,12 +8,12 @@ import {
   deliverMovementFromOperator,
 } from '@/lib/wa-movement-campaign';
 
-export async function previewWhatsAppMovementCampaignAction(kind: 'movement' | 'publication' = 'movement') {
+export async function previewWhatsAppMovementCampaignAction(kind: 'movement' | 'publication' | 'closure_scan' = 'movement') {
   return previewMovementCampaign(kind);
 }
 
-export async function startWhatsAppMovementCampaignAction(attestConsent: boolean, kind: 'movement' | 'publication' = 'movement') {
-  return createMovementCampaign(attestConsent,kind);
+export async function startWhatsAppMovementCampaignAction(attestConsent: boolean, kind: 'movement' | 'publication' | 'closure_scan' = 'movement',autoCloseAfterSent=false) {
+  return createMovementCampaign(attestConsent,kind,autoCloseAfterSent);
 }
 
 export async function getWhatsAppMovementCampaignAction() {
