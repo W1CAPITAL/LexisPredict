@@ -44,7 +44,7 @@ import { planTemScanner } from '@/lib/planos-pacotes';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, alerts, cloudDjenAlerts, closed, pending, cycles,
+    status, total, done, cloudSuccesses, cloudFailures, alerts, cloudDjenAlerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
     startManualScan, resumeManualScan, pauseManualScan, resetScan,
@@ -258,7 +258,7 @@ export function DataJudScannerPanel() {
              ) : (
                <div className="space-y-4 animate-in fade-in">
                   <div className="flex justify-between items-end">
-                    <p className="text-[9px] font-black uppercase text-black/40">Progresso Servidor: {done} / {total}</p>
+                    <p className="text-[9px] font-black uppercase text-black/40">Tentativas da sessão: {done} / {total}</p>
                     <span className="text-[10px] font-black tabular-nums">{cloudPct}%</span>
                   </div>
                   <Progress value={cloudPct} className="h-2 border-2 border-black bg-white [&>div]:bg-black" />
@@ -266,13 +266,16 @@ export function DataJudScannerPanel() {
                   <div className="grid grid-cols-2 gap-2">
                     <DashboardMiniKpi label="Tribunal Alertas" value={alerts} color="text-red-600" />
                     <DashboardMiniKpi label="DJEN Alertas" value={cloudDjenAlerts} color="text-blue-600" />
-                    <DashboardMiniKpi label="Sucessos" value={done} color="text-emerald-600" />
-                    <DashboardMiniKpi label="Restante" value={pending} color="text-slate-400" />
+                    <DashboardMiniKpi label="Sucessos" value={cloudSuccesses} color="text-emerald-600" />
+                    <DashboardMiniKpi label="Falhas" value={cloudFailures} color="text-red-600" />
+                    <DashboardMiniKpi label="Restante estimado" value={pending} color="text-slate-400" />
                   </div>
 
-                  <Button variant="outline" size="sm" onClick={pauseCloudScan} className="w-full border-2 border-black rounded-none font-black text-[9px] uppercase h-10">
-                    <Pause size={12} className="mr-2" /> Pausar Servidor
+                  <Button variant="outline" size="sm" onClick={status === "running" ? pauseCloudScan : startCloudScan} className="w-full border-2 border-black rounded-none font-black text-[9px] uppercase h-10">
+                    {status === "running" ? <Pause size={12} className="mr-2" /> : <Play size={12} className="mr-2" />}
+                    {status === "running" ? "Pausar Servidor" : status === "paused" ? "Retomar Servidor" : "Iniciar nova varredura"}
                   </Button>
+                  {cloudFailures > 0 && <p className="text-[9px] font-semibold text-red-700">As falhas não são consideradas consultas bem-sucedidas. Reinicie a varredura após verificar a fonte.</p>}
                </div>
              )}
           </section>
