@@ -16,11 +16,13 @@ export async function POST(request: Request) {
     let mode = 'both';
     let scope = 'full';
     let since: string | null = null;
+    let afterId = 0;
     try {
       const body = await request.clone().json().catch(() => ({}));
       if (body?.mode && ['datajud', 'djen', 'both'].includes(body.mode)) mode = body.mode;
       if (body?.scope && ['full', 'cumprimento'].includes(body.scope)) scope = body.scope;
       if (body?.since) since = String(body.since);
+      if (Number.isSafeInteger(body?.afterId) && body.afterId >= 0) afterId = body.afterId;
     } catch {
       /* ignore */
     }
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
       mode: mode as 'datajud' | 'djen' | 'both',
       scope: scope as 'full' | 'cumprimento',
       since,
+      afterId,
     });
 
     return NextResponse.json({ started: true, mode, scope, since, worker });
