@@ -93,6 +93,7 @@ import { saveManyCasesAction } from '@/app/actions/case-save-actions';
 import { slimCaseForSave } from '@/lib/slim-case';
 import { appendScanLog } from '@/lib/scan-event-log';
 import { loadCarteiraComCache, writeCarteiraCache, invalidateCarteiraCache } from '@/lib/session-carteira-cache';
+import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { fetchCarteiraAllClient, invalidateCarteiraClientCache } from '@/lib/carteira-fetch-client';
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -514,6 +515,10 @@ const handleSaveAttendance = async () => {
           confirmed.set(c.protocolo, result.case);
           if (result.mirror?.attempted && !result.mirror.ok) pending.push(c.protocolo);
         } catch (error: any) { failures.push(`${c.protocolo}: ${error?.message || 'Falha ao salvar'}`); }
+      }
+      if (confirmed.size) {
+        invalidateCarteiraCache();
+        invalidateFastCarteiraCache();
       }
       setCases(cases.map(c => confirmed.get(c.protocolo) || c));
       if (!failures.length && confirmed.size) { setIsAttendanceOpen(false); setActiveGroup(null); }
