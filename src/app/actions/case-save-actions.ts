@@ -138,7 +138,7 @@ async function persistToDatabase(
   const proximoCol = dateOrNull(
     processed.proximo_retorno ?? processed.proximoPrazo ?? processed.proximoRetorno ?? mergedDados.proximoPrazo
   );
-  if (ultimoCol) {
+  if (processed.ultimoRetorno !== undefined || processed.ultimo_retorno !== undefined || processed.ULTIMO_RETORNO !== undefined) {
     payload.ultimo_retorno = ultimoCol;
     mergedDados.ultimoRetorno = ultimoCol;
     mergedDados.ultimo_retorno = ultimoCol;
@@ -278,7 +278,6 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     const ctx = await getUserContext();
     const { empresa_id, auth_id } = ctx;
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
-    if (ctx.isViewer) return { success: false, message: 'Seu perfil permite apenas consulta.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
     const processed: any = processarCaso(caseData as any);
@@ -302,7 +301,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
     if (existing && !(await canAccessExistingCase(ctx, existing))) {
-      return { success: false, message: 'Você só pode editar processos da sua própria carteira.' };
+      return { success: false, message: 'Processo fora da sua empresa ou sem permissão de edição.' };
     }
 
     // Edição nunca transfere propriedade.
@@ -412,13 +411,12 @@ export async function registrarAtendimentoCompletoAction(input: {
   try {
     const ctx = await getUserContext();
     if (!ctx.empresa_id || !ctx.auth_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
-    if (ctx.isViewer) return { success: false, message: 'Seu perfil permite apenas consulta.' };
     const admin = await getSupabaseAdmin();
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado na carteira.' };
     if (!(await canAccessExistingCase(ctx, existing))) {
-      return { success: false, message: 'Você só pode atender processos da sua própria carteira.' };
+      return { success: false, message: 'Processo fora da sua empresa ou sem permissão de atendimento.' };
     }
 
     protocolo = existing.protocolo_ref;
