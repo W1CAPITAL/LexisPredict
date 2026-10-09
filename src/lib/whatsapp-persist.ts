@@ -80,6 +80,7 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
       from_me: !!input.fromMe,
       timestamp: ts,
       message_id: mid,
+      ...(input.empresaId ? { empresa_id: input.empresaId } : {}),
     };
     const r2 = await sb.from('whatsapp_messages').insert(minimal).select('id').maybeSingle();
     if (r2.error) {
