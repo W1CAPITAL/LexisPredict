@@ -485,14 +485,24 @@ export async function getGlobalPendingProcessesSystem(
               `djen_consultado_em.lt.${since}`,
             ].join(',');
 
-    // Cursor crescente: um tribunal indisponível não pode travar a carteira
-    // no mesmo CNJ eternamente. Cada tentativa avança o cursor da sessão.
+    // "So cumprimento" precisa filtrar no SQL, ANTES do LIMIT. Filtrar
+    // somente os primeiros 600 registros poderia encerrar a fila antes da hora.
+    const candidateCondition = [
+      'is_procedente.eq.true',
+      'em_cumprimento_sentenca.eq.true',
+      'cumprimento_pendente_necessario.eq.true',
+      'datajud_encerrado_tribunal.eq.true',
+    ].join(',');
+    const combined = scope === 'cumprimento'
+      ? `and(or(${condition}),or(${candidateCondition}))`
+      : condition;
+    // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
     let query = admin.from('processos').select('*')
-      .eq('empresa_id', empresaId).or(condition);
+      .eq('empresa_id', empresaId).or(combined);
     if (opts?.afterId && opts.afterId > 0) query = query.gt('id', opts.afterId);
     const { data: sessionRows, error: sessionError } = await query
       .order('id', { ascending: true })
-      .limit(scope === 'cumprimento' ? 600 : Math.max(limit, 3));
+      .limit(Math.max(limit, 3));
 
     if (sessionError) {
       console.error('[getGlobalPendingProcessesSystem] session', sessionError);
