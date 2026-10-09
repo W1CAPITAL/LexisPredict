@@ -64,6 +64,7 @@ export function OmniReportStudio() {
   const [sources, setSources] = useState<OmniReportSource[]>([]);
   const [images, setImages] = useState<ImageInput[]>([]);
   const [detail, setDetail] = useState<"normal" | "profundo" | "maximo">("maximo");
+  const [executionMode, setExecutionMode] = useState<"local_gratis" | "ia_online">("local_gratis");
   const [readingFiles, setReadingFiles] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -127,6 +128,7 @@ export function OmniReportStudio() {
         sources,
         images: images.map(({ mediaType, data }) => ({ mediaType, data })),
         detail,
+        executionMode,
       });
       if (!res.success) {
         setError(res.error || "Falha ao gerar relatório.");
@@ -191,7 +193,7 @@ export function OmniReportStudio() {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#cae2f6]">
               Cole mensagens, teor do processo, anotações ou apenas um CNJ.
               Também aceita PDF, DOCX, planilhas, CSV, TXT, JSON, HTML e imagens.
-              O motor cruza a carteira e o tribunal quando encontra um processo.
+              No modo gratuito cruza os registros da carteira já sincronizados. A consulta ao tribunal em tempo real e a análise neural exigem selecionar o modo online.
             </p>
           </div>
 
@@ -237,6 +239,25 @@ export function OmniReportStudio() {
             className="mt-2 min-h-[220px] w-full resize-y rounded-2xl border border-border bg-background p-4 text-sm leading-relaxed outline-none transition focus:border-primary"
           />
 
+          <div className="mt-3 grid gap-2 rounded-xl border border-border bg-muted/40 p-3 sm:grid-cols-2" role="group" aria-label="Modo do OmniReport">
+            <button type="button" onClick={() => setExecutionMode("local_gratis")}
+              aria-pressed={executionMode === "local_gratis"}
+              className={"rounded-lg border px-3 py-2 text-left text-xs transition " + (executionMode === "local_gratis" ? "border-primary bg-background font-bold text-foreground" : "border-transparent text-muted-foreground hover:bg-background/70")}>
+              Local grátis · sem créditos
+              <span className="mt-1 block text-[10px] font-normal">Relatório documental rastreável, sem LLM e sem consulta judicial nova.</span>
+            </button>
+            <button type="button" onClick={() => setExecutionMode("ia_online")}
+              aria-pressed={executionMode === "ia_online"}
+              className={"rounded-lg border px-3 py-2 text-left text-xs transition " + (executionMode === "ia_online" ? "border-primary bg-background font-bold text-foreground" : "border-transparent text-muted-foreground hover:bg-background/70")}>
+              IA online · opcional
+              <span className="mt-1 block text-[10px] font-normal">Usa provedores disponíveis; se falharem, retorna relatório documental.</span>
+            </button>
+          </div>
+          {executionMode === "local_gratis" && images.length > 0 ? (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
+              Imagens anexadas serão listadas, mas não transcritas neste modo. Para analisar o conteúdo visual, use um motor de visão disponível ou transcreva o texto.
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               type="button"
@@ -273,7 +294,7 @@ export function OmniReportStudio() {
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
-              {generating ? "Auditando fontes…" : "Gerar dossiê"}
+              {generating ? "Organizando fontes…" : executionMode === "local_gratis" ? "Gerar dossiê grátis" : "Gerar dossiê com IA"}
             </Button>
           </div>
 

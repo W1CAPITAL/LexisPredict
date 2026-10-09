@@ -49,6 +49,8 @@ async function sleep(ms: number) {
 export interface DataJudOptions {
   /** true = scanner em lote (ainda tenta de verdade o tribunal) */
   fast?: boolean;
+  /** One short HTTP attempt for serverless cloud micro-batches. */
+  cloudBudget?: boolean;
 }
 
 /** Extrai nomes de polo ativo e passivo a partir do array partes do DataJud. */
@@ -278,7 +280,7 @@ export async function searchDataJudByCpf(
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   // Cache + dedupe só na 1ª tentativa (retries ficam fora do cache hit)
   if (attempt === 1) {
-    const key = PerfKeys.datajud(cnj, options.fast === true);
+    const key = PerfKeys.datajud(cnj, options.fast === true) + (options.cloudBudget ? ':cloud' : '');
     return perfCached(key, () => fetchDataJudUncached(cnj, 1, options), options.fast ? 60_000 : 120_000);
   }
   return fetchDataJudUncached(cnj, attempt, options);
@@ -303,8 +305,8 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const isFast = options.fast === true;
 
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
-  const timeoutMs = isFast ? 32000 : 42000;
-  const maxAttempts = isFast ? 3 : 3;
+  const timeoutMs = options.cloudBudget ? 11000 : isFast ? 32000 : 42000;
+  const maxAttempts = options.cloudBudget ? 1 : 3;
 
   try {
     const controller = new AbortController();

@@ -2,6 +2,7 @@
 
 import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
 import { runCascade, type VisionImage } from '@/lib/ai/cascade';
+import { buildOfflineOmniReport } from '@/lib/omni-report-offline';
 
 export type OmniReportSource = {
   name: string;
@@ -14,6 +15,7 @@ export type OmniReportInput = {
   sources?: OmniReportSource[];
   images?: VisionImage[];
   detail?: 'normal' | 'profundo' | 'maximo';
+  executionMode?: 'local_gratis' | 'ia_online';
 };
 
 export type OmniExecutiveMap = {
@@ -473,7 +475,7 @@ async function extractImageEvidence(images: VisionImage[], instruction: string) 
   return cleanText(result.text);
 }
 
-async function buildProcessSources(instruction: string, sourceBlob: string) {
+async function buildProcessSources(instruction: string, sourceBlob: string, consultTribunal = false) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [] as OmniReportSource[];
 
@@ -523,6 +525,7 @@ async function buildProcessSources(instruction: string, sourceBlob: string) {
       used.add(String(found.id || digits));
     }
 
+    if (!consultTribunal) continue;
     try {
       const { scanSingleCaseAction } = await import('@/app/actions/case-actions');
       const scan: any = await scanSingleCaseAction(cnj, { mode: 'both' } as any);
@@ -847,21 +850,42 @@ export async function generateOmniReportAction(
       });
     }
 
-    const imageEvidence = await extractImageEvidence(input?.images || [], instruction);
-    if (imageEvidence) {
-      supplied.push({
-        name: 'Imagens anexadas',
-        kind: 'imagem_extraida',
-        text: imageEvidence,
+    const executionMode = input.executionMode === 'ia_online' ? 'ia_online' : 'local_gratis';
+    if (executionMode === 'local_gratis') {
+      (input.images || []).slice(0, MAX_IMAGES).forEach((_, index) => {
+        supplied.push({
+          name: 'Imagem anexada ' + (index + 1),
+          kind: 'imagem_nao_transcrita',
+          text: 'Imagem recebida, mas não foi interpretada no modo gratuito. Transcreva o teor para incluir seus fatos no dossiê.',
+        });
       });
+    } else {
+      // Online extraction is optional; failed paid/free gateways never block
+      // generation from sources that were successfully parsed.
+      try {
+        const imageEvidence = await extractImageEvidence(input?.images || [], instruction);
+        if (imageEvidence) {
+          supplied.push({
+            name: 'Imagens anexadas',
+            kind: 'imagem_extraida',
+            text: imageEvidence,
+          });
+        }
+      } catch {
+        supplied.push({
+          name: 'Imagens anexadas (sem extração)',
+          kind: 'imagem_nao_transcrita',
+          text: 'O serviço de visão não respondeu. As imagens exigem transcrição ou conferência humana.',
+        });
+      }
     }
 
     const sourceBlob = supplied.map((s) => s.text).join('\n\n').slice(0, MAX_TOTAL_CHARS);
-    const processSources = await buildProcessSources(instruction, sourceBlob);
-    // Explicitly requested public legal pages only; remote text is untrusted.
-    // If no Spider key is configured this step is a no-op.
-    const { spiderPublicSources } = await import('@/lib/ai/research/spider-sources');
-    const webSources = await spiderPublicSources(instruction);
+    const processSources = await buildProcessSources(instruction, sourceBlob, executionMode === 'ia_online');
+    // In free mode do not query external websites or spend provider credits.
+    const webSources = executionMode === 'ia_online'
+      ? await import('@/lib/ai/research/spider-sources').then(x => x.spiderPublicSources(instruction)).catch(() => [])
+      : [];
     const all = [...supplied, ...processSources, ...webSources];
 
     if (!instruction && all.length === 0) {
@@ -900,6 +924,33 @@ export async function generateOmniReportAction(
     const chunks = chunkText(rawCorpus);
     const ledgerParts: string[] = [];
     const engines = new Set<string>();
+    const detail = input.detail || 'maximo';
+    const asOffline = () => {
+      const local = buildOfflineOmniReport(instruction, registered, detail);
+      const titleSeed = instruction.split('\n')[0].slice(0, 120)
+        || registered.find(x => x.kind === 'processo_interno')?.name || 'Dossiê OmniReport';
+      const title = /dossi[eê]|relat[oó]rio|auditoria/i.test(titleSeed)
+        ? titleSeed : 'Dossiê OmniReport · ' + titleSeed;
+      const generatedAt = new Date().toLocaleString('pt-BR');
+      const sourceTable = registered.map(x => ({
+        id:x.id,name:x.name,kind:x.kind || 'fonte',chars:x.text.length,
+      }));
+      const subtitle = 'Relatório documental gratuito com organização das fontes; sem inferência de IA, sem consulta judicial ao vivo e com conferência humana necessária.';
+      const html = buildHtml({
+        title,subtitle,instruction:instruction || 'Dossiê a partir dos materiais fornecidos.',
+        executive:local.executive,sections:local.sections,sources:sourceTable,generatedAt,
+        statsLine:totalChars.toLocaleString('pt-BR') + ' caracteres recebidos · processamento documental local sem LLM externo',
+      });
+      return {
+        success:true as const,html,title,
+        markdown:local.sections.map(x=>'# '+x.number+' · '+x.title+'\n\n'+x.body).join('\n\n---\n\n'),
+        filenameBase:title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,70)||'OmniReport_Gratuito',
+        executive:local.executive,sources:sourceTable,
+        stats:{inputChars:totalChars,chunks:chunks.length,cnjs:local.cnjs,sections:local.sections.length,engines:['DOCUMENTAL_LOCAL_SEM_LLM']},
+      };
+    };
+    if (executionMode === 'local_gratis') return asOffline();
+
 
     for (let i = 0; i < chunks.length; i += 2) {
       const batch = chunks.slice(i, i + 2);
@@ -918,7 +969,9 @@ export async function generateOmniReportAction(
     }
 
     const ledger = ledgerParts.join('\n\n---\n\n').slice(0, 90000);
-    const detail = input.detail || 'maximo';
+    // Online is optional; when its first probe fails, return the full
+    // deterministic report instead of throwing AI_PROVIDERS_UNAVAILABLE.
+    if (engines.has('fallback-local')) return asOffline();
 
     const executiveResult = await generateExecutiveMap(
       instruction || 'Gere um dossiê completo a partir das fontes.',
@@ -993,7 +1046,11 @@ export async function generateOmniReportAction(
             instruction || 'Gere um dossiê completo a partir das fontes.',
             ledger,
             detail
-          )
+          ).catch(() => ({
+            text: buildOfflineOmniReport(instruction, registered, detail).sections.find(x => x.title === definition.title)?.body
+              || 'IA online indisponível. Confira as fontes indexadas no anexo e gere novamente no modo Local grátis.',
+            engine: 'DOCUMENTAL_LOCAL_SEM_LLM',
+          }))
         )
       );
       for (let j = 0; j < results.length; j++) {

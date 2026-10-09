@@ -378,6 +378,8 @@ export async function fetchDjenComunicacoes(
     meio?: 'D' | 'E' | null;
     dataInicio?: string;
     dataFim?: string;
+    /** Short no-retry call for serverless cloud micro-batches. */
+    cloudBudget?: boolean;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -389,7 +391,7 @@ export async function fetchDjenComunicacoes(
   const dataInicioEarly =
     opts?.dataInicio ||
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '');
+  const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '') + (opts?.cloudBudget ? ':cloud' : '');
   return perfCached(cacheKey, () => fetchDjenComunicacoesUncached(protocolo, opts), 90_000);
 }
 
@@ -400,6 +402,8 @@ async function fetchDjenComunicacoesUncached(
     meio?: 'D' | 'E' | null;
     dataInicio?: string;
     dataFim?: string;
+    /** Short no-retry call for serverless cloud micro-batches. */
+    cloudBudget?: boolean;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -413,7 +417,7 @@ async function fetchDjenComunicacoesUncached(
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const masked = `${digits.substring(0, 7)}-${digits.substring(7, 9)}.${digits.substring(9, 13)}.${digits.substring(13, 14)}.${digits.substring(14, 16)}.${digits.substring(16, 20)}`;
-  const cnjOptions = [digits, masked];
+  const cnjOptions = opts?.cloudBudget ? [digits] : [digits, masked];
 
   let lastError = '';
 
@@ -433,7 +437,7 @@ async function fetchDjenComunicacoesUncached(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 28000);
+      const timeoutId = setTimeout(() => controller.abort(), opts?.cloudBudget ? 11000 : 28000);
 
       const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
         method: 'GET',

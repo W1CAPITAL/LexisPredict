@@ -200,7 +200,7 @@ export function DataJudScannerPanel() {
           <section className="p-5 bg-violet-50 border-2 border-violet-600/30 space-y-3">
              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Claude na cascata</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Classificação neural opcional</p>
                   <p className="text-[8px] font-bold text-violet-700/80 uppercase mt-1">
                     Análise neural de flags · só após ativar
                   </p>
@@ -215,16 +215,16 @@ export function DataJudScannerPanel() {
                     claudeAiEnabled ? "bg-violet-700 text-white hover:bg-violet-800" : "border-violet-400 text-violet-800"
                   )}
                 >
-                  {claudeAiEnabled ? "Claude ON" : "Ativar Claude AI"}
+                  {claudeAiEnabled ? "IA Online ON" : "Ativar IA online"}
                 </Button>
              </div>
              {claudeAiEnabled ? (
                <p className="text-[9px] font-bold text-violet-900">
-                 Nos logs: Claude AI trabalhando + o que encontrou (encerrado, cumprimento, mérito, BA, custas, prioridade).
+                 Pode usar provedores externos e seus créditos. Nos logs, o motor real será identificado pelo nome.
                </p>
              ) : (
                <p className="text-[9px] font-bold text-muted-foreground">
-                 Desligado: só DataJud/DJEN. Ative Claude AI antes da varredura local.
+                 Desligado: somente dados oficiais do DataJud/DJEN e regras locais, sem classificação paga.
                </p>
              )}
           </section>

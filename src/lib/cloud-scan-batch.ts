@@ -6,10 +6,11 @@ import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 export type CloudScanMode = 'datajud' | 'djen' | 'both';
 export type CloudScanScope = 'full' | 'cumprimento';
 
-// Processa vários CNJs por invocação e ainda respeita o orçamento de 52s abaixo.
-const BATCH_SIZE = 24;
-const MAX_RUNTIME_MS = 52_000;
-const DELAY_BETWEEN_MS = 400;
+// Vercel has a 60s max invocation. Use one bounded CNJ per request;
+ // the browser periodically dispatches the next batch.
+const BATCH_SIZE = 1;
+const MAX_RUNTIME_MS = 38_000;
+const DELAY_BETWEEN_MS = 0;
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,10 +61,10 @@ export async function runCloudScanBatch(input: {
         item.protocolo,
         input.empresaId,
         input.mode,
-        { fast: true }
+        { fast: true, cloudBudget: true, useClaudeAi: false }
       );
 
-      if (result.success) successCount += 1;
+      if (result.success && !(result as any).offline) successCount += 1;
       else failedCount += 1;
     } catch (error) {
       console.error('[CloudScanBatch] case failed', item.protocolo, error);
