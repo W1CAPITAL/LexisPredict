@@ -60,7 +60,7 @@ export async function previewMovementCampaign(kind:CampaignKind='movement') {
     const settings=await getDailyReturnSettings(ctx.empresa_id);
     const db = await getSupabaseAdmin();
     const [portfolio, priorResponse] = await Promise.all([
-      collectPortfolio(ctx.empresa_id,kind,settings.consentAttested),
+      collectPortfolio(ctx.empresa_id,kind,true), // prévia sob autorização contratual a registrar pelo gestor ao iniciar
       db.rpc('wa_notice_prior',{p_empresa:ctx.empresa_id}),
     ]);
     const {entries,counts}=portfolio;
