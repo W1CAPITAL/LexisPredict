@@ -10,6 +10,7 @@ import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
 import {brazilToday} from '@/lib/wa-daily-return-policy';
+import {isCasoEncerrado} from '@/lib/status-encerrado';
 
 
 async function requireManager() {
@@ -28,7 +29,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement',
   const db = await getSupabaseAdmin();
   const entries: Alert[] = [];
   const counts = { scanned:0, withoutPhone:0, withoutEvent:0, blocked:0, samePhone:0,
-    alreadyClosed:0, consentMissing:0, needsReview:0, alreadyNotified:0, missingReturn:0, noNewMovement:0 };
+    alreadyClosed:0, closedEligible:0, consentMissing:0, needsReview:0, alreadyNotified:0, missingReturn:0, noNewMovement:0 };
   let after=0;
   for (;;) {
     const {data,error}=await db.rpc('wa_notice_portfolio_rows',{p_empresa:empresaId,p_after:after,p_limit:3000});
@@ -46,7 +47,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement',
         else if(reason==='needs_source_review')counts.needsReview++;
         else if(reason==='no_new_movement')counts.noNewMovement++;
         else counts.withoutEvent++;
-      } else entries.push(alert);
+      } else {
+        entries.push(alert);
+        if(isCasoEncerrado(row))counts.closedEligible++;
+      }
     }
     if(rows.length<3000)break;
     after=Number(rows[rows.length-1].id);
@@ -99,7 +103,7 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     const {entries}=await collectPortfolio(ctx.empresa_id,kind,confirmed||settings.consentAttested);
     if (!entries.length) throw new Error(
       kind === 'publication'
-        ? 'Nenhum aviso elegível: confira telefone, data do último retorno e novidade em processos abertos.'
+        ? 'Nenhum aviso elegível: confira telefone, último retorno e nova publicação verificada na carteira.'
         : 'Nenhum processo com telefone válido e movimentação identificada.'
     );
     const {data: campaign,error: createErr} = await db.from('wa_movement_campaigns')
