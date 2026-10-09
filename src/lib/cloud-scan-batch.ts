@@ -6,9 +6,9 @@ import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 export type CloudScanMode = 'datajud' | 'djen' | 'both';
 export type CloudScanScope = 'full' | 'cumprimento';
 
-// Vercel has a 60s max invocation. Use one bounded CNJ per request;
- // the browser periodically dispatches the next batch.
-const BATCH_SIZE = 3;
+// Um CNJ por execução mantém cada requisição abaixo do limite Vercel
+// e deixa o progresso individual visível, sem misturar falhas de três tribunais.
+const BATCH_SIZE = 1;
 const MAX_RUNTIME_MS = 38_000;
 const DELAY_BETWEEN_MS = 0;
 
@@ -54,6 +54,7 @@ export async function runCloudScanBatch(input: {
   let successCount = 0;
   let failedCount = 0;
   let lastId = input.afterId || null;
+  const caseResults: Array<{cnj:string;success:boolean;durationMs:number;datajudOk:boolean;djenOk:boolean;error?:string}> = [];
 
   for (let i = 0; i < casesToAudit.length; i++) {
     if (Date.now() - startedAt > MAX_RUNTIME_MS) break;
@@ -62,6 +63,7 @@ export async function runCloudScanBatch(input: {
     const itemId = String((item as any).db_id || item.id || '').trim();
     if (itemId) lastId = itemId;
 
+    const itemStartedAt = Date.now();
     try {
       const result = await auditCaseCoreSystem(
         item.protocolo,
@@ -70,11 +72,20 @@ export async function runCloudScanBatch(input: {
         { fast: true, cloudBudget: true, useClaudeAi: false }
       );
 
-      if (result.success && !(result as any).offline) successCount += 1;
+      const success = result.success === true && !(result as any).offline;
+      if (success) successCount += 1;
       else failedCount += 1;
+      caseResults.push({
+        cnj:item.protocolo,success,durationMs:Date.now()-itemStartedAt,
+        datajudOk:result.sourceStatus?.datajud?.ok===true,
+        djenOk:result.sourceStatus?.djen?.ok===true,
+        ...(!success?{error:'Nenhuma consulta oficial confirmada neste lote'}:{}),
+      });
     } catch (error) {
       console.error('[CloudScanBatch] case failed', item.protocolo, error);
       failedCount += 1;
+      caseResults.push({cnj:item.protocolo,success:false,durationMs:Date.now()-itemStartedAt,
+        datajudOk:false,djenOk:false,error:error instanceof Error?error.message.slice(0,180):'Falha no tribunal'});
     }
 
     if (i < casesToAudit.length - 1) {
@@ -88,6 +99,7 @@ export async function runCloudScanBatch(input: {
     successCount,
     failedCount,
     lastId,
+    caseResults,
     mode: input.mode,
     scope: input.scope,
     since: input.since || null,
