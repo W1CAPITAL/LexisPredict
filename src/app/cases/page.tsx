@@ -317,6 +317,8 @@ function CasesContent() {
             includeDetails: true,
           });
           setRemoteHasMore(page.length === INITIAL_PAGE_SIZE);
+          // A primeira pagina nao representa toda a carteira; evitar cache marcado completo.
+          (page as any).__incomplete = page.length === INITIAL_PAGE_SIZE;
           return page;
         },
         empresaId,
@@ -324,7 +326,7 @@ function CasesContent() {
         userId: authUserId,
         viewKey: 'cases-detail',
         reuseFreshCache: true,
-        maxAgeMs: 90_000,
+        maxAgeMs: 5 * 60_000,
         onShow: (data, source) => {
           // Cache isolado por usuario/empresa/tela: exibe imediatamente e valida no servidor.
           if (Array.isArray(data)) {
