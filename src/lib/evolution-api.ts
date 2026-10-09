@@ -399,11 +399,21 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
 
     // Wake 1:1 só com dígitos; grupos: wake genérico da instância
     if (dest.isGroup) {
-      await wakeEvolutionInstance();
+      const wake = await wakeEvolutionInstance();
+      if (!wake.open) {
+        lastErr = `Evolution offline: ${wake.detail || 'sessão não está aberta'}`;
+        continue;
+      }
     } else {
       const wake = await wakeEvolutionForSend(number.replace(/\D/g, ''));
       if (attempt > 1) await sleep(1500 * attempt);
-      else if (!wake.open) await sleep(1200);
+      if (!wake.open) {
+        // A Evolution pode aceitar o POST enquanto a sessão Baileys ainda está
+        // fechada; isso aparece no WhatsApp como “Aguardando mensagem”.
+        // Nunca envie nesse estado: aguarde uma conexão realmente aberta.
+        lastErr = `Evolution offline: ${wake.detail || 'sessão não está aberta'}`;
+        continue;
+      }
     }
 
     // Connection Closed após abrir grupo no Manager: reconnect leve
