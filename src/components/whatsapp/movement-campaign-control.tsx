@@ -5,6 +5,7 @@ import { BellRing, FileClock, CheckCircle2, Clock3, Loader2, Pause, Play, Refres
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PUBLICATION_TEMPLATE_PREVIEWS } from "@/lib/wa-publication-templates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
@@ -41,6 +42,7 @@ export function MovementCampaignControl() {
   const [sending,setSending]=useState(false);
   const [consent,setConsent]=useState(false);
   const [kind,setKind]=useState<CampaignKind>("movement");
+  const [showTemplates,setShowTemplates]=useState(false);
   const [preview,setPreview]=useState<Preview|null>(null);
   const [campaign,setCampaign]=useState<Campaign|null>(null);
   const busy=useRef(false);
@@ -88,7 +90,7 @@ export function MovementCampaignControl() {
   if(!allowed)return null;
 
   const inspect=async(selectedKind:CampaignKind)=>{
-    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);
+    setKind(selectedKind);setOpen(true);setConsent(false);setLoading(true);setPreview(null);setShowTemplates(false);
     try{
       const result=await previewWhatsAppMovementCampaignAction(selectedKind);
       setPreview(result as Preview);
@@ -97,10 +99,10 @@ export function MovementCampaignControl() {
   };
 
   const start=async()=>{
-    if(!consent||!preview?.ok||!preview.counts?.eligible)return;
+    if((kind==='movement'&&!consent)||!preview?.ok||!preview.counts?.eligible)return;
     setLoading(true);
     try{
-      const result=await startWhatsAppMovementCampaignAction(true,kind);
+      const result=await startWhatsAppMovementCampaignAction(kind==='movement' ? consent : false,kind);
       if(!result.ok){
         toast({title:"Campanha não iniciada",description:result.error,variant:"destructive"});
         return;
@@ -208,12 +210,41 @@ export function MovementCampaignControl() {
                   ))}
                 </div>
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                <Checkbox checked={consent} onCheckedChange={v=>setConsent(v===true)} className="mt-0.5"/>
-                <span className="text-xs leading-relaxed">
-                  <strong>Confirmo que os destinatários autorizaram notificações processuais via WhatsApp</strong>, que conferi os registros e que contatos já informados por outros meios foram excluídos. Não devo usar essa opção para enviar mensagens indiscriminadas. Estou ciente de que o clique em iniciar envia mensagens reais.
-                </span>
-              </label>
+              {kind==='publication' ? (
+                <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold">5 modelos por tipo de publicação</p>
+                      <p className="text-[11px] text-muted-foreground">Rascunhos internos com variáveis automáticas, não modelos aprovados pela Meta.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={()=>setShowTemplates(x=>!x)}>
+                      {showTemplates?'Ocultar modelos':'Ver os 5 modelos'}
+                    </Button>
+                  </div>
+                  {showTemplates&&(
+                    <div className="max-h-72 space-y-2 overflow-y-auto">
+                      {PUBLICATION_TEMPLATE_PREVIEWS().map((template)=>(
+                        <div key={template.kind} className="rounded-lg border border-border bg-background p-3">
+                          <p className="text-xs font-bold">{template.title} · {template.verdict.replace('_',' ')}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed">{template.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Sem perguntas adicionais por destinatário: após clicar em iniciar, a fila envia apenas aos contatos com consentimento individual comprovado, enquanto respeita horário, limites, opt-out e revisão do mérito.
+                    Nenhuma mensagem será liberada para contatos sem autorização registrada.
+                  </p>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                  <Checkbox checked={consent} onCheckedChange={v=>setConsent(v===true)} className="mt-0.5"/>
+                  <span className="text-xs leading-relaxed">
+                    <strong>Confirmo que os clientes desta carteira autorizaram contatos de acompanhamento processual por WhatsApp.</strong>
+                    Mensagens serão efetivamente enviadas ao iniciar.
+                  </span>
+                </label>
+              )}
               <p className="text-[11px] text-muted-foreground">
                 {kind==='publication'
                   ? 'Publicações: até 25 mensagens por dia, intervalo mínimo de 3 minutos, só em horário comercial de dias úteis, no máximo uma por número a cada 24h. Esses controles não garantem ausência de bloqueio; a política do WhatsApp e os modelos aprovados quando exigidos continuam obrigatórios.'
@@ -223,9 +254,9 @@ export function MovementCampaignControl() {
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={()=>setOpen(false)}>Cancelar</Button>
-                <Button onClick={()=>void start()} disabled={!consent||loading||!preview.counts.eligible||Boolean(hasActive)}>
+                <Button onClick={()=>void start()} disabled={(kind==='movement'&&!consent)||loading||!preview.counts.eligible||Boolean(hasActive)}>
                   {loading?<Loader2 size={14} className="mr-2 animate-spin"/>:<Send size={14} className="mr-2"/>}
-                  {kind==='publication'?'Confirmar e iniciar ':'Iniciar '}{preview.counts.eligible} avisos
+                  {kind==='publication'?'Iniciar automaticamente ':'Iniciar '}{preview.counts.eligible} avisos
                 </Button>
               </div>
               {hasActive&&<p className="text-xs text-amber-700 dark:text-amber-300">Pause ou conclua a fila em andamento antes de iniciar uma nova.</p>}
