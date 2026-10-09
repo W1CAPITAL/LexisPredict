@@ -106,6 +106,9 @@ export default function EncerradosRevisaoPage() {
         const pack = await loadCarteiraComCache({
           fetchNetwork: async () => (await fetchCarteiraDeduped(() => fetchRepoCases())) || [],
           empresaId: empId,
+          userId: (profile as any)?.auth_user_id || null,
+          viewKey: 'encerrados-revisao',
+          reuseFreshCache: true,
           onShow: (data) => {
             if (Array.isArray(data)) startTransition(() => setCases(data as LegalCase[]));
           },
