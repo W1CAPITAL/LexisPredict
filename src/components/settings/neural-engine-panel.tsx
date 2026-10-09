@@ -69,7 +69,7 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
   } | null>(null);
   const [privateEngines,setPrivateEngines]=useState<{
     minicpm?:{configured:boolean;reachable:boolean;model:string|null;reason:string|null};
-    needle?:{configured:boolean;mode:string};
+    needle?:{configured:boolean;reachable:boolean;reason:string|null};
   } | null>(null);
 
 
@@ -169,10 +169,10 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
               : privateEngines?.minicpm?.reason || "Configure MINICPM_BASE_URL no servidor privado HTTPS para ativar inferência."}
           </p>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-            <strong className="text-sm">Needle · Busca de conhecimento</strong>
-            <Badge variant="outline" className="text-[10px]">{privateEngines?.needle?.configured ? "RAG externo configurado" : "Base interna Lexis"}</Badge>
+            <strong className="text-sm">Needle 3 · Classificação local de ferramentas</strong>
+            <Badge variant="outline" className="text-[10px]">{privateEngines?.needle?.reachable ? "Modelo ativo" : privateEngines?.needle?.configured ? "Servidor inacessível" : "Não configurado"}</Badge>
           </div>
-          <p className="text-xs text-muted-foreground">A base local funciona sem créditos. Needle exige coleção e API key; não envia processos, CPF ou PDFs para a coleção externa.</p>
+          <p className="text-xs text-muted-foreground">Needle da Cactus Compute roteia ferramentas com um modelo pequeno próprio; não é chat. A base de conhecimento Lexis continua local, e o servidor Needle exige NEEDLE_ROUTER_URL + token. Nenhum cliente é enviado para uma coleção externa.</p>
         </div>
 
         <div className="space-y-3">
