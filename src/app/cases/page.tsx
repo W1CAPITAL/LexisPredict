@@ -319,10 +319,18 @@ function CasesContent() {
         empresaId,
         scope: caseScope,
         userId: authUserId,
+        viewKey: 'cases-detail',
+        reuseFreshCache: true,
+        maxAgeMs: 90_000,
         onShow: (data, source) => {
-          // Prevent another route's cached projection from replacing editable
-          // full records before the first detailed page has arrived.
-          if (source === 'network' && Array.isArray(data)) setCases(data);
+          // Cache isolado por usuario/empresa/tela: exibe imediatamente e valida no servidor.
+          if (Array.isArray(data)) {
+            setCases(data);
+            if (source === 'cache') {
+              setRemoteHasMore(data.length >= INITIAL_PAGE_SIZE);
+              setLoading(false);
+            }
+          }
         },
         onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Não foi possível carregar os processos'),
       });
@@ -350,7 +358,8 @@ function CasesContent() {
         merged,
         empId,
         caseScope,
-        authUserId
+        authUserId,
+        'cases-detail'
       );
       setRemoteHasMore(page.length === REMOTE_PAGE_SIZE);
     } catch (e: any) {
