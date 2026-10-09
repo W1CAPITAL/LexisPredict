@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Faça login novamente.' }, { status: 401, headers });
     const u = new URL(request.url);
     const scope = u.searchParams.get('scope') === 'empresa' ? 'empresa' : 'mine';
-    const limit = Math.max(1, safeInt(u.searchParams.get('limit'), 60, 100));
+    const limit = Math.max(1, safeInt(u.searchParams.get('limit'), 60, 400));
+    const withSummary = u.searchParams.get('summary') !== '0';
+    const includeDetails = u.searchParams.get('details') === '1';
     const offset = safeInt(u.searchParams.get('offset'), 0, 100000);
     const empresaId = String(ctx.empresa_id);
     const db = await getSupabaseAdmin();
@@ -34,15 +36,20 @@ export async function GET(request: NextRequest) {
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',
         onlyAtivos: false,
+        includeDetails,
       }),
       // RPC runs one indexed SQL aggregation in Postgres, not three large JSON
       // downloads over the network. It is callable only with service_role.
-      db.rpc('lexis_portfolio_snapshot', {
+      withSummary ? db.rpc('lexis_portfolio_snapshot', {
         p_empresa: empresaId,
         p_owner: scope === 'empresa' || ctx.caseScope === 'empresa' ? null : ctx.auth_id,
-      }),
+      }) : Promise.resolve({ data: null, error: null }),
     ]);
     let snapshot: Snapshot = { ...EMPTY };
+    if (!withSummary) {
+      return NextResponse.json({ ok: true, cases: listResult, summary: snapshot,
+        totalCount: 0, offset, limit, hasMore: listResult.length === limit }, { headers });
+    }
     if (!countResult.error && Array.isArray(countResult.data) && countResult.data[0]) {
       const row = countResult.data[0] as Record<string, unknown>;
       snapshot = Object.fromEntries(Object.keys(EMPTY).map((k) =>
