@@ -242,18 +242,26 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   const failure=send.ok?null:send.error;
   await db.from('wa_daily_return_sends').update({status:send.ok?'sent':send.rejected?'rejected':'uncertain',
     sent_at:send.ok?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
+  let historyWarning:string|null=null;
   if(send.ok) {
     const history=await persistWhatsAppMessage({contactNumber:claimed.phone,messageText:check.alert.message,
       fromMe:true,source:'lexis-waauto-movement',empresaId:campaign.empresa_id,
       messageId:'wa-return-'+reservation,raw:send.raw});
-    if(history.ok)await db.rpc('wa_record_return',{p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,
-      p_prior:current.ultimo_retorno||null,p_day:today,p_interval:settings.intervalDays,p_send:reservation});
+    if(history.ok){
+      const recorded=await db.rpc('wa_record_return',{p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,
+        p_prior:current.ultimo_retorno||null,p_day:today,p_interval:settings.intervalDays,p_send:reservation});
+      if(recorded.error||!recorded.data)historyWarning='Envio aceito, mas o último retorno não pôde ser atualizado. Revisar manualmente.';
+    } else historyWarning='Envio aceito, mas o histórico WhatsApp não foi salvo; não reenviar sem conferência.';
+    if(historyWarning) {
+      await db.from('wa_daily_return_sends').update({last_error:historyWarning}).eq('id',reservation);
+      await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
+    }
   }
-  const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:failure});
+  const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:historyWarning||failure});
   if(!send.ok && send.rejected && (send.httpStatus===401||send.httpStatus===403||send.httpStatus===409))
     await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
   if(finishError)return {ok:false as const,error:'Histórico do envio: '+finishError.message};
-  return {ok:send.ok,processed:true as const,status:result,error:failure};
+  return {ok:send.ok,processed:true as const,status:result,error:failure,warning:historyWarning};
 }
 
 export async function deliverMovementFromOperator(campaignId:string) {
