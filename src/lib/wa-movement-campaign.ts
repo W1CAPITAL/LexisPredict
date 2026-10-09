@@ -238,13 +238,13 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
     const {data:current,error:rowError}=await db.from('processos')
       .select('*')
       .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
-    const isPublication=await db.from('wa_movement_campaigns').select('campaign_kind').eq('id',campaign.id).single();
+    const isPublication=campaign.campaign_kind!=='movement';
     if(rowError || !current) {
       await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
       return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
     }
     if(isPublication.data?.campaign_kind!=='movement') {
-      const check=preparePublicationNotice(current as PublicationSourceRow);
+      const check=preparePublicationNotice(current as PublicationSourceRow,{includeClosed:campaign.campaign_kind==='closure_scan'});
       if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
         return {ok:false as const,error:'Aviso não enviado: dados ou consentimento alterados'};
