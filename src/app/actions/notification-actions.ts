@@ -208,14 +208,14 @@ export async function syncMyNotificationsAction() {
     if (assigneeIds.length) {
       const { data: tasks } = await admin
         .from("crm_tarefas")
-        .select("id,titulo,feito,status,due_at,vencimento,assignee_id")
+        .select("id,titulo,feito,due_at,assignee_id")
         .eq("empresa_id", empresaId)
         .eq("feito", false)
         .in("assignee_id", assigneeIds)
         .limit(100);
 
       for (const task of tasks || []) {
-        const dueRaw = task.due_at || (task.vencimento ? `${task.vencimento}T23:59:59` : null);
+        const dueRaw = task.due_at || null;
         if (!dueRaw) continue;
         const due = new Date(dueRaw);
         if (Number.isNaN(due.getTime()) || due.getTime() > now.getTime() + 24 * 60 * 60 * 1000) continue;
