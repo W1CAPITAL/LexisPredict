@@ -47,6 +47,7 @@ import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendiment
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { loadCarteiraComCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
+import { searchCompanyProcessosAction } from '@/app/actions/search-processos-action';
 import { listAssignableUsersAction, type AssignableUser } from '@/app/actions/team-list-actions';
 import { updateCaseCnjAction } from '@/app/actions/update-case-cnj';
 import { saveOneCaseAction, saveManyCasesAction, deleteOneCaseAction, transferCasesOwnerAction, reassignCaseOwnerAction } from '@/app/actions/case-save-actions';
@@ -238,6 +239,8 @@ function CasesContent() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const searchDebounced = useDebouncedValue(search, 300);
+  const [remoteSearchHits, setRemoteSearchHits] = useState<LegalCase[] | null>(null);
+  const [remoteSearching, setRemoteSearching] = useState(false);
   const [quickFilter, setQuickFilter] = useState(searchParams.get('filter') || searchParams.get('quick') || 'all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<SortPrazoMode>('prioridade');
@@ -1088,19 +1091,42 @@ function CasesContent() {
 
   const advogadosOptions = useMemo(() => listAdvogados(cases), [cases]);
 
+  // Busca sempre na carteira inteira do tenant, independente das páginas baixadas.
+  useEffect(() => {
+    const term = searchDebounced.trim();
+    if (term.length < 2) {
+      setRemoteSearchHits(null);
+      setRemoteSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setRemoteSearchHits(null);
+    setRemoteSearching(true);
+    void searchCompanyProcessosAction(term).then((result) => {
+      if (!cancelled) setRemoteSearchHits(result.ok ? result.cases as LegalCase[] : null);
+    }).catch(() => {
+      if (!cancelled) setRemoteSearchHits(null);
+    }).finally(() => {
+      if (!cancelled) setRemoteSearching(false);
+    });
+    return () => { cancelled = true; };
+  }, [searchDebounced]);
+
   const filtered = useMemo(() => {
-    const base = filterCases(cases, {
+    const source = searchDebounced.trim().length >= 2 && remoteSearchHits !== null
+      ? remoteSearchHits : cases;
+    const base = filterCases(source, {
       search: searchDebounced,
       quick: quickFilter,
       advogado: lawyerFilter,
     });
     return sortCasesByPrazo(base, sortPrazo);
-  }, [cases, searchDebounced, quickFilter, lawyerFilter, sortPrazo]);
+  }, [cases, remoteSearchHits, searchDebounced, quickFilter, lawyerFilter, sortPrazo]);
 
   // Lista paginada — só a aba /cases; não afeta dashboard
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [searchDebounced, quickFilter, lawyerFilter, sortPrazo, cases.length]);
+  }, [searchDebounced, remoteSearchHits, quickFilter, lawyerFilter, sortPrazo, cases.length]);
 
   const visibleItems = useMemo(
     () => filtered.slice(0, visibleCount),
@@ -1176,7 +1202,7 @@ function CasesContent() {
         <div className="flex-1 flex flex-col p-4 sm:p-6 overflow-hidden">
           <div className="premium-card flex-1 flex flex-col overflow-hidden border-none bg-white">
             <div className="p-4 border-b border-border/30 flex flex-col lg:flex-row items-center justify-between gap-4">
-              <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
+              <div className="relative flex-1 w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder={remoteSearching ? "Buscando na carteira inteira..." : "Buscar cliente ou CNJ em toda a empresa..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-secondary/30 border-none rounded-xl" /></div>
               <Select value={quickFilter} onValueChange={setQuickFilter}>
                 <SelectTrigger className="h-12 w-44 bg-secondary/30 border-none rounded-xl font-semibold text-[10px] uppercase"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
