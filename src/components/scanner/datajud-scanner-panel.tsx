@@ -46,13 +46,17 @@ export function DataJudScannerPanel() {
   const { 
     status, total, done, cloudSuccesses, cloudFailures, cloudBusy, cloudLastCnj, alerts, cloudDjenAlerts, closed, pending, cycles,
     manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
-    isMinimized, toggleMinimize, startCloudScan, pauseCloudScan, 
+    isMinimized, toggleMinimize, startCloudScan, restoreCloudScan, pauseCloudScan, 
     startManualScan, resumeManualScan, pauseManualScan, resetScan,
     scanMode, setScanMode,
     scanScope, setScanScope,
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
-  const { isSuperAdmin, canScan: canScanRole } = useAdmin();
+  const { isSuperAdmin, canScan: canScanRole, profile } = useAdmin();
+  const startCloudForUser = () => startCloudScan(String(profile?.empresa_id||''),String(profile?.auth_user_id||''));
+  React.useEffect(() => {
+    if(profile?.empresa_id&&profile?.auth_user_id)restoreCloudScan(String(profile.empresa_id),String(profile.auth_user_id));
+  },[profile?.empresa_id,profile?.auth_user_id,restoreCloudScan]);
   const { plan, isLocked, isBlocked, isExpired } = usePlano();
   const allowedByPlan = isSuperAdmin || planTemScanner(plan);
   const allowed = canScanRole && allowedByPlan && !isLocked;
@@ -251,7 +255,7 @@ export function DataJudScannerPanel() {
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
                     Auditoria assíncrona 3D via servidor. Agora varre Tribunal + DJEN simultaneamente.
                   </p>
-                  <Button onClick={startCloudScan} className="w-full h-11 rounded-xl bg-[#1f6fff] text-white font-black uppercase text-[10px] hover:bg-[#145de0] transition-all">
+                  <Button onClick={startCloudForUser} className="w-full h-11 rounded-xl bg-[#1f6fff] text-white font-black uppercase text-[10px] hover:bg-[#145de0] transition-all">
                     Escanear carteira na nuvem
                   </Button>
                </div>
@@ -279,7 +283,7 @@ export function DataJudScannerPanel() {
                     <DashboardMiniKpi label="Restante estimado" value={pending} color="text-slate-400" />
                   </div>
 
-                  <Button variant="outline" size="sm" onClick={status === "running" ? pauseCloudScan : startCloudScan} className="w-full border-2 border-black rounded-none font-black text-[9px] uppercase h-10">
+                  <Button variant="outline" size="sm" onClick={status === "running" ? pauseCloudScan : startCloudForUser} className="w-full border-2 border-black rounded-none font-black text-[9px] uppercase h-10">
                     {status === "running" ? <Pause size={12} className="mr-2" /> : <Play size={12} className="mr-2" />}
                     {status === "running" ? "Pausar Servidor" : status === "paused" ? "Retomar Servidor" : "Iniciar nova varredura"}
                   </Button>
