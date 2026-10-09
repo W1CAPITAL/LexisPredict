@@ -30,21 +30,27 @@ const PUBLICATION_SOURCE_COLUMNS='id,empresa_id,cliente,telefone,protocolo_ref,s
 async function previousPublications(empresaId:string) {
   const db=await getSupabaseAdmin();
   const noticed=new Set<string>();
+  const optedOut=new Set<string>();
   for(let start=0;start<25000;start+=500) {
     const {data,error}=await db.from('whatsapp_messages')
-      .select('contact_number,phone,message_text,body')
-      .eq('empresa_id',empresaId).eq('from_me',true)
+      .select('contact_number,phone,message_text,body,from_me')
+      .eq('empresa_id',empresaId)
       .order('created_at',{ascending:true}).range(start,start+499);
     if(error)throw new Error('Histórico de avisos indisponível; não iniciar campanha: '+error.message);
     const entries=data||[];
     for(const msg of entries) {
-      const phone=String(msg.contact_number||msg.phone||'').replace(/\D/g,'');
-      const body=String(msg.message_text||msg.body||'');
+      let phone=String(msg.contact_number||msg.phone||'').replace(/\D/g,'');
+      if(phone.length===10||phone.length===11)phone='55'+phone;
+      const body=String(msg.message_text||msg.body||'').trim();
+      if(msg.from_me===false) {
+        if(/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\s.!?]*$/i.test(body))optedOut.add(phone);
+        continue;
+      }
       if(!/(?:TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA)/i.test(body))continue;
       for(const cnj of body.match(/\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g)||[])
         noticed.add(phone+':'+cnj.replace(/\D/g,''));
     }
-    if(entries.length<500)return noticed;
+    if(entries.length<500)return {noticed,optedOut};
   }
   throw new Error('Histórico grande demais para conferência segura nesta execução. Revise o histórico antes de enviar avisos.');
 }
@@ -54,7 +60,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
   const entries: Alert[] = [];
   const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0,
     alreadyClosed:0,consentMissing:0,needsReview:0,alreadyNotified:0 };
-  const previous=kind==='publication'?await previousPublications(empresaId):new Set<string>();
+  const previous=kind==='publication'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
   const seen = new Set<string>();
   // Supabase caps the number of records per request. Pagination covers the entire company.
   for (let offset=0; offset<100000; offset+=400) {
@@ -79,7 +85,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
         else counts.withoutEvent++;
         continue;
       }
-      if(kind==='publication'&&previous.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
+      if(kind==='publication'&&previous.optedOut.has(alert.phone)){
+        counts.blocked++;continue;
+      }
+      if(kind==='publication'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
         counts.alreadyNotified++;continue;
       }
       const key = alert.processo_id + ':' + alert.event_hash;
@@ -233,11 +242,21 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
         return {ok:false as const,error:'Aviso não enviado: dados ou consentimento alterados'};
       }
+      // A client may opt out after the preview but before the queued send.
+      const {data:replies,error:replyError}=await db.from('whatsapp_messages')
+        .select('message_text,body,from_me').eq('empresa_id',campaign.empresa_id)
+        .eq('from_me',false)
+        .or('contact_number.eq.'+claimed.phone+',phone.eq.'+claimed.phone)
+        .order('created_at',{ascending:false}).limit(150);
+      if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|NAO ME ENVIE MENSAGENS|NÃO ME ENVIE MENSAGENS)[\\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
+        await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Cliente solicitou parar ou não foi possível conferir opt-out'});
+        return {ok:false as const,error:'Aviso cancelado: preferência de contato deve ser verificada'};
+      }
       const {data:already}=await db.from('wa_movement_dispatches')
-        .select('id').eq('empresa_id',campaign.empresa_id)
+         .select('id,message').eq('empresa_id',campaign.empresa_id)
         .eq('processo_id',claimed.processo_id).eq('status','sent')
         .neq('id',claimed.id).limit(1);
-      if(already?.length) {
+      if((already||[]).some(x=>/TRANSIT|JULGAD|BAIXA|BAIXADO|EXTINT|ARQUIVAD|ENCERRAD|SENTEN.CA/i.test(String(x.message||'')))) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Já consta aviso enviado para este processo; revisar histórico'});
         return {ok:false as const,error:'Processo já possui aviso registrado'};
       }
