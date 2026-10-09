@@ -4,12 +4,12 @@ import type { UserRole } from '@/lib/supabase';
  * Matriz oficial de permissões do LexisPredict Commercial.
  *
  * Operador:
- * - operação reduzida
- * - somente processos próprios
+ * - pode editar e atender todos os processos da própria empresa
+ * - sem poderes administrativos de usuários ou segurança
  *
  * Administrador:
  * - todas as funções operacionais
- * - somente o próprio escopo de processos
+ * - edição operacional em toda a empresa
  *
  * Supervisor:
  * - funções operacionais completas
@@ -119,7 +119,7 @@ export type CaseScope = 'mine' | 'empresa';
 /**
  * Fonte única de escopo da carteira.
  * - Supervisor/Superadmin => empresa
- * - Administrador/Operador/Visualizador => mine
+ * - Administrador/Operador/Visualizador => mine (listagem padrão; busca da empresa independente)
  */
 export function resolveCaseScope(cargo?: RoleLike): CaseScope {
   return canSeeCompanyProcesses(cargo) ? 'empresa' : 'mine';
@@ -181,8 +181,8 @@ export function canAccessSuperadmin(cargo?: RoleLike): boolean {
 }
 
 /**
- * Rotas permitidas ao Operador.
- * Outras rotas operacionais exigem Administrador ou superior.
+ * Rotas de trabalho permitidas ao Operador (o plano ainda limita recursos).
+ * Supervisão, usuários, auditoria e segurança permanecem protegidos no middleware.
  */
 const OPERATOR_ALLOWED_ROOTS = [
   '/',
@@ -193,6 +193,18 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/whatsapp',
   '/dossies',
   '/documents',
+  '/processos-parados',
+  '/encerrados-revisao',
+  '/cumprimentos-procedentes',
+  '/busca-apreensao',
+  '/gerador-processos',
+  '/report',
+  '/crm',
+  '/veredito',
+  '/chat',
+  '/financas',
+  '/calculos',
+  '/import',
   '/mensagens',
   '/notes',
   '/onboarding',
