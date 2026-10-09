@@ -213,11 +213,11 @@ export default function AssistentePage() {
           pdfName: pdf?.name,
           max_tokens: 4096,
         });
-        const unavailable = !res.sucesso && /FALLBACK|MOTORES_INDISPONIVEIS|COLIBRI_INDISPONIVEL|ALL_PROVIDERS_FAILED|ERROR/i.test(String(res.engineUtilizada || res.engine || ""));
+        const unavailable = !res.sucesso && /FALLBACK|MOTORES_INDISPONIVEIS|COLIBRI_INDISPONIVEL|MINICPM_INDISPONIVEL|ALL_PROVIDERS_FAILED|ERROR/i.test(String(res.engineUtilizada || res.engine || ""));
         if (unavailable && !img) {
           try {
-            res = await tryBrowserLocal(model === "colibri"
-              ? "Colibri desconectado. Iniciando Qwen local no navegador..."
+            res = await tryBrowserLocal((model === "colibri" || model === "minicpm")
+              ? "Servidor privado desconectado. Iniciando Qwen local no navegador..."
               : "Provedores indisponíveis. Tentando LLM local no navegador...");
           } catch (localError: any) {
             res = {

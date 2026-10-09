@@ -67,6 +67,11 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
   const [colibriStatus, setColibriStatus] = useState<{
     configured: boolean; reachable: boolean; model: string | null; reason: string | null;
   } | null>(null);
+  const [privateEngines,setPrivateEngines]=useState<{
+    minicpm?:{configured:boolean;reachable:boolean;model:string|null;reason:string|null};
+    needle?:{configured:boolean;reachable:boolean;reason:string|null};
+  } | null>(null);
+
 
   useEffect(() => {
     const saved = localStorage.getItem("lexisPredict_preferred_ia") || "xai";
@@ -78,6 +83,13 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
+    fetch("/api/ai/engine-status", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data && !controller.signal.aborted) {
+        setPrivateEngines(data);
+        if (data.colibri) setColibriStatus(data.colibri);
+      }})
+      .catch(() => {});
     fetch("/api/ai/colibri-status", { cache: "no-store", signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
       .then((data) => { if (data && !controller.signal.aborted) setColibriStatus(data); })
@@ -144,6 +156,23 @@ export function NeuralEnginePanel({ isAdmin }: Props) {
               A opção Colibri não encaminha documentos para provedores externos se estiver indisponível.
             </p>
           )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm">MiniCPM · Ollama / vLLM / llama.cpp</strong>
+            <Badge variant="outline" className="text-[10px]">{privateEngines?.minicpm?.reachable ? "Modelo carregado" : privateEngines?.minicpm?.configured ? "Servidor indisponível" : "Não configurado"}</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {privateEngines?.minicpm?.reachable
+              ? `Modelo: ${privateEngines.minicpm.model}`
+              : privateEngines?.minicpm?.reason || "Configure MINICPM_BASE_URL no servidor privado HTTPS para ativar inferência."}
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+            <strong className="text-sm">Needle 3 · Classificação local de ferramentas</strong>
+            <Badge variant="outline" className="text-[10px]">{privateEngines?.needle?.reachable ? "Modelo ativo" : privateEngines?.needle?.configured ? "Servidor inacessível" : "Não configurado"}</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">Needle da Cactus Compute roteia ferramentas com um modelo pequeno próprio; não é chat. A base de conhecimento Lexis continua local, e o servidor Needle exige NEEDLE_ROUTER_URL + token. Nenhum cliente é enviado para uma coleção externa.</p>
         </div>
 
         <div className="space-y-3">

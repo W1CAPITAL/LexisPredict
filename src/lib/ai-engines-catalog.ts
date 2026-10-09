@@ -43,6 +43,14 @@ export const AI_ENGINES: AiEngine[] = [
     requiresToken: false,
   },
   {
+    id: "minicpm",
+    label: "MiniCPM · servidor próprio",
+    desc: "MiniCPM5 1B/2B no Ollama ou vLLM. Requer MINICPM_BASE_URL e endpoint HTTPS privado.",
+    status: "OPCIONAL",
+    group: "local",
+    requiresToken: false,
+  },
+  {
     id: "local_llm",
     label: "Lexis Local LLM · Qwen 0.5B",
     desc: "LLM 4-bit executado no próprio navegador; pesos baixados na primeira execução. Requer memória e WebGPU/CPU.",

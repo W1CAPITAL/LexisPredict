@@ -10,6 +10,7 @@ export type MotorId =
   | 'omni'
   | 'minimax'
   | 'colibri'
+  | 'minicpm'
   | 'local_llm'
   | 'local_only'
   | 'claude'
@@ -40,7 +41,7 @@ export const MOTORS: MotorDef[] = [
     id: 'omni',
     label: 'Cascata automática',
     short: 'Cascata',
-    desc: 'Colibri (quando hospedado) → MiniMax → Claude → Groq → xAI → OpenRouter → Gemini. Se falhar, tenta o próximo.',
+    desc: 'Colibri → MiniCPM → MiniMax → Claude → Groq → xAI → OpenRouter → Gemini. Se falhar, tenta o próximo.',
     scope: 'server',
   },
   {
@@ -58,6 +59,14 @@ export const MOTORS: MotorDef[] = [
     desc: 'Motor de IA hospedado pela empresa, acessível via COLIBRI_BASE_URL (HTTPS).',
     scope: 'server',
     envKey: 'COLIBRI_BASE_URL',
+  },
+  {
+    id: 'minicpm',
+    label: 'MiniCPM · servidor próprio',
+    short: 'MiniCPM',
+    desc: 'MiniCPM5 no Ollama, llama.cpp ou vLLM. Necessita API HTTPS e pesos carregados, não confundir com Colibri.',
+    scope: 'server',
+    envKey: 'MINICPM_BASE_URL',
   },
   {
     id: 'local_llm',
@@ -160,6 +169,7 @@ export function resolveMotorId(id?: string | null): MotorId {
   if (s === 'omni' || s === 'auto') return 'omni';
   if (s.includes('minimax')) return 'minimax';
   if (s.includes('colibri')) return 'colibri';
+  if (s.includes('minicpm') || s.includes('mini-cpm')) return 'minicpm';
   const known = MOTORS.find((m) => m.id === s);
   if (known) return known.id;
   if (s.includes('claude') || s.includes('anthropic')) return 'claude';
