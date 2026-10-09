@@ -20,7 +20,7 @@ async function requireManager() {
   return ctx as typeof ctx & { auth_id: string; empresa_id: string };
 }
 
-type CampaignKind='movement'|'publication';
+type CampaignKind='movement'|'publication'|'closure_scan';
 
 
 /** Supabase outbound history is not necessarily complete. Never claim that
@@ -59,7 +59,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
   const entries: Alert[] = [];
   const counts = { scanned: 0, withoutPhone: 0, withoutEvent: 0, blocked: 0, samePhone: 0,
     alreadyClosed:0,consentMissing:0,needsReview:0,alreadyNotified:0 };
-  const previous=kind==='publication'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
+  const previous=kind!=='movement'?await previousPublications(empresaId):{noticed:new Set<string>(),optedOut:new Set<string>()};
   const seen = new Set<string>();
   // Supabase caps the number of records per request. Pagination covers the entire company.
   for (let offset=0; offset<100000; offset+=400) {
@@ -70,10 +70,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
     const rows = (data || []) as SourceRow[];
     for (const row of rows) {
       counts.scanned++;
-      const prepared=kind==='publication'?preparePublicationNotice(row as PublicationSourceRow):null;
-      const result=kind==='publication'?null:prepareMovementAlert(row);
-      const alert=kind==='publication'?prepared?.notice:result?.alert;
-      const reason=kind==='publication'?prepared?.reason:result?.reason;
+      const prepared=kind!=='movement'?preparePublicationNotice(row as PublicationSourceRow,{includeClosed:kind==='closure_scan'}):null;
+      const result=kind!=='movement'?null:prepareMovementAlert(row);
+      const alert=kind!=='movement'?prepared?.notice:result?.alert;
+      const reason=kind!=='movement'?prepared?.reason:result?.reason;
       if (!alert) {
         if (reason==='phone') counts.withoutPhone++;
         else if (reason==='blocked') counts.blocked++;
@@ -84,10 +84,10 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
         else counts.withoutEvent++;
         continue;
       }
-      if(kind==='publication'&&previous.optedOut.has(alert.phone)){
+      if(kind!=='movement'&&previous.optedOut.has(alert.phone)){
         counts.blocked++;continue;
       }
-      if(kind==='publication'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
+      if(kind!=='movement'&&previous.noticed.has(alert.phone+':'+alert.protocolo.replace(/\D/g,''))) {
         counts.alreadyNotified++;continue;
       }
       const key = alert.processo_id + ':' + alert.event_hash;
@@ -243,7 +243,7 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
       await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Processo não localizado na carteira; não enviado'});
       return {ok:false as const,error:'Processo removido da carteira; envio cancelado'};
     }
-    if(isPublication.data?.campaign_kind==='publication') {
+    if(isPublication.data?.campaign_kind!=='movement') {
       const check=preparePublicationNotice(current as PublicationSourceRow);
       if(!check.notice || check.notice.event_hash!==claimed.event_hash || check.notice.phone!==claimed.phone) {
         await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Status, consentimento ou evidência mudou desde a prévia; revisar'});
