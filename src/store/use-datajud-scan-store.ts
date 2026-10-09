@@ -274,7 +274,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     // Sempre sincroniza a carteira inteira no início de uma nova varredura.
     // Assim uma tela paginada com 200 itens não limita um tenant com 2.000+ processos.
     let allLocal = useAppStore.getState().cases || [];
-    if (!resume || scope === 'cumprimento' || allLocal.length === 0) {
+    // Retomada tambem refaz a fila completa; a memoria do usuario pode estar paginada.
+    if (true) {
       try {
         const { fetchScannerQueueAction } = await import('@/app/actions/case-actions');
         const remote = await fetchScannerQueueAction();
@@ -299,6 +300,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           type: 'error',
           engine: 'Local',
         });
+        set({ manualStatus: 'paused', manualTotal: 0 });
+        return; // Nunca fingir que so os registros carregados representam a carteira inteira.
       }
     }
     const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
