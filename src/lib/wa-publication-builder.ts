@@ -36,7 +36,7 @@ function eventDate(v:unknown) {
   const ms=Date.parse(iso);
   return Number.isFinite(ms)&&ms>=Date.UTC(2000,0,1)&&ms<=Date.now()+86_400_000?ms:0;
 }
-const weak=/\b(?:REQUER|REQUERIMENTO|SOLICITA|AGUARD|PEDIDO|POSSIVEL|PRETENDE|PROXIMO|PENDENTE|MINUTA|RASCUNHO)\b/;
+const weak=/\b(?:REQUER(?:IMENTO)?|SOLICIT\w*|AGUARD\w*|PEDID\w*|POSSIVEL|PRETEND\w*|PROXIMO|PENDENT\w*|MINUTA|RASCUNHO)\b/;
 function detectTerminal(text:unknown):TerminalKind|null {
   const t=flat(text);
   if(!t || weak.test(t))return null;
