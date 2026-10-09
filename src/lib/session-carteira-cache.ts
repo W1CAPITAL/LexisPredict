@@ -1,13 +1,16 @@
-const CARTEIRA_KEY = "lexis_carteira_persistente_v5";
+const CARTEIRA_KEY = "lexis_carteira_persistente_v6";
 const LEGACY_KEYS = ["lexis_carteira_persistente_v4", "lexis_carteira_sessao_v3"];
 const SCAN_KEY = "lexis_scan_progress_v1";
-const TTL_MS = 6 * 60 * 60 * 1000;
+const TTL_MS = 10 * 60 * 1000;
+const SESSION_ROWS = 60;
+const SESSION_BYTES = 350_000;
 
 export type CacheSource = "cache" | "network" | "empty";
 export type CarteiraScope = "mine" | "empresa";
 
 type CarteiraPayload = {
-  v: 5;
+  v: 6;
+  complete: boolean;
   at: number;
   empresaId?: string | null;
   scope?: CarteiraScope;
@@ -18,8 +21,9 @@ type ScanProgress = { manualDone: number; manualTotal: number; mode?: string; at
 
 const memory = new Map<string, CarteiraPayload>();
 
-function memKey(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
-  return `${scope}:${empresaId || "*"}:${scope === 'mine' ? userId || 'unknown' : 'company'}`;
+function memKey(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null, viewKey = "list") {
+  // Inclui usuario em todos os escopos: nenhum cache empresarial e compartilhado entre logins.
+  return `${scope}:${empresaId || "*"}:${userId || "unknown"}:${viewKey}`;
 }
 
 function canUse() {
@@ -31,55 +35,83 @@ function storage(): Storage | null {
   return localStorage;
 }
 
-export function peekCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
-  if (!empresaId || (scope === 'mine' && !userId)) return null;
-  const k = memKey(empresaId, scope, userId);
-  const hit = memory.get(k);
-  if (hit?.cases?.length) return { cases: hit.cases as any[], ageMs: Date.now() - (hit.at || 0), stale: false };
-  return readCarteiraCache(empresaId, scope, userId);
+function sessionKey(empresaId: string, scope: CarteiraScope, userId: string, viewKey: string) {
+  return CARTEIRA_KEY + ":" + memKey(empresaId, scope, userId, viewKey);
+}
+function readSession(empresaId: string, scope: CarteiraScope, userId: string, viewKey: string): CarteiraPayload | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(sessionKey(empresaId, scope, userId, viewKey));
+    if (!raw) return null;
+    const payload = JSON.parse(raw) as CarteiraPayload;
+    if (payload.v !== 6 || payload.empresaId !== empresaId || payload.scope !== scope ||
+        !Array.isArray(payload.cases) || Date.now() - payload.at > TTL_MS) return null;
+    return payload;
+  } catch { return null; }
 }
 
-export function readCarteiraCache(empresaId?: string | null, scope: CarteiraScope = "mine", userId?: string | null) {
-  if (!empresaId || (scope === 'mine' && !userId)) return null;
-  const k = memKey(empresaId, scope, userId);
-  const mem = memory.get(k);
-  if (mem?.cases) {
-    return { cases: mem.cases as any[], ageMs: Date.now() - (mem.at || 0), stale: Date.now() - (mem.at || 0) > TTL_MS };
-  }
-  // Avoid parsing megabytes of legacy localStorage at every route change.
-  // Stale user/company snapshots can also mask current access permissions.
-  return null;
+export function peekCarteiraCache(
+  empresaId?: string | null, scope: CarteiraScope = "mine",
+  userId?: string | null, viewKey = "list"
+) {
+  return readCarteiraCache(empresaId, scope, userId, viewKey);
+}
+
+export function readCarteiraCache(
+  empresaId?: string | null, scope: CarteiraScope = "mine",
+  userId?: string | null, viewKey = "list"
+) {
+  if (!empresaId || !userId) return null;
+  const key = memKey(empresaId, scope, userId, viewKey);
+  const cached = memory.get(key) || readSession(empresaId, scope, userId, viewKey);
+  if (!cached || !cached.cases.length) return null;
+  memory.set(key, cached);
+  return { cases: cached.cases as any[], ageMs: Date.now() - cached.at,
+    stale: Date.now() - cached.at > TTL_MS, complete: cached.complete };
 }
 
 export function writeCarteiraCache(
-  cases: unknown[],
-  empresaId?: string | null,
-  scope: CarteiraScope = "mine",
-  userId?: string | null
+  cases: unknown[], empresaId?: string | null, scope: CarteiraScope = "mine",
+  userId?: string | null, viewKey = "list"
 ) {
-  if (!empresaId || (scope === 'mine' && !userId)) return;
+  if (!empresaId || !userId) return;
+  const list = Array.isArray(cases) ? cases.slice(0, 10000) : [];
   const payload: CarteiraPayload = {
-    v: 5,
-    at: Date.now(),
-    empresaId: empresaId || null,
-    scope,
-    cases: Array.isArray(cases) ? cases.slice(0, 5000) : [],
+    v: 6, at: Date.now(), empresaId, scope, complete: true, cases: list,
   };
-  memory.set(memKey(empresaId, scope, userId), payload);
-  // Keep large case collections in memory only. Never JSON.stringify thousands
-  // of full process records onto the browser main thread/localStorage.
+  memory.set(memKey(empresaId, scope, userId, viewKey), payload);
+  // Session storage reapresenta a PRIMEIRA pagina apos refresh. Apenas uma
+  // amostra pequena: nunca serializar milhares de processos no thread da UI.
+  if (typeof window === 'undefined' || !list.length) return;
+  try {
+    const snapshot: CarteiraPayload = { ...payload,
+      complete: list.length <= SESSION_ROWS,
+      cases: list.slice(0, SESSION_ROWS),
+    };
+    const encoded = JSON.stringify(snapshot);
+    if (encoded.length < SESSION_BYTES) {
+      sessionStorage.setItem(sessionKey(empresaId, scope, userId, viewKey), encoded);
+    }
+  } catch { /* armazenamento cheio/indisponivel: cache em memoria continua valido */ }
 }
 
 export function invalidateCarteiraCache() {
   memory.clear();
   const s = storage();
-  if (!s) return;
-  try {
-    s.removeItem(CARTEIRA_KEY);
-    s.removeItem(`${CARTEIRA_KEY}:mine`);
-    s.removeItem(`${CARTEIRA_KEY}:empresa`);
-    LEGACY_KEYS.forEach((k) => s.removeItem(k));
-  } catch {}
+  if (s) {
+    try {
+      s.removeItem(CARTEIRA_KEY);
+      LEGACY_KEYS.forEach((k) => s.removeItem(k));
+    } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(CARTEIRA_KEY + ':')) sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }
 }
 
 export function readScanProgress(): ScanProgress | null {
@@ -119,16 +151,27 @@ export async function loadCarteiraComCache(opts: {
   onError?: (error: unknown) => void;
   onKpiSafe?: (cases: any[], source: "network" | "stale-fallback") => void;
   allowStaleKpiFallback?: boolean;
+  viewKey?: string;
+  reuseFreshCache?: boolean;
+  maxAgeMs?: number;
 }): Promise<{ cases: any[]; source: CacheSource }> {
   const scope = opts.scope || "mine";
-  const cached = peekCarteiraCache(opts.empresaId, scope, opts.userId);
-  if (cached?.cases?.length) opts.onShow(cached.cases, "cache");
+  const viewKey = opts.viewKey || "list";
+  const cached = peekCarteiraCache(opts.empresaId, scope, opts.userId, viewKey);
+  if (cached?.cases?.length) {
+    opts.onShow(cached.cases, "cache");
+    // A lista completa, ja carregada nesta aba, nao precisa de nova varredura
+    // quando o operador navega entre telas. Cache parcial sempre revalida.
+    if (opts.reuseFreshCache && cached.complete && cached.ageMs < (opts.maxAgeMs ?? 2 * 60 * 1000)) {
+      return { cases: cached.cases, source: "cache" };
+    }
+  }
 
   try {
     const remote = await opts.fetchNetwork();
     const list = Array.isArray(remote) ? remote : [];
     if (list.length) {
-      writeCarteiraCache(list, opts.empresaId, scope, opts.userId);
+      writeCarteiraCache(list, opts.empresaId, scope, opts.userId, viewKey);
       opts.onShow(list, "network");
       opts.onKpiSafe?.(list, "network");
       return { cases: list, source: "network" };
