@@ -59,7 +59,7 @@ async function collectPortfolio(empresaId: string, kind:CampaignKind='movement')
   // Supabase caps the number of records per request. Pagination covers the entire company.
   for (let offset=0; offset<100000; offset+=400) {
     const {data,error} = await db.from('processos')
-      .select(kind==='publication'?PUBLICATION_SOURCE_COLUMNS:'id,empresa_id,cliente,telefone,protocolo_ref,datajud_ultimo_movimento,datajud_ultimo_nome,djen_ultima_data,djen_ultimo_resumo,dados')
+      .select('*')
       .eq('empresa_id',empresaId).order('id',{ascending:true}).range(offset,offset+399);
     if (error) throw new Error('Carteira: ' + error.message);
     const rows = (data || []) as SourceRow[];
@@ -220,7 +220,7 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
   }
   if (campaign.status==='running') {
     const {data:current,error:rowError}=await db.from('processos')
-      .select(PUBLICATION_SOURCE_COLUMNS)
+      .select('*')
       .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
     const isPublication=await db.from('wa_movement_campaigns').select('campaign_kind').eq('id',campaign.id).single();
     if(rowError || !current) {
