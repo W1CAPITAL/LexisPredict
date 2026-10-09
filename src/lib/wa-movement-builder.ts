@@ -9,7 +9,7 @@ export type Alert = {
 
 /** Both scanner and portfolio queues use the same last-return cutoff. */
 export function prepareMovementAlert(row: SourceRow, consentAttested = false) {
-  const result = prepareDailyReturn(row, {mode:'single', consentAttested});
+  const result = prepareDailyReturn(row, {mode:'single', consentAttested, includeClosed:true});
   const notice = result.ready;
   if (!notice) return {alert:null, reason:result.reason};
   return {reason:'ok' as const, alert:{
