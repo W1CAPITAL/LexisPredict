@@ -108,6 +108,9 @@ export default function ProcessosParadosPage() {
         fetchNetwork: async () => (await fetchRepoCases()) || [],
         empresaId: (profile as any)?.empresa_id || null,
         scope: resolveCaseScope(profile as any),
+        userId: (profile as any)?.auth_user_id || null,
+        viewKey: 'processos-parados',
+        reuseFreshCache: true,
         onShow: (data) => {
           if (Array.isArray(data)) setCases(data);
         },
