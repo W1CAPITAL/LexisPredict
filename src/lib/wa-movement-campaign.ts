@@ -271,6 +271,13 @@ export async function enqueueScannedMovement(empresaId:string,processId:number) 
   if(error||!current||Number(current.id)!==processId)return {queued:false};
   const prepared=prepareMovementAlert(current,settings.consentAttested);
   if(!prepared.alert)return {queued:false,reason:prepared.reason};
+  // A cancelled batch is an operator decision. The scanner may prepare a
+  // genuinely new event later, but must not silently restart that same notice.
+  const cancelled=await db.from('wa_movement_dispatches').select('id,wa_movement_campaigns!inner(status)')
+    .eq('empresa_id',empresaId).eq('processo_id',processId).eq('event_hash',prepared.alert.event_hash)
+    .eq('status','cancelled').eq('wa_movement_campaigns.status','cancelled').limit(1);
+  if(cancelled.error)throw new Error(cancelled.error.message);
+  if(cancelled.data?.length)return {queued:false,reason:'campaign_cancelled'};
   const {data,error:queueError}=await db.rpc('wa_enqueue_notice',{p_empresa:empresaId,p_owner:settings.ownerAuthId,p_notice:prepared.alert});
   if(queueError)throw new Error(queueError.message);
   if(data)await db.from('wa_movement_dispatches').update({last_error:'source_review_resolved: Teor oficial conferido; versão válida preparada.'})

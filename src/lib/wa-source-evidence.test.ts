@@ -49,4 +49,15 @@ describe('customer notices use official content, never keyword classifications',
   it('holds an API event superseded by a newer court consultation supplied by the responsible user',()=>{
     expect(prepareDailyReturn({...row,dados:{...row.dados,tribunal_conferencia:{cnj,ultimo_evento_em:'2026-09-28T21:23:41-03:00'}}},{mode:'single'}).reason).toBe('needs_source_review');
   });
+  it('explains a verified proof notice without copying headers, statutes or promising a hearing',()=>{
+    const detail='Tribunal de Justiça. ATO ORDINATÓRIO. Nos termos do art. 203, § 4º do CPC, intimo AS PARTES para, no prazo comum de 05 dias, informarem se pretendem produzir outras provas, notadamente prova oral em audiência de instrução, especificando-as em caso positivo.';
+    const message=buildClientMovementMessage({firstName:'JOSE',cnj,date:'02/09/2026',detail,source:'DJEN'});
+    expect(message).toContain('intimação para que as partes informem se pretendem apresentar outras provas');
+    expect(message).not.toMatch(/art\. 203|Tribunal de Justiça|§|audiência marcada|aguardando julgamento/i);
+  });
+  it('does not turn a request to one party into a request to both parties',()=>{
+    const detail='Intimo a parte autora para informar se pretende produzir outras provas.';
+    const message=buildClientMovementMessage({firstName:'Maria',cnj,date:'02/09/2026',detail,source:'DJEN'});
+    expect(message).not.toContain('as partes informem');
+  });
 });

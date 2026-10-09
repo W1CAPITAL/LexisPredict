@@ -120,7 +120,7 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
     return {ready:null,reason:'invalid_cnj'};
   const name=clientFirstName(text(row.cliente||meta.cliente||'Cliente'));
   const when=latestDay.split('-').reverse().join('/');
-  const message=buildClientMovementMessage({firstName:name,cnj,date:when,detail:messageDetail});
+  const message=buildClientMovementMessage({firstName:name,cnj,date:when,detail:messageDetail,source:latest.source});
   return {reason:'ok',ready:{
     processoId:Number(row.id),empresaId:row.empresa_id,phone,cnj,name,
     source:latest.source,eventAt:new Date(latest.date).toISOString(),
