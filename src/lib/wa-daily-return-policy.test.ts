@@ -21,7 +21,8 @@ describe('retorno inteligente DataJud/DJEN',()=>{
  it('returns the latest literal movement after the previous return',()=>{
   const x=prepareDailyReturn(base,{mode:'due',today:'2026-10-09'});
   expect(x.reason).toBe('ok');
-  expect(x.ready?.message).toContain('Publicação de intimação para especificação de provas');
+  expect(x.ready?.message).toContain('Conclusos para julgamento');
+  expect(x.ready?.source).toBe('DataJud');
   expect(x.ready?.nextReturn).toBe('2026-10-10');
   expect(x.ready?.message).toContain('07/10/2026');
  });
