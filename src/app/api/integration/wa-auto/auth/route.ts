@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import {timingSafeEqual} from "node:crypto";
 import { NextResponse } from "next/server";
 import { resolveWaAutoPermissions } from "@/lib/wa-auto-permissions";
 
@@ -61,6 +62,40 @@ export async function GET(request: Request) {
       return NextResponse.json({ok:false,error:'worker_not_authorized'},{status:403});
     return NextResponse.json({ok:true,userId:identity.userId,empresaId:identity.empresaId,
       role:permission.role,canManage:permission.canManage},{headers:{'Cache-Control':'private, no-store'}});
+  }
+
+
+  // WA.Auto sends a private integration credential with x-lexis-user-id.
+  // Validate this server credential and the user's live company membership.
+  // The former endpoint only recognised JWT/lexiswa1 and rejected this format.
+  const {integrationToken} = getWaAutoConfig();
+  const actorId = String(request.headers.get("x-lexis-user-id") || "").trim();
+  const secondToken = String(request.headers.get("x-wa-integration-token") || "").trim();
+  const sharedMatch =
+    integrationToken.length >= 24 &&
+    token.length === integrationToken.length &&
+    timingSafeEqual(Buffer.from(token), Buffer.from(integrationToken));
+  if (sharedMatch) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId) ||
+      (secondToken && secondToken !== integrationToken)
+    ) {
+      return NextResponse.json({ok:false,error:"invalid_worker_identity"},{status:401});
+    }
+    if (!serviceKey) return NextResponse.json({ok:false,error:"auth_unavailable"},{status:503});
+    const db = createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    const {data:profile,error:lookupError} = await db.from("usuarios")
+      .select("auth_user_id,empresa_id,cargo")
+      .eq("auth_user_id",actorId).maybeSingle();
+    if (lookupError) return NextResponse.json({ok:false,error:"profile_lookup_failed"},{status:503});
+    const permission=resolveWaAutoPermissions(profile);
+    if (!profile?.empresa_id || !permission.canManage) {
+      return NextResponse.json({ok:false,error:"worker_not_authorized"},{status:403});
+    }
+    return NextResponse.json({
+      ok:true,userId:actorId,empresaId:profile.empresa_id,
+      role:permission.role,canManage:true,
+    },{headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
   }
 
   const verifier = createClient(url, publicKey, {
