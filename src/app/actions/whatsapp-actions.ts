@@ -14,6 +14,7 @@ import {
   listWaAutoChats,
   fetchWaAutoChatByJid,
   getWaAutoConnection,
+  waAutoForOwner,
   connectWaAuto,
   pairWaAuto,
   logoutWaAuto,
@@ -489,6 +490,27 @@ export async function waAutoConnectionAction() {
   const res = await getWaAutoConnection();
   if (!res.ok) return { success: false as const, error: res.error, connection: null };
   return { success: true as const, connection: res.connection };
+}
+
+/** Checks the actual cron/scanner bridge for this logged-in manager without sending. */
+export async function waAutoAutomationReadinessAction() {
+  try {
+    const {getUserContext} = await import('@/lib/server-db');
+    const {resolveWaAutoPermissions} = await import('@/lib/wa-auto-permissions');
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id ||
+        !resolveWaAutoPermissions({cargo:ctx.cargo}).canManage) {
+      return {success:false as const,error:'Somente gestor da empresa pode testar a automação.'};
+    }
+    const result = await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
+    if (!result.ok) return {
+      success:false as const,error:result.error || 'Integração indisponível.',
+      httpStatus:result.httpStatus || null,
+    };
+    return {success:true as const,error:null,httpStatus:200};
+  } catch {
+    return {success:false as const,error:'Não foi possível testar a ponte WA.Auto.'};
+  }
 }
 
 export async function waAutoConnectAction() {
