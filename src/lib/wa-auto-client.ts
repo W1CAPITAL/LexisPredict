@@ -30,8 +30,8 @@ export function getWaAutoConfig() {
     DEFAULT_WA_AUTO_URL
   ).replace(/\/$/, "");
   const integrationToken = firstEnv(
-    "WA_AUTO_TOKEN",
     "WA_INTEGRATION_TOKEN",
+    "WA_AUTO_TOKEN",
     "WA_MCP_TOKEN"
   );
   return { baseUrl, integrationToken };
