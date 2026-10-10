@@ -11,6 +11,7 @@ import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
 import {
   waAutoConnectAction,
   waAutoConnectionAction,
+  waAutoAutomationReadinessAction,
   waAutoLogoutAction,
   waAutoPairAction,
 } from "@/app/actions/whatsapp-actions";
@@ -33,6 +34,26 @@ export function WaAutoConnectionCard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [phone, setPhone] = useState("");
+  const [checkingAutomation,setCheckingAutomation] = useState(false);
+  const [automationResult,setAutomationResult] = useState<{success:boolean;error?:string|null;httpStatus?:number|null}|null>(null);
+
+  const checkAutomation = async () => {
+    setCheckingAutomation(true);
+    try {
+      const result = await waAutoAutomationReadinessAction();
+      setAutomationResult(result);
+      if (!result.success) toast({
+        title: "WA.Auto: automação indisponível",
+        description: result.error || "Confira a sessão e a credencial do servidor.",
+        variant: "destructive",
+      });
+    } catch {
+      setAutomationResult({success:false,error:"Não foi possível consultar a ponte WA.Auto."});
+    } finally {
+      setCheckingAutomation(false);
+    }
+  };
+
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -148,6 +169,12 @@ export function WaAutoConnectionCard() {
           </p>
         </div>
         <div className="flex items-center gap-1">
+          {canManageSession && (
+            <Button type="button" variant="outline" size="sm" className="h-8 text-[11px]" onClick={() => void checkAutomation()} disabled={busy || checkingAutomation}>
+              {checkingAutomation ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wifi className="mr-1.5 h-3.5 w-3.5" />}
+              Testar automação
+            </Button>
+          )}
           {ready && canManageSession && (
             <Button type="button" variant="outline" size="sm" className="h-8 text-[11px]" onClick={logout} disabled={busy}>
               <LogOut className="mr-1.5 h-3.5 w-3.5" /> Desconectar
@@ -159,6 +186,13 @@ export function WaAutoConnectionCard() {
         </div>
       </div>
 
+      {automationResult && canManageSession && (
+        <p role="status" className={automationResult.success ? "mt-2 text-[11px] text-emerald-700" : "mt-2 text-[11px] text-amber-700"}>
+          {automationResult.success
+            ? "Ponte WA.Auto validada para automações da empresa, sem enviar mensagens."
+            : "Automação indisponível" + (automationResult.httpStatus ? " (HTTP " + automationResult.httpStatus + ")" : "") + ": " + (automationResult.error || "Confira a credencial do servidor.")}
+        </p>
+      )}
       {!ready && canManageSession && (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,300px)_1fr]">
           <div className="space-y-3">
