@@ -120,6 +120,38 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(next)
   }
 
+  // Erro de consulta ou acesso restrito NÃO pode virar navegação automática
+  // para /settings: mantém o endereço solicitado e falha de forma segura.
+  const accessNotice = (
+    status: number,
+    code: string,
+    title: string,
+    description: string,
+    allowSettings = false,
+  ) => {
+    const html = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title} · LexisPredict</title>
+<style>body{margin:0;min-height:100vh;background:#f4f7fb;color:#182b47;font:16px system-ui,-apple-system,sans-serif;display:grid;place-items:center;padding:20px;box-sizing:border-box}
+main{width:min(520px,100%);background:white;border:1px solid #dce5ef;border-radius:18px;padding:34px;box-shadow:0 10px 35px #0f1f3920}
+h1{font-size:24px;line-height:1.25;margin:8px 0 14px}p{line-height:1.65;color:#4c6080}a{display:inline-block;text-decoration:none;background:#1764e8;color:white;border-radius:9px;padding:12px 17px;font-weight:650;margin:8px 8px 0 0}a.secondary{background:#edf2fa;color:#244466}small{color:#7788a0}</style></head>
+<body><main><small>LexisPredict · Código ${code}</small><h1>${title}</h1>
+<p>${description}</p><a href="">Tentar novamente</a>${allowSettings ? '<a class="secondary" href="/settings">Ver assinatura</a>' : ''}
+</main></body></html>`
+    const next = copyAuthCookies(new NextResponse(html, {
+      status,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+        'X-Lexis-Access-Reason': code,
+        ...(status === 503 ? { 'Retry-After': '3' } : {}),
+      },
+    }))
+    return applySecurityHeaders(next)
+  }
+  const retryDelay = () => new Promise<void>((resolve) => setTimeout(resolve, 120))
+
   if (!url || !key) {
     if (isPublic) return applySecurityHeaders(response)
     if (isApi) return json({ ok: false, error: 'supabase_not_configured' }, 503)
@@ -154,28 +186,35 @@ export async function middleware(request: NextRequest) {
     if (user && isAuthPage) return redirect('/')
 
     if (user?.id) {
-      const { data: profile, error: profileError } = await client
+      const readProfile = () => client
         .from('usuarios')
         .select('cargo, role, empresa_id')
         .eq('auth_user_id', user.id)
         .maybeSingle()
+      let profileResult = await readProfile()
+      if (profileResult.error) {
+        await retryDelay()
+        profileResult = await readProfile()
+      }
+      const { data: profile, error: profileError } = profileResult
 
-      if (profileError || !profile) {
-        // Nunca redirecionar uma rota para ela mesma. Em falha transitória do
-        // lookup, /setup-empresa e /settings precisam continuar acessíveis
-        // para diagnóstico/recuperação em vez de entrar em loop 30x.
+      if (profileError) {
+        console.warn('[middleware] profile_lookup_failed', profileError.code || 'unknown')
+        return isApi
+          ? json({ ok: false, error: 'tenant_profile_lookup_failed' }, 503)
+          : accessNotice(503, 'profile_lookup_failed',
+              'Não foi possível validar seu perfil',
+              'A consulta ao banco falhou temporariamente. Sua conta não foi alterada. Tente novamente nesta mesma página.')
+      }
+      if (!profile) {
+        // Somente ausência CONFIRMADA do perfil deve abrir o cadastro inicial.
         if (isTenantSetupPage || path.startsWith('/settings')) {
           response.headers.set('Cache-Control', 'private, no-store')
-          if (profileError) response.headers.set('X-Lexis-Auth-Warning', 'profile_lookup_failed')
           return applySecurityHeaders(response)
         }
-        if (isApi) {
-          return json(
-            { ok: false, error: profileError ? 'tenant_profile_lookup_failed' : 'tenant_profile_missing' },
-            profileError ? 503 : 403
-          )
-        }
-        return redirect('/setup-empresa')
+        return isApi
+          ? json({ ok: false, error: 'tenant_profile_missing' }, 403)
+          : redirect('/setup-empresa')
       }
 
       const role = resolveRole({ cargo: profile.cargo, role: (profile as any).role })
@@ -213,12 +252,20 @@ export async function middleware(request: NextRequest) {
         let empresaError: any = null
         let legacyCommercialSchema = false
 
-        const fullEmpresa = await client
+        const readEmpresa = () => client
           .from('empresas')
           .select('plano, plano_expira_em, plano_bloqueado, billing_status, onboarding_completed')
           .eq('id', empresaId)
           .maybeSingle()
-
+        let fullEmpresa = await readEmpresa()
+        // Não transformar uma falha transitória de rede/PostgREST em
+        // "assinatura bloqueada". Tentar uma segunda leitura controlada.
+        const missingLegacyColumns = (message?: string) =>
+          /billing_status|onboarding_completed|column .* does not exist/i.test(String(message || ''))
+        if (fullEmpresa.error && !missingLegacyColumns(fullEmpresa.error.message)) {
+          await retryDelay()
+          fullEmpresa = await readEmpresa()
+        }
         empresa = fullEmpresa.data
         empresaError = fullEmpresa.error
 
@@ -236,13 +283,12 @@ export async function middleware(request: NextRequest) {
         }
 
         if (empresaError) {
-          if (isApi) return json({ ok: false, error: 'tenant_lookup_failed' }, 503)
-          if (path.startsWith('/settings')) {
-            response.headers.set('Cache-Control', 'private, no-store')
-            response.headers.set('X-Lexis-Auth-Warning', 'tenant_lookup_failed')
-            return applySecurityHeaders(response)
-          }
-          return redirect('/settings')
+          console.warn('[middleware] tenant_lookup_failed', empresaError.code || 'unknown')
+          return isApi
+            ? json({ ok: false, error: 'tenant_lookup_failed' }, 503)
+            : accessNotice(503, 'tenant_lookup_failed',
+                'Não foi possível confirmar a assinatura',
+                'O Supabase não respondeu à consulta da empresa. Isso não confirma bloqueio ou vencimento. Sua página foi preservada; tente novamente.')
         }
         if (!empresa) {
           if (isTenantSetupPage) {
@@ -266,7 +312,9 @@ export async function middleware(request: NextRequest) {
         }
 
         if (isFirstRunPage) {
-          if (!billingActive) return redirect('/settings')
+          if (!billingActive) return accessNotice(403, 'subscription_not_active',
+            'Assinatura ainda não ativada',
+            'Esta etapa fica disponível após a ativação da assinatura. Consulte a situação do plano sem perder o endereço atual.', true)
           return redirect('/')
         }
 
@@ -282,9 +330,12 @@ export async function middleware(request: NextRequest) {
         const billingBypass = path.startsWith('/settings') || path === '/api/commercial/me'
 
         if ((blocked || expired) && !billingBypass) {
+          const reason = blocked ? 'subscription_blocked' : 'subscription_expired'
           return isApi
-            ? json({ ok: false, error: blocked ? 'subscription_blocked' : 'subscription_expired' }, 402)
-            : redirect('/settings')
+            ? json({ ok: false, error: reason }, 402)
+            : accessNotice(402, reason,
+                blocked ? 'Acesso restrito pela assinatura' : 'Assinatura expirada',
+                'O servidor confirmou uma restrição real na assinatura desta empresa. A página solicitada não será exibida enquanto o acesso estiver restrito.', true)
         }
 
         const awaitingActivation = billingStatus === 'pending'
@@ -294,11 +345,15 @@ export async function middleware(request: NextRequest) {
         if (awaitingActivation && plan !== 'maximo' && !billingBypass) {
           return isApi
             ? json({ ok: false, error: 'subscription_pending' }, 402)
-            : redirect('/settings')
+            : accessNotice(402, 'subscription_pending',
+                'Assinatura pendente de ativação',
+                'A assinatura desta empresa ainda está pendente de confirmação. Verifique o plano antes de acessar a área restrita.', true)
         }
 
         if (!isApi && !billingBypass && !hrefLiberado(path, plan)) {
-          return redirect('/settings')
+          return accessNotice(403, 'plan_required',
+            'Área não incluída no plano atual',
+            'Esta área exige um pacote que não está habilitado para a empresa. Nenhuma configuração ou cobrança foi alterada.', true)
         }
 
         if (isApi && !billingBypass) {
