@@ -19,6 +19,7 @@ import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 
 import React, { useState, useEffect, useMemo, useCallback, startTransition } from 'react';
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
   CheckCircle, 
@@ -161,6 +162,8 @@ export default function TarefasPage() {
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
+  const remoteSearch = useCompanyProcessSearch(searchDebounced, Boolean(empresaId && authUserId));
+  const taskCases = remoteSearch.active ? remoteSearch.cases : cases;
   // filtros persistidos entre abas
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
@@ -566,7 +569,7 @@ const handleSaveAttendance = async () => {
   const taskData = useMemo(() => {
     const groups: Record<string, TaskGroup> = {};
     const byClient = new Map<string, LegalCase[]>();
-    for (const c of cases) {
+    for (const c of taskCases) {
       if (!c.cliente || isCasoEncerrado(c)) continue;
       const key = String(c.cliente).trim().toUpperCase();
       byClient.set(key, [...(byClient.get(key) || []), c]);
@@ -577,7 +580,7 @@ const handleSaveAttendance = async () => {
     const today = startOfDay(new Date());
 
     const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
-    const activeCases = cases.filter(c => {
+    const activeCases = taskCases.filter(c => {
       if (!isCasoEncerrado(c)) return true;
       // Baixa no tribunal com valor residual: continua na fila de contato (prioridade)
       const d = (c as any).dados && typeof (c as any).dados === 'object' ? (c as any).dados : {};
@@ -635,7 +638,14 @@ const handleSaveAttendance = async () => {
 
     const sortedAll = Object.values(groups)
       .filter(g => {
-        const matchSearch = (g.cliente.toLowerCase().includes(searchDebounced.toLowerCase()) || g.protocoloReferencia.includes(searchDebounced));
+        const query = searchDebounced.toLowerCase().trim();
+        const digits = query.replace(/\D/g, "");
+        const matchSearch = remoteSearch.active || !query ||
+          g.cliente.toLowerCase().includes(query) ||
+          g.cases.some((c) => [c.protocolo, c.telefone].some((value) => {
+            const text = String(value || "").toLowerCase();
+            return text.includes(query) || (digits.length >= 4 && text.replace(/\D/g, "").includes(digits));
+          }));
         const officeKey = officeFilter === 'all' ? '' : String(officeFilter).trim().toUpperCase();
         const lawyerKey = lawyerFilter === 'all' ? '' : String(lawyerFilter).trim().toUpperCase();
         const matchOffice =
@@ -760,9 +770,12 @@ const handleSaveAttendance = async () => {
       });
 
     const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
+    if (remoteSearch.active) {
+      return { focus: sortedAll, backlog: [], completed: [], totalPendingCount: pending.length };
+    }
     const cap = filaFiltro === 'hoje' || soMeusHoje ? pending.length : dailyMeta;
     return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
-  }, [cases, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
+  }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -875,7 +888,8 @@ const handleSaveAttendance = async () => {
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-card border border-border/50 p-4 sm:p-6 rounded-2xl shadow-sm">
              <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder="Pesquisar por cliente ou CNJ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-muted border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
+                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" /><Input placeholder={remoteSearch.searching ? "Buscando na carteira inteira..." : "Pesquisar nome, CNJ ou telefone..."} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-12 bg-muted border-none text-base sm:text-xs font-bold uppercase rounded-xl" /></div>
+                {remoteSearch.error && <span role="alert" className="text-xs text-destructive">{remoteSearch.error}</span>}
                 <Select value={officeFilter} onValueChange={setOfficeFilter}>
                    <SelectTrigger className="h-12 w-full md:w-[250px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="TODOS ESCRITÓRIOS" /></SelectTrigger>
                    <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
@@ -972,19 +986,19 @@ const handleSaveAttendance = async () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {taskData.focus.slice(0, listVisible).map((group, idx) => (
+              {taskData.focus.slice(0, remoteSearch.active ? taskData.focus.length : listVisible).map((group, idx) => (
                 <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
-            {!loading && taskData.focus.length === 0 && (
+            {!loading && !remoteSearch.searching && taskData.focus.length === 0 && (
               <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
                 <p className="text-sm font-black uppercase tracking-wide text-foreground">
-                  {carteiraError ? 'Falha ao consultar carteira' : cases.length === 0
+                  {(carteiraError || remoteSearch.error) ? 'Falha ao consultar carteira' : cases.length === 0
                     ? 'Nenhum processo na carteira desta sessão'
                     : 'Nenhum caso na fila com os filtros atuais'}
                 </p>
                 <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
-                  {carteiraError ? carteiraError : cases.length === 0
+                  {(carteiraError || remoteSearch.error) ? (carteiraError || remoteSearch.error) : cases.length === 0
                     ? 'A carteira está vazia neste escopo de permissão. Verifique se sua conta está vinculada aos processos ou peça ao supervisor a redistribuição.'
                     : `Há ${cases.length} processo(s) carregados, mas filtros (escritório, advogado, fila, “meus hoje” ou contatados) esconderam todos.`}
                 </p>
@@ -1024,7 +1038,7 @@ const handleSaveAttendance = async () => {
                 </div>
               </div>
             )}
-            {taskData.focus.length > listVisible && (
+            {!remoteSearch.active && taskData.focus.length > listVisible && (
               <div className="flex flex-col items-center gap-2 py-4">
                 <Button
                   type="button"

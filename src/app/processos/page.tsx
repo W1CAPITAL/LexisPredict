@@ -21,7 +21,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { resolveRole } from "@/lib/roles";
 import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
-import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
+import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
@@ -163,8 +163,6 @@ export default function ProcessosEmpresaPage() {
   const scannerTotal = useDataJudScanStore((s) => s.total);
 
   const [cases, setCases] = useState<LegalCase[]>([]);
-  const [searchHits, setSearchHits] = useState<LegalCase[] | null>(null);
-  const [searching, setSearching] = useState(false);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState(0);
@@ -176,6 +174,8 @@ export default function ProcessosEmpresaPage() {
   const [carteiraError, setCarteiraError] = useState('');
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 300);
+  const { active: hasSearch, cases: searchHits, searching, error: searchError } =
+    useCompanyProcessSearch(qDebounced, Boolean(empresaId && authUserId));
   const [statusFilter, setStatusFilter] = useState("");
   const [baOnly, setBaOnly] = useState(false);
   const [silencioOnly, setSilencioOnly] = useState(false);
@@ -266,30 +266,6 @@ export default function ProcessosEmpresaPage() {
       setCarteiraError('O perfil da empresa não foi carregado. Confira sua sessão e atualize a página.');
     }
   }, [empresaId, authUserId, authLoading]);
-
-  // Busca no banco (empresa inteira) quando há texto — a lista local só tem ~300
-  useEffect(() => {
-    const q = qDebounced.trim();
-    if (!q || q.length < 2) {
-      setSearchHits(null);
-      return;
-    }
-    let cancelled = false;
-    setSearching(true);
-    (async () => {
-      try {
-        const res = await searchCompanyProcessosAction(q);
-        if (cancelled) return;
-        if (res.ok) setSearchHits(res.cases as any);
-        else setSearchHits([]);
-      } catch {
-        if (!cancelled) setSearchHits([]);
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [qDebounced]);
 
   useEffect(() => {
     try {
@@ -564,7 +540,7 @@ export default function ProcessosEmpresaPage() {
   // Enquanto há uma busca ativa, a resposta do servidor é a fonte da lista,
   // inclusive quando vazia. Cair de volta para `cases` fazia parecer que a
   // busca por nome não funcionava e podia mostrar processos incorretos.
-  const base = query.length >= 2 && searchHits !== null ? searchHits : cases;
+  const base = hasSearch ? searchHits : cases;
     let list = base.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
@@ -573,14 +549,14 @@ export default function ProcessosEmpresaPage() {
         if (d == null || d < 45) return false;
       }
       if (!query) return true;
-      if (searchHits != null) return true; // já filtrado no servidor
+      if (hasSearch) return true; // já filtrado no servidor
       return [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, String(c.status)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(query));
     });
-    if (sortOps) list = [...list].sort(compareOps);
+    if (sortOps && !hasSearch) list = [...list].sort(compareOps);
     return list;
-  }, [cases, searchHits, qDebounced, statusFilter, baOnly, silencioOnly, sortOps]);
+  }, [cases, searchHits, hasSearch, qDebounced, statusFilter, baOnly, silencioOnly, sortOps]);
 
   // Ao mudar filtro/busca, volta a mostrar só a 1ª página (não afeta dashboard)
   useEffect(() => {
@@ -645,9 +621,9 @@ export default function ProcessosEmpresaPage() {
         className="pointer-events-none fixed bottom-4 right-4 z-40 rounded-xl border bg-background/95 px-3 py-2 text-xs font-semibold text-primary shadow-lg">
         {cases.length ? `${cases.length} processos da empresa disponíveis` : 'Consultando Supabase…'}
       </div>}
-      {carteiraError && <div role="alert"
+      {(carteiraError || searchError) && <div role="alert"
         className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
-        {carteiraError}
+        {carteiraError || searchError}
       </div>}
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
         <DataJudScannerPanel />
@@ -677,7 +653,7 @@ export default function ProcessosEmpresaPage() {
             sortOps={sortOps}
             onSortOpsChange={setSortOps}
             onRefresh={() => void load(true)}
-            hasMore={hasServerMore}
+            hasMore={hasServerMore && !hasSearch}
             loadingMore={loadingMore}
             onLoadMore={loadMoreFromServer}
             canScan={canRodarEmpresa}

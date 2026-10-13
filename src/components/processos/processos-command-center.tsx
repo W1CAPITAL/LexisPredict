@@ -327,7 +327,7 @@ export function ProcessosCommandCenter(props: Props) {
   const [advancedFiltersOpen,setAdvancedFiltersOpen]=React.useState(false);
   const [metricsOpen,setMetricsOpen]=React.useState(false);
   const [insightsOpen,setInsightsOpen]=React.useState(false);
-  const PAGE = 10;
+  const PAGE = props.query.trim().length >= 2 ? 200 : 10;
 
   const tribunais = React.useMemo(() => [...new Set(props.items.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [props.items]);
   const classes = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [props.items]);

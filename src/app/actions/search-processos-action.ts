@@ -21,7 +21,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
   error?: string;
 }> {
   try {
-    const q = String(query || "").trim();
+    const q = String(query || "").trim().slice(0, 120);
     if (!q || q.length < 2) return { ok: true, cases: [] };
 
     const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
@@ -78,8 +78,8 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
       for (const row of byTail.data || []) {
         const pDig = digitsOnly(row.protocolo_ref || row.dados?.protocolo || "");
         if (
-          pDig.includes(dig) ||
-          dig.includes(pDig) ||
+          (pDig.length > 0 && pDig.includes(dig)) ||
+          (pDig.length > 0 && dig.includes(pDig)) ||
           (tail && pDig.endsWith(tail))
         ) {
           found.set(String(row.id), row);
@@ -91,36 +91,36 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
     // A versão anterior pesquisava apenas `dados->>cliente`, o que fazia
     // alguns clientes existentes desaparecerem da busca.
     const textColumns = [
-      `cliente.ilike.%${q}%`,
-      `advogado.ilike.%${q}%`,
-      `escritorio.ilike.%${q}%`,
-      `telefone.ilike.%${q}%`,
-      `dados->>cliente.ilike.%${q}%`,
-      `dados->>CLIENTE.ilike.%${q}%`,
-      `dados->>advogado.ilike.%${q}%`,
-      `dados->>ADVOGADO.ilike.%${q}%`,
-      `dados->>escritorio.ilike.%${q}%`,
-      `dados->>ESCRITORIO.ilike.%${q}%`,
-      `dados->>telefone.ilike.%${q}%`,
-      `dados->>TELEFONE.ilike.%${q}%`,
+      "cliente", "advogado", "escritorio", "telefone",
+      "dados->>cliente", "dados->>CLIENTE",
+      "dados->>advogado", "dados->>ADVOGADO",
+      "dados->>escritorio", "dados->>ESCRITORIO",
+      "dados->>telefone", "dados->>TELEFONE",
     ];
-
-    // Não use `.or()` com operadores JSON aqui: versões/configurações do
-    // PostgREST podem rejeitar a expressão inteira e devolver zero resultados.
-    // Consultas independentes são um pouco mais previsíveis e os resultados
-    // continuam deduplicados pelo Map.
-    const textResults = await Promise.all(
-      textColumns.map((filter) =>
-        admin
-          .from("processos")
-          .select("*")
+    // Pesquisa direta no banco, sem depender das páginas carregadas na interface.
+    // Um telefone salvo como (11) 99999-9999 também corresponde a 11999999999.
+    const phonePattern = dig.length >= 8 && dig.length <= 15
+      ? dig.split("").join("%")
+      : null;
+    const requests = textColumns.flatMap((column) => {
+      const patterns = [`%${q}%`];
+      if (phonePattern && column.toLowerCase().includes("telefone")) {
+        patterns.push(`%${phonePattern}%`);
+      }
+      return patterns.map((pattern) =>
+        admin.from("processos").select("*")
           .eq("empresa_id", empresaId)
-          .or(filter)
-          .limit(200)
-      )
-    );
+          .ilike(column, pattern)
+          .limit(400)
+      );
+    });
+    const textResults = await Promise.all(requests);
     for (const result of textResults) {
       for (const row of result.data || []) found.set(String(row.id), row);
+    }
+    // Não mascarar erro de banco como "nenhum processo encontrado".
+    if (found.size === 0 && textResults.every((result) => !!result.error)) {
+      return { ok: false, cases: [], error: "A pesquisa no banco falhou. Tente novamente." };
     }
 
     const cases: any[] = [];
@@ -194,6 +194,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
         if (protocolo === qNorm) n += 900;
         if (cliente.startsWith(qNorm)) n += 200;
         if (protocolo.startsWith(qNorm)) n += 150;
+        if (dig.length >= 8 && String(c.telefone || "").replace(/\D/g, "").includes(dig)) n += 175;
         return n;
       };
       return score(b) - score(a);
