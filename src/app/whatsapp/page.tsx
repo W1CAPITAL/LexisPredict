@@ -162,7 +162,7 @@ function WhatsAppTerminalInner() {
   const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
   const empresaId = String(profile?.empresa_id || '');
   const authUserId = String(profile?.auth_user_id || '');
-  const WHATSAPP_PAGE_SIZE = 100;
+  const WHATSAPP_PAGE_SIZE = 60;
   const searchParams = useSearchParams();
   const [deepLinkDone, setDeepLinkDone] = useState(false);
 

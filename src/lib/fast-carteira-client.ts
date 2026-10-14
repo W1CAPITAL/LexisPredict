@@ -1,4 +1,5 @@
 import type { LegalCase } from '@/lib/case-logic';
+import {seedCarteiraPageClientCache} from '@/lib/carteira-fetch-client';
 
 export type CarteiraSnapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
@@ -90,12 +91,19 @@ export async function fetchFastCarteiraCached(
   empresaId: string, userId: string, force = false
 ): Promise<FastCarteiraResponse> {
   const cached = peekFastCarteiraCache(scope, limit, offset, empresaId, userId);
-  if (!force && cached && cached.ageMs < FAST_TTL_MS) return cached.data;
+  if (!force && cached && cached.ageMs < FAST_TTL_MS){
+    seedCarteiraPageClientCache({empresaId,userId,scope,limit,offset},cached.data.cases);
+    return cached.data;
+  }
   const key = keyFor(scope, limit, offset, empresaId, userId);
   const running = inFlightPages.get(key);
   if (running) return running;
   const request = fetchFastCarteira(scope, limit, offset, AbortSignal.timeout(25_000))
-    .then((next) => { rememberFastCarteira(scope, limit, offset, empresaId, userId, next); return next; })
+    .then((next) => {
+      rememberFastCarteira(scope,limit,offset,empresaId,userId,next);
+      seedCarteiraPageClientCache({empresaId,userId,scope,limit,offset},next.cases);
+      return next;
+    })
     .finally(() => inFlightPages.delete(key));
   inFlightPages.set(key, request);
   return request;

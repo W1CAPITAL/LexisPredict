@@ -158,7 +158,9 @@ export default function TarefasPage() {
   const LIST_PAGE_SIZE = 80;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
-  const aliveRef=React.useRef(true);
+  // Incremental generation prevents stale page responses from updating another
+  // tenant/profile or a route the operator already left.
+  const loadingGeneration=React.useRef(0);
   const [syncingCases, setSyncingCases] = useState(false);
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
@@ -275,6 +277,8 @@ export default function TarefasPage() {
 
   const loadData = useCallback(async () => {
     if (!empresaId || !authUserId) return;
+    const generation=++loadingGeneration.current;
+    const active=()=>loadingGeneration.current===generation;
     setLoading(true);
     setSyncingCases(true);
     setCarteiraError('');
@@ -283,11 +287,12 @@ export default function TarefasPage() {
         fetchNetwork: () => fetchCarteiraAllClient({
           empresaId,
           userId:authUserId,
-          shouldContinue:()=>aliveRef.current,
+          shouldContinue:active,
           firstPageSize: 36,
           pageSize: 300,
           scope: taskCaseScope,
           onPage: (partial, page) => {
+            if(!active())return;
             // Entrega incremental: cada lote fica reaproveitavel ao trocar de aba.
             if (page === 0 || page % 2 === 0) {
               writeCarteiraCache(partial, empresaId, taskCaseScope, authUserId, 'tarefas', false);
@@ -299,7 +304,7 @@ export default function TarefasPage() {
               startTransition(() => setCases(partial));
             }
           },
-          onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase'),
+          onError: (error) => {if(active())setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase');},
         }),
         empresaId,
         scope: taskCaseScope,
@@ -308,26 +313,29 @@ export default function TarefasPage() {
         reuseFreshCache: true,
         maxAgeMs: 2 * 60_000,
         onShow: (data, source) => {
+          if(!active())return;
           if (Array.isArray(data)) startTransition(() => setCases(data));
           if (source === 'cache') setLoading(false);
         },
         allowStaleKpiFallback: true,
-        onError: (error) => setCarteiraError(error instanceof Error ? error.message : 'Falha ao buscar dados do Supabase'),
+        onError: (error) => {if(active())setCarteiraError(error instanceof Error ? error.message : 'Falha ao buscar dados do Supabase');},
       });
+      if(!active())return;
       try {
         const baRes = await fetchBaHitProtocolosAction();
-        if (baRes.success) setBaHitDigits(baRes.protocolDigits || []);
+        if (active()&&baRes.success) setBaHitDigits(baRes.protocolDigits || []);
       } catch { /* noncritical */ }
     } finally {
-      setLoading(false);
-      setSyncingCases(false);
+      if(active()){
+        setLoading(false);
+        setSyncingCases(false);
+      }
     }
   }, [empresaId, authUserId, taskCaseScope]);
 
   useEffect(() => {
-    aliveRef.current=true;
     if(mounted)void loadData();
-    return ()=>{aliveRef.current=false;};
+    return ()=>{loadingGeneration.current++;};
   }, [loadData,mounted]);
 
   const handleSingleScan = async (protocolo: string) => {

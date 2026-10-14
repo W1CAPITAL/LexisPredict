@@ -18,6 +18,29 @@ function cacheGeneration(){
 function pageCacheKey(opts:{empresaId:string;userId?:string;scope?:string;limit:number;offset:number;includeDetails?:boolean}){
  return opts.userId?[opts.empresaId,opts.userId,opts.scope||'mine',opts.limit,opts.offset,opts.includeDetails?'detail':'list',cacheGeneration()].join(':'):'';
 }
+/** Preenche o cache de páginas do mesmo tenant e usuário a partir do /processos. */
+export function seedCarteiraPageClientCache(opts:{
+ empresaId:string;userId:string;scope:'mine'|'empresa';limit:number;offset:number;
+},rows:LegalCase[]){
+ const key=pageCacheKey({...opts,includeDetails:false});
+ if(!key||!Array.isArray(rows))return;
+ pageMemory.set(key,{rows,at:Date.now()});
+ if(pageMemory.size>40)pageMemory.delete(pageMemory.keys().next().value!);
+}
+/** Um lote de 60 registros pode servir uma tela que pede os primeiros 36. */
+function coveringPage(key:string,limit:number,offset:number):LegalCase[]|null{
+ const [empresa,user,scope,, ,details,generation]=key.split(':');
+ for(const [savedKey,item] of pageMemory){
+  if(Date.now()-item.at>=PAGE_TTL_MS)continue;
+  const [e,u,s,storedLimit,storedOffset,d,g]=savedKey.split(':');
+  const begin=Number(storedOffset),capacity=Number(storedLimit);
+  if(e!==empresa||u!==user||s!==scope||d!==details||g!==generation)continue;
+  if(begin<=offset && begin+capacity>=offset+limit){
+   return item.rows.slice(offset-begin,offset-begin+limit);
+  }
+ }
+ return null;
+}
 function read(_key:string):Box|null{return null;}
 function write(_v:Box){/* Avoid blocking localStorage serialization of legal records. */}
 export function peekCarteiraClientCache(empresaKey='default'):LegalCase[]|null{const b=box&&box.empresaKey===empresaKey?box:read(empresaKey);if(!b)return null;box=b;return Date.now()-b.at<TTL_MS?b.cases:null;}
@@ -104,6 +127,8 @@ export async function fetchCarteiraPageClient(opts: {
   if(key&&!opts.force){
     const hit=pageMemory.get(key);
     if(hit&&Date.now()-hit.at<PAGE_TTL_MS)return hit.rows;
+    const covering=coveringPage(key,limit,offset);
+    if(covering)return covering;
     const pending=pendingPages.get(key);
     if(pending)return pending;
   }
