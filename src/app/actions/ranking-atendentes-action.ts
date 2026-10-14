@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Top Atendentes e "Atendidos semana" = LOG de auditoria
- * (quem clicou Atender), único por pessoa + CNJ no período.
+ * Top Atendentes e "Trabalhados na semana" = LOG de auditoria
+ * (atendimento, encerramento e edição manual), único por pessoa + CNJ no período.
  * NÃO usa created_by. NÃO conta Trigger/W1 como operador humano.
  */
 
@@ -121,7 +121,7 @@ export async function fetchRankingAtendentesEmpresaAction(limit = 5): Promise<{
         .from("auditoria_logs_app")
         .select("auth_user_id, user_nome, protocolo_ref, action, created_at, detalhes")
         .eq("empresa_id", empresaId)
-        .in("action", ["atendimento", "encerramento"])
+        .in("action", ["atendimento", "encerramento", "edicao"])
         .gte("created_at", fetchFrom.toISOString())
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);

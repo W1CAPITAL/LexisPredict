@@ -1,7 +1,8 @@
 "use server";
 
 import {
-  casoAtendidoNestaSemana,
+  humanWorkEvents,
+  weekBounds,
   isAtendidoHoje,
   parseUltimoAtendimento,
   labelSemanaAtual,
@@ -98,7 +99,7 @@ export async function fetchKpiAtendimentoEmpresaAction(): Promise<KpiAtendimento
     const ref = new Date();
 
     const COLS =
-      "id, protocolo_ref, empresa_id, created_by, atendido_por, ultimo_retorno, status, datajud_encerrado_tribunal, dados";
+      "id,protocolo_ref,empresa_id,created_by,atendido_por,ultimo_retorno,status,datajud_encerrado_tribunal,auditado_em,auditado_por,atendido_em_json:dados->>atendido_em,edited_at_json:dados->>edited_at,edited_by_json:dados->>edited_by,last_auto_wa_at_json:dados->wa_ultimo_retorno->>data";
 
     const pageSize = 1000;
     let offset = 0;
@@ -128,34 +129,38 @@ export async function fetchKpiAtendimentoEmpresaAction(): Promise<KpiAtendimento
     let totalAtivos = 0;
     const por: Record<string, RankAtendente> = {};
 
+    const {start:weekStart,end:weekEnd}=weekBounds(ref);
+    const workedByProcess=new Set<string>();
+    const workedTodayByProcess=new Set<string>();
     for (const row of all) {
-      if (!isEncerrado(row)) totalAtivos += 1;
-      const retorno = pickRetorno(row);
-      const fake = { ultimoRetorno: retorno, ultimo_retorno: retorno };
-      const semana = casoAtendidoNestaSemana(fake as any, ref);
-      const hoje = isAtendidoHoje(retorno, ref);
-      const mes = inMonth(retorno, ref);
-
-      if (semana) atendidosSemana += 1;
-      if (hoje) atendidosHoje += 1;
-      if (!semana && !hoje && !mes) continue;
-
-      const key = userKey(row);
-      if (!key) continue;
-
-      const nome =
-        nameById[key] ||
-        String(row?.dados?.atendido_por_nome || "").trim() ||
-        key.slice(0, 8) + "…";
-
-      if (!por[key]) {
-        por[key] = { key, nome: nome.toUpperCase(), semana: 0, hoje: 0, mes: 0 };
+      if (!isEncerrado(row)) totalAtivos++;
+      const retorno=pickRetorno(row);
+      const events=humanWorkEvents({...row,ultimoRetorno:retorno,ultimo_retorno:retorno});
+      const operatorFlags=new Map<string,{semana:boolean;hoje:boolean;mes:boolean}>();
+      for(const ev of events){
+        const day=parseUltimoAtendimento(ev.date);
+        if(!day)continue;
+        const week=isWithinInterval(day,{start:weekStart,end:weekEnd});
+        const today=isAtendidoHoje(ev.date,ref);
+        const month=inMonth(ev.date,ref);
+        const prior=operatorFlags.get(ev.actor)||{semana:false,hoje:false,mes:false};
+        prior.semana ||= week;prior.hoje ||= today;prior.mes ||= month;
+        operatorFlags.set(ev.actor,prior);
+        if(week)workedByProcess.add(String(row.id));
+        if(today)workedTodayByProcess.add(String(row.id));
       }
-      if (semana) por[key].semana += 1;
-      if (hoje) por[key].hoje += 1;
-      if (mes) por[key].mes += 1;
-      if (nameById[key]) por[key].nome = nameById[key].toUpperCase();
+      for(const [keyRaw,flags] of operatorFlags){
+        if(!flags.semana&&!flags.hoje&&!flags.mes)continue;
+        const key=keyRaw.toLowerCase();
+        const nome=nameById[key]||key.slice(0,8)+'…';
+        if(!por[key])por[key]={key,nome:nome.toUpperCase(),semana:0,hoje:0,mes:0};
+        if(flags.semana)por[key].semana++;
+        if(flags.hoje)por[key].hoje++;
+        if(flags.mes)por[key].mes++;
+      }
     }
+    atendidosSemana=workedByProcess.size;
+    atendidosHoje=workedTodayByProcess.size;
 
     const ranking = Object.values(por)
       .filter((r) => r.semana > 0 || r.hoje > 0 || r.mes > 0)
