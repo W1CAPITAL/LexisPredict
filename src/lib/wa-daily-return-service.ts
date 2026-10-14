@@ -46,6 +46,11 @@ export async function processOneDailyReturn(input:{
     .eq('empresa_id',input.empresaId).eq('id',input.processId).maybeSingle();
   if(loadError||!row)return {ok:false,reason:'processo_nao_encontrado',sent:false};
   const settings=await getDailyReturnSettings(input.empresaId);
+  // A scanner may prepare notices while automation is off; it must NEVER
+  // turn a scheduled check into an outbound message in that state.
+  if(input.mode==='due' && !settings.enabled){
+    return {ok:true,reason:'automation_disabled',sent:false,processId:input.processId};
+  }
   const computed=prepareDailyReturn(row as ReturnCase,{mode:input.mode,today,intervalDays:input.intervalDays,consentAttested:settings.consentAttested});
   const reason=computed.reason;
   const check=async(result:string)=>{
@@ -120,7 +125,10 @@ export async function processOneDailyReturn(input:{
  * Não usa IA nem altera datas em verificações negativas.
  */
 const ELIGIBILITY_REASONS=new Set(['closed','phone','blocked','no_consent','not_due','missing_return','invalid_cnj']);
-const CACHED_WINDOW_MS=10*60*1000;
+// A successful recent verification of both sources can be reused for six
+// hours when no new movement was found. Notice-ready items remain subject
+// to the strict 24-hour evidence checks in prepareDailyReturn.
+const CACHED_WINDOW_MS=6*60*60*1000;
 function checkedRecently(at:unknown,ok:unknown,cutoff:number){
   return ok===true && typeof at==='string' && Number.isFinite(Date.parse(at))
     && Date.parse(at)>=cutoff && Date.parse(at)<=Date.now()+60000;
@@ -169,12 +177,18 @@ export async function checkReturnSources(input:{
   const recentDjen=checkedRecently((row as any).djen_consultado_em,(row as any).djen_last_ok,cutoff);
   const recentDatajud=checkedRecently((row as any).datajud_consultado_em,(row as any).datajud_last_ok,cutoff);
   let courtSource:'cached'|'djen'|'datajud'='cached';
-  // A comprovacao de DJEN (teor + data + CNJ) já validada vale por 24 h
-  // segundo prepareDailyReturn, logo jamais faça uma segunda consulta desnecessária.
+  // Positive movement evidence valid for <=24h is already checked in policy.
+  // Never call the court again for a ready notice just to repeat the scan.
   const alreadyVerified=decision.ready!==null;
   const evidenceNewer=latestDjenAfterReturn(row);
-  const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
+  // A recent confirmed scan of BOTH sources with no novelty is conclusive
+  // enough for this 6h window. Skip BOTH HTTP requests and record the check.
+  if(!alreadyVerified && decision.reason==='no_new_movement' && recentDjen && recentDatajud){
+    return finish('recent_scan_no_new_movement');
+  }
+  // Load the heavyweight scanner module ONLY when an external lookup is needed.
   const refresh=async(source:'djen'|'datajud')=>{
+    const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
     courtSource=source;
     const last=validReturnDay(row?.ultimo_retorno||row?.dados?.ultimoRetorno||row?.dados?.ultimo_retorno);
     const since=last?new Date(Date.parse(last+'T00:00:00Z')-86400000).toISOString().slice(0,10):undefined;
@@ -212,7 +226,15 @@ export async function checkReturnSources(input:{
       if(!official&&!recentDjen)return finish('court_unavailable');
     }
   }
-  if(input.queueOnly)return finish('checked_for_queue');
+  // The cloud scanner is a *preparation* service, not the delivery provider.
+  // Preserve the distinction between confirmed new evidence and no novelty.
+  if(input.queueOnly || (input.mode==='due' && !settings.enabled)){
+    const reason=decision.ready?'ready_for_notice':decision.reason;
+    const result=await finish(reason);
+    return {...result,prepared:decision.ready!==null,sourceChecked:courtSource};
+  }
+  // Avoid attempting a send for unchanged/ambiguous events.
+  if(!decision.ready)return finish(decision.reason);
   const result=await processOneDailyReturn({
     empresaId:input.empresaId,processId:input.processId,mode:input.mode,
     intervalDays:input.intervalDays,today,

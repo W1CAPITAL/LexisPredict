@@ -11,11 +11,14 @@ import {
  previewWaReturnCnjAction,scanOneWaReturnAction,scanNextWaReturnAction,
  scanWaReturnBatchAction,
 } from '@/app/actions/wa-daily-return-actions';
-type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;error?:string};
+type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;error?:string};
 const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
  no_new_movement:'Nenhuma movimentação posterior ao último retorno: nada enviado',
+ recent_scan_no_new_movement:'Verificação recente reaproveitada: sem novidade, sem nova consulta nem envio',
+ ready_for_notice:'Movimentação comprovada e separada para comunicado; ainda não enviada',
+ automation_disabled:'Automação desligada: comunicado não enviado',
  needs_source_review:'Teor oficial, descrição ou situação atual precisam de conferência: nada enviado',
  invalid_cnj:'CNJ inválido',outside_service_window:'Sem conversa aberta nas últimas 24 horas; exige template oficial aprovado',
  opt_out:'Cliente solicitou não receber avisos',already_contacted_today:'Cliente já recebeu comunicado hoje',
@@ -117,7 +120,7 @@ export function WaDailyReturnPanel(){
      {[1,3,7,14,30].map(n=><option key={n} value={n}>{n} dia{n>1?'s':''}</option>)}
     </select></label>
    <Button size="sm" variant="outline" onClick={()=>void save()} disabled={busy}>Salvar periodicidade</Button>
-   {dash?.ok?<span className="text-muted-foreground">Retornos agendados vencidos (antes dos filtros): {dash.due||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
+   {dash?.ok?<span className="text-muted-foreground">Vencidos (total bruto): {dash.due||0} · Com novidade comprovada, aguardando envio: {dash.readyToday||0} · Verificações recentes reaproveitadas: {dash.reusedToday||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Scanner de retornos · lotes rápidos na nuvem</p>
@@ -126,7 +129,7 @@ export function WaDailyReturnPanel(){
     <Button size="sm" disabled={busy||running} onClick={start}>Iniciar varredura</Button>
     <Button size="sm" variant="destructive" disabled={!running} onClick={stop}>Parar scanner</Button>
    </div>
-   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. O servidor confere lotes de até 6 processos, exclui telefones inválidos e encerrados antes de consultar tribunais e prioriza a publicação do DJEN. Só consulta DataJud quando o DJEN não comprova a novidade. Os vencidos exibidos acima ainda incluem casos descartados pelos filtros. Nenhuma data de retorno muda sem envio confirmado.</p>
+   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. O servidor confere lotes de até 6 processos e prioriza novidades já verificadas no DJEN/DataJud. Quando as duas fontes foram consultadas com sucesso nas últimas 6h e não há novidade, reaproveita o resultado sem novas consultas. Caso precise buscar, consulta DJEN primeiro e DataJud apenas se necessário. Os vencidos exibidos acima ainda incluem casos descartados pelos filtros. Nenhuma data de retorno muda sem envio confirmado.</p>
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Verificar apenas um processo</p>

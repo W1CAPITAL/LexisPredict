@@ -17,9 +17,15 @@ export async function getWaDailyReturnDashboardAction(){
   const day=brazilToday();
   const {count}=await db.from('processos').select('id',{head:true,count:'exact'})
     .eq('empresa_id',me.empresaId).lte('proximo_retorno',day);
-  const {count:sentToday}=await db.from('wa_daily_return_sends').select('id',{head:true,count:'exact'})
-    .eq('empresa_id',me.empresaId).eq('local_day',day).eq('status','sent');
-  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},due:Number(count||0),sentToday:Number(sentToday||0),today:day};
+  const [{count:sentToday},{count:readyToday},{count:reusedToday}]=await Promise.all([
+    db.from('wa_daily_return_sends').select('id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('status','sent'),
+    db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','ready_for_notice'),
+    db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','recent_scan_no_new_movement'),
+  ]);
+  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),reusedToday:Number(reusedToday||0),today:day};
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 export async function saveWaDailyReturnSettingsAction(enabled:boolean,intervalDays:number) {
