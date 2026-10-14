@@ -1,7 +1,6 @@
 import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
-import {evolutionForOwner,evolutionDelivered} from '@/lib/evolution-bridge';
-import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
+import {bridgeStatus} from '@/lib/whatsapp-local';
 import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,validReturnDay,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
 export async function getDailyReturnSettings(empresaId:string) {
@@ -65,58 +64,44 @@ export async function processOneDailyReturn(input:{
   try {preference=await currentOptOut(input.empresaId,notice.phone,input.mode);}
   catch {await check('history_unavailable');return {ok:false,reason:'history_unavailable',sent:false};}
   if(preference){await check(preference);return {ok:true,reason:preference,sent:false};}
-  // No delivery provider: do not reserve a send or alter return dates.
-  if (process.env.LEXIS_WHATSAPP_TRANSPORT !== 'official-active') {
-    await check('provider_not_configured');
-    return {ok:false,reason:'provider_not_configured',sent:false,error:'Automação suspensa: nenhuma API de envio validada.'};
+  // The linked WhatsApp device is the current transport. Queue a message once
+  // and let its authenticated worker report actual accepted/delivered/read.
+  // Merely creating a pending job NEVER marks a client as contacted.
+  const bridge=await bridgeStatus(input.empresaId);
+  if(!bridge.connected){
+    await check('ready_for_notice');
+    return {ok:false,reason:'bridge_offline',sent:false,queued:false};
   }
   const {data:id,error:reserveError}=await db.rpc('wa_reserve_return',{
-    p_empresa:input.empresaId,p_processo:input.processId,p_phone:notice.phone,p_hash:notice.eventHash,
-    p_source:notice.source,p_event_at:notice.eventAt,p_mode:input.mode,p_message:notice.message,
+    p_empresa:input.empresaId,p_processo:input.processId,p_phone:notice.phone,
+    p_hash:notice.eventHash,p_source:notice.source,p_event_at:notice.eventAt,
+    p_mode:input.mode,p_message:notice.message,
   });
-  if(reserveError)return {ok:false,reason:reserveError.message,sent:false};
-  if(!id){await check('already_contacted_today');return {ok:true,reason:'already_contacted_today',sent:false};}
-  // No automatic resend after a timeout: the remote WA.Auto might have
-  // accepted the message even when the server did not receive the answer.
-  const send=await evolutionForOwner(String(settings.ownerAuthId||''),input.empresaId,notice.phone,notice.message);
-  if(!send.ok){
+  if(reserveError){await check('ready_for_notice');return {ok:false,reason:'reserve_failed',sent:false,error:reserveError.message};}
+  if(!id){
+    // Null can also mean the 45-second anti-spam gap is in force.
+    // Preserve the candidate for a later automatic retry rather than losing it.
+    const {data:prior}=await db.from('wa_daily_return_sends').select('id')
+      .eq('empresa_id',input.empresaId).eq('phone',notice.phone)
+      .eq('local_day',today).in('status',['reserved','sent','uncertain']).limit(1);
+    const reason=prior?.length?'already_contacted_today':'ready_for_notice';
+    await check(reason);
+    return {ok:true,reason,sent:false,queued:false,processId:input.processId};
+  }
+  const {data:jobId,error:attachError}=await db.rpc('wa_local_attach_return',{
+    p_empresa:input.empresaId,p_send:id,
+  });
+  if(attachError||!jobId){
     await db.from('wa_daily_return_sends').update({
-      status:send.rejected?'rejected':'uncertain',last_error:String(send.error||'Evolution timeout').slice(0,200),
-    }).eq('id',id).eq('empresa_id',input.empresaId);
-    const failure=send.rejected?'send_rejected':'send_uncertain';
-    await check(failure);
-    return {ok:false,reason:failure,error:send.error,sent:false,requiresManualReview:!send.rejected};
+      status:'rejected',last_error:attachError?.message||'Falha ao inserir na fila do dispositivo',
+    }).eq('empresa_id',input.empresaId).eq('id',id).eq('status','reserved');
+    await check('ready_for_notice');
+    return {ok:false,reason:'queue_failed',error:attachError?.message,sent:false,queued:false};
   }
-  if(!evolutionDelivered(send.raw)) {
-    // A API pode aceitar uma mensagem que o destinatario ainda nao consegue
-    // decifrar. Nao registrar atendimento nem data sem recibo de entrega.
-    await db.from('wa_daily_return_sends').update({
-      status:'uncertain',last_error:'Aceito pela ponte; não houve confirmação de entrega no aparelho',
-    }).eq('id',id).eq('empresa_id',input.empresaId);
-    await check('send_uncertain');
-    return {ok:false,reason:'send_uncertain',sent:false,requiresManualReview:true,
-      error:'Evolution aceitou o envio, mas não confirmou entrega legível. Confira o WhatsApp antes de reenviar.'};
-  }
-  const persisted=await persistWhatsAppMessage({
-    contactNumber:notice.phone,messageText:notice.message,fromMe:true,
-    messageId:'wa-daily-'+id,source:'lexis-evolution-daily-return',empresaId:input.empresaId,
-  });
-  const now=new Date().toISOString();
-  await db.from('wa_daily_return_sends').update({
-    status:'sent',sent_at:now,last_error:persisted.ok?null:'Histórico não gravado: '+(persisted.error||'unknown'),
-  }).eq('id',id).eq('empresa_id',input.empresaId);
-  if(!persisted.ok){
-    await check('sent_history_unsaved');
-    return {ok:true,sent:true,reason:'sent_history_unsaved',processId:input.processId,requiresManualReview:true};
-  }
-  const {data:updated,error:updateError}=await db.rpc('wa_record_return',{
-    p_empresa:input.empresaId,p_processo:input.processId,p_prior:row.ultimo_retorno||null,
-    p_day:today,p_interval:input.intervalDays||settings.intervalDays,p_send:id,
-  });
-  await check(updated?'sent':'sent_dates_review');
-  return {ok:true,sent:true,reason:updated?'sent':'sent_dates_review',processId:input.processId,
-    eventAt:notice.eventAt,source:notice.source,nextReturn:updated?notice.nextReturn:null,
-    requiresManualReview:!updated,error:updateError?.message||undefined};
+  await check('queued_for_send');
+  return {ok:true,reason:'queued_for_send',sent:false,queued:true,
+    jobId:String(jobId),processId:input.processId,source:notice.source,eventAt:notice.eventAt};
+
 }
 /**
  * Scanner da carteira: filtros locais primeiro, DJEN primeiro, DataJud somente
@@ -249,6 +234,37 @@ export async function processNextDueReturn(empresaId:string,intervalDays:number,
   if(error)throw new Error('Scanner indisponível: '+error.message);
   if(!data)return {ok:true,processed:false,reason:'no_due_cases'};
   return await checkReturnSources({empresaId,processId:Number(data),mode:'due',intervalDays,today,queueOnly});
+}
+
+
+/** Consume already-verified DJEN/DataJud notices before scanning new CNJs.
+ * Runs from the signed Vercel cron and the currently connected worker, with
+ * the existing 45s/daily/hour anti-spam reservation enforced by Postgres.
+ */
+export async function dispatchPreparedDailyReturns(empresaId:string,intervalDays:number){
+  const db=await getSupabaseAdmin(),today=brazilToday();
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled||!settings.consentAttested)
+    return {ok:true,processed:false,reason:'automation_disabled'};
+  const bridge=await bridgeStatus(empresaId);
+  if(!bridge.connected)return {ok:true,processed:false,reason:'bridge_offline'};
+  const {data,error}=await db.from('wa_daily_return_checks').select('processo_id')
+    .eq('empresa_id',empresaId).eq('local_day',today).eq('mode','due')
+    .in('result',['ready_for_notice','provider_not_configured'])
+    .order('checked_at',{ascending:true}).limit(5);
+  if(error)throw new Error('Fila de comunicados indisponível: '+error.message);
+  for(const candidate of data||[]){
+    const result=await processOneDailyReturn({
+      empresaId,processId:Number(candidate.processo_id),mode:'due',
+      intervalDays,today,
+    });
+    if(result.queued||result.reason==='ready_for_notice'||result.reason==='bridge_offline')
+      return {...result,processed:true};
+    if(result.ok&&result.reason==='already_contacted_today')continue;
+    // A rejected consent or a stale proof will get its own check result.
+    if(!result.ok)return {...result,processed:true};
+  }
+  return {ok:true,processed:false,reason:'no_prepared_notices'};
 }
 
 /** Called only by a signed webhook after the inbound text was persisted in

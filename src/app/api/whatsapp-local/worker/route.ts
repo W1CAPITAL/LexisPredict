@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
+import {dispatchPreparedDailyReturns,processNextDueReturn,getDailyReturnSettings} from '@/lib/wa-daily-return-service';
 
 export const dynamic='force-dynamic';
 export const maxDuration=25;
@@ -61,6 +62,28 @@ export async function POST(req:Request){
         last_seen:new Date().toISOString(),updated_at:new Date().toISOString(),
       }).eq('empresa_id',tenant);
       return result({ok:!error},error?503:200);
+    }
+    case 'prepare':{
+      const {data:state}=await db.from('wa_local_bridges').select('state,last_seen')
+        .eq('empresa_id',tenant).maybeSingle();
+      if(state?.state!=='ready'||!state?.last_seen
+          ||Date.now()-Date.parse(state.last_seen)>45000)
+        return result({ok:true,queued:false,reason:'device_offline'});
+      const settings=await getDailyReturnSettings(tenant);
+      if(!settings.enabled||!settings.consentAttested)
+        return result({ok:true,queued:false,reason:'automation_disabled'});
+      const d=new Date(),hour=Number(new Intl.DateTimeFormat('en-GB',{
+        timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23',
+      }).format(d));
+      const weekday=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(d);
+      if(hour<9||hour>=18||['Sat','Sun'].includes(weekday))
+        return result({ok:true,queued:false,reason:'outside_business_hours'});
+      try{
+        const pending=await dispatchPreparedDailyReturns(tenant,settings.intervalDays);
+        if(pending.processed)return result({ok:true,...pending});
+        const next=await processNextDueReturn(tenant,settings.intervalDays,false);
+        return result({ok:true,queued:(next as any).queued===true,reason:next.reason});
+      }catch(e){return result({ok:false,error:String(e).slice(0,180)},503);}
     }
     case 'claim':{
       const {data,error}=await db.rpc('wa_local_claim',{p_empresa:tenant});

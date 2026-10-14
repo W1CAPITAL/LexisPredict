@@ -153,6 +153,12 @@ async function persistToDatabase(
     mergedDados.proximo_retorno = null;
   }
   payload.dados = mergedDados;
+  // Both UI edits and explicit appointments are human work; column KPI needs
+  // the same stamped dates as the JSON blob, scoped to the authenticated editor.
+  if(actorId){
+    payload.auditado_em=hojeBrasilYmd();
+    payload.auditado_por=actorId;
+  }
   for (const [dbKey, sourceKey] of Object.entries(directFields)) {
     if (dbKey === 'ultimo_retorno' || dbKey === 'proximo_retorno') continue;
     if (processed[sourceKey] !== undefined && PROCESSOS_WRITE_COLS.has(dbKey)) {
@@ -481,6 +487,8 @@ export async function registrarAtendimentoCompletoAction(input: {
       djen_nova_comunicacao: false,
       updated_at: new Date().toISOString(),
     });
+    patch.auditado_em=hoje;
+    patch.auditado_por=ctx.auth_id;
     let write = admin.from('processos').update(patch).eq('empresa_id', ctx.empresa_id).eq('id', existing.id);
     if (existing.updated_at) write = write.eq('updated_at', existing.updated_at);
     let saved = await write.select('id, ultimo_retorno, proximo_retorno').maybeSingle();

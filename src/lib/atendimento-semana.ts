@@ -134,6 +134,7 @@ export function pickDataAtendimento(c: any): string | null {
   const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
   const raw =
     c.atendido_em ??
+    c.atendido_em_json ??
     c.atendidoEm ??
     d.atendido_em ??
     d.atendidoEm ??
@@ -141,8 +142,33 @@ export function pickDataAtendimento(c: any): string | null {
   return raw != null ? String(raw) : null;
 }
 
+/** Operational work by a human: a recorded attendance or a manual edit.
+ * Such edits count toward weekly employee productivity, but do not change
+ * the customer's real last-return date or imply a message was delivered.
+ */
+export function humanWorkEvents(c:any):Array<{actor:string;date:string;kind:'contact'|'edit'}>{
+  if(!c||typeof c!=='object')return [];
+  const d=c.dados&&typeof c.dados==='object'?c.dados:{};
+  const out:Array<{actor:string;date:string;kind:'contact'|'edit'}>=[];
+  const contact=pickAtendidoPor(c),at=pickDataAtendimento(c);
+  if(contact&&at&&isAtendimentoHumano(c))out.push({actor:contact,date:at,kind:'contact'});
+  const editor=String(c.edited_by||c.edited_by_json||d.edited_by||c.auditado_por||'').trim();
+  const edited=String(c.edited_at||c.edited_at_json||d.edited_at||c.auditado_em||'').trim();
+  if(editor&&edited&&!INTERNAL_ATTENDANCE_ACTORS.has(editor.toLowerCase())&&
+    !/sistema interno|w1 control|trigger db|^sistema$|^scanner$|^cron$|^bot$/i.test(editor))
+      out.push({actor:editor,date:edited,kind:'edit'});
+  return out;
+}
+function latestHumanWork(c:any,predicate:(day:Date)=>boolean):Date|null{
+  let latest:Date|null=null;
+  for(const event of humanWorkEvents(c)){
+    const day=parseUltimoAtendimento(event.date);
+    if(day&&predicate(day)&&(!latest||day>latest))latest=day;
+  }
+  return latest;
+}
 export function casoAtendidoHoje(c: any, ref = new Date()): boolean {
-  return isAtendimentoHumano(c) && isAtendidoHoje(pickDataAtendimento(c), ref);
+  return latestHumanWork(c,d=>isAtendidoHoje(format(d,'yyyy-MM-dd'),ref))!==null;
 }
 
 export function isAtendidoNestaSemana(
@@ -158,7 +184,8 @@ export function isAtendidoNestaSemana(
 /** Aceita string OU objeto caso */
 export function casoAtendidoNestaSemana(c: any, ref = new Date()): boolean {
   if (c == null || typeof c === 'string') return false;
-  return isAtendimentoHumano(c) && isAtendidoNestaSemana(pickDataAtendimento(c), ref);
+  const {start,end}=weekBounds(ref);
+  return latestHumanWork(c,d=>isWithinInterval(d,{start,end}))!==null;
 }
 
 export type AtendimentoDia = {
@@ -179,12 +206,8 @@ export function buildAtendimentosPorDiaSemana(
   const counts = [0, 0, 0, 0, 0, 0, 0]; // sun..sat
 
   for (const c of cases || []) {
-    if (!isAtendimentoHumano(c)) continue;
-    const raw = pickDataAtendimento(c as any);
-    const d = parseUltimoAtendimento(raw);
-    if (!d) continue;
-    if (!isWithinInterval(d, { start, end })) continue;
-    counts[getDay(d)] += 1;
+    const d=latestHumanWork(c,day=>isWithinInterval(day,{start,end}));
+    if(d)counts[getDay(d)]++;
   }
 
   return ORDER_SEG_DOM.map((di) => ({
@@ -237,23 +260,21 @@ export function countAtendimentosPorUsuario(
 
   const userCounts = new Map<string, { dia: number; semana: number; mes: number }>();
 
-  for (const c of cases || []) {
-    if (!isAtendimentoHumano(c)) continue;
-    const raw = pickDataAtendimento(c);
-    if (!raw) continue;
-    const d = parseUltimoAtendimento(raw);
-    if (!d) continue;
-
-    const userId = String(pickAtendidoPor(c) || '').trim();
-    if (!userId) continue;
-
-    const entry = userCounts.get(userId) || { dia: 0, semana: 0, mes: 0 };
-
-    if (isAtendidoHoje(raw, ref)) entry.dia += 1;
-    if (isWithinInterval(d, { start: weekStart, end: weekEnd })) entry.semana += 1;
-    if (isWithinInterval(d, { start: monthStart, end: monthEnd })) entry.mes += 1;
-
-    userCounts.set(userId, entry);
+  for(const c of cases||[]){
+    // Each process counts once per human actor, regardless of repeated saves.
+    const grouped=new Map<string,Date[]>();
+    for(const event of humanWorkEvents(c)){
+      const day=parseUltimoAtendimento(event.date);
+      if(!day)continue;
+      grouped.set(event.actor,[...(grouped.get(event.actor)||[]),day]);
+    }
+    for(const [userId,days] of grouped){
+      const entry=userCounts.get(userId)||{dia:0,semana:0,mes:0};
+      if(days.some(d=>format(d,'yyyy-MM-dd')===hojeYmd))entry.dia++;
+      if(days.some(d=>isWithinInterval(d,{start:weekStart,end:weekEnd})))entry.semana++;
+      if(days.some(d=>isWithinInterval(d,{start:monthStart,end:monthEnd})))entry.mes++;
+      userCounts.set(userId,entry);
+    }
   }
 
   // Garante linha zerada para usuários da empresa (ranking estável)
@@ -318,10 +339,9 @@ export function countAtendidosSemanaDoUsuario(
   if (!userId) return 0;
   const uid = String(userId);
   return (cases || []).filter((c) => {
-    if (!casoAtendidoNestaSemana(c, ref)) return false;
-    // Só quem registrou o atendimento humano (nunca edited_by/updated_by).
-    const por = pickAtendidoPor(c);
-    return por != null && String(por) === uid;
+    const {start,end}=weekBounds(ref);
+    return humanWorkEvents(c).some(e=>{if(e.actor!==uid)return false;
+      const d=parseUltimoAtendimento(e.date);return !!d&&isWithinInterval(d,{start,end});});
   }).length;
 }
 
@@ -333,9 +353,7 @@ export function countAtendidosHojeDoUsuario(
   if (!userId) return 0;
   const uid = String(userId);
   return (cases || []).filter((c) => {
-    if (!casoAtendidoHoje(c, ref)) return false;
-    const por = pickAtendidoPor(c);
-    return por != null && String(por) === uid;
+    return humanWorkEvents(c).some(e=>e.actor===uid&&isAtendidoHoje(e.date,ref));
   }).length;
 }
 
@@ -395,7 +413,8 @@ export function isAtendidoNoPeriodo(
 
 export function casoAtendidoNoPeriodo(c: any, periodo: PeriodoRelatorio, ref = new Date()): boolean {
   if (c == null || typeof c === 'string') return false;
-  return isAtendimentoHumano(c) && isAtendidoNoPeriodo(pickDataAtendimento(c), periodo, ref);
+  const {start,end}=periodBounds(periodo,ref);
+  return latestHumanWork(c,d=>isWithinInterval(d,{start,end}))!==null;
 }
 
 export function countAtendidosNoPeriodo(cases: any[], periodo: PeriodoRelatorio, ref = new Date()): number {
@@ -427,15 +446,10 @@ export function buildAtendimentosPorDiaPeriodo(
   }
 
   for (const c of cases || []) {
-    if (!isAtendimentoHumano(c)) continue;
-    const d = parseUltimoAtendimento(pickDataAtendimento(c));
-    if (!d || !isWithinInterval(d, { start, end })) continue;
-    const ymd = format(d, 'yyyy-MM-dd');
-    const bucket = days.find((x) => x.ymd === ymd);
-    if (bucket) {
-      bucket.atendimentos += 1;
-      bucket.retornos += 1;
-    }
+    const d=latestHumanWork(c,day=>isWithinInterval(day,{start,end}));
+    if(!d)continue;
+    const bucket=days.find(x=>x.ymd===format(d,'yyyy-MM-dd'));
+    if(bucket){bucket.atendimentos++;bucket.retornos++;}
   }
   return days;
 }

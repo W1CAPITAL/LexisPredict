@@ -1,7 +1,7 @@
 'use server';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {resolveWaAutoPermissions} from '@/lib/wa-auto-permissions';
-import {getDailyReturnSettings,upsertDailyReturnSettings,processNextDueReturn,processOneDailyReturn,checkReturnSources} from '@/lib/wa-daily-return-service';
+import {getDailyReturnSettings,upsertDailyReturnSettings,processNextDueReturn,processOneDailyReturn,checkReturnSources,dispatchPreparedDailyReturns} from '@/lib/wa-daily-return-service';
 import {prepareDailyReturn,brazilToday} from '@/lib/wa-daily-return-policy';
 
 async function manager() {
@@ -17,15 +17,17 @@ export async function getWaDailyReturnDashboardAction(){
   const day=brazilToday();
   const {count}=await db.from('processos').select('id',{head:true,count:'exact'})
     .eq('empresa_id',me.empresaId).lte('proximo_retorno',day);
-  const [{count:sentToday},{count:readyToday},{count:reusedToday}]=await Promise.all([
+  const [{count:sentToday},{count:readyToday},{count:reusedToday},{count:queuedToday}]=await Promise.all([
     db.from('wa_daily_return_sends').select('id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('status','sent'),
     db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','ready_for_notice'),
     db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','recent_scan_no_new_movement'),
+    db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','queued_for_send'),
   ]);
-  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),reusedToday:Number(reusedToday||0),today:day};
+  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),reusedToday:Number(reusedToday||0),queuedToday:Number(queuedToday||0),today:day};
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 export async function saveWaDailyReturnSettingsAction(enabled:boolean,intervalDays:number) {
@@ -45,6 +47,9 @@ export async function scanNextWaReturnAction(){
 export async function scanWaReturnBatchAction(){
  try{
   const me=await manager(),settings=await getDailyReturnSettings(me.empresaId);
+  const dispatched=await dispatchPreparedDailyReturns(me.empresaId,settings.intervalDays);
+  if(dispatched.processed&&dispatched.queued)
+    return {ok:true as const,processed:true,processedCount:1,finished:false,last:dispatched,elapsedMs:0};
   const started=Date.now(),MAX=6,MAX_MS=34000,results:any[]=[];
   for(let n=0;n<MAX&&Date.now()-started<MAX_MS;n++){
    const r=await processNextDueReturn(me.empresaId,settings.intervalDays);

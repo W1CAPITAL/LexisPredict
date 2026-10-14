@@ -33,6 +33,8 @@ export function pickDataEdicaoApp(c: any): string | null {
   for (const v of [
     c.auditado_em,
     c.auditadoEm,
+    c.edited_at,
+    c.edited_at_json,
     d.auditado_em,
     d.auditadoEm,
     // legado: alguns fluxos só gravam updated_at ISO

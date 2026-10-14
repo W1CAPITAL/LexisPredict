@@ -37,6 +37,14 @@ let currentQr=null;
 let phone=null;
 let reconnectTimer=null;
 let heartbeatBusy=false;
+let prepareBusy=false;
+async function prepareScheduledNotices(){
+  if(!isReady||prepareBusy)return;
+  prepareBusy=true;
+  try{const r=await api({type:'prepare'});if(r.queued)console.log('Comunicado registrado na fila.');}
+  catch(e){console.error('Preparação automática:',String(e.message||e).slice(0,160));}
+  finally{prepareBusy=false;}
+}
 let pollingBusy=false;
 let reconnectAttempts=0;
 const receiptJobs=new Map();
@@ -155,6 +163,7 @@ async function connect(){
       reconnectAttempts=0;
       const id=String(sock.user?.id||'');
       setStatus('ready',null,digits(id));
+      setTimeout(()=>void prepareScheduledNotices(),6500);
     } else if(connection==='close'){
       isReady=false;
       const code=lastDisconnect?.error?.output?.statusCode;
@@ -174,6 +183,7 @@ async function connect(){
 }
 setInterval(()=>void heartbeat(),23000);
 setInterval(()=>void poll(),15000);
+setInterval(()=>void prepareScheduledNotices(),65000);
 process.on('SIGINT',()=>{setStatus('offline');process.exit(0);});
 process.on('SIGTERM',()=>{setStatus('offline');process.exit(0);});
 console.log('LexisPredict WA.Auto servidor hospedado — aguarde vinculação.');
