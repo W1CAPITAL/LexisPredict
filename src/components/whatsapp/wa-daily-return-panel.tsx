@@ -11,7 +11,7 @@ import {
  previewWaReturnCnjAction,scanOneWaReturnAction,scanNextWaReturnAction,
  scanWaReturnBatchAction,
 } from '@/app/actions/wa-daily-return-actions';
-type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;error?:string};
+type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;error?:string};
 const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
@@ -122,7 +122,35 @@ export function WaDailyReturnPanel(){
      {[1,3,7,14,30].map(n=><option key={n} value={n}>{n} dia{n>1?'s':''}</option>)}
     </select></label>
    <Button size="sm" variant="outline" onClick={()=>void save()} disabled={busy}>Salvar periodicidade</Button>
-   {dash?.ok?<span className="text-muted-foreground">Vencidos (total bruto): {dash.due||0} · Com novidade comprovada, aguardando envio: {dash.readyToday||0} · Na fila do WhatsApp: {dash.queuedToday||0} · Verificações recentes reaproveitadas: {dash.reusedToday||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
+  </div>
+  {dash?.ok?(
+   <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+    {([
+     ['Retornos vencidos (bruto)',dash.due||0],
+     ['Novidades verificadas',dash.readyToday||0],
+     ['Campanha ativa aguardando',dash.campaignWaiting||0],
+     ['Campanhas pausadas',dash.pausedWaiting||0],
+     ['Fila do dispositivo',dash.deviceQueued||0],
+     ['Enviados hoje',dash.sentToday||0],
+    ] as [string,number][]).map(([label,value])=>(
+     <div key={label} className="rounded-xl border bg-muted/30 p-2.5">
+      <div className="text-muted-foreground">{label}</div>
+      <strong className="text-lg tabular-nums">{value}</strong>
+     </div>
+    ))}
+    <p className="col-span-2 text-muted-foreground sm:col-span-3">
+     {dash.courtUnavailable||0} sem consulta aos tribunais nesta tentativa · {dash.needsReview||0} exigem conferência · {dash.reusedToday||0} verificações reaproveitadas.
+     Os mesmos processos podem aparecer em «novidades verificadas» e «campanha aguardando»; não some os indicadores.
+    </p>
+    <p className="col-span-2 rounded-lg border px-2.5 py-2 text-muted-foreground sm:col-span-3">
+     O scanner pode preparar novas verificações na nuvem sem esta página aberta.
+     O envio pelo WhatsApp ocorre de segunda a sexta, das 9h às 18h (horário de São Paulo).
+     Fora desse intervalo, «Fila do dispositivo» pode ficar em zero sem perder os avisos preparados.
+     Apenas o aceite confirmado pelo dispositivo atualiza «Enviados hoje».
+    </p>
+   </div>
+  ):null}
+  <div className="flex flex-wrap gap-3 items-center text-xs">
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Scanner de retornos · lotes rápidos na nuvem</p>
