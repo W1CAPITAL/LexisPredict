@@ -54,49 +54,18 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
   const text = String(input.messageText || '').trim();
   if (!text) return { ok: false, error: 'Mensagem vazia' };
 
-  const ts = input.timestamp || new Date().toISOString();
-  const mid = input.messageId || `lexis-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  // Tentativa 1: schema completo
-  const full: Record<string, any> = {
-    contact_number: num,
-    phone: num,
-    contact_name: input.contactName || null,
-    remote_jid: input.remoteJid || `${num}@s.whatsapp.net`,
-    message_id: mid,
-    message_text: text,
-    body: text,
-    from_me: !!input.fromMe,
-    direction: input.fromMe ? 'out' : 'in',
-    source: input.source || (input.fromMe ? 'lexis-send' : 'evolution-webhook'),
-    instance_name: input.instanceName || process.env.EVOLUTION_INSTANCE || 'Lexis',
-    timestamp: ts,
-  };
-  if (input.empresaId) full.empresa_id = input.empresaId;
-  if (input.raw) full.raw_payload = input.raw;
-
-  let { data, error } = await sb.from('whatsapp_messages').insert(full).select('id').maybeSingle();
-
-  if (error) {
-    // Tentativa 2: mínimo
-    const minimal: Record<string, any> = {
-      contact_number: num,
-      message_text: text,
-      from_me: !!input.fromMe,
-      timestamp: ts,
-      message_id: mid,
-      ...(input.empresaId ? { empresa_id: input.empresaId } : {}),
-    };
-    const r2 = await sb.from('whatsapp_messages').insert(minimal).select('id').maybeSingle();
-    if (r2.error) {
-      return {
-        ok: false,
-        error: r2.error.message || error.message,
-      };
+  // Conteúdos de conversas não são armazenados. Apenas SAIR permanece.
+  if(!input.fromMe && /^(SAIR|STOP|PARE)[.!? ]*$/i.test(text)){
+    const n=String(num).replace(/[^0-9]/g,'');
+    const phone=n.length===10||n.length===11?'55'+n:n;
+    if(/^55[0-9]{10,11}$/.test(phone)){
+      const {error}=await sb.from('wa_contact_optouts').upsert({
+        empresa_id:input.empresaId,phone,opted_out_at:new Date().toISOString()
+      },{onConflict:'empresa_id,phone'});
+      if(error)return {ok:false,error:'Falha ao registrar SAIR'};
     }
-    return { ok: true, id: r2.data?.id };
   }
-  return { ok: true, id: data?.id };
+  return {ok:true};
 }
 
 /** Mesma linha BR? (55, 9º dígito, formatação). */
