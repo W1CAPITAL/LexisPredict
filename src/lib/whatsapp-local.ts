@@ -49,7 +49,7 @@ export async function enqueueLocalMessage(phone:string,message:string){
   if(!n)throw new Error('Número inválido: informe DDD e telefone brasileiro.');
   if(!body||body.length>4000)throw new Error('Mensagem deve ter entre 1 e 4.000 caracteres.');
   const state=await bridgeStatus(ctx.empresa_id);
-  if(!state.connected)throw new Error('WhatsApp não conectado. Inicie a ponte no computador e escaneie o QR no CRM.');
+  if(!state.connected)throw new Error('WA.Auto desconectado. Aguarde a conexão e escaneie o QR Code no CRM.');
   const db=await getSupabaseAdmin();
   // Respect an explicit opt-out, including its legacy spelling.
   const tail=n.slice(2);

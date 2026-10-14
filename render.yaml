@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: lexispredict-wa-auto
+    runtime: node
+    plan: free
+    rootDir: workers/wa-local
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: node render-server.mjs
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: LEXIS_URL
+        value: https://lexispredict.vercel.app
+      - key: LEXIS_BRIDGE_TOKEN
+        sync: false

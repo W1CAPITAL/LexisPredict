@@ -24,12 +24,33 @@ export async function POST(req:Request){
   let body:any;
   try{
     const raw=await req.text();
-    if(raw.length>110000)return result({ok:false,error:'Payload too large'},413);
+    if(raw.length>1950000)return result({ok:false,error:'Payload too large'},413);
     body=JSON.parse(raw);
     if(!body||typeof body!=='object')throw Error('bad body');
   }catch{return result({ok:false,error:'Invalid JSON'},400);}
   const tenant=bridge.empresa_id as string;
   switch(String(body.type||'')){
+    case 'session_restore':{
+      const {data,error}=await db.from('wa_local_bridges').select('session_backup')
+        .eq('empresa_id',tenant).maybeSingle();
+      if(error)return result({ok:false,error:'Encrypted session unavailable'},503);
+      return result({ok:true,sealed:data?.session_backup||null});
+    }
+    case 'session_backup':{
+      const sealed=String(body.sealed||'');
+      if(!/^wa1:[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/.test(sealed)
+        ||sealed.length>1750000)return result({ok:false,error:'Invalid encrypted session'},400);
+      const {error}=await db.from('wa_local_bridges')
+        .update({session_backup:sealed,updated_at:new Date().toISOString()})
+        .eq('empresa_id',tenant);
+      return result({ok:!error},error?503:200);
+    }
+    case 'session_clear':{
+      const {error}=await db.from('wa_local_bridges')
+        .update({session_backup:null,updated_at:new Date().toISOString()})
+        .eq('empresa_id',tenant);
+      return result({ok:!error},error?503:200);
+    }
     case 'status':{
       const state=['offline','connecting','qr','ready','error'].includes(body.state)?body.state:'error';
       const qr=state==='qr'&&/^data:image\/png;base64,[a-zA-Z0-9+/=]+$/.test(String(body.qr||''))&&String(body.qr||'').length<90000

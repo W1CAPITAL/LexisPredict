@@ -11,6 +11,7 @@ import pino from 'pino';
 import {fileURLToPath} from 'node:url';
 import {dirname,join} from 'node:path';
 import {mkdir} from 'node:fs/promises';
+import {createSessionVault} from './session-vault.mjs';
 
 const folder=dirname(fileURLToPath(import.meta.url));
 const url=String(process.env.LEXIS_URL||'https://lexispredict.vercel.app').replace(/\/+$/,'');
@@ -28,6 +29,7 @@ async function api(data){
   if(!res.ok||!body.ok)throw Error('CRM HTTP '+res.status+': '+String(body.error||'Requisição recusada').slice(0,150));
   return body;
 }
+const vault=createSessionVault({api,token,dir:join(folder,'session')});
 let socket=null;
 let isReady=false;
 let status='connecting';
@@ -111,14 +113,23 @@ async function connect(){
   clearTimeout(reconnectTimer);
   isReady=false;
   status='connecting';currentQr=null;
-  await mkdir(join(folder,'session'),{recursive:true});
+  await vault.restore();
   const {state,saveCreds}=await useMultiFileAuthState(join(folder,'session'));
+  const keyWriter=state.keys.set.bind(state.keys);
+  state.keys.set=async(...args)=>{
+    const result=await keyWriter(...args);
+    vault.schedule();
+    return result;
+  };
   const sock=makeWASocket({
     auth:state,browser:Browsers.ubuntu('LexisPredict'),
     markOnlineOnConnect:false,syncFullHistory:false,logger:pino({level:'silent'}),
   });
   socket=sock;
-  sock.ev.on('creds.update',saveCreds);
+  sock.ev.on('creds.update',async()=>{
+    try{await saveCreds();vault.schedule();}
+    catch(e){console.error('Credenciais não persistidas:',e?.message||String(e));}
+  });
   sock.ev.on('messages.upsert',({type,messages})=>{
     if(type!=='notify')return;
     for(const msg of messages||[])void onIncoming(msg);
@@ -148,8 +159,10 @@ async function connect(){
       isReady=false;
       const code=lastDisconnect?.error?.output?.statusCode;
       if(code===DisconnectReason.loggedOut){
-        setStatus('error',null,null,'WhatsApp desvinculado: apague a pasta session e faça novo QR.');
-        console.error('Conta desvinculada. Renomeie/exclua SOMENTE a pasta session local para vincular novamente.');
+        setStatus('offline',null,null,'Sessão desvinculada. Preparando novo QR.');
+        void vault.clear()
+          .then(()=>setTimeout(()=>void connect().catch(e=>console.error('Novo QR:',e.message)),4000))
+          .catch(e=>console.error('Não foi possível limpar a sessão antiga:',e.message));
         return;
       }
       setStatus('offline');
@@ -159,9 +172,9 @@ async function connect(){
     }
   });
 }
-setInterval(()=>void heartbeat(),12000);
-setInterval(()=>void poll(),2500);
+setInterval(()=>void heartbeat(),23000);
+setInterval(()=>void poll(),15000);
 process.on('SIGINT',()=>{setStatus('offline');process.exit(0);});
 process.on('SIGTERM',()=>{setStatus('offline');process.exit(0);});
-console.log('LexisPredict WA Local; mantenha este computador ligado.');
+console.log('LexisPredict WA.Auto servidor hospedado — aguarde vinculação.');
 await connect();
