@@ -17,17 +17,50 @@ export async function getWaDailyReturnDashboardAction(){
   const day=brazilToday();
   const {count}=await db.from('processos').select('id',{head:true,count:'exact'})
     .eq('empresa_id',me.empresaId).lte('proximo_retorno',day);
-  const [{count:sentToday},{count:readyToday},{count:reusedToday},{count:queuedToday}]=await Promise.all([
+  // Each counter has its own lifecycle. "ready_for_notice" is a confirmed
+  // candidate, NOT a pending device job. Campaign dispatches can overlap
+  // ready cases: never sum the cards to claim unique recipients.
+  const [
+    {count:sentToday,error:sentError},
+    {count:readyToday,error:readyError},
+    {count:reusedToday,error:reusedError},
+    {count:deviceJobs,error:deviceError},
+    {count:activeCampaign,error:campaignError},
+    {count:pausedCampaign,error:pausedError},
+    {count:sourceUnavailable,error:sourceError},
+    {count:sourceReview,error:reviewError},
+  ]=await Promise.all([
     db.from('wa_daily_return_sends').select('id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('status','sent'),
     db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','ready_for_notice'),
     db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
       .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','recent_scan_no_new_movement'),
+    db.from('wa_local_jobs').select('id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).in('status',['pending','claimed']),
+    db.from('wa_movement_dispatches')
+      .select('id,wa_movement_campaigns!inner(status)',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).in('status',['pending','processing'])
+      .eq('wa_movement_campaigns.status','running'),
+    db.from('wa_movement_dispatches')
+      .select('id,wa_movement_campaigns!inner(status)',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).in('status',['pending','processing'])
+      .eq('wa_movement_campaigns.status','paused'),
     db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
-      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','queued_for_send'),
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','court_unavailable'),
+    db.from('wa_daily_return_checks').select('processo_id',{head:true,count:'exact'})
+      .eq('empresa_id',me.empresaId).eq('local_day',day).eq('mode','due').eq('result','needs_source_review'),
   ]);
-  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),reusedToday:Number(reusedToday||0),queuedToday:Number(queuedToday||0),today:day};
+  const failed=[sentError,readyError,reusedError,deviceError,campaignError,pausedError,sourceError,reviewError]
+    .find(Boolean);
+  if(failed)throw new Error('Não foi possível consultar as filas: '+failed.message);
+  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays},
+    due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),
+    reusedToday:Number(reusedToday||0),
+    queuedToday:Number(deviceJobs||0),deviceQueued:Number(deviceJobs||0),
+    campaignWaiting:Number(activeCampaign||0),pausedWaiting:Number(pausedCampaign||0),
+    courtUnavailable:Number(sourceUnavailable||0),needsReview:Number(sourceReview||0),
+    today:day};
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 export async function saveWaDailyReturnSettingsAction(enabled:boolean,intervalDays:number) {
