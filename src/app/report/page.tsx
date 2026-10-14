@@ -36,7 +36,9 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
-import { fetchRepoCases, fetchRepoNotes } from "@/app/actions/case-actions";
+import { fetchRepoNotes } from "@/app/actions/case-actions";
+import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
+import {peekCarteiraCache,writeCarteiraCache} from '@/lib/session-carteira-cache';
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils"
 import {
@@ -78,6 +80,8 @@ export default function UnifiedReport() {
   const [notes, setNotes] = useState<CaseNote[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [dataComplete,setDataComplete]=useState(false);
+  const [loadError,setLoadError]=useState('');
   const [periodo, setPeriodo] = useState<PeriodoRelatorio>("esta_semana");
   const [mounted, setMounted] = useState(false);
   const [claudeText, setClaudeText] = useState("");
@@ -91,34 +95,67 @@ export default function UnifiedReport() {
 
   const { profile, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    setMounted(true);
-    async function load() {
-      try {
-        const [casesData, notesData, finSum, finRows] = await Promise.all([
-          fetchRepoCases(),
-          fetchRepoNotes(),
-          resumoFinanceiroAction(),
-          listHonorariosAction({ limit: 60 }),
-        ]);
-        setLocalCases(casesData || []);
-        setCases(casesData || []);
-        setNotes(notesData || []);
-        if (finSum.success) setFinanceResumo(finSum.resumo);
-        if (finRows.success) setFinanceRows(finRows.rows);
-
-        const savedInsights = localStorage.getItem('lexisPredict_notes_analysis');
-        if (savedInsights) {
-           try { setIaInsights(JSON.parse(savedInsights)); } catch(e) {}
-        }
-      } catch (e) {
-        console.error("Report extraction failure:", e);
-      } finally {
-        setLoading(false);
-      }
+  useEffect(()=>{setMounted(true);},[]);
+  useEffect(()=>{
+    const empresaId=String(profile?.empresa_id||'');
+    const userId=String(profile?.auth_user_id||'');
+    if(!mounted||authLoading||!empresaId||!userId)return;
+    let active=true;
+    const scope=checkIfSuperAdmin(profile)||checkIfSupervisor(profile)?'empresa':'mine';
+    setLoadError('');
+    const cached=peekCarteiraCache(empresaId,scope,userId,'report');
+    if(cached?.cases?.length){
+      const rows=cached.cases as LegalCase[];
+      setLocalCases(rows);setCases(rows);setLoading(false);
+      setDataComplete(cached.complete&&cached.ageMs<3*60_000);
+    }else{setLoading(true);setDataComplete(false);}
+    const publish=(rows:LegalCase[])=>{
+      if(!active)return;
+      React.startTransition(()=>{
+        setLocalCases(rows);setCases(rows);setLoading(false);
+      });
+    };
+    // Financeiro e notas não bloqueiam o primeiro paint do dossiê.
+    const extraTimer=window.setTimeout(()=>{
+      void Promise.allSettled([
+        fetchRepoNotes(),resumoFinanceiroAction(),listHonorariosAction({limit:60}),
+      ]).then(results=>{
+        if(!active)return;
+        const [notesResult,finResult,rowsResult]=results;
+        if(notesResult.status==='fulfilled')setNotes(notesResult.value||[]);
+        if(finResult.status==='fulfilled'&&finResult.value.success)setFinanceResumo(finResult.value.resumo);
+        if(rowsResult.status==='fulfilled'&&rowsResult.value.success)setFinanceRows(rowsResult.value.rows);
+      });
+    },400);
+    try{
+      const insights=localStorage.getItem('lexisPredict_notes_analysis');
+      if(insights)setIaInsights(JSON.parse(insights));
+    }catch{}
+    if(cached?.complete&&cached.ageMs<3*60_000){
+      setDataComplete(true);
+      return ()=>{active=false;window.clearTimeout(extraTimer);};
     }
-    if (mounted && !authLoading) load();
-  }, [mounted, authLoading, setCases]);
+    void fetchCarteiraAllClient({
+      empresaId,userId,scope,firstPageSize:36,pageSize:220,maxRows:10000,
+      shouldContinue:()=>active,
+      onPage:(rows,page)=>{
+        if(!active)return;
+        if(page===0||page%2===0)publish(rows);
+      },
+    }).then(rows=>{
+      if(!active)return;
+      publish(rows);
+      const complete=(rows as any).__incomplete!==true;
+      setDataComplete(complete);
+      if(complete)writeCarteiraCache(rows,empresaId,scope,userId,'report',true);
+      else setLoadError('A carteira está incompleta; conclua a sincronização para exportar o relatório.');
+    }).catch(e=>{
+      if(!active)return;
+      setLoadError(e instanceof Error?e.message:'Falha ao carregar a carteira.');
+      setLoading(false);setDataComplete(false);
+    });
+    return ()=>{active=false;window.clearTimeout(extraTimer);};
+  },[mounted,authLoading,profile?.empresa_id,profile?.auth_user_id,setCases]);
 
   const metrics = useMemo(() => {
     const u = computeKpiUnificado(cases as any);
@@ -287,6 +324,7 @@ export default function UnifiedReport() {
   };
 
   const handleGenerateClaude = async () => {
+    if(!dataComplete)return;
     setClaudeLoading(true);
     setClaudeError("");
     setClaudeReady(false);
@@ -313,6 +351,7 @@ export default function UnifiedReport() {
   };
 
   const handlePrint = () => {
+    if(!dataComplete)return;
     /* PDF pode exportar sem parecer IA */
     // if (!claudeReady) return;
     const d = new Date().toLocaleString("pt-BR");
@@ -321,6 +360,7 @@ export default function UnifiedReport() {
   };
 
   const handleDownloadRelatorioEquipe = async () => {
+    if(!dataComplete)return;
     if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
     setPdfLoading(true);
     try {
@@ -348,6 +388,7 @@ export default function UnifiedReport() {
   };
 
   const handleDownloadPdf = async () => {
+    if(!dataComplete)return;
     if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
     setPdfLoading(true);
     try {
@@ -439,14 +480,16 @@ export default function UnifiedReport() {
 
   return (
     <div className="min-h-screen lexis-report-root font-sans text-foreground">
-
+      {!dataComplete&&<div role="status" className="print:hidden border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
+        {loadError||'Exibindo dados parciais enquanto consolida o restante da carteira. Exportações ficam suspensas até terminar.'}
+      </div>}
       <div className="print:hidden sticky top-0 z-[100] bg-background/90 backdrop-blur-xl border-b border-border p-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-6">
             <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-border rounded-lg">
               <Link href="/"><ArrowLeft size={16} className="mr-2" /> Gabinete</Link>
             </Button>
-            <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">Sincronia Omni 100%</Badge>
+            <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">{dataComplete?'Carteira consolidada':'Atualizando carteira'}</Badge>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-2">
               {PERIODO_OPCOES.map((op) => (
@@ -470,7 +513,7 @@ export default function UnifiedReport() {
           <div className="flex items-center gap-3 flex-wrap">
             <Button
               onClick={handleGenerateClaude}
-              disabled={claudeLoading}
+              disabled={claudeLoading||!dataComplete}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
             >
               {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
@@ -478,7 +521,7 @@ export default function UnifiedReport() {
             </Button>
             <Button
               onClick={handleDownloadRelatorioEquipe}
-              disabled={pdfLoading}
+              disabled={pdfLoading||!dataComplete}
               className="bg-foreground hover:bg-foreground/90 text-background font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
             >
               {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
@@ -486,7 +529,7 @@ export default function UnifiedReport() {
             </Button>
             <Button
               onClick={handleDownloadPdf}
-              disabled={pdfLoading}
+              disabled={pdfLoading||!dataComplete}
               className="bg-success hover:bg-success/90 text-success-foreground font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
             >
               {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
@@ -494,7 +537,7 @@ export default function UnifiedReport() {
             </Button>
             <Button
               onClick={handlePrint}
-              disabled={false}
+              disabled={!dataComplete}
               title={claudeReady ? "Exportar PDF com parecer IA" : "Exportar PDF (parecer IA opcional)"}
               className={cn(
                 "font-black uppercase text-[10px] h-10 px-8 rounded-lg transition-all",

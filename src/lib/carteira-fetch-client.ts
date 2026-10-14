@@ -5,11 +5,27 @@ const KEY='lexis_carteira_client_v4';
 const TTL_MS=30*60*1000;
 type Box={at:number;empresaKey:string;cases:LegalCase[]};
 let box:Box|null=null; let inflight:Promise<LegalCase[]>|null=null; let inflightKey='';
+// HTTP remains no-store: this cache lives only in the current logged-in tab.
+// Keys include both tenant and authenticated user, never phone or a global key.
+const PAGE_TTL_MS=3*60*1000;
+type PageSnapshot={at:number;rows:LegalCase[]};
+const pageMemory=new Map<string,PageSnapshot>();
+const pendingPages=new Map<string,Promise<LegalCase[]>>();
+function cacheGeneration(){
+ try{return typeof window!=='undefined'?localStorage.getItem('lexis_carteira_invalidation_v1')||'':'';}
+ catch{return '';}
+}
+function pageCacheKey(opts:{empresaId:string;userId?:string;scope?:string;limit:number;offset:number;includeDetails?:boolean}){
+ return opts.userId?[opts.empresaId,opts.userId,opts.scope||'mine',opts.limit,opts.offset,opts.includeDetails?'detail':'list',cacheGeneration()].join(':'):'';
+}
 function read(_key:string):Box|null{return null;}
 function write(_v:Box){/* Avoid blocking localStorage serialization of legal records. */}
 export function peekCarteiraClientCache(empresaKey='default'):LegalCase[]|null{const b=box&&box.empresaKey===empresaKey?box:read(empresaKey);if(!b)return null;box=b;return Date.now()-b.at<TTL_MS?b.cases:null;}
 export function seedCarteiraClientCache(cases:LegalCase[],empresaKey='default'){box={at:Date.now(),empresaKey,cases:Array.isArray(cases)?cases:[]};if(box.cases.length)write(box);}
-export function invalidateCarteiraClientCache(){box=null;inflight=null;inflightKey='';try{localStorage.removeItem(KEY);}catch{}}
+export function invalidateCarteiraClientCache(){
+ box=null;inflight=null;inflightKey='';pageMemory.clear();pendingPages.clear();
+ try{localStorage.removeItem(KEY);localStorage.setItem('lexis_carteira_invalidation_v1',String(Date.now()));}catch{}
+}
 export async function fetchCarteiraDeduped(fetchFn:()=>Promise<LegalCase[]|null|undefined>,opts?:{force?:boolean;empresaKey?:string}):Promise<LegalCase[]>{
  const key=opts?.empresaKey||'default'; const cached=peekCarteiraClientCache(key);
  if(!opts?.force&&cached)return cached;
@@ -73,15 +89,25 @@ function rowToLegalCase(item: any): LegalCase {
  */
 export async function fetchCarteiraPageClient(opts: {
   empresaId: string;
+  userId?: string;
   limit?: number;
   offset?: number;
   onlyAtivos?: boolean;
   includeDetails?: boolean;
   scope?: 'mine' | 'empresa';
+  force?: boolean;
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
   const limit = Math.max(1, Math.min(Number(opts.limit || 200), 400));
   const offset = Math.max(0, Number(opts.offset || 0));
+  const key=pageCacheKey({...opts,limit,offset});
+  if(key&&!opts.force){
+    const hit=pageMemory.get(key);
+    if(hit&&Date.now()-hit.at<PAGE_TTL_MS)return hit.rows;
+    const pending=pendingPages.get(key);
+    if(pending)return pending;
+  }
+  const request=async()=>{
   const qs = new URLSearchParams({
     scope: opts.scope || 'mine',
     limit: String(limit),
@@ -104,6 +130,22 @@ export async function fetchCarteiraPageClient(opts: {
     throw new Error(result?.error || 'Falha ao consultar a carteira.');
   }
   return result.cases as LegalCase[];
+  };
+  // Never cache pages without a real user id: avoiding cross-account reuse is
+  // more important than deduplicating unauthenticated calls.
+  const promise=request();
+  if(!key)return promise;
+  pendingPages.set(key,promise);
+  try{
+    const rows=await promise;
+    if(cacheGeneration()===key.split(':').at(-1)){
+      pageMemory.set(key,{rows,at:Date.now()});
+      if(pageMemory.size>40)pageMemory.delete(pageMemory.keys().next().value!);
+    }
+    return rows;
+  }finally{
+    if(pendingPages.get(key)===promise)pendingPages.delete(key);
+  }
 }
 
 export function mergeCarteiraPages(
@@ -140,6 +182,7 @@ export function mergeCarteiraPages(
  */
 export async function fetchCarteiraAllClient(opts: {
   empresaId: string;
+  userId?: string;
   pageSize?: number;
   firstPageSize?: number;
   onlyAtivos?: boolean;
@@ -147,6 +190,7 @@ export async function fetchCarteiraAllClient(opts: {
   onPage?: (cases: LegalCase[], page: number) => void;
   onError?: (error: unknown) => void;
   scope?: "mine" | "empresa";
+  shouldContinue?: () => boolean;
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
   const pageSize = Math.max(40, Math.min(Number(opts.pageSize || 160), 250));
@@ -157,11 +201,15 @@ export async function fetchCarteiraAllClient(opts: {
   let all: LegalCase[] = [];
 
   while (offset < maxRows) {
+    if(opts.shouldContinue&&!opts.shouldContinue()){
+      return Object.assign(all,{__incomplete:true});
+    }
     const limit = Math.min(page === 0 ? firstSize : pageSize, maxRows - offset);
     let next: LegalCase[];
     try {
       next = await fetchCarteiraPageClient({
         empresaId: opts.empresaId,
+        userId: opts.userId,
         limit,
         offset,
         onlyAtivos: opts.onlyAtivos,

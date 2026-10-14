@@ -97,6 +97,8 @@ export function writeCarteiraCache(
 
 export function invalidateCarteiraCache() {
   memory.clear();
+  // Revoga os snapshots HTTP da mesma carteira após edições e logout.
+  try{if(typeof window!=='undefined')localStorage.setItem('lexis_carteira_invalidation_v1',String(Date.now()));}catch{}
   const s = storage();
   if (s) {
     try {

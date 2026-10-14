@@ -301,11 +301,12 @@ export async function getStoredCasesPageForEmpresa(
   limit = 250,
   offset = 0,
   isAdmin = false,
-  opts?: { onlyAtivos?: boolean; includeDetails?: boolean; companyReadOnly?: boolean }
+  opts?: { onlyAtivos?: boolean; includeDetails?: boolean; companyReadOnly?: boolean;
+  validatedContext?: Awaited<ReturnType<typeof getUserContext>> }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
   try {
-    const context = await getUserContext();
+    const context = opts?.validatedContext || await getUserContext();
     if (!context.auth_id || !context.empresa_id || String(context.empresa_id) !== String(empresaId)) return [];
     // Server-side pagination through the trusted tenant-scoped admin client
     // avoids anonymous-browser RLS ambiguity. Scope is STILL derived on server.

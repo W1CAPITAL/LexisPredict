@@ -158,6 +158,7 @@ export default function TarefasPage() {
   const LIST_PAGE_SIZE = 80;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
+  const aliveRef=React.useRef(true);
   const [syncingCases, setSyncingCases] = useState(false);
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
@@ -281,6 +282,8 @@ export default function TarefasPage() {
       await loadCarteiraComCache({
         fetchNetwork: () => fetchCarteiraAllClient({
           empresaId,
+          userId:authUserId,
+          shouldContinue:()=>aliveRef.current,
           firstPageSize: 36,
           pageSize: 300,
           scope: taskCaseScope,
@@ -321,7 +324,11 @@ export default function TarefasPage() {
     }
   }, [empresaId, authUserId, taskCaseScope]);
 
-  useEffect(() => { if (mounted) loadData(); }, [loadData, mounted]);
+  useEffect(() => {
+    aliveRef.current=true;
+    if(mounted)void loadData();
+    return ()=>{aliveRef.current=false;};
+  }, [loadData,mounted]);
 
   const handleSingleScan = async (protocolo: string) => {
     if (!protocolo) return;

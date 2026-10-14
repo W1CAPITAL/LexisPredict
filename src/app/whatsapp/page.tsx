@@ -240,11 +240,10 @@ function WhatsAppTerminalInner() {
     [tribunalMovimentos, djenComunicacoes]
   );
 
+  // /api/carteira/fast already normalizes records on the server. Running
+  // processarCaso again for each row doubled CPU work at every page load.
   const mapCases = (items: any[]): LegalCase[] =>
-    items.filter((item: any) => item != null).map((item: any) => {
-      try { return processarCaso({...item}) as LegalCase; }
-      catch { return item as LegalCase; }
-    });
+    items.filter((item: any): item is LegalCase => item != null);
   const loadCases = useCallback(async () => {
     if(!empresaId||!authUserId){setLoading(false);return;}
     const snapshot=peekCarteiraCache(empresaId,'empresa',authUserId,'whatsapp-portfolio');
@@ -256,7 +255,7 @@ function WhatsAppTerminalInner() {
       if(snapshot.ageMs<3*60_000)return;
     } else setLoading(true);
     try {
-      const response=await fetchCarteiraPageClient({empresaId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:0});
+      const response=await fetchCarteiraPageClient({empresaId,userId:authUserId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:0});
       const page=mapCases(response);
       setCases(old=>{
         const merged=mergeCarteiraPages(page,old);
@@ -273,7 +272,7 @@ function WhatsAppTerminalInner() {
     if(loading||loadingMoreCases||!hasMoreCases||!empresaId)return;
     setLoadingMoreCases(true);
     try {
-      const page=await fetchCarteiraPageClient({empresaId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:cases.length});
+      const page=await fetchCarteiraPageClient({empresaId,userId:authUserId,scope:'empresa',limit:WHATSAPP_PAGE_SIZE,offset:cases.length});
       setCases(prev=>{
         const merged=mergeCarteiraPages(prev,mapCases(page));
         writeCarteiraCache(merged,empresaId,'empresa',authUserId,'whatsapp-portfolio',false);

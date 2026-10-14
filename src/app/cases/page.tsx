@@ -314,6 +314,7 @@ function CasesContent() {
         fetchNetwork: async () => {
           const page = await fetchCarteiraPageClient({
             empresaId,
+            userId:authUserId,
             limit: INITIAL_PAGE_SIZE,
             offset: 0,
             includeDetails: true,
@@ -362,6 +363,7 @@ function CasesContent() {
       const current = useAppStore.getState().cases as LegalCase[];
       const page = await fetchCarteiraPageClient({
         empresaId: empId,
+        userId:authUserId,
         limit: REMOTE_PAGE_SIZE,
         includeDetails: true,
         offset: current.length,
@@ -389,13 +391,9 @@ function CasesContent() {
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  // Fill the first few screens progressively, without forcing a transfer of
-  // the entire company's detailed JSON or blocking route navigation.
-  useEffect(() => {
-    if (!initialPageReady || loading || loadingMoreRemote || !remoteHasMore || cases.length >= 350 || !authUserId) return;
-    const id = window.setTimeout(() => void loadMoreFromSupabase(), 350);
-    return () => window.clearTimeout(id);
-  }, [initialPageReady, loading, loadingMoreRemote, remoteHasMore, cases.length, authUserId, loadMoreFromSupabase]);
+  // Download additional detailed JSON only after an explicit user request.
+  // Company-wide search stays server-side and can locate any CNJ/name.
+  // Prior behavior downloaded ~350 detailed records after every mount.
 
   useEffect(() => {
     if (searchParams.get('new') === '1' && isOperador) {

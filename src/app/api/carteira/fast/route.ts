@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         companyReadOnly: scope === 'empresa',
         onlyAtivos: false,
         includeDetails,
+        validatedContext: ctx,
       }),
       // RPC runs one indexed SQL aggregation in Postgres, not three large JSON
       // downloads over the network. It is callable only with service_role.
