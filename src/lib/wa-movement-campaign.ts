@@ -5,7 +5,7 @@
 import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
-import { waAutoForOwner, sendViaWaAuto, waAutoDeliveryConfirmed } from '@/lib/wa-auto-client';
+import { evolutionForOwner, evolutionDelivered } from '@/lib/evolution-bridge';
 import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
@@ -92,8 +92,8 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
     // Health must use the SAME server credential as the background dispatch.
     // A browser-connected session alone did not validate automated sends (401).
-    const health = await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
-    if (!health.ok) throw new Error('Conecte o WA.Auto antes de iniciar. ' + (health.error || 'Sessão indisponível'));
+    const health = await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
+    if (!health.ok) throw new Error('Conecte a Evolution antes de iniciar. ' + (health.error || 'Sessão indisponível'));
     const db=await getSupabaseAdmin();
     const {data: existing} = await db.from('wa_movement_campaigns').select('id')
       .eq('empresa_id',ctx.empresa_id).eq('status','running').limit(1);
@@ -166,7 +166,7 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
     if(error||!campaign) throw new Error('Campanha não encontrada nesta empresa.');
     if(action==='resume' && campaign.status!=='paused') throw new Error('Só é possível retomar campanhas pausadas.');
     if(action==='resume') {
-      const health=await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
+      const health=await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
       if(!health.ok) throw new Error('Conecte seu WhatsApp nesta empresa antes de retomar. '+(health.error||''));
       const {data:other}=await db.from('wa_movement_campaigns').select('id')
         .eq('empresa_id',ctx.empresa_id).eq('status','running').neq('id',id).limit(1);
@@ -243,18 +243,17 @@ export async function deliverNextMovement(options: { campaignId?: string; verifi
       .eq('id',claimed.id).eq('status','processing');
     return {ok:true as const,processed:false as const,reason:'contact_or_quota_reserved'};
   }
-  const send=options.verifiedOwner ? await sendViaWaAuto(claimed.phone,check.alert.message)
-    : await waAutoForOwner(campaign.owner_auth_id,campaign.empresa_id,claimed.phone,check.alert.message);
-  const delivered=send.ok && waAutoDeliveryConfirmed(send.raw);
+  const send=await evolutionForOwner(campaign.owner_auth_id,campaign.empresa_id,claimed.phone,check.alert.message);
+  const delivered=send.ok && evolutionDelivered(send.raw);
   // Aceite HTTP nao prova que o aparelho recebeu/decifrou a mensagem.
   const result=delivered?'sent':send.ok?'uncertain':send.rejected?'failed':'uncertain';
-  const failure=send.ok&&!delivered?'Aceito pelo WA.Auto, entrega não confirmada':(send.ok?null:send.error);
+  const failure=send.ok&&!delivered?'Aceito pela Evolution, entrega não confirmada':(send.ok?null:send.error);
   await db.from('wa_daily_return_sends').update({status:delivered?'sent':send.rejected?'rejected':'uncertain',
     sent_at:delivered?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
   let historyWarning:string|null=null;
   if(delivered) {
     const history=await persistWhatsAppMessage({contactNumber:claimed.phone,messageText:check.alert.message,
-      fromMe:true,source:'lexis-waauto-movement',empresaId:campaign.empresa_id,
+      fromMe:true,source:'lexis-evolution-movement',empresaId:campaign.empresa_id,
       messageId:'wa-return-'+reservation,raw:send.raw});
     if(history.ok){
       const recorded=await db.rpc('wa_record_return',{p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,
@@ -282,8 +281,8 @@ export async function deliverMovementFromOperator(campaignId:string) {
     if(!campaign) throw new Error('Campanha inexistente nesta empresa.');
     if(campaign.status !== 'running') return {ok:false as const,error:'Campanha pausada; nenhum envio realizado.'};
     if(campaign.owner_auth_id !== ctx.auth_id) {
-      const health=await waAutoForOwner(ctx.auth_id,ctx.empresa_id);
-      if(!health.ok) throw new Error('Conecte seu WA.Auto para assumir esta campanha.');
+      const health=await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
+      if(!health.ok) throw new Error('Conecte a Evolution para assumir esta campanha.');
       const {error:transfer}=await db.from('wa_movement_campaigns')
         .update({owner_auth_id:ctx.auth_id,updated_at:new Date().toISOString()})
         .eq('id',campaign.id).eq('empresa_id',ctx.empresa_id).eq('status','running');

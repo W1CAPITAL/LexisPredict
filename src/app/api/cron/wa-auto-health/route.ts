@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {timingSafeEqual} from 'node:crypto';
 import {getSupabaseAdmin} from '@/lib/server-db';
-import {waAutoForOwner} from '@/lib/wa-auto-client';
+import {evolutionForOwner} from '@/lib/evolution-bridge';
 import {resolveWaAutoPermissions} from '@/lib/wa-auto-permissions';
 
 export const dynamic='force-dynamic';
@@ -32,7 +32,7 @@ export async function GET(request:Request){
         checked.push({ok:false,reason:'unverified_owner'});
         continue;
       }
-      const result=await waAutoForOwner(config.owner_auth_id,config.empresa_id);
+      const result=await evolutionForOwner(config.owner_auth_id,config.empresa_id);
       checked.push({ok:result.ok===true,
         status:result.ok?'ready':'offline',
         httpStatus:result.ok?200:(result.httpStatus||null),

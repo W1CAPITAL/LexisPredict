@@ -435,11 +435,17 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
     try {
       const res = await postSendText(number, text, presenceDelay, dest.isGroup);
       if (res.ok) {
+        const payload = await res.json().catch(() => null);
+        if (!payload || typeof payload !== 'object' || !(payload as any)?.key?.id && !(payload as any)?.data?.key?.id) {
+          throw new Error('Evolution não confirmou o identificador da mensagem. Verifique o chat; não reenviar automaticamente.');
+        }
         antibanRecordSuccess(text);
-        return res.json().catch(() => ({ ok: true }));
+        return payload;
       }
       const body = await res.text().catch(() => '');
-      lastErr = `Evolution HTTP ${res.status}: ${body.slice(0, 280)}`;
+      lastErr = /<html|<!doctype|service suspended/i.test(body.slice(0,300))
+        ? `Evolution HTTP ${res.status}: hospedagem indisponível`
+        : `Evolution HTTP ${res.status}: ${body.slice(0,280)}`;
 
       // Erros típicos ao misturar grupo no Manager + envio 1:1
       if (/Connection Closed|not connected|closed|offline/i.test(body)) {
@@ -467,13 +473,12 @@ export async function sendTextMessage(to: string, message: string): Promise<any>
               : '';
         throw new Error(lastErr + hint);
       }
+      // Once any send POST was made, retrying can duplicate a delivered message.
+      throw new Error(lastErr + ' — verifique o chat antes de repetir o envio.');
     } catch (e: any) {
       lastErr = e?.message || String(e);
-      const retryable =
-        /HTTP 50|HTTP 400|HTTP 408|timeout|fetch failed|ECONNRESET|network|not connected|connection closed|Failed to fetch/i.test(
-          lastErr
-        );
-      if (!retryable) throw e;
+      // Timeout or server error after POST: never duplicate a potentially accepted send.
+      throw new Error(lastErr + ' — envio inconclusivo; confira o chat antes de repetir.');
     }
   }
 

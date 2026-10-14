@@ -1,6 +1,6 @@
 import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
-import {waAutoForOwner,waAutoDeliveryConfirmed} from '@/lib/wa-auto-client';
+import {evolutionForOwner,evolutionDelivered} from '@/lib/evolution-bridge';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
 import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
@@ -68,16 +68,16 @@ export async function processOneDailyReturn(input:{
   if(!id){await check('already_contacted_today');return {ok:true,reason:'already_contacted_today',sent:false};}
   // No automatic resend after a timeout: the remote WA.Auto might have
   // accepted the message even when the server did not receive the answer.
-  const send=await waAutoForOwner(String(settings.ownerAuthId||''),input.empresaId,notice.phone,notice.message);
+  const send=await evolutionForOwner(String(settings.ownerAuthId||''),input.empresaId,notice.phone,notice.message);
   if(!send.ok){
     await db.from('wa_daily_return_sends').update({
-      status:send.rejected?'rejected':'uncertain',last_error:String(send.error||'WA Auto timeout').slice(0,200),
+      status:send.rejected?'rejected':'uncertain',last_error:String(send.error||'Evolution timeout').slice(0,200),
     }).eq('id',id).eq('empresa_id',input.empresaId);
     const failure=send.rejected?'send_rejected':'send_uncertain';
     await check(failure);
     return {ok:false,reason:failure,error:send.error,sent:false,requiresManualReview:!send.rejected};
   }
-  if(!waAutoDeliveryConfirmed(send.raw)) {
+  if(!evolutionDelivered(send.raw)) {
     // A API pode aceitar uma mensagem que o destinatario ainda nao consegue
     // decifrar. Nao registrar atendimento nem data sem recibo de entrega.
     await db.from('wa_daily_return_sends').update({
@@ -85,11 +85,11 @@ export async function processOneDailyReturn(input:{
     }).eq('id',id).eq('empresa_id',input.empresaId);
     await check('send_uncertain');
     return {ok:false,reason:'send_uncertain',sent:false,requiresManualReview:true,
-      error:'WA.Auto aceitou o envio, mas não confirmou entrega legível. Confira o WhatsApp antes de reenviar.'};
+      error:'Evolution aceitou o envio, mas não confirmou entrega legível. Confira o WhatsApp antes de reenviar.'};
   }
   const persisted=await persistWhatsAppMessage({
     contactNumber:notice.phone,messageText:notice.message,fromMe:true,
-    messageId:'wa-daily-'+id,source:'lexis-waauto-daily-return',empresaId:input.empresaId,
+    messageId:'wa-daily-'+id,source:'lexis-evolution-daily-return',empresaId:input.empresaId,
   });
   const now=new Date().toISOString();
   await db.from('wa_daily_return_sends').update({

@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { WaAutoConnectionCard } from "@/components/whatsapp/wa-auto-connection-card";
+import { EvolutionConnectionCard } from "@/components/whatsapp/evolution-connection-card";
 import { MovementCampaignControl } from "@/components/whatsapp/movement-campaign-control";
 import { WaDailyReturnPanel } from "@/components/whatsapp/wa-daily-return-panel";
 import {
@@ -292,13 +292,13 @@ function WhatsAppTerminalInner() {
       const detail=(event as CustomEvent<{ready:boolean}>).detail;
       if(typeof detail?.ready==='boolean'){
         setEvolutionOk(detail.ready);
-        setBridgeProvider('waauto');
+        setBridgeProvider('evolution');
       }
     };
-    window.addEventListener('lexis-waauto-status',onWaStatus);
+    window.addEventListener('lexis-evolution-status',onWaStatus);
     return () => {
       active = false;
-      window.removeEventListener('lexis-waauto-status',onWaStatus);
+      window.removeEventListener('lexis-evolution-status',onWaStatus);
     };
   }, []);
 
@@ -1102,7 +1102,7 @@ function WhatsAppTerminalInner() {
               resolve({
                 success: false,
                 message:
-                  "Tempo esgotado (90s). Confira a conversa no WA.Auto antes de tentar novamente para evitar duplicidade.",
+                  "Tempo esgotado (90s). Confira o chat Evolution antes de tentar novamente para evitar duplicidade.",
               }),
             90000
           )
@@ -1185,8 +1185,8 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  {bridgeProvider==='waauto' && evolutionOk===true
-                    ? 'Andamentos · IA · histórico · WA.Auto conectado'
+                  {bridgeProvider==='evolution' && evolutionOk===true
+                    ? 'Andamentos · IA · histórico · Evolution conectada'
                     : 'Andamentos · IA · histórico · confirme a conexão WhatsApp'}
                 </p>
               </div>
@@ -1219,7 +1219,7 @@ function WhatsAppTerminalInner() {
               </Button>
               {evolutionOk === true && (
                 <Badge className="bg-emerald-600 text-[9px] uppercase">
-                  {bridgeProvider === "waauto" ? "WA.Auto online" : "Evolution online"}
+                  Evolution online
                 </Badge>
               )}
               {evolutionOk === false && (
@@ -1241,7 +1241,7 @@ function WhatsAppTerminalInner() {
             </div>
           </header>
 
-          <WaAutoConnectionCard />
+          <EvolutionConnectionCard />
 
           <div className="flex-1 min-h-[560px] grid grid-cols-1 grid-rows-[minmax(120px,25dvh)_minmax(0,1fr)] md:grid-cols-12 md:grid-rows-1 overflow-hidden" style={{height:"min(760px, max(560px, calc(100dvh - 235px)))"}}>
             {/* Lista */}
