@@ -78,7 +78,7 @@ export function WaDailyReturnPanel(){
   setBusy(true);
   try{
    const r=await scanOneWaReturnAction(preview.processId,refresh);setLast(r);
-   toast({title:r.sent?'Processo comunicado':'Sem comunicado',description:caption(r.reason||r.error),variant:r.ok?'default':'destructive'});
+   toast({title:r.sent?'Processo comunicado':'Sem comunicado',description:caption(('reason' in r ? r.reason : r.error) || ('error' in r ? r.error : null)),variant:r.ok?'default':'destructive'});
    await lookup();await load();
   }finally{setBusy(false);}
  };
