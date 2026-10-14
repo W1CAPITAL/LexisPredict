@@ -86,6 +86,28 @@ export async function POST(req:Request){
       }catch(e){return result({ok:false,error:String(e).slice(0,180)},503);}
     }
     case 'claim':{
+      // Existing linked workers poll 'claim' every 15 seconds. Scheduling
+      // preparation here works immediately, without asking the user to
+      // reinstall the worker or pay for high-frequency Vercel Cron Jobs.
+      const now=new Date(),weekday=new Intl.DateTimeFormat('en-US',{
+        timeZone:'America/Sao_Paulo',weekday:'short',
+      }).format(now);
+      const hour=Number(new Intl.DateTimeFormat('en-GB',{
+        timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23',
+      }).format(now));
+      if(!['Sat','Sun'].includes(weekday)&&hour>=9&&hour<18){
+        const {data:pulse}=await db.rpc('wa_auto_pulse',{p_empresa:tenant});
+        if(pulse===true){
+          try{
+            const cfg=await getDailyReturnSettings(tenant);
+            if(cfg.enabled&&cfg.consentAttested){
+              await dispatchPreparedDailyReturns(tenant,cfg.intervalDays);
+            }
+          }catch(e){
+            console.error('[wa-auto] deferred preparation',e instanceof Error?e.message:'unknown');
+          }
+        }
+      }
       const {data,error}=await db.rpc('wa_local_claim',{p_empresa:tenant});
       if(error)return result({ok:false,error:'Queue unavailable'},503);
       const j=(data||[])[0];
