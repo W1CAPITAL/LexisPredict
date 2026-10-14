@@ -80,7 +80,7 @@ export async function POST(req:Request){
         return result({ok:true,queued:false,reason:'outside_business_hours'});
       try{
         const pending=await dispatchPreparedDailyReturns(tenant,settings.intervalDays);
-        if(pending.processed)return result({ok:true,...pending});
+        if(pending.processed)return result(pending);
         const next=await processNextDueReturn(tenant,settings.intervalDays,false);
         return result({ok:true,queued:(next as any).queued===true,reason:next.reason});
       }catch(e){return result({ok:false,error:String(e).slice(0,180)},503);}
