@@ -150,8 +150,15 @@ export function humanWorkEvents(c:any):Array<{actor:string;date:string;kind:'con
   if(!c||typeof c!=='object')return [];
   const d=c.dados&&typeof c.dados==='object'?c.dados:{};
   const out:Array<{actor:string;date:string;kind:'contact'|'edit'}>=[];
-  const contact=pickAtendidoPor(c),at=pickDataAtendimento(c);
-  if(contact&&at&&isAtendimentoHumano(c))out.push({actor:contact,date:at,kind:'contact'});
+  const contact=pickAtendidoPor(c);
+  const explicitAttendance=c.atendido_em||c.atendido_em_json||c.atendidoEm||d.atendido_em||d.atendidoEm||null;
+  const latestReturn=pickUltimoRetorno(c);
+  const autoReturn=String(c.last_auto_wa_at_json||d.wa_ultimo_retorno?.data||'').slice(0,10);
+  // Linked-device notices can change ultimo_retorno but never credit the
+  // previous human operator with a NEW contact.
+  const isAutoDay=!!autoReturn&&!!latestReturn&&String(latestReturn).slice(0,10)===autoReturn;
+  const at=explicitAttendance||(isAutoDay?null:latestReturn);
+  if(contact&&at&&isAtendimentoHumano(c))out.push({actor:contact,date:String(at),kind:'contact'});
   const editor=String(c.edited_by||c.edited_by_json||d.edited_by||c.auditado_por||'').trim();
   const edited=String(c.edited_at||c.edited_at_json||d.edited_at||c.auditado_em||'').trim();
   if(editor&&edited&&!INTERNAL_ATTENDANCE_ACTORS.has(editor.toLowerCase())&&

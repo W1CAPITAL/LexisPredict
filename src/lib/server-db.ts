@@ -131,6 +131,7 @@ function toLegalCase(item: any): LegalCase {
     auditado_por: item.auditado_por ?? dados.auditado_por ?? null,
     atendido_por: item.atendido_por ?? dados.atendido_por ?? null,
     atendido_em: item.atendido_em_json ?? item.atendido_em ?? dados.atendido_em ?? null,
+    last_auto_wa_at_json: item.last_auto_wa_at_json ?? dados.wa_ultimo_retorno?.data ?? null,
     edited_at: item.edited_at_json ?? item.edited_at ?? dados.edited_at ?? null,
     edited_by: item.edited_by_json ?? item.edited_by ?? dados.edited_by ?? null,
     proximoPrazo: item.proximo_retorno ?? dados.proximoPrazo ?? dados.proximo_retorno ?? dados.PROXIMO_RETORNO ?? null,

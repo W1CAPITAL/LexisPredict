@@ -84,6 +84,7 @@ function rowToLegalCase(item: any): LegalCase {
     observacao: item.observacoes ?? dados.observacao ?? dados.observacoes ?? "",
     atendido_por: item.atendido_por ?? dados.atendido_por ?? null,
     atendido_em: item.atendido_em_json ?? item.atendido_em ?? dados.atendido_em ?? null,
+    last_auto_wa_at_json: item.last_auto_wa_at_json ?? dados.wa_ultimo_retorno?.data ?? null,
     edited_at: item.edited_at_json ?? dados.edited_at ?? null,
     edited_by: item.edited_by_json ?? dados.edited_by ?? null,
     datajud_ultimo_movimento: item.datajud_ultimo_movimento ?? dados.datajud_ultimo_movimento,

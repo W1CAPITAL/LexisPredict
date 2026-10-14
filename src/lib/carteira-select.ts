@@ -11,6 +11,7 @@ export const PROCESSOS_LIST_COLUMNS = [
   "created_by",
   "atendido_por",
   "atendido_em_json:dados->>atendido_em",
+  "last_auto_wa_at_json:dados->wa_ultimo_retorno->>data",
   "edited_at_json:dados->>edited_at",
   "edited_by_json:dados->>edited_by",
   "created_at",
