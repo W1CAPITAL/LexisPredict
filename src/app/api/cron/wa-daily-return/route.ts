@@ -17,25 +17,34 @@ export async function GET(request:Request){
  const now=new Date();
  const weekday=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(now);
  const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23'}).format(now));
- if(['Sat','Sun'].includes(weekday)||hour<9||hour>=18)
-   return NextResponse.json({ok:true,processed:false,reason:'outside_business_hours'});
+ // The scanner is independent of the operator's location/browser.
+ // It may VERIFY and persist evidence outside business hours, but NEVER
+ // reserve a WhatsApp delivery then. The dispatch functions enforce 09–18 BRT.
+ const sendingWindow=!['Sat','Sun'].includes(weekday)&&hour>=9&&hour<18;
  const db=await getSupabaseAdmin(),day=brazilToday(now);
  const {data:configs,error}=await db.from('wa_daily_return_settings')
-   .select('empresa_id,interval_days').eq('enabled',true).limit(25);
+   .select('empresa_id,interval_days').eq('enabled',true).eq('consent_attested',true).limit(25);
  if(error)return NextResponse.json({ok:false,error:'Configuration unavailable'},{status:503});
  const started=Date.now(),maxRuntime=40000;
  let prepared=0,checked=0,lastReason='nothing_due';
  for(const config of configs||[]){
   if(Date.now()-started>maxRuntime)break;
-  // First consume verified checks made by the scanner.
+  if(!sendingWindow){
+    // Pre-verify up to three due processes per run, conserving the court
+    // request budget. queueOnly=true cannot enqueue or send any message.
+    for(let n=0;n<3&&Date.now()-started<35000;n++){
+      const result=await processNextDueReturn(config.empresa_id,config.interval_days,true);
+      if(!result.processed)break;
+      checked++;
+      lastReason=String(result.reason||lastReason);
+    }
+    continue;
+  }
+  // Deliver previously checked valid notices first, without rescanning.
   const queued=await dispatchPreparedDailyReturns(config.empresa_id,config.interval_days);
   if((queued as any).queued)prepared++;
   lastReason=String(queued.reason||lastReason);
-  // Only scan new processes when the old evidence queue is empty.
   if(!queued.processed&&Date.now()-started<maxRuntime){
-    // Free-tier cron runs daily. Use its bounded 40-second slot to
-    // prepare up to six genuine scans, while the linked worker handles
-    // queued notices every 65s without operator clicks.
     for(let n=0;n<6&&Date.now()-started<maxRuntime;n++){
       const next=await processNextDueReturn(config.empresa_id,config.interval_days,false);
       if(!next.processed)break;
@@ -45,7 +54,7 @@ export async function GET(request:Request){
     }
   }
  }
- return NextResponse.json({ok:true,queued:prepared,checked,reason:lastReason,
+ return NextResponse.json({ok:true,queued:prepared,checked,preparedOnly:!sendingWindow,reason:lastReason,
    elapsedMs:Date.now()-started},{headers:{'Cache-Control':'private, no-store'}});
 
 }
