@@ -3,7 +3,6 @@
  * Headers aceitos: x-lexis-webhook-secret | Authorization: Bearer <secret>
  * Env: LEXIS_WEBHOOK_SECRET ou EVOLUTION_WEBHOOK_SECRET
  */
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -59,13 +58,6 @@ export async function POST(request: Request) {
     }
     if (!assertWebhookAuth(request)) return unauthorized();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'Config Error' }, { status: 500 });
-    }
-
     const payload = await request.json();
 
     const ev = String(payload.event || payload.type || '').toLowerCase().replace(/[.-]/g, '_');
@@ -91,10 +83,6 @@ export async function POST(request: Request) {
       message.videoMessage?.caption ||
       '';
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false },
-    });
-
     // Tenant is resolved only from server-controlled instance configuration;
     // never trust an empresa_id supplied by a public webhook payload.
     const boundCompany=String(process.env.WA_DAILY_WEBHOOK_EMPRESA_ID||'').trim();
@@ -102,34 +90,22 @@ export async function POST(request: Request) {
     const instance=String(payload.instance||'');
     const company=(boundCompany && boundInstance && instance===boundInstance)
       ? boundCompany : null;
-    const { error } = await supabase.from('whatsapp_messages').insert({
-      ...(company?{empresa_id:company}:{}),
-      instance_name: payload.instance || 'Lexis',
-      contact_number: contactNumber,
-      contact_name: data.pushName || 'Contato WhatsApp',
-      message_id: data.key?.id || '',
-      message_text: messageText,
-      from_me: data.key?.fromMe || false,
-      timestamp: new Date(
-        Number(data.messageTimestamp || Date.now() / 1000) * 1000
-      ).toISOString(),
-      raw_payload: payload,
-    });
-
-    if (error) {
-      console.error('[Webhook Error]', error.message);
-      return NextResponse.json({ error: 'Insert failed' }, { status: 500 });
-    }
-
+    // No WhatsApp transcript, payload, or text is persisted in Supabase.
+    // Only the explicit SAIR preference may be recorded for this verified tenant.
     if(company && data.key?.fromMe!==true && messageText.trim()){
       try {
+        const {noteInboundPreference}=await import('@/lib/wa-contact-privacy');
+        const optedOut=await noteInboundPreference(company,contactNumber,messageText);
+        if(optedOut){
+          return NextResponse.json({success:true,returnAutomation:{processed:false,reason:'opt_out'}});
+        }
         const {processIncomingReturnRequest}=await import('@/lib/wa-daily-return-service');
         const result=await processIncomingReturnRequest(company,contactNumber,messageText);
         return NextResponse.json({success:true,returnAutomation:{processed:result.sent===true,reason:result.reason}});
       } catch {
-        // Inbound message was persisted; an unavailable AI/WA bridge should not
-        // force the Evolution provider to retry the entire webhook.
-        return NextResponse.json({success:true,returnAutomation:{processed:false,reason:'queue_unavailable'}});
+        // Fail closed if opt-out storage or downstream processing is unavailable.
+        // Do not reintroduce transcript persistence to recover from a webhook error.
+        return NextResponse.json({success:false,returnAutomation:{processed:false,reason:'privacy_or_queue_unavailable'}},{status:503});
       }
     }
     return NextResponse.json({ success: true });
