@@ -1,5 +1,5 @@
 /** Client-facing copy. Judicial facts stay literal; tone does not change eligibility. */
-import {conditionalTerminalMention} from './judicial-terminal-evidence';
+import {conditionalTerminalMention,type TerminalEvidence} from './judicial-terminal-evidence';
 export function clientFirstName(value: string): string {
   const first = String(value || '').trim().split(/\s+/)[0] || '';
   if (!first || /^cliente$/i.test(first)) return '';
@@ -25,6 +25,7 @@ export const CLIENT_NOTICE_OPT_OUT =
 
 export function buildClientMovementMessage(input: {
   firstName: string; cnj: string; date: string; detail: string; source?: 'DJEN'|'DataJud'; now?: Date;
+  confirmedTerminal?:TerminalEvidence|null;
 }): string {
   const detail = input.detail.trim();
   const normalized = detail.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -51,6 +52,18 @@ export function buildClientMovementMessage(input: {
             : detail.length > 240
               ? `Passando para atualizar você sobre o processo nº ${input.cnj}. Houve uma nova ${input.source==='DJEN'?'publicação':'movimentação'} em ${input.date}. Os detalhes desse registro estão disponíveis para conferência pelo nosso Setor Processual.`
               : `Passando para atualizar você sobre o processo nº ${input.cnj}. A atualização de ${input.date} foi: ${detail}${/[.!?]$/.test(detail)?'':'.'}`;
+  if(input.confirmedTerminal){
+    const labels:Record<TerminalEvidence,string>={
+      extincao:'extinção ou cancelamento da distribuição',
+      transito:'trânsito em julgado',
+      baixa:'baixa definitiva',
+      arquivamento:'arquivamento definitivo',
+    };
+    return [clientGreeting(input.firstName,input.now),
+      `Sobre seu processo nº ${input.cnj}, há um registro de ${labels[input.confirmedTerminal]} em ${input.date}, conforme ${input.source}.`,
+      'Esse registro não comprova, por si só, pagamento, decisão favorável ou a situação de outros procedimentos. Se quiser esclarecer os efeitos no seu caso, nossa equipe pode conferir.',
+      CLIENT_NOTICE_OPT_OUT].join('\n\n');
+  }
   return [
     clientGreeting(input.firstName, input.now),
     update,

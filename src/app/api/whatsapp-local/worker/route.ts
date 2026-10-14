@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {getSupabaseAdmin} from '@/lib/server-db';
-import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
+import {noteInboundPreference} from '@/lib/wa-contact-privacy';
 import {dispatchPreparedDailyReturns,processNextDueReturn,getDailyReturnSettings} from '@/lib/wa-daily-return-service';
 import {queueNextMovementForTenant} from '@/lib/wa-movement-campaign';
 
@@ -147,18 +147,25 @@ export async function POST(req:Request){
       return result({ok:!error},error?503:200);
     }
     case 'message':{
-      const from=body.fromMe===true,text=String(body.text||'').trim().slice(0,8000);
+      // Historical WhatsApp text is no longer persisted by this bridge.
+      // Keep only an explicit SAIR contact flag, not the conversation.
+      const from=body.fromMe===true;
       let phone=String(body.phone||'').replace(/\D/g,'');
       if(phone.length===10||phone.length===11)phone='55'+phone;
-      const id=String(body.messageId||'').slice(0,160);
-      if(!/^55\d{10,11}$/.test(phone)||!text||!id)return result({ok:false,error:'Invalid message'},400);
-      const {data:existing,error:lookupError}=await db.from('whatsapp_messages').select('id')
-        .eq('empresa_id',tenant).eq('message_id',id).limit(1).maybeSingle();
-      if(lookupError)return result({ok:false,error:'History lookup unavailable'},503);
-      if(existing)return result({ok:true,duplicate:true});
-      const stored=await persistWhatsAppMessage({empresaId:tenant,contactNumber:phone,
-        messageText:text,fromMe:from,source:'lexis-local-wa',messageId:id,raw:{via:'wa-local',type:'text'}});
-      return result({ok:stored.ok,error:stored.ok?undefined:'History write failed'},stored.ok?200:503);
+      if(!/^55\d{10,11}$/.test(phone))return result({ok:false,error:'Invalid phone'},400);
+      if(from)return result({ok:true,stored:false});
+      try{
+        const blocked=await noteInboundPreference(tenant,phone,String(body.text||''));
+        return result({ok:true,stored:false,optOutRecorded:blocked});
+      }catch{
+        // Fail closed: pending campaigns cannot send until preferences work.
+        await Promise.all([
+          db.from('wa_daily_return_settings').update({enabled:false}).eq('empresa_id',tenant),
+          db.from('wa_movement_campaigns').update({status:'paused'})
+            .eq('empresa_id',tenant).eq('status','running'),
+        ]);
+        return result({ok:false,error:'Opt-out could not be recorded; automation paused'},503);
+      }
     }
   }
   return result({ok:false,error:'Unknown operation'},400);

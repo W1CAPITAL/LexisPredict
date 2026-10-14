@@ -2,6 +2,7 @@ import 'server-only';
 import {createHash,randomBytes} from 'node:crypto';
 import {getSupabaseAdmin,getUserContext} from '@/lib/server-db';
 import {resolveWaAutoPermissions} from '@/lib/wa-auto-permissions';
+import {contactOptedOut} from '@/lib/wa-contact-privacy';
 
 export function normalizedPhone(raw:string):string {
   let n=String(raw||'').replace(/\D/g,'');
@@ -51,15 +52,8 @@ export async function enqueueLocalMessage(phone:string,message:string){
   const state=await bridgeStatus(ctx.empresa_id);
   if(!state.connected)throw new Error('WA.Auto desconectado. Aguarde a conexão e escaneie o QR Code no CRM.');
   const db=await getSupabaseAdmin();
-  // Respect an explicit opt-out, including its legacy spelling.
-  const tail=n.slice(2);
-  const {data:replies,error:replyError}=await db.from('whatsapp_messages')
-    .select('message_text,body').eq('empresa_id',ctx.empresa_id).eq('from_me',false)
-    .or('contact_number.eq.'+n+',phone.eq.'+n+',contact_number.eq.'+tail+',phone.eq.'+tail)
-    .order('created_at',{ascending:false}).limit(50);
-  if(replyError)throw new Error('Não foi possível conferir a preferência de contato; nenhum envio feito.');
-  if((replies||[]).some(m=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(String(m.message_text||m.body||'').trim())))
-    throw new Error('O contato solicitou não receber mensagens. Envio bloqueado.');
+  if(await contactOptedOut(ctx.empresa_id,n))
+    throw new Error('O contato solicitou SAIR; envio bloqueado.');
   const {data,error}=await db.from('wa_local_jobs').insert({
     empresa_id:ctx.empresa_id,created_by:ctx.auth_id,to_phone:n,body,status:'pending',
   }).select('id').single();

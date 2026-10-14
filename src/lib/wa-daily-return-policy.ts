@@ -79,7 +79,18 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
   if(!phone)return {ready:null,reason:'phone'};
   const today=opts.today||brazilToday();
   const due=validReturnDay(row.proximo_retorno||meta.proximoRetorno||meta.proximo_retorno);
-  if(opts.mode==='due' && (!due||due>today))return {ready:null,reason:'not_due'};
+  // Verified closure notices can be prepared even if a closed portfolio no
+  // longer has a scheduled follow-up. Only official, recent terminal evidence
+  // is accepted; a manual "encerrado" label alone is never enough.
+  const closed=isCasoEncerrado(row);
+  const proof=meta.wa_djen_evidence as {origin?:string;text?:string;checkedAt?:string}|undefined;
+  const fresh=(at:unknown)=>{const ts=Date.parse(String(at||''));return Number.isFinite(ts)&&ts<=Date.now()+60000&&Date.now()-ts<86400000;};
+  const closingVerified=closed&&(
+    (!!confirmedTerminalEvent(String(row.datajud_ultimo_nome||''))&&fresh(row.datajud_consultado_em))||
+    (proof?.origin==='official-djen'&&!!confirmedTerminalEvent(String(proof.text||''))&&fresh(proof.checkedAt))
+  );
+  if(opts.mode==='due'&&(!due||due>today)&&!(opts.includeClosed&&closingVerified))
+    return {ready:null,reason:'not_due'};
   const last=validReturnDay(row.ultimo_retorno||meta.ultimoRetorno||meta.ultimo_retorno);
   if(!last)return {ready:null,reason:'missing_return'};
   const candidates=[
@@ -100,7 +111,7 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
     const consulted=Date.parse(String(row.datajud_consultado_em||meta.datajud_consultado_em||''));
     if(!Number.isFinite(consulted)||consulted>Date.now()+60000||Date.now()-consulted>86400000)
       return {ready:null,reason:'needs_source_review'};
-    if(/^(?:extin[cç][aã]o|extint[oa]|baixa|arquivamento|arquivad[oa]|tr[aâ]nsito|encerramento|encerrad[oa])\b/i.test(latest.text))
+    if(confirmedTerminalEvent(latest.text)&&!isCasoEncerrado(row))
       return {ready:null,reason:'needs_source_review'};
   }
   if(latest.source==='DJEN') {
@@ -114,7 +125,8 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
     messageDetail=evidence.text;
     // Terminal acts require review of the current court status; do not announce
     // a closure while the portfolio still says the case is open.
-    if(confirmedTerminalEvent(evidence.text))return {ready:null,reason:'needs_source_review'};
+    if(confirmedTerminalEvent(evidence.text)&&!isCasoEncerrado(row))
+      return {ready:null,reason:'needs_source_review'};
   }
   if(!usableMovementDescription(latest.text))return {ready:null,reason:'needs_source_review'};
   const digits=String(row.protocolo_ref||meta.protocolo||'').replace(/\D/g,'');
@@ -123,7 +135,9 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
     return {ready:null,reason:'invalid_cnj'};
   const name=clientFirstName(text(row.cliente||meta.cliente||'Cliente'));
   const when=latestDay.split('-').reverse().join('/');
-  const message=buildClientMovementMessage({firstName:name,cnj,date:when,detail:messageDetail,source:latest.source});
+  const closure=confirmedTerminalEvent(messageDetail);
+  const message=buildClientMovementMessage({firstName:name,cnj,date:when,
+    detail:messageDetail,source:latest.source,confirmedTerminal:closure&&isCasoEncerrado(row)?closure:null});
   return {reason:'ok',ready:{
     processoId:Number(row.id),empresaId:row.empresa_id,phone,cnj,name,
     source:latest.source,eventAt:new Date(latest.date).toISOString(),

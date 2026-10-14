@@ -50,7 +50,7 @@ export async function processOneDailyReturn(input:{
   if(input.mode==='due' && !settings.enabled){
     return {ok:true,reason:'automation_disabled',sent:false,processId:input.processId};
   }
-  const computed=prepareDailyReturn(row as ReturnCase,{mode:input.mode,today,intervalDays:input.intervalDays,consentAttested:settings.consentAttested});
+  const computed=prepareDailyReturn(row as ReturnCase,{mode:input.mode,today,intervalDays:input.intervalDays,consentAttested:settings.consentAttested,includeClosed:true});
   const reason=computed.reason;
   const check=async(result:string)=>{
     if(input.mode==='due')await db.from('wa_daily_return_checks').upsert({
@@ -109,7 +109,7 @@ export async function processOneDailyReturn(input:{
  * A seleção SQL pula telefones inválidos/encerrados antes de chamar tribunais.
  * Não usa IA nem altera datas em verificações negativas.
  */
-const ELIGIBILITY_REASONS=new Set(['closed','phone','blocked','no_consent','not_due','missing_return','invalid_cnj']);
+const ELIGIBILITY_REASONS=new Set(['phone','blocked','no_consent','not_due','missing_return','invalid_cnj']);
 // A successful recent verification of both sources can be reused for six
 // hours when no new movement was found. Notice-ready items remain subject
 // to the strict 24-hour evidence checks in prepareDailyReturn.
@@ -148,7 +148,7 @@ export async function checkReturnSources(input:{
   const settings=await getDailyReturnSettings(input.empresaId);
   const evaluate=(item:ReturnCase)=>prepareDailyReturn(item,{
     mode:input.mode,today,intervalDays:input.intervalDays,
-    consentAttested:settings.consentAttested,
+    consentAttested:settings.consentAttested,includeClosed:true,
   });
   let decision=evaluate(row);
   const finish=async(reason:string,ok=true)=>{

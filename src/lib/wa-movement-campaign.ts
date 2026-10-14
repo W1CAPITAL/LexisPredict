@@ -6,6 +6,7 @@ import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
 import {bridgeStatus} from '@/lib/whatsapp-local';
+import {contactOptedOut} from '@/lib/wa-contact-privacy';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
 import {brazilToday} from '@/lib/wa-daily-return-policy';
@@ -246,14 +247,16 @@ export async function queueNextMovementForTenant(empresaId:string,campaignId?:st
       p_error:'Evento mudou ou exige revisão: '+(evaluated?.reason||'case_missing')});
     return {ok:true as const,processed:true,queued:false,reason:evaluated?.reason||'case_missing'};
   }
-  // Required opt-out check immediately before reserving an outbound message.
-  const n=item.phone,tail=n.startsWith('55')?n.slice(2):n;
-  const {data:replies,error:historyError}=await db.from('whatsapp_messages')
-    .select('message_text,body').eq('empresa_id',empresaId).eq('from_me',false)
-    .or('contact_number.eq.'+n+',phone.eq.'+n+',contact_number.eq.'+tail+',phone.eq.'+tail)
-    .order('created_at',{ascending:false}).limit(150);
-  if(historyError||(replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(
-      String(x.message_text||x.body||'').trim()))){
+  // Respect SAIR without depending on saved chat transcripts.
+  let blocked=false;
+  try{blocked=await contactOptedOut(empresaId,item.phone);}
+  catch{
+    await db.from('wa_movement_dispatches').update({status:'pending',claimed_at:null,
+      last_error:'Preferência indisponível; emissão adiada'})
+      .eq('empresa_id',empresaId).eq('id',item.id).eq('status','processing');
+    return {ok:false as const,processed:false,queued:false,reason:'preferences_unavailable'};
+  }
+  if(blocked){
     await db.rpc('wa_finish_movement',{p_id:item.id,p_status:'failed',
       p_error:'Opt-out ou histórico indisponível: nenhum envio realizado'});
     return {ok:true as const,processed:true,queued:false,reason:'contact_blocked'};
