@@ -35,7 +35,7 @@ import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
-import { DataJudScannerPanel } from "@/components/scanner/datajud-scanner-panel";
+// Scanner panel mounts on demand through the app's ClientChrome.
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import { isEmpresaW1Principal } from "@/lib/w1-empresa";
 import { applyFilaListaToObs, parseFilaListaFromObs, type FilaLista } from "@/lib/fila-listas";
@@ -626,7 +626,7 @@ export default function ProcessosEmpresaPage() {
         {carteiraError || searchError}
       </div>}
       <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
-        <DataJudScannerPanel />
+        {/* Scanner UI is lazy-mounted globally only on user request. */}
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {totalCount > 0 && (
@@ -657,7 +657,10 @@ export default function ProcessosEmpresaPage() {
             loadingMore={loadingMore}
             onLoadMore={loadMoreFromServer}
             canScan={canRodarEmpresa}
-            onScan={canRodarEmpresa ? openScanner : undefined}
+            onScan={canRodarEmpresa ? () => {
+              window.dispatchEvent(new Event('lexis-need-scanner'));
+              openScanner();
+            } : undefined}
             scannerLabel={
               scannerStatus === "running"
                 ? `Scanner nuvem ${scannerDone}/${scannerTotal || "…"}`
