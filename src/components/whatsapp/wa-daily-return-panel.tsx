@@ -9,10 +9,11 @@ import {useAdmin} from '@/hooks/use-admin';
 import {
  getWaDailyReturnDashboardAction,saveWaDailyReturnSettingsAction,
  previewWaReturnCnjAction,scanOneWaReturnAction,scanNextWaReturnAction,
+ scanWaReturnBatchAction,
 } from '@/app/actions/wa-daily-return-actions';
 type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;error?:string};
 const captions:Record<string,string>={
- not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',
+ not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
  no_new_movement:'Nenhuma movimentação posterior ao último retorno: nada enviado',
  needs_source_review:'Teor oficial, descrição ou situação atual precisam de conferência: nada enviado',
@@ -61,10 +62,23 @@ export function WaDailyReturnPanel(){
  const stop=()=>{live.current=false;setRunning(false);if(timer.current)clearTimeout(timer.current);};
  const scanLoop=async()=>{
   if(!live.current)return;
-  const r=await one();
-  if(!live.current)return;
-  if(!r?.ok||!r.processed){stop();return;}
-  timer.current=setTimeout(()=>void scanLoop(),45000);
+  setBusy(true);
+  try{
+   // Uma chamada confere até seis processos na nuvem; sem 45s de pausa entre eles.
+   const r=await scanWaReturnBatchAction();
+   if(!live.current)return;
+   if('last' in r && r.last)setLast(r.last);
+   setChecked(n=>n+Number(r.processedCount||0));
+   if(!r.ok||r.finished||!r.processed){
+     if(!r.ok)toast({title:'Scanner',description:r.error||'Não foi possível prosseguir',variant:'destructive'});
+     stop();await load();return;
+   }
+   await load();
+   timer.current=setTimeout(()=>void scanLoop(),700);
+  }catch(e:any){
+   if(live.current)toast({title:'Scanner interrompido',description:String(e?.message||e),variant:'destructive'});
+   stop();
+  }finally{setBusy(false);}
  };
  const start=()=>{if(live.current)return;live.current=true;setRunning(true);void scanLoop();};
  const lookup=async()=>{
@@ -106,13 +120,13 @@ export function WaDailyReturnPanel(){
    {dash?.ok?<span className="text-muted-foreground">Retornos agendados vencidos (antes dos filtros): {dash.due||0} · Enviados hoje: {dash.sentToday||0}</span>:null}
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
-   <p className="text-xs font-semibold">Scanner de retornos · um processo por vez</p>
+   <p className="text-xs font-semibold">Scanner de retornos · lotes rápidos na nuvem</p>
    <div className="flex flex-wrap gap-2">
     <Button size="sm" disabled={busy||running} onClick={()=>void one()}>Verificar próximo</Button>
     <Button size="sm" disabled={busy||running} onClick={start}>Iniciar varredura</Button>
     <Button size="sm" variant="destructive" disabled={!running} onClick={stop}>Parar scanner</Button>
    </div>
-   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. A verificação ocorre um processo por vez. O total vencido inclui casos encerrados, sem telefone e sem andamento novo; nenhum deles é disparado sem validação. O scanner da carteira também prepara avisos apenas quando a automação está ativa.</p>
+   <p className="text-xs text-muted-foreground">Verificados nesta sessão: {checked}. O servidor confere lotes de até 6 processos, exclui telefones inválidos e encerrados antes de consultar tribunais e prioriza a publicação do DJEN. Só consulta DataJud quando o DJEN não comprova a novidade. Os vencidos exibidos acima ainda incluem casos descartados pelos filtros. Nenhuma data de retorno muda sem envio confirmado.</p>
   </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Verificar apenas um processo</p>
@@ -122,7 +136,7 @@ export function WaDailyReturnPanel(){
     <p>{caption(preview.reason)} {preview.eventAt&&' · '+new Date(preview.eventAt).toLocaleDateString('pt-BR')}</p>
     {preview.preview&&<p className="whitespace-pre-wrap rounded-xl bg-muted/50 p-3">{preview.preview}</p>}
     <label className="flex items-center gap-2"><Checkbox checked={refresh} onCheckedChange={v=>setRefresh(v===true)}/>
-     Consultar DataJud/DJEN antes de decidir (somente para CNJ individual)</label>
+     Atualizar DJEN primeiro; consultar DataJud somente se necessário</label>
     <Button size="sm" disabled={busy||!preview.preview} onClick={()=>void sendOne()}>Verificar e enviar se houver novidade</Button>
    </div>}
   </div>

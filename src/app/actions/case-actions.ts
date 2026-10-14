@@ -193,7 +193,7 @@ export async function auditCaseCoreSystem(
   protocolo: string,
   empresaId: string,
   mode: 'datajud' | 'djen' | 'both' = 'both',
-  options: { fast?: boolean; useClaudeAi?: boolean; cloudBudget?: boolean } = {}
+  options: { fast?: boolean; useClaudeAi?: boolean; cloudBudget?: boolean; djenSince?: string } = {}
 ) {
   const admin = await getSupabaseAdmin();
   const { data: dbItem } = await admin
@@ -233,7 +233,7 @@ export async function auditCaseCoreSystem(
     const [djS, djenS] = await Promise.allSettled([
       fetchDataJud(protoSafe, 1, { ...options, fast: options.fast !== false }),
       fetchDjenComunicacoes(protoSafe, {
-        dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         cloudBudget: options.cloudBudget,
       }),
     ]);
@@ -244,7 +244,7 @@ export async function auditCaseCoreSystem(
       try {
         await new Promise((r) => setTimeout(r, 800));
         preDjen = await fetchDjenComunicacoes(protoSafe, {
-          dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         });
       } catch {
         /* */
@@ -473,7 +473,7 @@ export async function auditCaseCoreSystem(
     } catch { /* */ }
     try {
       const dj = await fetchDjenComunicacoes(protoSafe || protocolo, {
-        dataInicio: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
       if (dj?.success && dj.items?.length) {
         djenOk = true;
@@ -837,6 +837,10 @@ export async function auditCaseCoreSystem(
     console.warn('[reconciliar-cumprimento] skip', e?.message || e);
   }
 
+  // Success flags belong to each source separately; a recent timestamp without
+  // confirmation must never authorize a cached-source shortcut in WA returns.
+  if(mode==='djen'||mode==='both')patch.djen_last_ok=djenOk;
+  if(mode==='datajud'||mode==='both')patch.datajud_last_ok=datajudOk;
   if (djenOk) patch.wa_djen_evidence = latestDjenNoticeEvidence(protoSafe || protocolo, comunicacoes);
   const saved = await updateCaseDataJudSystem(dbItem.id, patch);
   if (!saved.success) {

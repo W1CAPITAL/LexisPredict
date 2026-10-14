@@ -1,7 +1,7 @@
 'use server';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {resolveWaAutoPermissions} from '@/lib/wa-auto-permissions';
-import {getDailyReturnSettings,upsertDailyReturnSettings,processNextDueReturn,processOneDailyReturn} from '@/lib/wa-daily-return-service';
+import {getDailyReturnSettings,upsertDailyReturnSettings,processNextDueReturn,processOneDailyReturn,checkReturnSources} from '@/lib/wa-daily-return-service';
 import {prepareDailyReturn,brazilToday} from '@/lib/wa-daily-return-policy';
 
 async function manager() {
@@ -35,6 +35,22 @@ export async function scanNextWaReturnAction(){
   return await processNextDueReturn(me.empresaId,settings.intervalDays);
  }catch(e:any){return {ok:false,processed:false,error:String(e?.message||e)};}
 }
+/** Lote limitado por tempo: várias verificações no servidor, sem espera fixa de 45s. */
+export async function scanWaReturnBatchAction(){
+ try{
+  const me=await manager(),settings=await getDailyReturnSettings(me.empresaId);
+  const started=Date.now(),MAX=6,MAX_MS=34000,results:any[]=[];
+  for(let n=0;n<MAX&&Date.now()-started<MAX_MS;n++){
+   const r=await processNextDueReturn(me.empresaId,settings.intervalDays);
+   if(!r.processed)return {ok:true as const,processed:results.length>0,
+      processedCount:results.length,finished:true,last:results.at(-1)||r,
+      elapsedMs:Date.now()-started};
+   results.push(r);
+  }
+  return {ok:true as const,processed:results.length>0,processedCount:results.length,
+    finished:false,last:results.at(-1)||null,elapsedMs:Date.now()-started};
+ }catch(e:any){return {ok:false as const,error:String(e?.message||e),processed:false,processedCount:0,finished:true};}
+}
 export async function previewWaReturnCnjAction(cnj:string){
  try{
   const me=await manager(),db=await getSupabaseAdmin();
@@ -56,15 +72,15 @@ export async function scanOneWaReturnAction(processId:number,refreshTribunal=fal
  try{
   const me=await manager(),db=await getSupabaseAdmin();
   if(!Number.isInteger(processId)||processId<=0)throw new Error('Identificador inválido');
-  const {data,error}=await db.from('processos').select('protocolo_ref')
+  const {data,error}=await db.from('processos').select('id')
     .eq('empresa_id',me.empresaId).eq('id',processId).maybeSingle();
   if(error||!data)throw new Error('Processo não localizado nesta empresa.');
-  if(refreshTribunal) {
-    const {scanSingleCaseAction}=await import('@/app/actions/case-actions');
-    const scanned=await scanSingleCaseAction(String(data.protocolo_ref),{mode:'both',fast:true,useClaudeAi:false});
-    if(!scanned.success) return {ok:false,sent:false,reason:'consultas_oficiais_indisponiveis',error:String(scanned.error||'A conferência DataJud/DJEN falhou; nenhum aviso enviado.')};
-  }
   const settings=await getDailyReturnSettings(me.empresaId);
-  return await processOneDailyReturn({empresaId:me.empresaId,processId,mode:'single',intervalDays:settings.intervalDays});
+  if(refreshTribunal){
+    return await checkReturnSources({empresaId:me.empresaId,processId,mode:'single',
+      intervalDays:settings.intervalDays});
+  }
+  return await processOneDailyReturn({empresaId:me.empresaId,processId,mode:'single',
+    intervalDays:settings.intervalDays});
  }catch(e:any){return {ok:false as const,sent:false,error:String(e?.message||e)};}
 }

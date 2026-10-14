@@ -2,7 +2,7 @@ import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {evolutionForOwner,evolutionDelivered} from '@/lib/evolution-bridge';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
-import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
+import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,validReturnDay,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
 export async function getDailyReturnSettings(empresaId:string) {
   const db=await getSupabaseAdmin();
@@ -113,44 +113,120 @@ export async function processOneDailyReturn(input:{
     eventAt:notice.eventAt,source:notice.source,nextReturn:updated?notice.nextReturn:null,
     requiresManualReview:!updated,error:updateError?.message||undefined};
 }
+/**
+ * Scanner da carteira: filtros locais primeiro, DJEN primeiro, DataJud somente
+ * quando a publicação não respondeu à pergunta "houve novidade?".
+ * A seleção SQL pula telefones inválidos/encerrados antes de chamar tribunais.
+ * Não usa IA nem altera datas em verificações negativas.
+ */
+const ELIGIBILITY_REASONS=new Set(['closed','phone','blocked','no_consent','not_due','missing_return','invalid_cnj']);
+const CACHED_WINDOW_MS=10*60*1000;
+function checkedRecently(at:unknown,ok:unknown,cutoff:number){
+  return ok===true && typeof at==='string' && Number.isFinite(Date.parse(at))
+    && Date.parse(at)>=cutoff && Date.parse(at)<=Date.now()+60000;
+}
+function latestDjenAfterReturn(row:ReturnCase){
+  const last=validReturnDay(row.ultimo_retorno||row.dados?.ultimoRetorno||row.dados?.ultimo_retorno);
+  const djen=validReturnDay(row.djen_ultima_data);
+  return Boolean(last&&djen&&djen>last);
+}
+async function recordDueCheck(db:any,empresaId:string,processId:number,today:string,result:string){
+  const {error}=await db.from('wa_daily_return_checks').upsert({
+    empresa_id:empresaId,processo_id:processId,local_day:today,
+    mode:'due',result,checked_at:new Date().toISOString(),
+  },{onConflict:'empresa_id,processo_id,local_day,mode'});
+  if(error)throw new Error('Não foi possível registrar conferência segura: '+error.message);
+}
+async function getReturnCase(db:any,empresaId:string,processId:number):Promise<ReturnCase|null>{
+  const {data,error}=await db.from('processos').select('*')
+    .eq('empresa_id',empresaId).eq('id',processId).maybeSingle();
+  if(error)throw new Error('Falha ao carregar processo: '+error.message);
+  return data as ReturnCase|null;
+}
+/** Confere um processo selecionado sem consultar os dois tribunais por padrão. */
+export async function checkReturnSources(input:{
+  empresaId:string;processId:number;mode:ReturnMode;intervalDays:number;
+  today?:string;queueOnly?:boolean;
+}){
+  const db=await getSupabaseAdmin();
+  const today=input.today||brazilToday();
+  let row=await getReturnCase(db,input.empresaId,input.processId);
+  if(!row)return {ok:false,processed:true,sent:false,reason:'case_missing',processId:input.processId};
+  const settings=await getDailyReturnSettings(input.empresaId);
+  const evaluate=(item:ReturnCase)=>prepareDailyReturn(item,{
+    mode:input.mode,today,intervalDays:input.intervalDays,
+    consentAttested:settings.consentAttested,
+  });
+  let decision=evaluate(row);
+  const finish=async(reason:string,ok=true)=>{
+    if(input.mode==='due')await recordDueCheck(db,input.empresaId,input.processId,today,reason);
+    return {ok,processed:true,sent:false,reason,processId:input.processId};
+  };
+  if(ELIGIBILITY_REASONS.has(decision.reason))return finish(decision.reason);
+  if(!String(row.protocolo_ref||'').replace(/\D/g,'').match(/^\d{20}$/))
+    return finish('invalid_cnj');
+  const cutoff=Date.now()-CACHED_WINDOW_MS;
+  const recentDjen=checkedRecently((row as any).djen_consultado_em,(row as any).djen_last_ok,cutoff);
+  const recentDatajud=checkedRecently((row as any).datajud_consultado_em,(row as any).datajud_last_ok,cutoff);
+  let courtSource:'cached'|'djen'|'datajud'='cached';
+  // A comprovacao de DJEN (teor + data + CNJ) já validada vale por 24 h
+  // segundo prepareDailyReturn, logo jamais faça uma segunda consulta desnecessária.
+  const alreadyVerified=decision.ready!==null;
+  const evidenceNewer=latestDjenAfterReturn(row);
+  const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
+  const refresh=async(source:'djen'|'datajud')=>{
+    courtSource=source;
+    const last=validReturnDay(row?.ultimo_retorno||row?.dados?.ultimoRetorno||row?.dados?.ultimo_retorno);
+    const since=last?new Date(Date.parse(last+'T00:00:00Z')-86400000).toISOString().slice(0,10):undefined;
+    const result=await auditCaseCoreSystem(String(row?.protocolo_ref),input.empresaId,source,{
+      fast:true,cloudBudget:true,useClaudeAi:false,...(source==='djen'&&since?{djenSince:since}:{}),
+    });
+    const confirmed=result.success===true && result.sourceStatus?.[source]?.ok===true;
+    if(!confirmed)return false;
+    const updated=await getReturnCase(db,input.empresaId,input.processId);
+    if(updated){row=updated;decision=evaluate(row);}
+    return true;
+  };
+  if(!alreadyVerified){
+    // Se DJEN já é posterior ao último contato, atualizar APENAS DJEN.
+    // Quando sua prova oficial for suficiente, NÃO consultar DataJud.
+    if(evidenceNewer || !recentDjen){
+      let official=false;
+      try{official=await refresh('djen');}
+      catch{official=false;}
+      if(!official&&evidenceNewer)return finish('court_unavailable');
+    }
+    if(decision.ready===null &&
+       (decision.reason==='needs_source_review'&&latestDjenAfterReturn(row))){
+      // Teor terminal/ambíguo é revisão humana, não convite a consultar
+      // DataJud de forma redundante ou anunciar extinção sem confirmação.
+      return finish('needs_source_review');
+    }
+    // Não há publicação suficiente no DJEN: DataJud apenas como fallback.
+    if(decision.ready===null &&
+       (decision.reason==='no_new_movement'||decision.reason==='needs_source_review')
+       &&!recentDatajud){
+      let official=false;
+      try{official=await refresh('datajud');}
+      catch{official=false;}
+      if(!official&&!recentDjen)return finish('court_unavailable');
+    }
+  }
+  if(input.queueOnly)return finish('checked_for_queue');
+  const result=await processOneDailyReturn({
+    empresaId:input.empresaId,processId:input.processId,mode:input.mode,
+    intervalDays:input.intervalDays,today,
+  });
+  // O processOneDailyReturn só altera datas após confirmação do envio.
+  // Em modo due, já registra o próprio resultado no ledger de conferências.
+  return {...result,processed:true,processId:input.processId,sourceChecked:courtSource};
+}
 export async function processNextDueReturn(empresaId:string,intervalDays:number,queueOnly=false) {
-  const db=await getSupabaseAdmin();const today=brazilToday();
+  const db=await getSupabaseAdmin(),today=brazilToday();
   const {data,error}=await db.rpc('wa_next_due_return',{p_empresa:empresaId,p_day:today});
   if(error)throw new Error('Scanner indisponível: '+error.message);
   if(!data)return {ok:true,processed:false,reason:'no_due_cases'};
-  const processId=Number(data);
-  // Uma consulta oficial de ate 10 minutos pode ser reutilizada sem fazer
-  // novo round-trip aos tribunais para o mesmo CNJ. Nao usa LLM nem dados nao oficiais.
-  const {data:row}=await db.from('processos')
-    .select('protocolo_ref,datajud_consultado_em,djen_consultado_em,datajud_last_ok,djen_last_ok')
-    .eq('empresa_id',empresaId).eq('id',processId).maybeSingle();
-  if(!row?.protocolo_ref)return {ok:false,processed:true,sent:false,reason:'case_missing'};
-  const cutoff=Date.now()-10*60*1000;
-  const recentlyVerified=Boolean(
-    (row.datajud_last_ok===true && row.datajud_consultado_em && new Date(row.datajud_consultado_em).getTime()>=cutoff) ||
-    (row.djen_last_ok===true && row.djen_consultado_em && new Date(row.djen_consultado_em).getTime()>=cutoff)
-  );
-  let hasOfficialRecord=recentlyVerified;
-  try {
-    if (!recentlyVerified) {
-    const {auditCaseCoreSystem}=await import('@/app/actions/case-actions');
-    const scanned=await auditCaseCoreSystem(row.protocolo_ref,empresaId,'both',
-      {fast:true,cloudBudget:true,useClaudeAi:false});
-    hasOfficialRecord=scanned.success===true && (scanned.sourceStatus?.datajud.ok===true || scanned.sourceStatus?.djen.ok===true);
-    }
-  } catch {hasOfficialRecord=false;}
-  if(!hasOfficialRecord) {
-    await db.from('wa_daily_return_checks').upsert({
-      empresa_id:empresaId,processo_id:processId,local_day:today,
-      mode:'due',result:'court_unavailable',checked_at:new Date().toISOString(),
-    },{onConflict:'empresa_id,processo_id,local_day,mode'});
-    return {ok:true,processed:true,sent:false,reason:'court_unavailable'};
-  }
-  if(queueOnly) {
-    await db.from('wa_daily_return_checks').upsert({empresa_id:empresaId,processo_id:processId,local_day:today,mode:'due',result:'checked_for_queue',checked_at:new Date().toISOString()}, {onConflict:'empresa_id,processo_id,local_day,mode'});
-    return {ok:true,processed:true,sent:false,reason:'checked_for_queue'};
-  }
-  return {...await processOneDailyReturn({empresaId,processId,mode:'due',intervalDays,today}),processed:true};
+  return await checkReturnSources({empresaId,processId:Number(data),mode:'due',intervalDays,today,queueOnly});
 }
 
 /** Called only by a signed webhook after the inbound text was persisted in
