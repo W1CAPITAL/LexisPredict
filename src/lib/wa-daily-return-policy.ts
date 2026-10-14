@@ -82,14 +82,20 @@ export function prepareDailyReturn(row:ReturnCase,opts:{
   // Verified closure notices can be prepared even if a closed portfolio no
   // longer has a scheduled follow-up. Only official, recent terminal evidence
   // is accepted; a manual "encerrado" label alone is never enough.
-  const closed=isCasoEncerrado(row);
-  const proof=meta.wa_djen_evidence as {origin?:string;text?:string;checkedAt?:string}|undefined;
+  const proof=meta.wa_djen_evidence as {origin?:string;cnj?:string;eventAt?:string;text?:string;checkedAt?:string}|undefined;
+  const lastKnown=validReturnDay(row.ultimo_retorno||meta.ultimoRetorno||meta.ultimo_retorno);
+  const courtCnj=String(row.protocolo_ref||meta.protocolo||'').replace(/[^0-9]/g,'');
   const fresh=(at:unknown)=>{const ts=Date.parse(String(at||''));return Number.isFinite(ts)&&ts<=Date.now()+60000&&Date.now()-ts<86400000;};
-  const closingVerified=closed&&(
-    (!!confirmedTerminalEvent(String(row.datajud_ultimo_nome||''))&&fresh(row.datajud_consultado_em))||
-    (proof?.origin==='official-djen'&&!!confirmedTerminalEvent(String(proof.text||''))&&fresh(proof.checkedAt))
-  );
-  if(opts.mode==='due'&&(!due||due>today)&&!(opts.includeClosed&&closingVerified))
+  // A verified NEW movement is independently actionable even when its
+  // follow-up schedule is in the future, including closed portfolio items.
+  const djNew=proof?.origin==='official-djen'&&proof.cnj===courtCnj&&
+    proof.eventAt?.slice(0,10)===String(row.djen_ultima_data||'').slice(0,10)&&
+    !!proof.text?.trim()&&fresh(proof.checkedAt)&&
+    !!lastKnown&&String(row.djen_ultima_data||'').slice(0,10)>lastKnown;
+  const judNew=(row as any).datajud_last_ok===true&&fresh(row.datajud_consultado_em)&&
+    !!row.datajud_ultimo_nome?.trim()&&!!lastKnown&&
+    row.datajud_ultimo_movimento&&brazilToday(new Date(row.datajud_ultimo_movimento))>lastKnown;
+  if(opts.mode==='due'&&(!due||due>today)&&!(opts.includeClosed&&(djNew||judNew)))
     return {ready:null,reason:'not_due'};
   const last=validReturnDay(row.ultimo_retorno||meta.ultimoRetorno||meta.ultimo_retorno);
   if(!last)return {ready:null,reason:'missing_return'};
