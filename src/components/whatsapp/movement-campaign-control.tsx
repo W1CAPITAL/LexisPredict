@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BellRing, FileClock, CheckCircle2, Clock3, Loader2, Pause, Play, RefreshCcw, Send, ShieldCheck, Square, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,7 @@ import {
   startWhatsAppMovementCampaignAction,
   getWhatsAppMovementCampaignAction,
   changeWhatsAppMovementCampaignAction,
-  advanceWhatsAppMovementCampaignAction,
-} from "@/app/actions/whatsapp-movement-campaign-actions";
+ } from "@/app/actions/whatsapp-movement-campaign-actions";
 
 type Sample = {client:string;cnj:string;source:string;date:string;message:string;verdict?:string|null;kind?:string|null};
 type CampaignKind = "movement" | "publication";
@@ -39,14 +38,12 @@ export function MovementCampaignControl() {
   const {toast}=useToast();
   const [open,setOpen]=useState(false);
   const [loading,setLoading]=useState(false);
-  const [sending,setSending]=useState(false);
-
+ 
   const [kind,setKind]=useState<CampaignKind>("movement");
   const [showTemplates,setShowTemplates]=useState(false);
   const [preview,setPreview]=useState<Preview|null>(null);
   const [campaign,setCampaign]=useState<Campaign|null>(null);
-  const busy=useRef(false);
-  const reload=useCallback(async()=>{
+   const reload=useCallback(async()=>{
     const result=await getWhatsAppMovementCampaignAction();
     if(result.ok) setCampaign((result.campaign || null) as Campaign|null);
   },[]);
@@ -58,37 +55,8 @@ export function MovementCampaignControl() {
     return()=>window.clearInterval(timer);
   },[allowed,reload]);
 
-  // Server claims are atomic; one message per 45+ seconds, and never retries unknown delivery.
-  // Unlike WA.Auto's dedicated server worker, this loop requires the terminal tab to stay open.
-  useEffect(()=>{
-    if(!allowed||!campaign||campaign.status!=='running')return;
-    let alive=true;let timer:number|undefined;
-    const tick=async()=>{
-      if(!alive)return;
-      if(document.visibilityState==='visible'&&!busy.current) {
-        busy.current=true;setSending(true);
-        try{
-          const result=await advanceWhatsAppMovementCampaignAction(campaign.id);
-          if(!alive)return;
-          if(!result.ok&&result.error) {
-            toast({title:"Fila de movimentações",description:result.error,variant:"destructive"});
-          }
-          if(result.warning) {
-            toast({title:"Envio aceito, mas revisão necessária",description:result.warning,variant:"destructive"});
-          }
-          await reload();
-        }catch{
-          if(alive)toast({title:"Falha de conexão com a fila",description:"Confira os envios antes de retomar.",variant:"destructive"});
-        }finally{
-          busy.current=false;
-          if(alive)setSending(false);
-        }
-      }
-      if(alive)timer=window.setTimeout(()=>void tick(),47000);
-    };
-    timer=window.setTimeout(()=>void tick(),900);
-    return()=>{alive=false;if(timer!==undefined)window.clearTimeout(timer);};
-  },[allowed,campaign?.id,campaign?.status,reload,toast]);
+  // Sending is now automatic on the tenant-scoped WA.Auto linked worker.
+  // The browser only displays server-side progress and never claims work.
 
   if(!allowed)return null;
 
@@ -149,11 +117,11 @@ export function MovementCampaignControl() {
           <div className="flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1 text-[10px]">
             <span className="truncate max-w-[170px]" title={campaign.status}>
               {campaign.campaign_kind==='publication'?'Publicações · ':'Movimentos · '}
-              {campaign.status==='running'?'Enviando':campaign.status==='paused'?'Pausado':campaign.status==='completed'?'Concluído':'Cancelado'}:
+              {campaign.status==='running'?'Agendado automaticamente':campaign.status==='paused'?'Pausado':campaign.status==='completed'?'Concluído':'Cancelado'}:
               {" "}{campaign.sent_count}/{campaign.total}
               {campaign.review_count?` · ${campaign.review_count} em conferência`:''}
             </span>
-            {sending?<Loader2 size={12} className="animate-spin text-primary"/>:null}
+            {campaign.status==='running'&&pending>0?<Loader2 size={12} className="animate-spin text-primary"/>:null}
             {hasActive&&(
               <>
                 <Button size="icon" variant="ghost" className="h-7 w-7" disabled={loading} title={campaign.status==='running'?'Pausar':'Continuar'} onClick={()=>void change(campaign.status==='running'?'pause':'resume')}>
@@ -261,7 +229,7 @@ export function MovementCampaignControl() {
               <p className="text-[11px] text-muted-foreground">
                 {kind==='publication'
                   ? 'Publicações: até 25 mensagens por dia, intervalo mínimo de 3 minutos, só em horário comercial de dias úteis, no máximo uma por número a cada 24h. Esses controles não garantem ausência de bloqueio; a política do WhatsApp e os modelos aprovados quando exigidos continuam obrigatórios.'
-                  : 'Última movimentação: intervalo mínimo de 45 segundos, com limite de 120 mensagens confirmadas por empresa/dia.'}
+                  : 'Última movimentação: intervalo mínimo de 45 segundos, com limite de 120 mensagens confirmadas por empresa/dia, em dias úteis das 9h às 18h.'}
                 {' '}A fila fica gravada no Supabase e o envio continua pelo servidor.
                 O agendador processa a fila em segundo plano; resultados incertos pausam para conferência.
               </p>

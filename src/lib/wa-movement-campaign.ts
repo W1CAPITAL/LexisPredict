@@ -5,8 +5,7 @@
 import 'server-only';
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
-import { evolutionForOwner, evolutionDelivered } from '@/lib/evolution-bridge';
-import { persistWhatsAppMessage } from '@/lib/whatsapp-persist';
+import {bridgeStatus} from '@/lib/whatsapp-local';
 import { prepareMovementAlert, type SourceRow, type Alert } from '@/lib/wa-movement-builder';
 import {getDailyReturnSettings,upsertDailyReturnSettings} from '@/lib/wa-daily-return-service';
 import {brazilToday} from '@/lib/wa-daily-return-policy';
@@ -90,10 +89,10 @@ export async function createMovementCampaign(confirmed: boolean,kind:CampaignKin
     const settings=await getDailyReturnSettings(ctx.empresa_id);
     if (!settings.consentAttested && confirmed !== true)
       throw new Error('Confirme previamente a autorização dos contatos de acompanhamento.');
-    // Health must use the SAME server credential as the background dispatch.
-    // A browser-connected session alone did not validate automated sends (401).
-    const health = await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
-    if (!health.ok) throw new Error('Conecte a Evolution antes de iniciar. ' + (health.error || 'Sessão indisponível'));
+    // Campaigns belong to the tenant's connected WA.Auto device, not to
+    // the outdated Evolution operator or a browser tab.
+    const health=await bridgeStatus(ctx.empresa_id);
+    if(!health.connected)throw new Error('O WA.Auto desta empresa precisa estar conectado para iniciar a campanha.');
     const db=await getSupabaseAdmin();
     const {data: existing} = await db.from('wa_movement_campaigns').select('id')
       .eq('empresa_id',ctx.empresa_id).eq('status','running').limit(1);
@@ -166,8 +165,8 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
     if(error||!campaign) throw new Error('Campanha não encontrada nesta empresa.');
     if(action==='resume' && campaign.status!=='paused') throw new Error('Só é possível retomar campanhas pausadas.');
     if(action==='resume') {
-      const health=await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
-      if(!health.ok) throw new Error('Conecte seu WhatsApp nesta empresa antes de retomar. '+(health.error||''));
+      const health=await bridgeStatus(ctx.empresa_id);
+      if(!health.connected)throw new Error('O dispositivo WA.Auto desta empresa está desconectado.');
       const {data:other}=await db.from('wa_movement_campaigns').select('id')
         .eq('empresa_id',ctx.empresa_id).eq('status','running').neq('id',id).limit(1);
       if(other?.length) throw new Error('Outra campanha já está ativa.');
@@ -185,113 +184,138 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
   } catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 
-export async function deliverNextMovement(options: { campaignId?: string; verifiedOwner?: string } = {}) {
-  if (process.env.LEXIS_WHATSAPP_TRANSPORT !== 'official-active')
-    return {ok:false as const,error:'Automação suspensa; fila preservada sem reservar ou enviar mensagens.'};
+/** Run only behind the company's scoped 256-bit worker authorization
+ * (or a separately authenticated manager action).
+ * Performs ONE candidate claim and queues at most one WhatsApp device job.
+ * It NEVER reports "sent" until the worker acknowledges acceptance.
+ */
+export async function queueNextMovementForTenant(empresaId:string,campaignId?:string){
+  const local=new Date(), hour=Number(new Intl.DateTimeFormat('en-GB',{
+    timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23',
+  }).format(local)), weekday=new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/Sao_Paulo',weekday:'short',
+  }).format(local);
+  if(hour<9||hour>=18||['Sat','Sun'].includes(weekday))
+    return {ok:true as const,queued:false,processed:false,reason:'outside_business_hours'};
+  const connection=await bridgeStatus(empresaId);
+  if(!connection.connected)
+    return {ok:true as const,queued:false,processed:false,reason:'device_offline'};
   const db=await getSupabaseAdmin();
-  const {data,error}=await db.rpc('wa_claim_movement',{p_campaign:options.campaignId || null});
-  if(error) return {ok:false as const,error:error.message};
-  const claimed=(data||[])[0] as (Alert & {id:string;campaign_id:string})|undefined;
-  if(!claimed) return {ok:true as const,processed:false as const};
-  const {data:campaign}=await db.from('wa_movement_campaigns')
-    .select('id,empresa_id,owner_auth_id,status').eq('id',claimed.campaign_id).single();
-  if(!campaign || campaign.empresa_id!==claimed.empresa_id || campaign.status!=='running') {
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Campanha indisponível'});
-    return {ok:false as const,error:'Campanha não está ativa'};
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled||!settings.consentAttested)
+    return {ok:true as const,queued:false,processed:false,reason:'automation_disabled'};
+  let id=campaignId;
+  if(!id){
+    const {data,error}=await db.from('wa_movement_campaigns')
+      .select('id').eq('empresa_id',empresaId).eq('status','running')
+      .lte('next_send_at',new Date().toISOString())
+      .order('next_send_at',{ascending:true}).limit(1).maybeSingle();
+    if(error)throw new Error('Campanha indisponível: '+error.message);
+    id=data?.id;
   }
-  if(options.verifiedOwner && campaign.owner_auth_id!==options.verifiedOwner) {
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'uncertain',p_error:'Sessão do operador não corresponde à campanha'});
-    return {ok:false as const,error:'Operador diferente do proprietário da sessão'};
+  if(!id)return {ok:true as const,queued:false,processed:false,reason:'no_running_campaign'};
+  const {data:batch,error:claimError}=await db.rpc('wa_claim_movement',{p_campaign:id});
+  if(claimError)throw new Error('Fila indisponível: '+claimError.message);
+  const item=(batch||[])[0] as (Alert&{id:string;campaign_id:string;empresa_id:string;processo_id:number;phone:string})|undefined;
+  if(!item)return {ok:true as const,queued:false,processed:false,reason:'no_due_movement'};
+  if(item.empresa_id!==empresaId){
+    // Never process work from another tenant under a linked-device token.
+    return {ok:false as const,queued:false,processed:false,reason:'tenant_mismatch'};
   }
-  const {data:user}=await db.from('usuarios').select('empresa_id,cargo').eq('auth_user_id',campaign.owner_auth_id).maybeSingle();
-  if(!user || user.empresa_id!==campaign.empresa_id || !resolveWaAutoPermissions({cargo:user.cargo}).canManage) {
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Responsável sem autorização ativa'});
-    await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
-    return {ok:false as const,error:'Sessão responsável sem autorização'};
+  const {data:campaign,error:campaignError}=await db.from('wa_movement_campaigns')
+    .select('id,empresa_id,owner_auth_id,status,consent_attested,campaign_kind')
+    .eq('empresa_id',empresaId).eq('id',item.campaign_id).maybeSingle();
+  if(campaignError||!campaign||campaign.status!=='running'||!campaign.consent_attested){
+    await db.rpc('wa_finish_movement',{p_id:item.id,p_status:'failed',p_error:'Campanha sem autorização ativa'});
+    return {ok:true as const,processed:true,queued:false,reason:'campaign_ineligible'};
   }
-  const settings=await getDailyReturnSettings(campaign.empresa_id);
-  const {data:current,error:rowError}=await db.from('processos').select('*')
-    .eq('empresa_id',campaign.empresa_id).eq('id',claimed.processo_id).maybeSingle();
-  const check=current ? prepareMovementAlert(current as SourceRow,settings.consentAttested) : null;
-  if(rowError || !check?.alert || check.alert.event_hash!==claimed.event_hash || check.alert.phone!==claimed.phone) {
-    if(!rowError && check?.reason==='needs_source_review') {
-      const held=await db.from('wa_movement_dispatches').update({status:'cancelled',claimed_at:null,
-        last_error:'source_review: Aguardando teor oficial, descrição legível ou situação atual; nenhum envio realizado.'})
-        .eq('id',claimed.id).eq('status','processing');
-      if(held.error)throw new Error(held.error.message);
-      return {ok:true as const,processed:true as const,status:'review',reason:'needs_source_review'};
-    }
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Carteira alterada ou retorno já registrado: aviso cancelado'});
-    return {ok:true as const,processed:true as const,status:'skipped',reason:check?.reason||'case_missing'};
+  const {data:owner}=await db.from('usuarios')
+    .select('empresa_id,cargo').eq('auth_user_id',campaign.owner_auth_id).maybeSingle();
+  if(!owner||owner.empresa_id!==empresaId||
+      !resolveWaAutoPermissions({cargo:owner.cargo}).canManage){
+    await db.rpc('wa_finish_movement',{p_id:item.id,p_status:'failed',p_error:'Operador sem autorização atual'});
+    await db.from('wa_movement_campaigns').update({status:'paused'}).eq('empresa_id',empresaId).eq('id',campaign.id);
+    return {ok:true as const,processed:true,queued:false,reason:'owner_ineligible'};
   }
-  // Check current opt-out before EACH delivery, not only at preparation.
-  const {data:replies,error:replyError}=await db.from('whatsapp_messages')
-    .select('message_text,body').eq('empresa_id',campaign.empresa_id).eq('from_me',false)
-    .or('contact_number.eq.'+claimed.phone+',phone.eq.'+claimed.phone+',contact_number.eq.'+claimed.phone.slice(2)+',phone.eq.'+claimed.phone.slice(2))
+  const {data:current,error:caseError}=await db.from('processos').select('*')
+    .eq('empresa_id',empresaId).eq('id',item.processo_id).maybeSingle();
+  const evaluated=!caseError&&current?prepareMovementAlert(current as SourceRow,settings.consentAttested):null;
+  if(!evaluated?.alert||evaluated.alert.event_hash!==item.event_hash||
+     evaluated.alert.phone!==item.phone){
+    await db.rpc('wa_finish_movement',{p_id:item.id,p_status:'failed',
+      p_error:'Evento mudou ou exige revisão: '+(evaluated?.reason||'case_missing')});
+    return {ok:true as const,processed:true,queued:false,reason:evaluated?.reason||'case_missing'};
+  }
+  // Required opt-out check immediately before reserving an outbound message.
+  const n=item.phone,tail=n.startsWith('55')?n.slice(2):n;
+  const {data:replies,error:historyError}=await db.from('whatsapp_messages')
+    .select('message_text,body').eq('empresa_id',empresaId).eq('from_me',false)
+    .or('contact_number.eq.'+n+',phone.eq.'+n+',contact_number.eq.'+tail+',phone.eq.'+tail)
     .order('created_at',{ascending:false}).limit(150);
-  if(replyError || (replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(String(x.message_text||x.body||'').trim()))) {
-    await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:'failed',p_error:'Opt-out ou histórico indisponível; não enviado'});
-    return {ok:true as const,processed:true as const,status:'skipped'};
+  if(historyError||(replies||[]).some(x=>/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(
+      String(x.message_text||x.body||'').trim()))){
+    await db.rpc('wa_finish_movement',{p_id:item.id,p_status:'failed',
+      p_error:'Opt-out ou histórico indisponível: nenhum envio realizado'});
+    return {ok:true as const,processed:true,queued:false,reason:'contact_blocked'};
   }
-  const today=brazilToday();
   const {data:reservation,error:reserveError}=await db.rpc('wa_reserve_return',{
-    p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,p_phone:claimed.phone,p_hash:claimed.event_hash,
-    p_source:claimed.source,p_event_at:claimed.event_at,p_mode:'movement',p_message:check.alert.message,
+    p_empresa:empresaId,p_processo:item.processo_id,p_phone:item.phone,
+    p_hash:item.event_hash,p_source:item.source,p_event_at:item.event_at,
+    p_mode:campaign.campaign_kind==='publication'?'publication':'movement',
+    p_message:evaluated.alert.message,
   });
-  if(reserveError)throw new Error(reserveError.message);
-  if(!reservation) {
-    // Another path may have contacted this phone or reached the common quota.
-    await db.from('wa_movement_dispatches').update({status:'pending',claimed_at:null})
-      .eq('id',claimed.id).eq('status','processing');
-    return {ok:true as const,processed:false as const,reason:'contact_or_quota_reserved'};
+  if(reserveError){
+    await db.from('wa_movement_dispatches')
+      .update({status:'pending',claimed_at:null,last_error:reserveError.message.slice(0,200)})
+      .eq('empresa_id',empresaId).eq('id',item.id).eq('status','processing');
+    return {ok:false as const,processed:true,queued:false,reason:'reservation_error'};
   }
-  const send=await evolutionForOwner(campaign.owner_auth_id,campaign.empresa_id,claimed.phone,check.alert.message);
-  const delivered=send.ok && evolutionDelivered(send.raw);
-  // Aceite HTTP nao prova que o aparelho recebeu/decifrou a mensagem.
-  const result=delivered?'sent':send.ok?'uncertain':send.rejected?'failed':'uncertain';
-  const failure=send.ok&&!delivered?'Aceito pela Evolution, entrega não confirmada':(send.ok?null:send.error);
-  await db.from('wa_daily_return_sends').update({status:delivered?'sent':send.rejected?'rejected':'uncertain',
-    sent_at:delivered?new Date().toISOString():null,last_error:failure}).eq('id',reservation);
-  let historyWarning:string|null=null;
-  if(delivered) {
-    const history=await persistWhatsAppMessage({contactNumber:claimed.phone,messageText:check.alert.message,
-      fromMe:true,source:'lexis-evolution-movement',empresaId:campaign.empresa_id,
-      messageId:'wa-return-'+reservation,raw:send.raw});
-    if(history.ok){
-      const recorded=await db.rpc('wa_record_return',{p_empresa:campaign.empresa_id,p_processo:claimed.processo_id,
-        p_prior:current.ultimo_retorno||null,p_day:today,p_interval:settings.intervalDays,p_send:reservation});
-      if(recorded.error||!recorded.data)historyWarning='Envio aceito, mas o último retorno não pôde ser atualizado. Revisar manualmente.';
-    } else historyWarning='Envio aceito, mas o histórico WhatsApp não foi salvo; não reenviar sem conferência.';
-    if(historyWarning) {
-      await db.from('wa_daily_return_sends').update({last_error:historyWarning}).eq('id',reservation);
-      await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
-    }
+  if(!reservation){
+    await db.from('wa_movement_dispatches')
+      .update({status:'pending',claimed_at:null})
+      .eq('empresa_id',empresaId).eq('id',item.id).eq('status','processing');
+    return {ok:true as const,processed:false,queued:false,reason:'daily_limit_or_duplicate'};
   }
-  const {error:finishError}=await db.rpc('wa_finish_movement',{p_id:claimed.id,p_status:result,p_error:historyWarning||failure});
-  if(result==='uncertain' || (!send.ok && send.rejected && (send.httpStatus===401||send.httpStatus===403||send.httpStatus===409)))
-    await db.from('wa_movement_campaigns').update({status:'paused'}).eq('id',campaign.id);
-  if(finishError)return {ok:false as const,error:'Histórico do envio: '+finishError.message};
-  return {ok:delivered,processed:true as const,status:result,error:failure,warning:historyWarning};
+  const {data:job,error:attachError}=await db.rpc('wa_local_attach_return',{
+    p_empresa:empresaId,p_send:reservation,
+  });
+  if(attachError||!job){
+    await db.from('wa_daily_return_sends').update({status:'rejected',
+      last_error:attachError?.message||'Fila WA.Auto indisponível'})
+      .eq('empresa_id',empresaId).eq('id',reservation).eq('status','reserved');
+    await db.from('wa_movement_dispatches')
+      .update({status:'pending',claimed_at:null,
+        last_error:'Falha ao registrar na fila do WhatsApp'})
+      .eq('empresa_id',empresaId).eq('id',item.id).eq('status','processing');
+    return {ok:false as const,processed:true,queued:false,reason:'job_attach_failed'};
+  }
+  const {error:bindError}=await db.from('wa_movement_dispatches')
+    .update({wa_job_id:job})
+    .eq('empresa_id',empresaId).eq('id',item.id).eq('status','processing');
+  if(bindError){
+    // The device job is already queued. DO NOT make a second reservation:
+    // a future uncertain state must require operator review.
+    await db.from('wa_movement_campaigns').update({status:'paused'})
+      .eq('empresa_id',empresaId).eq('id',campaign.id);
+    return {ok:false as const,processed:true,queued:true,reason:'job_link_review'};
+  }
+  return {ok:true as const,processed:true,queued:true,reason:'queued_for_send',jobId:String(job)};
 }
 
-export async function deliverMovementFromOperator(campaignId:string) {
-  try {
+/** Legacy authenticated command stays callable but no longer sends through
+ * Evolution, claims ownership of a private session, or needs an open tab.
+ */
+export async function deliverMovementFromOperator(campaignId:string){
+  try{
     const ctx=await requireManager();
-    const db=await getSupabaseAdmin();
-    const {data:campaign}=await db.from('wa_movement_campaigns')
-      .select('id,owner_auth_id,status').eq('empresa_id',ctx.empresa_id).eq('id',campaignId).maybeSingle();
-    if(!campaign) throw new Error('Campanha inexistente nesta empresa.');
-    if(campaign.status !== 'running') return {ok:false as const,error:'Campanha pausada; nenhum envio realizado.'};
-    if(campaign.owner_auth_id !== ctx.auth_id) {
-      const health=await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
-      if(!health.ok) throw new Error('Conecte a Evolution para assumir esta campanha.');
-      const {error:transfer}=await db.from('wa_movement_campaigns')
-        .update({owner_auth_id:ctx.auth_id,updated_at:new Date().toISOString()})
-        .eq('id',campaign.id).eq('empresa_id',ctx.empresa_id).eq('status','running');
-      if(transfer) throw new Error('Falha ao mudar responsável da campanha: '+transfer.message);
-    }
-    return await deliverNextMovement({campaignId,verifiedOwner:ctx.auth_id});
+    return await queueNextMovementForTenant(ctx.empresa_id,campaignId);
   }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
+}
+
+/** Signed legacy cron: uses the same linked-device queue as the worker. */
+export async function deliverNextMovement(options:{campaignId?:string;verifiedOwner?:string}={}){
+  if(!options.campaignId)return {ok:true as const,queued:false,processed:false,reason:'worker_dispatch_required'};
+  return queueNextMovementForTenant('',options.campaignId);
 }
 
 /** Scanner hook: queues a dated newer event for ALL owners in this tenant.

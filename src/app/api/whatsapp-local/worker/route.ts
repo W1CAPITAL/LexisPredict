@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {persistWhatsAppMessage} from '@/lib/whatsapp-persist';
 import {dispatchPreparedDailyReturns,processNextDueReturn,getDailyReturnSettings} from '@/lib/wa-daily-return-service';
+import {queueNextMovementForTenant} from '@/lib/wa-movement-campaign';
 
 export const dynamic='force-dynamic';
 export const maxDuration=25;
@@ -101,7 +102,20 @@ export async function POST(req:Request){
           try{
             const cfg=await getDailyReturnSettings(tenant);
             if(cfg.enabled&&cfg.consentAttested){
-              await dispatchPreparedDailyReturns(tenant,cfg.intervalDays);
+              // Both sources share the same 45s/120-per-day atomic reservation.
+              // Alternate priority so a large due-return backlog never starves
+              // a smaller existing movement campaign.
+              const minute=Number(new Intl.DateTimeFormat('en-GB',{
+                timeZone:'America/Sao_Paulo',minute:'2-digit',
+              }).format(now));
+              if(minute%2===0){
+                const movement=await queueNextMovementForTenant(tenant);
+                if(!movement.queued)await dispatchPreparedDailyReturns(tenant,cfg.intervalDays);
+              }else{
+                const due=await dispatchPreparedDailyReturns(tenant,cfg.intervalDays);
+                if(!('queued' in due && due.queued))
+                  await queueNextMovementForTenant(tenant);
+              }
             }
           }catch(e){
             console.error('[wa-auto] deferred preparation',e instanceof Error?e.message:'unknown');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { deliverNextMovement } from '@/lib/wa-movement-campaign';
+// Campaign work is exclusively claimed by a scoped linked-device worker.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,8 +20,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const result = await deliverNextMovement();
-    return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.json({ok:true,processed:false,reason:'linked_worker_dispatch_only'}, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch {
     return NextResponse.json({ ok:false, error:'Falha no processamento da fila' }, { status: 503 });
   }
