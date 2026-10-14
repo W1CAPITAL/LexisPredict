@@ -3,11 +3,14 @@ import {actor,bridgeStatus,listLocalChats,localChat} from '@/lib/whatsapp-local'
 
 export async function waLocalStatusAction(){
   try{
-    const host=String(process.env.WA_AUTO_RENDER_URL||'').trim().replace(/\/$/,'');
-    if(/^https:\/\/[a-z0-9.-]+\.onrender\.com$/i.test(host)){
-      await fetch(host+'/health',{cache:'no-store',signal:AbortSignal.timeout(2600)}).catch(()=>{});
+    // Check company permissions first. Wake only the verified dedicated bridge.
+    const user=await actor();
+    const host=String(process.env.WA_AUTO_RENDER_URL||'https://lexispredict-wa-auto.onrender.com')
+      .trim().replace(/\/$/,'');
+    if(host==='https://lexispredict-wa-auto.onrender.com'){
+      await fetch(host+'/health',{cache:'no-store',signal:AbortSignal.timeout(3500)}).catch(()=>{});
     }
-    const user=await actor(),manage=(await import('@/lib/wa-auto-permissions')).resolveWaAutoPermissions({cargo:user.cargo}).canManage;
+    const manage=(await import('@/lib/wa-auto-permissions')).resolveWaAutoPermissions({cargo:user.cargo}).canManage;
     return {ok:true as const,...await bridgeStatus(user.empresa_id,manage)};
   }catch(e:any){return {ok:false as const,error:e?.message||'Falha na conexão'};}
 }
