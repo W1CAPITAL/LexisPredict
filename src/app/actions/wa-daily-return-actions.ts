@@ -48,7 +48,7 @@ export async function scanWaReturnBatchAction(){
  try{
   const me=await manager(),settings=await getDailyReturnSettings(me.empresaId);
   const dispatched=await dispatchPreparedDailyReturns(me.empresaId,settings.intervalDays);
-  if(dispatched.processed&&dispatched.queued)
+  if(dispatched.processed&&'queued' in dispatched&&dispatched.queued===true)
     return {ok:true as const,processed:true,processedCount:1,finished:false,last:dispatched,elapsedMs:0};
   const started=Date.now(),MAX=6,MAX_MS=34000,results:any[]=[];
   for(let n=0;n<MAX&&Date.now()-started<MAX_MS;n++){
