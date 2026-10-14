@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, LogOut, QrCode, RefreshCcw, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,9 @@ export function WaAutoConnectionCard() {
   const [phone, setPhone] = useState("");
   const [checkingAutomation,setCheckingAutomation] = useState(false);
   const [automationResult,setAutomationResult] = useState<{success:boolean;error?:string|null;httpStatus?:number|null}|null>(null);
+  const suspendedRef = useRef(false);
+  const lastCheckedAt = useRef(0);
+  const [serviceSuspended, setServiceSuspended] = useState(false);
 
   const checkAutomation = async () => {
     setCheckingAutomation(true);
@@ -57,12 +60,16 @@ export function WaAutoConnectionCard() {
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    lastCheckedAt.current = Date.now();
     try {
       const res = await waAutoConnectionAction();
       if (!res.success) {
+        const suspended = res.code === 'provider_suspended';
+        suspendedRef.current = suspended;
+        setServiceSuspended(suspended);
         window.dispatchEvent(new CustomEvent('lexis-waauto-status',{detail:{ready:false}}));
-        setConnection({ status: 'offline', message: res.error || 'Serviço WA.Auto indisponível' });
-        if (!silent) {
+        setConnection({ status: suspended ? 'suspended' : 'offline', message: res.error || 'Serviço WA.Auto indisponível' });
+        if (!silent && !suspended) {
           toast({
             title: "WA.Auto indisponível",
             description: res.error || "Não foi possível consultar a conexão.",
@@ -71,6 +78,8 @@ export function WaAutoConnectionCard() {
         }
         return;
       }
+      suspendedRef.current = false;
+      setServiceSuspended(false);
       setConnection((res.connection || {}) as ConnectionState);
       window.dispatchEvent(new CustomEvent("lexis-waauto-status", {
         detail: { ready: String((res.connection as any)?.status || "").toLowerCase() === "ready" },
@@ -88,7 +97,9 @@ export function WaAutoConnectionCard() {
     // Avoid 12 remote requests/minute while WhatsApp/Render is cold or offline.
     // The user can always trigger a refresh manually.
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refresh(true);
+      if (document.visibilityState !== 'visible') return;
+      if (suspendedRef.current && Date.now() - lastCheckedAt.current < 120_000) return;
+      void refresh(true);
     }, 30000);
     return () => window.clearInterval(timer);
   }, [refresh]);
@@ -159,7 +170,7 @@ export function WaAutoConnectionCard() {
             {ready ? <Wifi className="h-4 w-4 text-emerald-600" /> : <WifiOff className="h-4 w-4 text-amber-600" />}
             <h2 className="font-black text-sm">WA.Auto integrado</h2>
             <Badge variant={ready ? "default" : "outline"} className="text-[9px] uppercase">
-              {ready ? "Conectado" : status}
+              {ready ? "Conectado" : serviceSuspended ? "SUSPENSO" : status}
             </Badge>
           </div>
           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground truncate">
@@ -193,10 +204,15 @@ export function WaAutoConnectionCard() {
             : "Automação indisponível" + (automationResult.httpStatus ? " (HTTP " + automationResult.httpStatus + ")" : "") + ": " + (automationResult.error || "Confira a credencial do servidor.")}
         </p>
       )}
+      {serviceSuspended && (
+        <p role="alert" className="mt-3 rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <strong>O servidor WA.Auto está suspenso.</strong> O QR Code e os envios não podem funcionar até a hospedagem ser reativada. Use Atualizar conexão para verificar se o serviço voltou.
+        </p>
+      )}
       {!ready && canManageSession && (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,300px)_1fr]">
           <div className="space-y-3">
-            <Button className="w-full" onClick={connect} disabled={busy}>
+            <Button className="w-full" onClick={connect} disabled={busy || serviceSuspended}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
               Gerar QR no Lexis
             </Button>
@@ -209,7 +225,7 @@ export function WaAutoConnectionCard() {
                 placeholder="DDD + número"
                 className="h-10"
               />
-              <Button type="button" variant="outline" onClick={pair} disabled={busy}>
+              <Button type="button" variant="outline" onClick={pair} disabled={busy || serviceSuspended}>
                 <Smartphone className="mr-2 h-4 w-4" />
                 Parear
               </Button>

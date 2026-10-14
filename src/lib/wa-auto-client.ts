@@ -5,6 +5,7 @@
  */
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveWaAutoPermissions } from '@/lib/wa-auto-permissions';
+import { readWaAutoResponse } from './wa-auto-response';
 
 export type WaAutoHealth = {
   configured: boolean;
@@ -104,19 +105,12 @@ async function authHeaders(forceUserJwt = false): Promise<Record<string, string>
  */
 async function waAutoFetch(url: string, init: RequestInit): Promise<Response> {
   const first = await fetch(url, { ...init, headers: await authHeaders() });
-  if (first.status !== 401 || !getWaAutoConfig().integrationToken) return first;
+  if (first.status !== 401 || !getWaAutoConfig().integrationToken || first.headers.get("content-type")?.toLowerCase().includes("text/html")) return first;
   const jwtHeaders = await authHeaders(true);
   return fetch(url, { ...init, headers: jwtHeaders });
 }
 
-async function readJson(res: Response) {
-  const text = await res.text().catch(() => "");
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    return { error: text || `HTTP ${res.status}` };
-  }
-}
+const readJson = readWaAutoResponse;
 
 export async function waAutoHealth(): Promise<WaAutoHealth> {
   const { baseUrl } = getWaAutoConfig();
@@ -139,10 +133,10 @@ export async function waAutoHealth(): Promise<WaAutoHealth> {
     const status = String(body?.connection?.status || body?.whatsapp || "").toLowerCase();
     return {
       configured: true,
-      ok: res.ok && status === "ready",
+      ok: res.ok && body?.ok !== false && status === "ready",
       provider: "waauto",
       status: status || null,
-      error: res.ok ? undefined : String(body?.error || `HTTP ${res.status}`),
+      error: !res.ok || body?.ok === false ? String(body?.error || `HTTP ${res.status}`) : undefined,
     };
   } catch (e: any) {
     return {
@@ -217,7 +211,7 @@ export async function listWaAutoChats(opts?: { onlyGroups?: boolean; limit?: num
       signal: AbortSignal.timeout(12000),
     });
     const body = await readJson(res);
-    if (!res.ok) {
+    if (!res.ok || body?.ok === false) {
       return { ok: false as const, configured: true, chats: [] as any[], error: String(body?.error || `HTTP ${res.status}`) };
     }
     const chats = (Array.isArray(body?.chats) ? body.chats : []).map((row: any) => ({
@@ -247,7 +241,7 @@ export async function fetchWaAutoChatByJid(jid: string, limit = 80) {
       signal: AbortSignal.timeout(12000),
     });
     const body = await readJson(res);
-    if (!res.ok) {
+    if (!res.ok || body?.ok === false) {
       return { ok: false as const, configured: true, messages: [] as any[], error: String(body?.error || `HTTP ${res.status}`) };
     }
     const messages = (Array.isArray(body?.messages) ? body.messages : [])
@@ -274,7 +268,10 @@ export async function getWaAutoConnection() {
       signal: AbortSignal.timeout(16000),
     });
     const body = await readJson(res);
-    if (!res.ok) return { ok: false as const, error: String(body?.error || `HTTP ${res.status}`) };
+    if (!res.ok || body?.ok === false) return {
+      ok: false as const, error: String(body?.error || `HTTP ${res.status}`),
+      code: String(body?.code || 'provider_unavailable'),
+    };
     return { ok: true as const, connection: body?.connection || null, raw: body };
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha ao consultar WA.Auto" };
@@ -306,7 +303,10 @@ export async function connectWaAuto() {
       signal: AbortSignal.timeout(20000),
     });
     const body = await readJson(res);
-    if (!res.ok) return { ok: false as const, error: String(body?.error || `HTTP ${res.status}`) };
+    if (!res.ok || body?.ok === false) return {
+      ok: false as const, error: String(body?.error || `HTTP ${res.status}`),
+      code: String(body?.code || 'provider_unavailable'),
+    };
     return { ok: true as const, connection: body?.connection || null };
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha ao conectar WA.Auto" };
@@ -329,7 +329,10 @@ export async function pairWaAuto(phone: string) {
       signal: AbortSignal.timeout(40000),
     });
     const body = await readJson(res);
-    if (!res.ok) return { ok: false as const, error: String(body?.error || `HTTP ${res.status}`) };
+    if (!res.ok || body?.ok === false) return {
+      ok: false as const, error: String(body?.error || `HTTP ${res.status}`),
+      code: String(body?.code || 'provider_unavailable'),
+    };
     return { ok: true as const, connection: body?.connection || null };
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha ao parear WA.Auto" };
@@ -352,7 +355,10 @@ export async function logoutWaAuto() {
       signal: AbortSignal.timeout(20000),
     });
     const body = await readJson(res);
-    if (!res.ok) return { ok: false as const, error: String(body?.error || `HTTP ${res.status}`) };
+    if (!res.ok || body?.ok === false) return {
+      ok: false as const, error: String(body?.error || `HTTP ${res.status}`),
+      code: String(body?.code || 'provider_unavailable'),
+    };
     return { ok: true as const, connection: body?.connection || null };
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha ao desconectar WA.Auto" };

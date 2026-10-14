@@ -488,7 +488,7 @@ export async function importEvolutionHistoryBulkAction(opts?: {
 
 export async function waAutoConnectionAction() {
   const res = await getWaAutoConnection();
-  if (!res.ok) return { success: false as const, error: res.error, connection: null };
+  if (!res.ok) return { success: false as const, error: res.error, code: 'code' in res ? res.code : 'provider_unavailable', connection: null };
   return { success: true as const, connection: res.connection };
 }
 
