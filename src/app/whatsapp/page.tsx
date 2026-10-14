@@ -183,7 +183,7 @@ function WhatsAppTerminalInner() {
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
-  const [bridgeProvider, setBridgeProvider] = useState<"waauto" | "evolution" | null>(null);
+  const [bridgeProvider, setBridgeProvider] = useState<"evolution" | null>(null);
   const [caseSearchHits, setCaseSearchHits] = useState<LegalCase[] | null>(null);
 
   const [attSaving, setAttSaving] = useState(false);
@@ -282,7 +282,7 @@ function WhatsAppTerminalInner() {
       .then((res) => {
         if (!active) return;
         setEvolutionOk(!!res?.success);
-        setBridgeProvider((res?.provider as "waauto" | "evolution") || null);
+        setBridgeProvider((res?.provider as "evolution") || null);
       })
       .catch(() => {
         if (!active) return;
@@ -481,12 +481,12 @@ function WhatsAppTerminalInner() {
       }
       const list = res.chats || [];
       setEvoChats(list);
-      if (res.provider === "waauto" || res.provider === "evolution") {
+      if (res.provider === "evolution") {
         setBridgeProvider(res.provider);
       }
       const g = list.filter((c: { isGroup: boolean }) => c.isGroup).length;
       toast({
-        title: res.provider === "waauto" ? "Chats WA.Auto" : "Chats Evolution",
+        title: "Chats Evolution",
         description: only
           ? `${list.length} grupo(s) · clique para abrir`
           : `${list.length} chat(s) · ${g} grupo(s) · clique na linha`,
@@ -1110,7 +1110,7 @@ function WhatsAppTerminalInner() {
       ]);
       if (res?.success) {
         setEvolutionOk(true);
-        if ((res as any).provider === "waauto" || (res as any).provider === "evolution") {
+        if ((res as any).provider === "evolution") {
           setBridgeProvider((res as any).provider);
         }
         const deliveryConfirmed = (res as any).deliveryConfirmed === true;
@@ -1503,7 +1503,7 @@ function WhatsAppTerminalInner() {
                         ) : (
                           <Send size={14} />
                         )}
-                        {duplicateOutbound ? "Enviar novamente" : "Enviar via WA.Auto"}
+                        {duplicateOutbound ? "Enviar novamente" : "Enviar via Evolution"}
                       </Button>
                     </div>
                     </div>
