@@ -13,6 +13,10 @@ export async function POST(req:Request){
   const bearer=String(req.headers.get('authorization')||'').match(/^Bearer ([a-f0-9]{64})$/i);
   if(!bearer)return result({ok:false,error:'Unauthorized'},401);
   const tokenHash=createHash('sha256').update(bearer[1]).digest('hex');
+  // Credential shared in a support conversation is compromised: reject without exposing it.
+  if (tokenHash === '020dbfb52e14f5c025cbb4882d9ec01ea6a56b3e207ae4e4867c54d090adb6cc') {
+    return result({ok:false,error:'Credential revoked'},401);
+  }
   const db=await getSupabaseAdmin();
   const {data:bridge,error:authError}=await db.from('wa_local_bridges')
     .select('empresa_id').eq('token_sha256',tokenHash).maybeSingle();

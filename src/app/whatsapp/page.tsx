@@ -8,7 +8,7 @@ import { useAdmin } from "@/hooks/use-admin";
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
-import React, { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   MessageCircle,
@@ -78,7 +78,7 @@ import {
 } from "@/app/actions/whatsapp-actions";
 import { clearWhatsAppHistoryAction } from "@/app/actions/whatsapp-history-actions";
 import { saveOneCaseAction } from "@/app/actions/case-save-actions";
-import { searchCompanyProcessosAction } from "@/app/actions/search-processos-action";
+import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { fetchCarteiraPageClient, mergeCarteiraPages } from '@/lib/carteira-fetch-client';
 import { peekCarteiraCache, writeCarteiraCache } from '@/lib/session-carteira-cache';
 import { suggestScripts } from "@/lib/script-processual/suggest";
@@ -184,7 +184,8 @@ function WhatsAppTerminalInner() {
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
   const [bridgeProvider, setBridgeProvider] = useState<"manual" | "local" | null>(null);
-  const [caseSearchHits, setCaseSearchHits] = useState<LegalCase[] | null>(null);
+  const [debouncedTerm, setDebouncedTerm] = useState("");
+  const moreCasesMarker = useRef<HTMLDivElement | null>(null);
 
   const [attSaving, setAttSaving] = useState(false);
   const [attOpen, setAttOpen] = useState(false);
@@ -200,6 +201,18 @@ function WhatsAppTerminalInner() {
   const [loadingTribunal, setLoadingTribunal] = useState(false);
   const [selectedMotor, setSelectedMotor] = useState<string>("omni");
   const [listSource, setListSource] = useState<"carteira" | "evolution">("carteira");
+  useEffect(() => {
+    const t=window.setTimeout(()=>setDebouncedTerm(q),280);
+    return ()=>window.clearTimeout(t);
+  },[q]);
+  const companySearch=useCompanyProcessSearch(debouncedTerm,listSource==="carteira");
+  const fullSearch=listSource==="carteira"&&q.trim().length>=2;
+  const searchIsCurrent=debouncedTerm.trim()===q.trim();
+  const searchingAll=fullSearch&&(!searchIsCurrent||companySearch.searching);
+  const searchError=fullSearch&&searchIsCurrent?companySearch.error:"";
+  const caseSearchHits:LegalCase[]|null=fullSearch
+    ?(searchIsCurrent?companySearch.cases:[])
+    :null;
   const [evoChats, setEvoChats] = useState<
     { jid: string; name: string; isGroup: boolean; lastMessage?: string }[]
   >([]);
@@ -302,26 +315,18 @@ function WhatsAppTerminalInner() {
     };
   }, []);
 
-  useEffect(() => {
-    if (listSource !== "carteira") {
-      setCaseSearchHits(null);
-      return;
-    }
-    const term = q.trim();
-    if (term.length < 2) {
-      setCaseSearchHits(null);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void searchCompanyProcessosAction(term)
-        .then((res) => {
-          if (res?.ok) setCaseSearchHits((res.cases || []) as LegalCase[]);
-          else setCaseSearchHits([]);
-        })
-        .catch(() => setCaseSearchHits([]));
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [q, listSource]);
+  // Infinite scroll for the regular portfolio. A company-wide search never
+  // depends on loading successive client pages.
+  useEffect(()=>{
+    if(listSource!=="carteira"||loading||loadingMoreCases||!hasMoreCases||fullSearch)return;
+    const target=moreCasesMarker.current;
+    if(!target)return;
+    const observer=new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting))void loadMoreCases();
+    },{root:null,rootMargin:"140px"});
+    observer.observe(target);
+    return ()=>observer.disconnect();
+  },[listSource,loading,loadingMoreCases,hasMoreCases,fullSearch,cases.length]);
 
   const contacts = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -1301,7 +1306,7 @@ function WhatsAppTerminalInner() {
                       <LexisThinkingOrb state="connecting" size={64} aria-label="Carregando conversas" />
                     </div>
                   )}
-                  {listSource === "carteira" && loading && (
+                  {listSource === "carteira" && loading && !fullSearch && (
                     <div className="flex justify-center py-10 text-muted-foreground">
                       <LexisThinkingOrb state="searching" size={64} aria-label="Consultando carteira" />
                     </div>
@@ -1348,7 +1353,7 @@ function WhatsAppTerminalInner() {
                           </div>
                         </button>
                       ))}
-                  {!loading && listSource === "carteira" &&
+                  {(!loading||fullSearch)&&!searchingAll&&!searchError&&listSource === "carteira" &&
                     contacts.map((c) => {
                       const badge = signalBadge(c);
                       const active = selected?.protocolo === c.protocolo;
@@ -1393,12 +1398,21 @@ function WhatsAppTerminalInner() {
                         </button>
                       );
                     })}
-                  {listSource === "carteira" && !loading && hasMoreCases && (
-                    <Button type="button" variant="outline" size="sm" disabled={loadingMoreCases}
-                      className="w-full my-2" onClick={()=>void loadMoreCases()}>
-                      {loadingMoreCases ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <RefreshCcw size={14} className="mr-1.5" />}
-                      {loadingMoreCases ? "Carregando..." : "Carregar mais processos"}
-                    </Button>
+                  {listSource === "carteira" && !fullSearch && !loading && hasMoreCases && (
+                    <div ref={moreCasesMarker} role="status" className="flex items-center justify-center gap-2 px-3 py-4 text-[11px] text-muted-foreground">
+                      <Loader2 size={14} className="animate-spin"/> {loadingMoreCases?"Carregando processos...":"Mais processos serão exibidos ao rolar"}
+                    </div>
+                  )}
+                  {listSource==="carteira"&&searchingAll&&(
+                    <div role="status" className="flex items-center justify-center gap-2 px-3 py-6 text-xs text-muted-foreground">
+                      <Loader2 size={15} className="animate-spin"/> Pesquisando toda a carteira...
+                    </div>
+                  )}
+                  {listSource==="carteira"&&!!searchError&&(
+                    <p role="alert" className="px-3 py-4 text-xs text-destructive">{searchError}</p>
+                  )}
+                  {listSource==="carteira"&&fullSearch&&!searchingAll&&!searchError&&contacts.length===0&&(
+                    <p role="status" className="px-3 py-6 text-center text-xs text-muted-foreground">Nenhum processo corresponde à pesquisa.</p>
                   )}
                   {listSource === "evolution" && !evoLoading && evoChats.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">

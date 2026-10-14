@@ -1,5 +1,5 @@
 'use server';
-import {actor,bridgeStatus,provisionBridge,listLocalChats,localChat} from '@/lib/whatsapp-local';
+import {actor,bridgeStatus,listLocalChats,localChat} from '@/lib/whatsapp-local';
 
 export async function waLocalStatusAction(){
   try{const user=await actor(),manage=(await import('@/lib/wa-auto-permissions')).resolveWaAutoPermissions({cargo:user.cargo}).canManage;
@@ -7,8 +7,8 @@ export async function waLocalStatusAction(){
   }catch(e:any){return {ok:false as const,error:e?.message||'Falha na conexão'};}
 }
 export async function waLocalProvisionAction(){
-  try{return {ok:true as const,...await provisionBridge()};}
-  catch(e:any){return {ok:false as const,error:e?.message||'Não foi possível configurar'};}
+  // The user has declined local installation; do not generate new unusable credentials.
+  return {ok:false as const,error:'Ativação local desabilitada. Não existe hospedagem de sessão WhatsApp validada.'};
 }
 export async function waLocalChatsAction(opts?:{onlyGroups?:boolean;limit?:number}){
   try{return {ok:true as const,chats:await listLocalChats(opts)};}
