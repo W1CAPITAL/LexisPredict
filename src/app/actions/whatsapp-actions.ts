@@ -210,51 +210,25 @@ export async function generateWhatsAppClaudeDraftAction(input: {
 }
 
 /** Grava mensagem enviada via wa.me (sem Evolution) no Supabase. */
-export async function logOutboundWhatsAppAction(to: string, message: string) {
-  try {
-    const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
-    const { getUserContext } = await import('@/lib/server-db');
-    let empresaId: string | null = null;
-    try {
-      const ctx = await getUserContext();
-      empresaId = ctx.empresa_id || null;
-    } catch { /* */ }
-    const res = await persistWhatsAppMessage({
-      contactNumber: normalizeBrPhone(to),
-      messageText: message,
-      fromMe: true,
-      source: 'wa.me',
-      empresaId,
-    });
-    return { success: res.ok, message: res.error };
-  } catch (e: any) {
-    return { success: false, message: e?.message };
-  }
+export async function logOutboundWhatsAppAction(_to: string, _message: string) {
+  // Opening wa.me cannot prove the operator actually sent the message.
+  // Never fabricate a delivered/outbound record in the customer's history.
+  return {success:false as const,message:'Abrir o WhatsApp não confirma o envio. A mensagem não foi registrada como entregue.'};
 }
 
 /** Insere mensagem de teste no Supabase e devolve o resultado (para depurar na UI). */
 export async function testSaveWhatsAppMessageAction(phone: string) {
-  const { persistWhatsAppMessage, fetchMessagesByPhone } = await import('@/lib/whatsapp-persist');
-  const n = normalizeBrPhone(phone);
-  if (!n) return { success: false, error: 'Telefone vazio no cadastro do cliente' };
-  const saved = await persistWhatsAppMessage({
-    contactNumber: n,
-    messageText: `TESTE LEXIS ${new Date().toLocaleString('pt-BR')} — se você vê isto, o Supabase está gravando.`,
-    fromMe: true,
-    source: 'lexis-test-button',
-  });
-  if (!saved.ok) {
-    return { success: false, error: saved.error, phone: n };
-  }
-  const { messages, error } = await fetchMessagesByPhone(n);
-  return {
-    success: true,
-    phone: n,
-    id: saved.id,
-    count: messages.length,
-    error: error || null,
-    last: messages.slice(-3).map((m: any) => m.message_text || m.body),
-  };
+  // Diagnostics must be read-only, scoped and cannot forge an outbound message.
+  const ctx = await (await import('@/lib/server-db')).getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer)
+    return {success:false as const,error:'Sem permissão para consultar histórico.'};
+  const {fetchMessagesByPhone}=await import('@/lib/whatsapp-persist');
+  const n=normalizeBrPhone(phone);
+  if(!/^55\d{10,11}$/.test(n))return {success:false as const,error:'Telefone inválido.'};
+  const {messages,error}=await fetchMessagesByPhone(n,ctx.empresa_id);
+  if(error)return {success:false as const,error};
+  return {success:true as const,phone:n,id:null,count:messages.length,
+    error:null,last:messages.slice(-3).map((m:any)=>m.message_text||m.body)};
 }
 
 /**

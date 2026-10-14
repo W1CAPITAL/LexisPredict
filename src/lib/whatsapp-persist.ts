@@ -42,6 +42,11 @@ export async function persistWhatsAppMessage(input: WaPersistInput): Promise<{
     };
   }
 
+  // Service-role writes MUST have a verified tenant. Legacy unscoped records
+  // are not attached automatically: do not guess an owner by phone number.
+  if (!input.empresaId || !/^[0-9a-f-]{36}$/i.test(String(input.empresaId))) {
+    return {ok:false,error:'Empresa autenticada obrigatória para armazenar o histórico.'};
+  }
   const num = normalizeBrPhone(input.contactNumber);
   if (!num || num.length < 10) {
     return { ok: false, error: 'Telefone inválido para gravar (confira DDD no cadastro).' };
@@ -119,7 +124,7 @@ export function sameWhatsAppLine(stored: string, targetNormalized: string): bool
   return false;
 }
 
-export async function fetchMessagesByPhone(phone: string): Promise<{
+export async function fetchMessagesByPhone(phone: string, empresaId?: string): Promise<{
   messages: any[];
   error?: string;
 }> {
@@ -127,6 +132,9 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   if (!sb) return { messages: [], error: 'Sem service role' };
   const num = normalizeBrPhone(phone);
   if (!num) return { messages: [], error: 'Telefone vazio' };
+  if (!empresaId || !/^[0-9a-f-]{36}$/i.test(empresaId)) {
+    return {messages: [], error: 'Escopo de empresa obrigatório para ler histórico.'};
+  }
 
   let variants: string[] = [num];
   try {
@@ -161,6 +169,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
   let { data, error } = await sb
     .from('whatsapp_messages')
     .select('*')
+    .eq('empresa_id', empresaId)
     .or(orParts.join(','))
     .order('timestamp', { ascending: true })
     .limit(800);
@@ -170,6 +179,7 @@ export async function fetchMessagesByPhone(phone: string): Promise<{
     const r = await sb
       .from('whatsapp_messages')
       .select('*')
+      .eq('empresa_id', empresaId)
       .or(orParts.join(','))
       .order('created_at', { ascending: true })
       .limit(800);

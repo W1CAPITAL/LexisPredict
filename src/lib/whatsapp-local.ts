@@ -67,7 +67,7 @@ export async function enqueueLocalMessage(phone:string,message:string){
   return {jobId:String(data.id),phone:n};
 }
 export async function listLocalChats(opts?:{onlyGroups?:boolean;limit?:number}){
-  const ctx=await actor(true);
+  const ctx=await actor();
   if(opts?.onlyGroups)return [] as {jid:string;name:string;isGroup:boolean;lastMessage:string}[];
   const db=await getSupabaseAdmin(),lim=Math.min(1000,Math.max(100,Number(opts?.limit||300)*3));
   const {data,error}=await db.from('whatsapp_messages')
@@ -85,7 +85,7 @@ export async function listLocalChats(opts?:{onlyGroups?:boolean;limit?:number}){
   return [...seen.values()];
 }
 export async function localChat(jid:string){
-  const ctx=await actor(true),n=normalizedPhone(String(jid).split('@')[0]);
+  const ctx=await actor(),n=normalizedPhone(String(jid).split('@')[0]);
   if(!n)throw new Error('Contato inválido.');
   const db=await getSupabaseAdmin();
   const {data,error}=await db.from('whatsapp_messages')
