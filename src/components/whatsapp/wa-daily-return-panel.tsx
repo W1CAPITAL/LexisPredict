@@ -150,8 +150,6 @@ export function WaDailyReturnPanel(){
     </p>
    </div>
   ):null}
-  <div className="flex flex-wrap gap-3 items-center text-xs">
-  </div>
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Scanner de retornos · lotes rápidos na nuvem</p>
    <div className="flex flex-wrap gap-2">
