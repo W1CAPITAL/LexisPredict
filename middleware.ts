@@ -34,6 +34,7 @@ const PUBLIC_API = [
 const MACHINE_AUTH_API = new Set([
   '/api/cron/wa-movement',
   '/api/cron/wa-daily-return',
+  '/api/whatsapp-local/worker',
 ])
 
 const OPERATIONAL_API = [

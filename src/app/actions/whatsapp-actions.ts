@@ -6,6 +6,7 @@
  */
 
 import { normalizeBrPhone } from '@/lib/evolution-api';
+import {enqueueLocalMessage,bridgeStatus,actor,listLocalChats,localChat} from '@/lib/whatsapp-local';
 // Disabled transports: no WA.Auto or Evolution calls from active actions.
 import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
@@ -24,8 +25,15 @@ export async function sendWhatsAppAction(to: string, message: string) {
     return { success: false, message: 'Número inválido. Informe DDD e telefone corretos.' };
   }
   if (!text || text.length > 8000) return { success: false, message: 'Mensagem inválida (1 a 8.000 caracteres).' };
-  return {success:false,provider:'manual' as const,
-    message:'Envio automático indisponível. WA.Auto e Evolution estão fora de serviço. Use “Abrir no WhatsApp” para enviar manualmente; nenhum envio ocorreu via API.'};
+  try{
+    const result=await enqueueLocalMessage(recipient,text);
+    return {success:true as const,queued:true as const,provider:'local' as const,
+      message:'Mensagem adicionada à fila do dispositivo conectado. Aguarde o envio.',
+      jobId:result.jobId,deliveryConfirmed:false as const,persisted:false as const};
+  }catch(e:any){
+    return {success:false as const,provider:'local' as const,
+      message:e?.message||'Dispositivo local indisponível. Nada foi enviado.'};
+  }
 }
 
 /**
@@ -449,13 +457,20 @@ export async function waAutoConnectAction(){return offline();}
 export async function waAutoPairAction(_phone:string){return offline();}
 export async function waAutoLogoutAction(){return offline();}
 export async function waAutoAutomationReadinessAction(){return evolutionReadinessAction();}
-export async function whatsappBridgeHealthAction(){return {success:false as const,provider:'manual' as const,status:'manual' as const,
- error:'Automação não conectada. Atendimento manual disponível.'};}
-export async function listWhatsAppChatsAction(_opts?:{onlyGroups?:boolean;limit?:number}){
- return {success:false as const,provider:'manual' as const,chats:[] as any[],error:'Sincronização de chats offline. Use o histórico Supabase.'};
+export async function whatsappBridgeHealthAction(){
+  try{
+    const ctx=await actor(),s=await bridgeStatus(ctx.empresa_id);
+    return {success:s.connected,provider:'local' as const,status:s.connected?'ready' as const:'offline' as const,
+      error:s.connected?null:'Dispositivo local desconectado.'};
+  }catch{return {success:false,provider:'local' as const,status:'offline' as const,error:'Conexão indisponível'};}
+}
+export async function listWhatsAppChatsAction(opts?:{onlyGroups?:boolean;limit?:number}){
+ try{return {success:true as const,provider:'local' as const,chats:await listLocalChats(opts),error:null};}
+ catch(e:any){return {success:false as const,provider:'local' as const,chats:[] as any[],error:String(e?.message||'Falha nos chats')};}
 }
 export async function fetchWhatsAppChatByJidAction(jid:string){
- return {success:false as const,provider:'manual' as const,jid,messages:[] as any[],error:'Sincronização offline. Use o histórico Supabase.'};
+ try{return {success:true as const,provider:'local' as const,jid,messages:await localChat(jid),error:null};}
+ catch(e:any){return {success:false as const,provider:'local' as const,jid,messages:[] as any[],error:String(e?.message||'Falha no chat')};}
 }
 
 function legacyEvolutionDisabled(){return true;}

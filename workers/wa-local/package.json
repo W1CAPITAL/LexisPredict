@@ -1,0 +1,18 @@
+{
+  "name": "lexispredict-wa-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.19",
+    "qrcode": "^1.5.4",
+    "pino": "^9.7.0",
+    "dotenv": "^16.5.0"
+  }
+}

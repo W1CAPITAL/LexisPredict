@@ -183,7 +183,7 @@ function WhatsAppTerminalInner() {
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
-  const [bridgeProvider, setBridgeProvider] = useState<"manual" | null>(null);
+  const [bridgeProvider, setBridgeProvider] = useState<"manual" | "local" | null>(null);
   const [caseSearchHits, setCaseSearchHits] = useState<LegalCase[] | null>(null);
 
   const [attSaving, setAttSaving] = useState(false);
@@ -282,7 +282,7 @@ function WhatsAppTerminalInner() {
       .then((res) => {
         if (!active) return;
         setEvolutionOk(!!res?.success);
-        setBridgeProvider('manual');
+        setBridgeProvider('local');
       })
       .catch(() => {
         if (!active) return;
@@ -292,7 +292,7 @@ function WhatsAppTerminalInner() {
       const detail=(event as CustomEvent<{ready:boolean}>).detail;
       if(typeof detail?.ready==='boolean'){
         setEvolutionOk(detail.ready);
-        setBridgeProvider('manual');
+        setBridgeProvider('local');
       }
     };
     window.addEventListener('lexis-evolution-status',onWaStatus);
@@ -481,12 +481,12 @@ function WhatsAppTerminalInner() {
       }
       const list = res.chats || [];
       setEvoChats(list);
-      if (res.provider === "manual") {
+      if (res.provider === "local") {
         setBridgeProvider(res.provider);
       }
       const g = list.filter((c: { isGroup: boolean }) => c.isGroup).length;
       toast({
-        title: "Chats Evolution",
+        title: "Conversas dentro do CRM",
         description: only
           ? `${list.length} grupo(s) · clique para abrir`
           : `${list.length} chat(s) · ${g} grupo(s) · clique na linha`,
@@ -1102,12 +1102,19 @@ function WhatsAppTerminalInner() {
               resolve({
                 success: false,
                 message:
-                  "Tempo esgotado (90s). Confira o chat Evolution antes de tentar novamente para evitar duplicidade.",
+                  "Tempo esgotado. Confira o histórico no CRM antes de tentar novamente para evitar duplicidade.",
               }),
             90000
           )
         ),
       ]);
+      if (res?.success && (res as any).queued) {
+        toast({title:'Mensagem na fila do CRM',description:'O dispositivo local está processando o envio; isso ainda não é confirmação de entrega.'});
+        setDraft("");
+        if (selected) void loadHistory(selected);
+        if (selectedEvoJid) void selectEvolutionChat({jid:selectedEvoJid,name:selectedEvoName,isGroup:false});
+        return;
+      }
       if (res?.success) {
         setEvolutionOk(true);
         if ((res as any).provider === "evolution") {
@@ -1185,7 +1192,7 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  {'Andamentos · IA · histórico · atendimento manual pelo WhatsApp'}
+                  {'Andamentos · IA · histórico · WhatsApp integrado ao CRM'}
                 </p>
               </div>
             </div>
@@ -1225,7 +1232,7 @@ function WhatsAppTerminalInner() {
                   variant="outline"
                   className="text-[9px] uppercase text-amber-600 border-amber-300"
                 >
-                  Automação desligada · WhatsApp manual disponível
+                  Dispositivo desconectado · envio manual alternativo
                 </Badge>
               )}
               <Button
@@ -1265,9 +1272,9 @@ function WhatsAppTerminalInner() {
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "carteira" ? "bg-background shadow" : "text-muted-foreground")}>
                       Processos
                     </button>
-                    <button type="button" disabled title="Sincronização de chats indisponível"
+                    <button type="button" onClick={() => { setListSource("evolution"); setQ(""); void loadEvolutionChats(false); }}
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "evolution" ? "bg-background shadow" : "text-muted-foreground")}>
-                      WhatsApp / Grupos
+                      Conversas
                     </button>
                   </div>
                   {listSource === "evolution" && (
@@ -1395,7 +1402,7 @@ function WhatsAppTerminalInner() {
                   )}
                   {listSource === "evolution" && !evoLoading && evoChats.length === 0 && (
                     <p className="text-[11px] text-muted-foreground text-center py-8 px-3">
-                      Nenhum chat/grupo. Clique em Atualizar (instância Evolution open).
+                      Nenhuma conversa registrada no CRM. As mensagens recebidas aparecerão com o dispositivo conectado.
                     </p>
                   )}
                   {listSource === "carteira" && !loading && contacts.length === 0 && (
@@ -1493,15 +1500,15 @@ function WhatsAppTerminalInner() {
                         size="sm"
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
                         onClick={sendViaEvolution}
-                        disabled={true}
-                        title={isGeneratingAIDraft ? "Você pode enviar o script local mesmo com a IA carregando" : undefined}
+                        disabled={sending || evolutionOk !== true || !draft.trim() || (!selected && !selectedEvoJid)}
+                        title={evolutionOk ? "Coloca na fila do dispositivo local" : "Conecte o WhatsApp neste CRM pelo QR Code"}
                       >
                         {sending ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
                           <Send size={14} />
                         )}
-                        Envio automático indisponível
+                        Enviar dentro do CRM
                       </Button>
                     </div>
                     </div>
