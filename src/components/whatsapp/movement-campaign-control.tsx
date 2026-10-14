@@ -102,6 +102,13 @@ export function MovementCampaignControl() {
 
   const pending=campaign?(campaign.pending_count??Math.max(0,campaign.total-campaign.sent_count-campaign.failed_count-campaign.uncertain_count)):0;
   const hasActive=campaign&&(campaign.status==='running'||campaign.status==='paused');
+  const saoPauloTime=new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/Sao_Paulo',weekday:'short',hour:'2-digit',hourCycle:'h23',
+  }).formatToParts(new Date());
+  const localHour=Number(saoPauloTime.find(p=>p.type==='hour')?.value??0);
+  const localWeekday=saoPauloTime.find(p=>p.type==='weekday')?.value??'';
+  const inSendWindow=!['Sat','Sun'].includes(localWeekday)&&localHour>=9&&localHour<18;
+
   return (
     <>
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -115,13 +122,19 @@ export function MovementCampaignControl() {
         </Button>
         {campaign&&(
           <div className="flex max-w-full items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1 text-[10px]">
-            <span className="truncate max-w-[170px]" title={campaign.status}>
+            <span className="min-w-0 max-w-[280px] whitespace-normal leading-tight" title={campaign.status}>
               {campaign.campaign_kind==='publication'?'Publicações · ':'Movimentos · '}
-              {campaign.status==='running'?'Agendado automaticamente':campaign.status==='paused'?'Pausado':campaign.status==='completed'?'Concluído':'Cancelado'}:
-              {" "}{campaign.sent_count}/{campaign.total}
+              {campaign.status==='running'
+                ?(inSendWindow?'Envio automático pelo servidor':'Programado para o próximo dia útil, 9h')
+                :campaign.status==='paused'?'Pausado'
+                :campaign.status==='completed'?'Concluído':'Cancelado'}:
+              {' '}{campaign.sent_count}/{campaign.total}
+              {pending>0?` · ${pending} pendentes`:''}
+              {campaign.failed_count>0?` · ${campaign.failed_count} falhas`:''}
+              {campaign.uncertain_count>0?` · ${campaign.uncertain_count} para conferir`:''}
               {campaign.review_count?` · ${campaign.review_count} em conferência`:''}
             </span>
-            {campaign.status==='running'&&pending>0?<Loader2 size={12} className="animate-spin text-primary"/>:null}
+            {campaign.status==='running'&&inSendWindow&&pending>0?<Loader2 size={12} className="animate-spin text-primary"/>:null}
             {hasActive&&(
               <>
                 <Button size="icon" variant="ghost" className="h-7 w-7" disabled={loading} title={campaign.status==='running'?'Pausar':'Continuar'} onClick={()=>void change(campaign.status==='running'?'pause':'resume')}>
