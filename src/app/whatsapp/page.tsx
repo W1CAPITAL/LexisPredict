@@ -183,7 +183,7 @@ function WhatsAppTerminalInner() {
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
-  const [bridgeProvider, setBridgeProvider] = useState<"evolution" | null>(null);
+  const [bridgeProvider, setBridgeProvider] = useState<"manual" | null>(null);
   const [caseSearchHits, setCaseSearchHits] = useState<LegalCase[] | null>(null);
 
   const [attSaving, setAttSaving] = useState(false);
@@ -282,7 +282,7 @@ function WhatsAppTerminalInner() {
       .then((res) => {
         if (!active) return;
         setEvolutionOk(!!res?.success);
-        setBridgeProvider((res?.provider as "evolution") || null);
+        setBridgeProvider('manual');
       })
       .catch(() => {
         if (!active) return;
@@ -292,7 +292,7 @@ function WhatsAppTerminalInner() {
       const detail=(event as CustomEvent<{ready:boolean}>).detail;
       if(typeof detail?.ready==='boolean'){
         setEvolutionOk(detail.ready);
-        setBridgeProvider('evolution');
+        setBridgeProvider('manual');
       }
     };
     window.addEventListener('lexis-evolution-status',onWaStatus);
@@ -481,7 +481,7 @@ function WhatsAppTerminalInner() {
       }
       const list = res.chats || [];
       setEvoChats(list);
-      if (res.provider === "evolution") {
+      if (res.provider === "manual") {
         setBridgeProvider(res.provider);
       }
       const g = list.filter((c: { isGroup: boolean }) => c.isGroup).length;
@@ -1185,9 +1185,7 @@ function WhatsAppTerminalInner() {
                   Terminal WhatsApp
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium truncate">
-                  {bridgeProvider==='evolution' && evolutionOk===true
-                    ? 'Andamentos · IA · histórico · Evolution conectada'
-                    : 'Andamentos · IA · histórico · confirme a conexão WhatsApp'}
+                  {'Andamentos · IA · histórico · atendimento manual pelo WhatsApp'}
                 </p>
               </div>
             </div>
@@ -1219,7 +1217,7 @@ function WhatsAppTerminalInner() {
               </Button>
               {evolutionOk === true && (
                 <Badge className="bg-emerald-600 text-[9px] uppercase">
-                  Evolution online
+                  Automação habilitada
                 </Badge>
               )}
               {evolutionOk === false && (
@@ -1227,7 +1225,7 @@ function WhatsAppTerminalInner() {
                   variant="outline"
                   className="text-[9px] uppercase text-amber-600 border-amber-300"
                 >
-                  Automação offline · wa.me disponível
+                  Automação desligada · WhatsApp manual disponível
                 </Badge>
               )}
               <Button
@@ -1267,7 +1265,7 @@ function WhatsAppTerminalInner() {
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "carteira" ? "bg-background shadow" : "text-muted-foreground")}>
                       Processos
                     </button>
-                    <button type="button" onClick={() => { setListSource("evolution"); setQ(""); void loadEvolutionChats(evoOnlyGroups); }}
+                    <button type="button" disabled title="Sincronização de chats indisponível"
                       className={cn("flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg", listSource === "evolution" ? "bg-background shadow" : "text-muted-foreground")}>
                       WhatsApp / Grupos
                     </button>
@@ -1495,7 +1493,7 @@ function WhatsAppTerminalInner() {
                         size="sm"
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
                         onClick={sendViaEvolution}
-                        disabled={sending || !draft.trim() || !selected || casePhoneDigits(selected).length < 8}
+                        disabled={true}
                         title={isGeneratingAIDraft ? "Você pode enviar o script local mesmo com a IA carregando" : undefined}
                       >
                         {sending ? (
@@ -1503,7 +1501,7 @@ function WhatsAppTerminalInner() {
                         ) : (
                           <Send size={14} />
                         )}
-                        {duplicateOutbound ? "Enviar novamente" : "Enviar via Evolution"}
+                        Envio automático indisponível
                       </Button>
                     </div>
                     </div>
@@ -1536,7 +1534,7 @@ function WhatsAppTerminalInner() {
                       >
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                           {casePhoneDigits(selected).length < 8
-                            ? "Telefone ausente ou inválido — cadastre para Evolution / envio"
+                            ? "Telefone ausente ou inválido — cadastre para WhatsApp"
                             : "Telefone do contato"}
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1583,7 +1581,7 @@ function WhatsAppTerminalInner() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-60">
                           <DropdownMenuItem
-                            disabled={!selected || casePhoneDigits(selected).length < 8 || histLoading}
+                            disabled={true}
                             onClick={async () => {
                               if (!selected?.telefone) {
                                 toast({ title: "Cliente sem telefone", variant: "destructive" });
@@ -1624,10 +1622,10 @@ function WhatsAppTerminalInner() {
                               }
                             }}
                           >
-                            Importar Evolution (este número)
+                            Histórico Evolution indisponível
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            disabled={bulkImporting}
+                            disabled={true}
                             onClick={async () => {
                               if (bulkImporting) return;
                               if (!confirm("Importar histórico Evolution de até 80 números da carteira?\n\nNúmeros sem chat ou sem mensagens recentes serão ignorados rápido para poupar tempo.")) return;
@@ -1650,7 +1648,7 @@ function WhatsAppTerminalInner() {
                               }
                             }}
                           >
-                            {bulkImporting ? "Carregando carteira…" : "Carregar tudo (Evolution)"}
+                            Histórico remoto indisponível
                           </DropdownMenuItem>
 
                           <DropdownMenuItem

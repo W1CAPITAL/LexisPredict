@@ -111,22 +111,8 @@ export async function evolutionLogout() {
 }
 type OwnerResult = {ok:true; raw:any; rejected?:false;httpStatus?:number} |
   {ok:false;rejected:boolean;httpStatus?:number;error:string;raw?:unknown};
-export async function evolutionForOwner(ownerId: string, tenantId: string, to?: string, message?: string): Promise<OwnerResult> {
-  if (!/^[0-9a-f-]{36}$/i.test(ownerId) || !tenantAllowed(tenantId))
-    return {ok:false as const,rejected:true,httpStatus:403,error:'A sessão Evolution não pertence a esta empresa.'};
-  const db=await getSupabaseAdmin();
-  const {data:owner,error}=await db.from('usuarios').select('empresa_id,cargo').eq('auth_user_id',ownerId).eq('empresa_id',tenantId).maybeSingle();
-  if(error || !owner || !resolveWaAutoPermissions({cargo:owner.cargo}).canManage)
-    return {ok:false as const,rejected:true,httpStatus:403,error:'Responsável sem permissão ativa para esta empresa.'};
-  const cfg=getEvolutionConfig();
-  const state=await call('/instance/connectionState/' + encodeURIComponent(cfg.instance));
-  if(!state.ok) return {ok:false as const,rejected:true,httpStatus:state.status,error:state.error};
-  if(!['open','connected','online'].includes(extractState(state.data)))
-    return {ok:false as const,rejected:true,httpStatus:409,error:'Evolution offline: conecte a instância antes de enviar.'};
-  if(!to) return {ok:true as const,raw:state.data};
-  const sent=await sendTextMessageSafe(to,String(message||''));
-  if(!sent.ok) return {ok:false as const,rejected:false,error:sent.error||'Envio Evolution inconclusivo; confira o chat antes de repetir.'};
-  return {ok:true as const,raw:sent.raw};
+export async function evolutionForOwner(_ownerId:string,_tenantId:string,_to?:string,_message?:string):Promise<OwnerResult>{
+ return {ok:false,rejected:true,httpStatus:503,error:'Automação de WhatsApp suspensa até configurar um provedor oficial.'};
 }
 export function evolutionDelivered(raw: unknown): boolean {
   if(!raw || typeof raw!=='object') return false;

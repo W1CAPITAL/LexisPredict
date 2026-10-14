@@ -60,6 +60,11 @@ export async function processOneDailyReturn(input:{
   try {preference=await currentOptOut(input.empresaId,notice.phone,input.mode);}
   catch {await check('history_unavailable');return {ok:false,reason:'history_unavailable',sent:false};}
   if(preference){await check(preference);return {ok:true,reason:preference,sent:false};}
+  // No delivery provider: do not reserve a send or alter return dates.
+  if (process.env.LEXIS_WHATSAPP_TRANSPORT !== 'official-active') {
+    await check('provider_not_configured');
+    return {ok:false,reason:'provider_not_configured',sent:false,error:'Automação suspensa: nenhuma API de envio validada.'};
+  }
   const {data:id,error:reserveError}=await db.rpc('wa_reserve_return',{
     p_empresa:input.empresaId,p_processo:input.processId,p_phone:notice.phone,p_hash:notice.eventHash,
     p_source:notice.source,p_event_at:notice.eventAt,p_mode:input.mode,p_message:notice.message,

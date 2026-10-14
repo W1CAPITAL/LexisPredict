@@ -5,8 +5,8 @@
  * Não usa WhatsApp Web embutido no front (inseguro / instável).
  */
 
-import { sendTextMessageSafe, normalizeBrPhone } from '@/lib/evolution-api';
-import { evolutionConnection, evolutionConnect, evolutionPair, evolutionLogout, evolutionForOwner, evolutionDelivered } from '@/lib/evolution-bridge';
+import { normalizeBrPhone } from '@/lib/evolution-api';
+// Disabled transports: no WA.Auto or Evolution calls from active actions.
 import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 
@@ -24,33 +24,8 @@ export async function sendWhatsAppAction(to: string, message: string) {
     return { success: false, message: 'Número inválido. Informe DDD e telefone corretos.' };
   }
   if (!text || text.length > 8000) return { success: false, message: 'Mensagem inválida (1 a 8.000 caracteres).' };
-  const check = await evolutionForOwner(ctx.auth_id, ctx.empresa_id);
-  if (!check.ok) return {success:false,message:check.error||'Evolution indisponível.',provider:'evolution' as const};
-  const evo = await sendTextMessageSafe(recipient,text);
-  if (!evo.ok) return {success:false,message:(evo.error||'Falha Evolution')+' Confira o chat antes de repetir.',provider:'evolution' as const};
-  const provider = 'evolution' as const;
-  const raw=evo.raw;
-  const deliveryConfirmed=evolutionDelivered(raw);
-  const timestamp = new Date().toISOString();
-  if (isGroup) return {
-    success: true, timestamp, phone: recipient, data: raw, provider, deliveryConfirmed,
-    persisted: false, persistError: 'Histórico de grupos permanece na sessão Evolution.',
-  };
-  try {
-    const { persistWhatsAppMessage } = await import('@/lib/whatsapp-persist');
-    const stored = await persistWhatsAppMessage({
-      contactNumber: phone, messageText: text, fromMe: true,
-      source: 'lexis-evolution',
-      timestamp, empresaId: ctx.empresa_id, raw,
-    });
-    return {
-      success: true, timestamp, phone, data: raw, provider, deliveryConfirmed,
-      persisted: stored.ok, persistError: stored.error || null,
-    };
-  } catch (e: any) {
-    return { success: true, timestamp, phone, data: raw, provider, deliveryConfirmed,
-      persisted: false, persistError: e?.message || 'Falha ao gravar no Supabase' };
-  }
+  return {success:false,provider:'manual' as const,
+    message:'Envio automático indisponível. WA.Auto e Evolution estão fora de serviço. Use “Abrir no WhatsApp” para enviar manualmente; nenhum envio ocorreu via API.'};
 }
 
 /**
@@ -279,6 +254,7 @@ export async function testSaveWhatsAppMessageAction(phone: string) {
  * Só funciona se a Evolution ainda tiver o chat armazenado no banco dela.
  */
 export async function importEvolutionHistoryAction(phone: string) {
+  if (legacyEvolutionDisabled()) return {success:false as const,error:'Importação Evolution desativada. Os históricos já gravados no Supabase continuam disponíveis.',imported:0};
   try {
     const { fetchChatMessagesFromEvolution } = await import('@/lib/evolution-api');
     const { persistWhatsAppMessage, fetchMessagesByPhone } = await import(
@@ -366,6 +342,7 @@ export async function importEvolutionHistoryBulkAction(opts?: {
   maxContacts?: number;
   perContactTimeoutMs?: number;
 }) {
+  if (legacyEvolutionDisabled()) return {success:false as const,error:'Importação Evolution desativada. Os históricos já gravados no Supabase continuam disponíveis.',imported:0};
   try {
     const { getUserContext, getStoredCasesForEmpresa } = await import('@/lib/server-db');
     const { normalizeBrPhone, fetchChatMessagesFromEvolution, jidMatchesPhone } = await import(
@@ -461,36 +438,29 @@ export async function importEvolutionHistoryBulkAction(opts?: {
   }
 }
 
-export async function evolutionConnectionAction(){return evolutionConnection();}
-export async function evolutionConnectAction(){return evolutionConnect();}
-export async function evolutionPairAction(phone:string){return evolutionPair(phone);}
-export async function evolutionLogoutAction(){return evolutionLogout();}
-export async function evolutionReadinessAction(){
-  const ctx=await (await import('@/lib/server-db')).getUserContext();
-  if(!ctx.auth_id||!ctx.empresa_id)return {success:false as const,error:'Sessão não autenticada.'};
-  const r=await evolutionForOwner(ctx.auth_id,ctx.empresa_id);
-  return {success:r.ok,error:r.ok?null:r.error||'Evolution offline.'};
-}
-// Compatibility for old clients: these names now route ONLY to Evolution.
-export async function waAutoConnectionAction(){return evolutionConnection();}
-export async function waAutoConnectAction(){return evolutionConnect();}
-export async function waAutoPairAction(phone:string){return evolutionPair(phone);}
-export async function waAutoLogoutAction(){return evolutionLogout();}
+const offline=()=>({success:false as const,error:'Automação indisponível. Use o atendimento manual pelo WhatsApp.',connection:null});
+export async function evolutionConnectionAction(){return offline();}
+export async function evolutionConnectAction(){return offline();}
+export async function evolutionPairAction(_phone:string){return offline();}
+export async function evolutionLogoutAction(){return offline();}
+export async function evolutionReadinessAction(){return {success:false as const,error:'Automação desativada: aguardando API oficial.'};}
+export async function waAutoConnectionAction(){return offline();}
+export async function waAutoConnectAction(){return offline();}
+export async function waAutoPairAction(_phone:string){return offline();}
+export async function waAutoLogoutAction(){return offline();}
 export async function waAutoAutomationReadinessAction(){return evolutionReadinessAction();}
-
-export async function whatsappBridgeHealthAction(){
-  const r=await evolutionConnection();
-  return {success:r.success&&r.connection?.status==='ready',provider:'evolution' as const,
-    status:r.connection?.status||'offline',error:r.success?null:r.error};
-}
-export async function listWhatsAppChatsAction(opts?:{onlyGroups?:boolean;limit?:number}){
-  const r=await listEvolutionChatsAction(opts);return {...r,provider:'evolution' as const};
+export async function whatsappBridgeHealthAction(){return {success:false as const,provider:'manual' as const,status:'manual' as const,
+ error:'Automação não conectada. Atendimento manual disponível.'};}
+export async function listWhatsAppChatsAction(_opts?:{onlyGroups?:boolean;limit?:number}){
+ return {success:false as const,provider:'manual' as const,chats:[] as any[],error:'Sincronização de chats offline. Use o histórico Supabase.'};
 }
 export async function fetchWhatsAppChatByJidAction(jid:string){
-  const r=await fetchEvolutionChatByJidAction(jid);return {...r,provider:'evolution' as const};
+ return {success:false as const,provider:'manual' as const,jid,messages:[] as any[],error:'Sincronização offline. Use o histórico Supabase.'};
 }
 
+function legacyEvolutionDisabled(){return true;}
 export async function listEvolutionChatsAction(opts?: { onlyGroups?: boolean; limit?: number }) {
+  if (legacyEvolutionDisabled()) return {success:false as const,chats:[] as any[],error:"Sincronização Evolution desativada."};
   try {
     const { listEvolutionChats } = await import('@/lib/evolution-api');
     const res = await listEvolutionChats(opts);
@@ -507,6 +477,7 @@ export async function listEvolutionChatsAction(opts?: { onlyGroups?: boolean; li
 }
 
 export async function fetchEvolutionChatByJidAction(jid: string) {
+  if (legacyEvolutionDisabled()) return {success:false as const,jid,messages:[] as any[],error:"Sincronização Evolution desativada."};
   try {
     const { fetchMessagesByRemoteJid } = await import('@/lib/evolution-api');
     const res = await fetchMessagesByRemoteJid(jid, { limit: 60 });

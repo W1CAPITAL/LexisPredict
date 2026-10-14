@@ -186,6 +186,8 @@ export async function changeMovementCampaign(id:string, action:'pause'|'resume'|
 }
 
 export async function deliverNextMovement(options: { campaignId?: string; verifiedOwner?: string } = {}) {
+  if (process.env.LEXIS_WHATSAPP_TRANSPORT !== 'official-active')
+    return {ok:false as const,error:'Automação suspensa; fila preservada sem reservar ou enviar mensagens.'};
   const db=await getSupabaseAdmin();
   const {data,error}=await db.rpc('wa_claim_movement',{p_campaign:options.campaignId || null});
   if(error) return {ok:false as const,error:error.message};
