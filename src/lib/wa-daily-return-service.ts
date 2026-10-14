@@ -1,6 +1,7 @@
 import 'server-only';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {bridgeStatus} from '@/lib/whatsapp-local';
+import {contactOptedOut} from '@/lib/wa-contact-privacy';
 import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,validReturnDay,type ReturnCase,type ReturnMode} from '@/lib/wa-daily-return-policy';
 
 export async function getDailyReturnSettings(empresaId:string) {
@@ -22,19 +23,10 @@ export async function upsertDailyReturnSettings(empresaId:string,ownerAuthId:str
 }
 
 async function currentOptOut(empresaId:string,phone:string,mode:ReturnMode) {
-  const db=await getSupabaseAdmin();
-  const {data,error}=await db.from('whatsapp_messages')
-    .select('from_me,message_text,body,timestamp,created_at')
-    .eq('empresa_id',empresaId)
-    .or('contact_number.eq.'+phone+',phone.eq.'+phone+',contact_number.eq.'+phone.slice(2)+',phone.eq.'+phone.slice(2))
-    .order('created_at',{ascending:false}).limit(150);
-  if(error)throw new Error('Falha ao consultar preferências do WhatsApp: '+error.message);
-  for(const m of data||[]) {
-    if(m.from_me===true)continue;
-    const body=String(m.message_text||m.body||'').trim();
-    if(/^(SAIR|STOP|PARE|CANCELAR MENSAGENS|N[AÃ]O ME ENVIE MENSAGENS)[\s.!?]*$/i.test(body))return 'opt_out';
-  }
-  return null;
+  // Chat transcripts are intentionally not stored in Supabase.
+  // Explicit SAIR flags are the authoritative, durable preference.
+  // Any lookup failure must fail closed before queueing a message.
+  return (await contactOptedOut(empresaId,phone)) ? 'opt_out' : null;
 }
 export async function processOneDailyReturn(input:{
   empresaId:string;processId:number;mode:ReturnMode;intervalDays?:number;today?:string;
