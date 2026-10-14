@@ -248,8 +248,11 @@ export async function dispatchPreparedDailyReturns(empresaId:string,intervalDays
     return {ok:true,processed:false,reason:'automation_disabled'};
   const bridge=await bridgeStatus(empresaId);
   if(!bridge.connected)return {ok:true,processed:false,reason:'bridge_offline'};
-  const {data,error}=await db.from('wa_daily_return_checks').select('processo_id')
-    .eq('empresa_id',empresaId).eq('local_day',today).eq('mode','due')
+  const earliest=new Date(today+'T12:00:00Z');
+  earliest.setUTCDate(earliest.getUTCDate()-2);
+  const {data,error}=await db.from('wa_daily_return_checks').select('processo_id,local_day')
+    .eq('empresa_id',empresaId).gte('local_day',earliest.toISOString().slice(0,10))
+    .lte('local_day',today).eq('mode','due')
     .in('result',['ready_for_notice','provider_not_configured'])
     .order('checked_at',{ascending:true}).limit(5);
   if(error)throw new Error('Fila de comunicados indisponível: '+error.message);
@@ -258,6 +261,17 @@ export async function dispatchPreparedDailyReturns(empresaId:string,intervalDays
       empresaId,processId:Number(candidate.processo_id),mode:'due',
       intervalDays,today,
     });
+    // The scanner may have prepared this yesterday just before closing.
+    // Migrate it forward only after it is queued, superseded, or invalidated.
+    // Otherwise keep it pending for the next safe business-hour attempt.
+    if(candidate.local_day!==today &&
+      !['ready_for_notice','bridge_offline','reserve_failed','queue_failed'].includes(result.reason)){
+      await db.from('wa_daily_return_checks').update({
+        result:'carried_forward',checked_at:new Date().toISOString(),
+      }).eq('empresa_id',empresaId).eq('processo_id',candidate.processo_id)
+        .eq('local_day',candidate.local_day).eq('mode','due')
+        .in('result',['ready_for_notice','provider_not_configured']);
+    }
     if(result.queued||result.reason==='ready_for_notice'||result.reason==='bridge_offline')
       return {...result,processed:true};
     if(result.ok&&result.reason==='already_contacted_today')continue;
