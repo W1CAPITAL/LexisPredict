@@ -33,10 +33,16 @@ export async function GET(request:Request){
   lastReason=String(queued.reason||lastReason);
   // Only scan new processes when the old evidence queue is empty.
   if(!queued.processed&&Date.now()-started<maxRuntime){
-    const next=await processNextDueReturn(config.empresa_id,config.interval_days,false);
-    if(next.processed)checked++;
-    if((next as any).queued)prepared++;
-    lastReason=String(next.reason||lastReason);
+    // Free-tier cron runs daily. Use its bounded 40-second slot to
+    // prepare up to six genuine scans, while the linked worker handles
+    // queued notices every 65s without operator clicks.
+    for(let n=0;n<6&&Date.now()-started<maxRuntime;n++){
+      const next=await processNextDueReturn(config.empresa_id,config.interval_days,false);
+      if(!next.processed)break;
+      checked++;
+      if((next as any).queued){prepared++;break;}
+      lastReason=String(next.reason||lastReason);
+    }
   }
  }
  return NextResponse.json({ok:true,queued:prepared,checked,reason:lastReason,
