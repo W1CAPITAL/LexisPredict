@@ -38,7 +38,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { listAdvogadosBanca } from '@/lib/server-db';
+import { listDocumentLawyersFast } from "@/lib/documents/fast-banca-client";
 import { generateSubstabelecimentoSimplesPDFAction } from '@/app/actions/document-actions';
 import {
   Select,
@@ -80,7 +80,7 @@ export default function SubstabelecimentoSimplesPage() {
 
   useEffect(() => {
     async function load() {
-      const data = await listAdvogadosBanca();
+      const data = await listDocumentLawyersFast();
       setBanca(data);
       if (data.length > 0) {
         const first = data[0];

@@ -95,11 +95,6 @@ export function SubstabelecimentoSimplesPDF({ data }: { data: any }) {
               <Text style={styles.bold}>{substabelecente.oabCurta}</Text>
             </View>
 
-            <View style={styles.signatureBlock}>
-              <View style={styles.line} />
-              <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text>
-              <Text style={styles.bold}>{substabelecido.oabCurta}</Text>
-            </View>
           </View>
         </Page>
       </Document>

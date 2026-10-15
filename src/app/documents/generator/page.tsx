@@ -6,7 +6,7 @@ import { clientAsParte } from "@/lib/documents/document-case-prefill";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { listAdvogadosBanca } from "@/lib/server-db";
+import { listDocumentLawyersFast } from "@/lib/documents/fast-banca-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,7 +209,7 @@ export default function LegalDocumentGeneratorPage() {
   };
   useEffect(() => {
     let mounted = true;
-    listAdvogadosBanca().then(rows => {
+    listDocumentLawyersFast().then(rows => {
       if (!mounted) return;
       const list = Array.isArray(rows) ? rows : [];
       setBanca(list);

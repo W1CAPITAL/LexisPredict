@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { extrairTextoDoPDFAction, extrairDadosProcuracaoAction, generatePecaSubstabelecimentoPDFAction } from '@/app/actions/document-actions';
-import { listAdvogadosBanca } from '@/lib/server-db';
+import { listDocumentLawyersFast } from "@/lib/documents/fast-banca-client";
 import Link from 'next/link';
 
 function oathFromRegistration(adv: any, requestedUf: string) {
@@ -91,7 +91,7 @@ export default function SubstabelecimentoPecaGenerator() {
 
   useEffect(() => {
     async function load() {
-      const data = await listAdvogadosBanca();
+      const data = await listDocumentLawyersFast();
       setBanca(data);
       if (data.length > 0) {
         setAdvLeavingId(data[0].id);

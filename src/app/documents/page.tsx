@@ -64,7 +64,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { extrairTextoDoPDFAction, extrairDadosProcuracaoAction, generateProcuracaoPDFAction } from '@/app/actions/document-actions';
-import { listAdvogadosBanca } from '@/lib/server-db';
+import { listDocumentLawyersFast } from "@/lib/documents/fast-banca-client";
 import Link from 'next/link';
 
 export default function DocumentGenerator() {
@@ -93,7 +93,7 @@ export default function DocumentGenerator() {
     setBancaLoading(true);
     setBancaLoadError('');
     try {
-      const data = await listAdvogadosBanca();
+      const data = await listDocumentLawyersFast();
       setBanca(Array.isArray(data) ? data : []);
       if (!data?.length) {
         setBancaLoadError('Nenhum advogado acessível nesta sessão. Confira seu login e o vínculo da empresa.');

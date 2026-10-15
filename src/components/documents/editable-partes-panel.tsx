@@ -5,7 +5,7 @@
  * Chips só sugerem valores (casada, brasileira…); não travam o input.
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -102,6 +102,7 @@ export function EditablePartesPanel({
   tituloCliente = "Outorgante / Cliente",
   className,
 }: Props) {
+  const [expanded,setExpanded] = useState(false);
   useEffect(() => {
     // hidrata do localStorage se vazio
     if (!banca.nome_escritorio && !banca.endereco) {
@@ -137,6 +138,8 @@ export function EditablePartesPanel({
         </Button>
       </div>
 
+      <Button type="button" variant="outline" className="w-full rounded-md text-xs" onClick={()=>setExpanded(x=>!x)}>{expanded ? "Recolher edição detalhada" : "Abrir edição detalhada de banca, cliente e advogados"}</Button>
+      {expanded && (<>
       {/* Banca */}
       <section className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
         <p className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 text-muted-foreground">
@@ -279,6 +282,7 @@ export function EditablePartesPanel({
           );
         })}
       </section>
+      </>)}
     </div>
   );
 }

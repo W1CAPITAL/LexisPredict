@@ -50,14 +50,19 @@ async function scope() {
 export async function searchDocumentCasesAction(term: string): Promise<{ok:boolean;options:DocumentCaseOption[];error?:string}> {
   try {
     const q = String(term || "").trim().replace(/[%,()]/g, " ").slice(0, 100);
-    if (q.length < 2) return {ok:true,options:[]};
+    if (q.length < 2) {
+      const {admin,empresaId} = await scope();
+      const {data,error} = await admin.from("processos").select("id,protocolo_ref,dados")
+        .eq("empresa_id",empresaId).order("id",{ascending:false}).limit(30);
+      if (error) throw Error("Não foi possível listar os clientes.");
+      return {ok:true,options:(data||[]).map(mapCase).filter(x=>x.cliente).map(x=>({id:x.id,cliente:x.cliente,cnj:x.cnj}))};
+    }
     const {admin,empresaId} = await scope();
-    const cols = "id,protocolo_ref,cliente,dados";
+    const cols = "id,protocolo_ref,dados";
     const byColumn = (column: string) => admin.from("processos")
       .select(cols).eq("empresa_id",empresaId).ilike(column,"%"+q+"%").limit(25);
     const results = await Promise.all([
       byColumn("dados->>cliente"),
-      byColumn("cliente"),
       byColumn("protocolo_ref"),
     ]);
     if (results.every(r => r.error)) throw Error("Pesquisa temporariamente indisponível.");
@@ -85,7 +90,7 @@ export async function getDocumentCaseAction(caseId: string): Promise<{ok:boolean
     if (!/^\d{1,19}$/.test(id)) return {ok:false,error:"Processo inválido."};
     const {admin,empresaId} = await scope();
     const {data,error} = await admin.from("processos")
-      .select("id,protocolo_ref,cliente,cpf,email,estado_civil,emprego,nacionalidade,parte_passiva,parte_passiva_cnpj,classe_acao,orgao_julgador,tribunal,telefone,dados")
+      .select("id,protocolo_ref,cpf,email,estado_civil,emprego,nacionalidade,parte_passiva,parte_passiva_cnpj,classe_acao,orgao_julgador,tribunal,telefone,dados")
       .eq("empresa_id",empresaId).eq("id",id).maybeSingle();
     if (error) throw Error("Falha ao carregar processo selecionado.");
     if (!data) return {ok:false,error:"Processo não encontrado na carteira desta empresa."};
