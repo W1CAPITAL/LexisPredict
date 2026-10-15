@@ -17,6 +17,7 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
   const [selected,setSelected] = useState<DocumentCase|null>(null);
   const [loading,setLoading] = useState(false);
   const [searching,setSearching] = useState(false);
+  const [initialTimedOut,setInitialTimedOut] = useState(false);
   const [error,setError] = useState("");
   const [opened,setOpened] = useState(true);
   const [manualMode,setManualMode] = useState(false);
@@ -49,17 +50,19 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
     if(!opened || term.trim()) return;
     let live=true;
     setSearching(true);
+    const timeout=window.setTimeout(()=>{if(live){setSearching(false);setInitialTimedOut(true);setError("Consulta demorada. Pesquise pelo nome ou CNJ, ou tente novamente.");}},8000);
     void searchDocumentCasesAction("").then(result=>{
-      if(live){setOptions(result.options);setSearching(false);if(!result.ok)setError(result.error||"Falha ao listar a carteira.");}
+      if(live){window.clearTimeout(timeout);setOptions(result.options);setSearching(false);setInitialTimedOut(false);if(!result.ok)setError(result.error||"Falha ao listar a carteira.");}
     }).catch(()=>{if(live){setSearching(false);setError("Erro ao carregar clientes.");}});
-    return ()=>{live=false;};
+    return ()=>{live=false;window.clearTimeout(timeout);};
   },[opened]);
   useEffect(()=>{
     if(term.trim().length<2){setSearching(false);return;}
     let live=true;
     const timer=window.setTimeout(()=>{
       setSearching(true);
-      void searchDocumentCasesAction(term).then(result=>{
+      const searchTerm=term;
+      void searchDocumentCasesAction(searchTerm).then(result=>{
         if(!live)return;
         setSearching(false);
         setOptions(result.options);
