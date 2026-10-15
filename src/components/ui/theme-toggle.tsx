@@ -118,7 +118,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     const mode=(preset?.preferredMode||p.mode) as LexisThemeMode;
     const primary=preset?getPresetColors(preset,currentMode()).primary:'#2563EB';
     applyExperiencePrefs({...p,theme:themeId,mode,primary,textColor:'',mutedTextColor:''});
-    void updateExperienceAppearanceAction({theme:themeId,mode,primary});
+    void updateExperienceAppearanceAction({theme:themeId,mode,primary,textColor:'',mutedTextColor:''});
     setPresetId(themeId);
     setMode(mode);
     setDarkMode(currentMode() === "dark");
