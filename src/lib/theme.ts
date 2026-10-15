@@ -799,8 +799,8 @@ export function applyGlobalTheme(
   const charts = deriveCharts(primary, m);
   charts.forEach((c, i) => root.style.setProperty(`--chart-${i + 1}`, c));
 
-  const nav = colors.nav || colors.bgSecondary;
-  const navForeground = colors.nav ? (getContrastRatio(nav, '#FFFFFF') >= getContrastRatio(nav, '#000000') ? '#FFFFFF' : '#000000') : finalForeground;
+  const nav = colors.nav || (isLight ? blend('#0B2340',primary,.18) : blend(colors.bgSecondary,'#000000',.25));
+  const navForeground = getContrastRatio(nav, '#FFFFFF') >= getContrastRatio(nav, '#000000') ? '#FFFFFF' : '#000000';
   root.style.setProperty('--sidebar-background', hexToHsl(nav));
   root.style.setProperty('--sidebar-foreground', hexToHsl(navForeground));
   root.style.setProperty('--sidebar-border', hexToHsl(colors.border));
