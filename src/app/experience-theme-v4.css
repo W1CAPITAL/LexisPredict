@@ -182,3 +182,50 @@ html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
   backdrop-filter:none !important;background:hsl(var(--card)) !important;
  }
 }
+
+/* Dock superior/inferior: a seta é um controle real de abrir/fechar. */
+@media (min-width:768px){
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="top"] [data-lexis-desktop-dock]{
+   top:12px !important;bottom:auto !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="top"] [data-lexis-commercial-topbar]{
+   display:none !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="top"] [data-lexis-dock-handle]{
+   top:76px !important;bottom:auto !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="bottom"] [data-lexis-dock-handle]{
+   bottom:82px !important;
+ }
+ html[data-lexis-experience="1"] [data-lexis-desktop-dock][data-nav-open="false"]{
+   display:none !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="toggle"] [data-lexis-dock-handle],
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="floating"] [data-lexis-dock-handle]{
+   display:flex !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="top"] [data-lexis-desktop-dock] a,
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="bottom"] [data-lexis-desktop-dock] a{
+   border-radius:var(--radius) !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-compact="true"] [data-lexis-sidebar]{
+   width:200px !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-compact="true"]
+ body:has([data-lexis-commercial-sidebar]) [data-lexis-commercial-topbar]{
+   left:200px;
+ }
+}
+html[data-lexis-experience="1"] [data-lexis-commercial-topbar] :is(input,button,[role="button"]){
+  background:hsl(var(--card)) !important;color:hsl(var(--foreground)) !important;
+  border-color:hsl(var(--border)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-commercial-topbar] :is(svg,[class*="text-[#"]){
+ color:hsl(var(--foreground)) !important;
+}
+html[data-lexis-experience="1"] :is([data-slot="card"],[data-admin-card],[data-efferd-kpi])
+ :is(.text-white,[class*="text-[#fff"]) {
+ /* Avoid inherited white on semantic light cards, not on intentionally
+    colored success/destructive/primary buttons. */
+ color:inherit;
+}
