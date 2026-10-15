@@ -74,8 +74,8 @@ export function buildClientMovementMessage(input: {
   const excerpt=officialNoticeExcerpt(detail);
   const includeLiteralExcerpt=!conclusos&&!conditionalCosts&&!proofNotice&&!joinedPetition&&!expiredTerm;
   const sourceLiteral=includeLiteralExcerpt
-    ? `*Trecho do registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\\nO texto foi abreviado por tamanho, sem alterar o conteúdo do trecho. O teor integral pode ser consultado no tribunal/Diário da Justiça.':''}`
-    : `*Registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\\nTrecho abreviado; consulte o teor completo na fonte oficial.':''}`;
+    ? `*Trecho do registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\nO texto foi abreviado por tamanho, sem alterar o conteúdo do trecho. O teor integral pode ser consultado no tribunal/Diário da Justiça.':''}`
+    : `*Registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\nTrecho abreviado; consulte o teor completo na fonte oficial.':''}`;
   if(input.confirmedTerminal){
     const labels:Record<TerminalEvidence,string>={
       extincao:'extinção ou cancelamento da distribuição',
