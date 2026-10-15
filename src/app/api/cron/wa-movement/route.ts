@@ -118,7 +118,7 @@ export async function GET(request: Request) {
         results.push({
           tenant:cfg.empresa_id,
           queued:next?.queued===true||checkin?.queued===true,
-          reason:checkin?.queued?checkin.reason:(next?.queued?next.reason:(checkin?.reason||next?.reason||'nothing_due')),
+          reason:String((checkin?.queued ? checkin.reason : (next?.queued ? next.reason : (checkin?.reason||next?.reason))) || 'nothing_due'),
           recovered,
         });
       } catch (e) {
