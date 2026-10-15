@@ -6,11 +6,12 @@ import {brazilToday,normalizePhone,isStatusRequest,prepareDailyReturn,validRetur
 
 export async function getDailyReturnSettings(empresaId:string) {
   const db=await getSupabaseAdmin();
-  const {data,error}=await db.from('wa_daily_return_settings').select('enabled,interval_days,owner_auth_id,consent_attested')
+  const {data,error}=await db.from('wa_daily_return_settings').select('enabled,interval_days,owner_auth_id,consent_attested,send_anytime')
     .eq('empresa_id',empresaId).maybeSingle();
   if(error)throw new Error('Configuração do retorno: '+error.message);
   return {enabled:data?.enabled===true,intervalDays:Number(data?.interval_days||1),
-    consentAttested:data?.consent_attested===true, ownerAuthId:data?.owner_auth_id||null};
+    consentAttested:data?.consent_attested===true, ownerAuthId:data?.owner_auth_id||null,
+    sendAnytime:data?.send_anytime===true};
 }
 export async function upsertDailyReturnSettings(empresaId:string,ownerAuthId:string,enabled:boolean,intervalDays:number,consentAttested?:boolean) {
   if(!Number.isInteger(intervalDays)||intervalDays<1||intervalDays>30)throw new Error('Intervalo deve estar entre 1 e 30 dias.');
