@@ -89,7 +89,9 @@ export async function queueCheckedPortfolioContact(empresaId:string){
     if(!sendId){
       // A different campaign may have already contacted this same phone today.
       const {data:sent}=await db.from('wa_daily_return_sends').select('id')
-        .eq('empresa_id',empresaId).eq('phone',phone).eq('status','sent').limit(1);
+        .eq('empresa_id',empresaId).eq('phone',phone).eq('status','sent')
+        .eq('local_day',new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',
+          year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())).limit(1);
       if(sent?.length){await updateStatus('covered');continue;}
       return {queued:false,reason:'daily_limit_or_gap'};
     }
