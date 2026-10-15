@@ -1,6 +1,7 @@
 "use client";
 import { Crown } from 'lucide-react';
 import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
+import { ExperienceSettingsPanel } from '@/components/onboarding/experience-studio';
 import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
 import { SecurityLimitsPanel } from "@/components/settings/security-limits-panel";
 
