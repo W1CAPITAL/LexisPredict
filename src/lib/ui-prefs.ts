@@ -57,11 +57,14 @@ export function loadUiPrefs(): UiPrefs {
 
 export function saveUiPrefs(partial: Partial<UiPrefs>): UiPrefs {
   const next = { ...loadUiPrefs(), ...partial };
+  let unchanged=false;
   if (typeof localStorage !== "undefined") {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    const encoded=JSON.stringify(next);
+    unchanged=localStorage.getItem(KEY)===encoded;
+    if(!unchanged)localStorage.setItem(KEY, encoded);
   }
   applyUiPrefsToDom(next);
-  if (typeof window !== "undefined") {
+  if (!unchanged && typeof window !== "undefined") {
     window.dispatchEvent(new Event("lexis-ui-prefs-changed"));
   }
   return next;
