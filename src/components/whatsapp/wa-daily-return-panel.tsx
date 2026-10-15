@@ -11,13 +11,13 @@ import {
  previewWaReturnCnjAction,scanOneWaReturnAction,scanNextWaReturnAction,
  scanWaReturnBatchAction,
 } from '@/app/actions/wa-daily-return-actions';
-type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;error?:string};
+type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number;sendAnytime?:boolean};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;error?:string};
 const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
  no_new_movement:'Nenhuma movimentação posterior ao último retorno: nada enviado',
  recent_scan_no_new_movement:'Verificação recente reaproveitada: sem novidade, sem nova consulta nem envio',
- ready_for_notice:'Movimentação comprovada; aguardando a janela de envio automático',
+ ready_for_notice:'Movimentação comprovada; aguardando sua vez no envio automático',
  queued_for_send:'Comunicado na fila do WhatsApp; aguardando aceite do dispositivo',
  bridge_offline:'WhatsApp desconectado; será tentado quando reconectar',
  automation_disabled:'Automação desligada: comunicado não enviado',
@@ -144,8 +144,10 @@ export function WaDailyReturnPanel(){
     </p>
     <p className="col-span-2 rounded-lg border px-2.5 py-2 text-muted-foreground sm:col-span-3">
      O scanner pode preparar novas verificações na nuvem sem esta página aberta.
-     O envio pelo WhatsApp ocorre de segunda a sexta, das 9h às 18h (horário de São Paulo).
-     Fora desse intervalo, «Fila do dispositivo» pode ficar em zero sem perder os avisos preparados.
+     {dash.settings?.sendAnytime
+      ? 'Sua empresa autorizou envio sequencial automático, inclusive à noite, com intervalo de segurança, limite diário e bloqueios por contato.'
+      : 'O envio ocorre de segunda a sexta, das 9h às 18h (horário de São Paulo). Fora dessa janela, os avisos permanecem preparados.'}
+     A fila do dispositivo exibe somente os trabalhos entregues ao worker, não toda a campanha pendente.
      Apenas o aceite confirmado pelo dispositivo atualiza «Enviados hoje».
     </p>
    </div>
