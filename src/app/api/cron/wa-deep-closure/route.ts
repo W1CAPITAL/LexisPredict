@@ -67,7 +67,7 @@ export async function GET(req:Request){
      evidence:result.evidence,reason:result.reason,
     }},
    }).eq('empresa_id',tenant).eq('id',id)
-    .neq('status','Encerrado').neq('status_interno','ENCERRADO')
+    .neq('status','Encerrado')
     .select('id');
    if(updateError||!updated?.length)throw new Error('Closure record could not be updated safely');
    const {error:queueError}=await db.from('wa_portfolio_scan_queue')
