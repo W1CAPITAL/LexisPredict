@@ -36,6 +36,7 @@ const MACHINE_AUTH_API = new Set([
   '/api/cron/wa-daily-return',
   '/api/cron/wa-full-portfolio',
   '/api/cron/wa-deep-closure',
+  '/api/cron/experience-welcome',
   '/api/whatsapp-local/worker',
 ])
 
