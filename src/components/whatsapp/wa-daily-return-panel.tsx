@@ -167,7 +167,7 @@ export function WaDailyReturnPanel(){
       ['Sem telefone válido',dash.dueQueue.missingPhone],
       ['Falta conferência oficial',dash.dueQueue.needsSourceCheck],
       ['Já encerrados',dash.dueQueue.alreadyClosed],
-      ['Encerramento a revisar',dash.dueQueue.closureReview],
+      ['Em investigação automática',dash.dueQueue.closureReview],
       ['Antigos (+1 ano)',dash.dueQueue.oldClosureReview],
      ] as [string,number][]).map(([title,n])=>(
       <div key={title} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
@@ -197,7 +197,7 @@ export function WaDailyReturnPanel(){
     </details>
     {Number(dash.dueQueue.closureReview)>0?(
      <details className="rounded-lg border border-border p-2.5">
-      <summary className="cursor-pointer text-xs font-semibold">Ver encerramentos que exigem confirmação oficial</summary>
+      <summary className="cursor-pointer text-xs font-semibold">Ver investigações judiciais automáticas</summary>
       <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-xs">
        {(dash.dueItems?.closureReview||[]).map(item=>(
         <div key={item.id} className="rounded-md bg-muted/40 px-2 py-1.5">
@@ -206,7 +206,7 @@ export function WaDailyReturnPanel(){
           {item.review_priority==='old_over_365_days'?'Movimentação com mais de 1 ano':item.review_priority==='old_over_180_days'?'Movimentação entre 6 e 12 meses':'Encerramento não confirmado'}
           {item.last_court_event?' · registro de '+item.last_court_event:''}
          </div>
-         <div className="text-muted-foreground">Registro anterior: {item.court_flag_reason||'motivo não documentado'}. Aguardando validação das fontes oficiais.</div>
+         <div className="text-muted-foreground">Registro anterior: {item.court_flag_reason||'motivo não documentado'}. DataJud e DJEN são reconsultados automaticamente; o histórico é analisado antes de qualquer baixa.</div>
         </div>
        ))}
       </div>
