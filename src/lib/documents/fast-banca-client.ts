@@ -9,7 +9,9 @@ const MAX_AGE_MS = 45_000;
 export async function listDocumentLawyersFast(force=false): Promise<any[]> {
   if (!force && current && Date.now()-loadedAt < MAX_AGE_MS) return current;
   if (!force && inflight) return inflight;
-  const job = listAdvogadosBanca().then(rows=>{
+  const request = listAdvogadosBanca();
+  const deadline = new Promise<any[]>((_,reject)=>setTimeout(()=>reject(new Error("A consulta da banca ultrapassou 8 segundos. Tente novamente.")),8000));
+  const job = Promise.race([request,deadline]).then(rows=>{
     if (!Array.isArray(rows)) throw Error("Resposta inválida da banca.");
     if (rows.length) {
       current=rows;
