@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/server-db';
 import { auditCaseCoreSystem } from '@/app/actions/case-actions';
-import { enqueueScannedMovement } from '@/lib/wa-movement-campaign';
+import { enqueueScannedMovement, queueNextMovementForTenant } from '@/lib/wa-movement-campaign';
 
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -64,12 +64,19 @@ export async function GET(request:Request){
     }
     // An idempotent second attempt is safe: the underlying function already
     // invokes the enqueue hook and the notification hash is globally unique.
-    try { await enqueueScannedMovement(empresaId,id); }
-    catch(e){ console.warn('[portfolio-audit] movement queue deferred',
+    let immediatelyQueued=false;
+    try {
+      await enqueueScannedMovement(empresaId,id);
+      // Claim at most one validated notice immediately after this scan:
+      // no wait for a second full-portfolio pass. Acknowledgement remains
+      // the responsibility of the connected WhatsApp worker.
+      const next=await queueNextMovementForTenant(empresaId);
+      immediatelyQueued=next.queued===true;
+    } catch(e){ console.warn('[portfolio-audit] movement queue deferred',
       e instanceof Error?e.message:'unknown'); }
     await finish(dj&&djen?'verified':'partial',dj,djen,null);
     return NextResponse.json({ok:true,processed:1,status:dj&&djen?'verified':'partial',
-      source:{datajud:dj,djen}},{headers});
+      source:{datajud:dj,djen},queued:immediatelyQueued},{headers});
   } catch(e){
     console.error('[portfolio-audit] failed',e instanceof Error?e.message:'unknown');
     await finish('failed',false,false,'Falha na verificação; sem notificação');
