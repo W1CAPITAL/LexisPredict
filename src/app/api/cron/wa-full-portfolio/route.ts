@@ -125,12 +125,21 @@ export async function GET(request:Request){
     // invokes the enqueue hook and the notification hash is globally unique.
     let immediatelyQueued=false;
     try {
+      // Tribunal analysis continues during a restricted WhatsApp connection,
+      // but a restricted tenant must NEVER create outbound delivery jobs.
+      const {data:safety,error:safetyError}=await db.from('wa_outbound_safety_limits')
+        .select('paused,cooldown_until').eq('empresa_id',empresaId).maybeSingle();
+      if(safetyError)throw Error('Outbound safety status unavailable');
+      const blocked=!!safety&&(safety.paused||
+        Boolean(safety.cooldown_until&&Date.parse(safety.cooldown_until)>Date.now()));
+      if(!blocked){
       await enqueueScannedMovement(empresaId,id);
       // Claim at most one validated notice immediately after this scan:
       // no wait for a second full-portfolio pass. Acknowledgement remains
       // the responsibility of the connected WhatsApp worker.
       const next=await queueNextMovementForTenant(empresaId);
       immediatelyQueued=next.queued===true;
+      }
     } catch(e){ console.warn('[portfolio-audit] movement queue deferred',
       e instanceof Error?e.message:'unknown'); }
     await finish(dj&&djen?'verified':'partial',dj,djen,null);
