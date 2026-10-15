@@ -39,7 +39,6 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
  const [name,setName]=useState(record?.display_name||user?.nome||'');
  const [role,setRole]=useState(record?.display_role||user?.cargo||'');
  const [phone,setPhone]=useState(record?.phone||'');
- const [signature,setSignature]=useState('');
  const [accepted,setAccepted]=useState(false);
  const [welcome,setWelcome]=useState(record?.welcome_opt_in===true);
  const [error,setError]=useState('');
@@ -55,7 +54,13 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
   setRole(record?.display_role||user?.cargo||'');
   setPhone(record?.phone||'');
  },[record?.display_name,record?.phone,record?.preferences,user?.nome,user?.cargo]);
- useEffect(()=>{applyExperiencePrefs(prefs)},[prefs]);
+ // Evita recálculo global de CSS/fundo a cada tecla e a cada render do guia.
+ // O modo de edição preserva pré-visualização, mas usa debounce leve.
+ useEffect(()=>{
+  if(step!==1&&step!==2)return;
+  const task=window.setTimeout(()=>applyExperiencePrefs(prefs),500);
+  return()=>window.clearTimeout(task);
+ },[prefs,step]);
  const upload=async(file:File|undefined,kind:'avatar'|'wallpaper')=>{
   if(!file)return;
   if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>3*1024*1024){
@@ -77,7 +82,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
  const next=()=>{
   setError('');
   if(step===0){
-   if(name.trim().length<3){setError('Informe seu nome completo.');return;}
+   if(name.trim().length<2){setError('Informe o nome que deseja exibir no perfil.');return;}
    if(!/^\+?55\d{10,11}$/.test(phone.replace(/\D/g,'').replace(/^(?!55)/,'55'))){setError('Número obrigatório: informe DDD e WhatsApp brasileiro.');return;}
   }
   setStep(n=>Math.min(3,n+1));
@@ -89,7 +94,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
    const r=await saveExperienceAction({
     name,roleLabel:role,phone,preferences:prefs,complete,
     acceptTerms:complete?accepted:undefined,
-    signature:complete?signature:undefined,welcomeOptIn:welcome,
+    signature:complete?name.trim():undefined,welcomeOptIn:welcome,
    });
    if(!r.ok)throw Error(r.error);
    applyExperiencePrefs(r.preferences);
@@ -133,7 +138,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
        <input ref={avatarRef} className="hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>void upload(e.target.files?.[0],'avatar')}/>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-       <label className="block"><span className={labelClass}>Nome completo *</span><input className={fieldClass} value={name} onChange={e=>setName(e.target.value)} maxLength={100}/></label>
+       <label className="block"><span className={labelClass}>Nome do perfil *</span><input className={fieldClass} value={name} onChange={e=>setName(e.target.value)} maxLength={100}/></label>
        <label className="block"><span className={labelClass}>Cargo exibido no seu perfil</span><input className={fieldClass} value={role} onChange={e=>setRole(e.target.value)} maxLength={70} placeholder="Ex.: Analista processual"/></label>
        <label className="block sm:col-span-2"><span className={labelClass}>WhatsApp de contato com DDD *</span><input type="tel" inputMode="tel" className={fieldClass} value={phone} onChange={e=>setPhone(e.target.value)} placeholder="(11) 99999-9999" required/></label>
        <label className="flex items-start gap-3 sm:col-span-2 rounded-xl border border-border bg-muted/30 p-4">
@@ -192,7 +197,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
        {EXPERIENCE_TERMS.map(t=><section key={t.title}><h3 className="text-sm font-bold">{t.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.body}</p></section>)}
       </div>
       {wizard||!record?.terms_version?<><label className="flex gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>Li, compreendi e aceito expressamente esta versão dos termos e das responsabilidades de uso.</span></label>
-       <label><span className={labelClass}>Assinatura eletrônica: digite seu nome completo *</span><input className={fieldClass} value={signature} onChange={e=>setSignature(e.target.value)} placeholder={name||'Nome completo'}/></label>
+       <div className="rounded-xl border border-border bg-muted/30 p-3"><p className={labelClass}>Assinatura eletrônica com seu nome de perfil</p><p className="text-sm font-semibold text-foreground">{name.trim()||'Informe o nome do perfil na primeira etapa'}</p><p className="mt-1 text-xs text-muted-foreground">Ao selecionar a caixa de aceite e confirmar, este nome será registrado como sua assinatura eletrônica simples.</p></div>
       </>:<div className="rounded-xl border border-border p-3 text-xs">Seu aceite anterior está registrado. Alterar a aparência não renova o contrato.</div>}
       <p className="text-xs text-muted-foreground">O aceite será vinculado à sua conta e à versão do documento, com data e hora no servidor. Esta confirmação não substitui assinatura qualificada quando legalmente exigida.</p>
      </div>:null}
@@ -214,14 +219,18 @@ export function ExperienceGate(){
  const [data,setData]=useState<Awaited<ReturnType<typeof getExperienceAction>>|null>(null);
  const [done,setDone]=useState(false);
  const [loading,setLoading]=useState(false);
+ const loadedUser=useRef('');
  const {user,profile}=useAuth();
  const path=usePathname();
  useEffect(()=>{
   if(!user?.id||!profile?.empresa_id||profile.empresa_id==='guest-local')return;
   if(['/login','/signup','/primeiro-acesso','/setup-empresa','/termos'].some(x=>path===x))return;
+  const key=String(user.id)+':'+String(profile.empresa_id);
+  if(loadedUser.current===key)return;
+  loadedUser.current=key;
   let active=true;
   setLoading(true);
-  getExperienceAction().then(r=>{if(active)setData(r)}).finally(()=>{if(active)setLoading(false)});
+  getExperienceAction().then(r=>{if(active){setData(r);if(!r.ok)loadedUser.current=''}}).catch(()=>{loadedUser.current=''}).finally(()=>{if(active)setLoading(false)});
   return()=>{active=false};
  },[user?.id,profile?.empresa_id,path]);
  useEffect(()=>{
