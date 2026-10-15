@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/server-db';
 import { auditCaseCoreSystem } from '@/app/actions/case-actions';
 import { enqueueScannedMovement, queueNextMovementForTenant } from '@/lib/wa-movement-campaign';
+import {confirmedTerminalEvent} from '@/lib/judicial-terminal-evidence';
 
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -57,6 +58,64 @@ export async function GET(request:Request){
     });
     const dj=scan.sourceStatus?.datajud?.ok===true;
     const djen=scan.sourceStatus?.djen?.ok===true;
+    // A historical termination flag is STICKY in the portfolio scanner and
+    // is not evidence on its own. Reclassify only if both official sources
+    // successfully refreshed and the last DataJud event ITSELF is an
+    // unequivocal >365-day-old definitive discharge/archival, with no later
+    // DJEN event and no active enforcement stage.
+    let closedByFreshProof=false;
+    const {data:closureReview,error:reviewError}=await db.from('wa_closure_review_queue')
+      .select('processo_id,status').eq('empresa_id',empresaId).eq('processo_id',id)
+      .eq('status','needs_official_confirmation').maybeSingle();
+    if(reviewError)throw new Error('Closure review unavailable');
+    if(closureReview){
+      if(dj&&djen){
+        const {data:verified,error:verifiedError}=await db.from('processos')
+          .select('id,status,status_interno,telefone,datajud_last_ok,datajud_encerrado_tribunal,datajud_ultimo_nome,datajud_ultimo_movimento,datajud_consultado_em,djen_last_ok,djen_consultado_em,djen_ultima_data,em_cumprimento_sentenca,cumprimento_pendente_necessario,status_executivo,dados')
+          .eq('empresa_id',empresaId).eq('id',id).maybeSingle();
+        if(verifiedError||!verified)throw new Error('Fresh court closure confirmation unavailable');
+        const lastMs=Date.parse(String(verified.datajud_ultimo_movimento||''));
+        const djenMs=Date.parse(String(verified.djen_ultima_data||''));
+        const sourceMs=Date.parse(String(verified.datajud_consultado_em||''));
+        const finalAct=confirmedTerminalEvent(String(verified.datajud_ultimo_nome||''));
+        const strongProof=verified.datajud_last_ok===true&&verified.djen_last_ok===true
+          &&verified.datajud_encerrado_tribunal===true
+          &&(finalAct==='baixa'||finalAct==='arquivamento')
+          &&Number.isFinite(lastMs)&&lastMs<Date.now()-365*86400000
+          &&Number.isFinite(sourceMs)&&Date.now()-sourceMs<3600000
+          &&(!Number.isFinite(djenMs)||djenMs<=lastMs)
+          &&verified.em_cumprimento_sentenca!==true
+          &&verified.cumprimento_pendente_necessario!==true
+          &&!/execut|cumprim|pendente|ativo/i.test(String(verified.status_executivo||''))
+          &&String(verified.telefone||'').replace(/\\D/g,'').length<10
+          &&verified.status!=='Encerrado'&&verified.status_interno!=='ENCERRADO';
+        if(strongProof){
+          const {error:closeError}=await db.from('processos').update({
+            status:'Encerrado',status_interno:'ENCERRADO',
+            dados:{...(verified.dados||{}),
+              wa_closure_proof:{
+                source:'DataJud e DJEN',event:'baixa/arquivamento definitivo',
+                eventAt:new Date(lastMs).toISOString(),
+                verifiedAt:new Date().toISOString(),origin:'verificacao automatica de processo antigo',
+              }},
+          }).eq('empresa_id',empresaId).eq('id',id);
+          if(closeError)throw new Error('Court-proven closure could not be saved');
+          const {error:queueError}=await db.from('wa_portfolio_scan_queue')
+            .update({outreach_status:'ineligible',last_error:'closed_after_fresh_court_confirmation'})
+            .eq('empresa_id',empresaId).eq('processo_id',id);
+          if(queueError)throw new Error('Closure queue could not be saved');
+          closedByFreshProof=true;
+        }
+        const {error:reviewUpdateError}=await db.from('wa_closure_review_queue')
+          .update({status:closedByFreshProof?'confirmed':'manual_review',
+            checked_at:new Date().toISOString()})
+          .eq('empresa_id',empresaId).eq('processo_id',id);
+        if(reviewUpdateError)throw new Error('Could not record closure review');
+      } else {
+        await db.from('wa_closure_review_queue').update({checked_at:new Date().toISOString()})
+          .eq('empresa_id',empresaId).eq('processo_id',id);
+      }
+    }
     if(!dj&&!djen){
       await finish('unavailable',false,false,'Fontes oficiais indisponíveis nesta tentativa');
       return NextResponse.json({ok:true,processed:1,status:'unavailable',
@@ -76,7 +135,7 @@ export async function GET(request:Request){
       e instanceof Error?e.message:'unknown'); }
     await finish(dj&&djen?'verified':'partial',dj,djen,null);
     return NextResponse.json({ok:true,processed:1,status:dj&&djen?'verified':'partial',
-      source:{datajud:dj,djen},queued:immediatelyQueued},{headers});
+      source:{datajud:dj,djen},queued:immediatelyQueued,closedByFreshProof},{headers});
   } catch(e){
     console.error('[portfolio-audit] failed',e instanceof Error?e.message:'unknown');
     await finish('failed',false,false,'Falha na verificação; sem notificação');
