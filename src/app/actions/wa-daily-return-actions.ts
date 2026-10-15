@@ -14,6 +14,10 @@ export async function getWaDailyReturnDashboardAction(){
  try{
   const me=await manager();const db=await getSupabaseAdmin();
   const settings=await getDailyReturnSettings(me.empresaId);
+  const {data:safety,error:safetyError}=await db.from('wa_outbound_safety_limits')
+    .select('paused,min_gap_minutes,daily_limit,business_start_hour,business_end_hour,cooldown_until,pause_reason')
+    .eq('empresa_id',me.empresaId).maybeSingle();
+  if(safetyError)throw new Error('A proteção anti-excesso de envios está indisponível.');
   const day=brazilToday();
   const {count}=await db.from('processos').select('id',{head:true,count:'exact'})
     .eq('empresa_id',me.empresaId).lte('proximo_retorno',day);
@@ -59,7 +63,7 @@ export async function getWaDailyReturnDashboardAction(){
     db.rpc('wa_overdue_queue_items',{p_empresa:me.empresaId,p_day:day}),
   ]);
   if(summary.error||detail.error)throw new Error('A fila de vencidos está indisponível; tente recarregar.');
-  return {ok:true as const,dueQueue:summary.data,dueItems:detail.data,
+  return {ok:true as const,dueQueue:summary.data,dueItems:detail.data,waSafety:safety,
     settings:{enabled:settings.enabled,intervalDays:settings.intervalDays,sendAnytime:settings.sendAnytime},
     due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),
     reusedToday:Number(reusedToday||0),
@@ -70,7 +74,15 @@ export async function getWaDailyReturnDashboardAction(){
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
 export async function saveWaDailyReturnSettingsAction(enabled:boolean,intervalDays:number) {
- try{const me=await manager();await upsertDailyReturnSettings(me.empresaId,me.authId,enabled,intervalDays,enabled);
+ try{const me=await manager();
+  if(enabled){
+   const db=await getSupabaseAdmin();
+   const {data:safety,error}=await db.from('wa_outbound_safety_limits')
+    .select('paused,cooldown_until').eq('empresa_id',me.empresaId).maybeSingle();
+   if(error||safety?.paused||Boolean(safety?.cooldown_until&&Date.parse(safety.cooldown_until)>Date.now()))
+    throw Error('Número em proteção por restrição do WhatsApp: os envios continuam suspensos. Não é possível ativá-los pelo scanner.');
+  }
+  await upsertDailyReturnSettings(me.empresaId,me.authId,enabled,intervalDays,false);
   return {ok:true as const};
  }catch(e:any){return {ok:false as const,error:String(e?.message||e)};}
 }
