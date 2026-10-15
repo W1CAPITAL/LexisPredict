@@ -36,6 +36,7 @@ const TITLE='Sua experiência LexisPredict';
 export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps){
  const [step,setStep]=useState(0);
  const [prefs,setPrefs]=useState<ExperiencePreferences>(()=>cleanExperiencePrefs(record?.preferences||{}));
+ const [wallpaperDraft,setWallpaperDraft]=useState(()=>cleanExperiencePrefs(record?.preferences||{}).wallpaper);
  const [name,setName]=useState(record?.display_name||user?.nome||'');
  const [role,setRole]=useState(record?.display_role||user?.cargo||'');
  const [phone,setPhone]=useState(record?.phone||'');
@@ -49,7 +50,9 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
  const set=<K extends keyof ExperiencePreferences>(key:K,value:ExperiencePreferences[K])=>
   setPrefs(p=>({...p,[key]:value}));
  useEffect(()=>{
-  setPrefs(cleanExperiencePrefs(record?.preferences||{}));
+  const saved=cleanExperiencePrefs(record?.preferences||{});
+  setPrefs(saved);
+  setWallpaperDraft(saved.wallpaper);
   setName(record?.display_name||user?.nome||'');
   setRole(record?.display_role||user?.cargo||'');
   setPhone(record?.phone||'');
@@ -61,6 +64,11 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
   const task=window.setTimeout(()=>applyExperiencePrefs(prefs),500);
   return()=>window.clearTimeout(task);
  },[prefs,step]);
+ useEffect(()=>{
+  // URLs só são testadas quando confirmadas; evita dezenas de downloads enquanto
+  // a pessoa ainda digita ou cola a imagem.
+  setWallpaperDraft(prefs.wallpaper);
+ },[prefs.wallpaper]);
  const upload=async(file:File|undefined,kind:'avatar'|'wallpaper')=>{
   if(!file)return;
   if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>3*1024*1024){
@@ -192,7 +200,10 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
         <button type="button" disabled={uploading} onClick={()=>imageRef.current?.click()} className="rounded-lg border px-3 py-2 text-xs"><Upload className="mr-1 inline h-3 w-3"/>Enviar imagem própria (até 3 MB)</button>
        </div>
        <input ref={imageRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e=>void upload(e.target.files?.[0],'wallpaper')}/>
-       <input type="url" value={prefs.wallpaper} onChange={e=>set('wallpaper',e.target.value)} className={fieldClass+' mt-2'} placeholder="Ou cole uma URL HTTPS da imagem"/>
+       <input type="url" value={wallpaperDraft} onChange={e=>setWallpaperDraft(e.target.value)}
+        onBlur={()=>set('wallpaper',wallpaperDraft.trim())}
+        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();set('wallpaper',wallpaperDraft.trim())}}}
+        className={fieldClass+' mt-2'} placeholder="Ou cole uma URL HTTPS da imagem"/>
        {prefs.wallpaper?(
         <div className="mt-2 space-y-1 rounded-lg border border-border p-2">
          <p className="text-xs font-semibold text-foreground">Prévia do plano de fundo selecionado</p>
