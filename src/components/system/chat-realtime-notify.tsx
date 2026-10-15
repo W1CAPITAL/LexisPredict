@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
 import { notifyChatMessage } from "@/components/system/chat-notif-permission";
 import { useToast } from "@/hooks/use-toast";
+import {loadExperiencePrefs} from '@/lib/experience-prefs';
 
 export function ChatRealtimeNotify() {
   const { profile } = useAuth();
@@ -24,7 +25,7 @@ export function ChatRealtimeNotify() {
   useEffect(() => {
     const onInApp = (ev: Event) => {
       const d = (ev as CustomEvent).detail || {};
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible" || loadExperiencePrefs().notifications !== 'all') return;
       toast({
         title: String(d.title || "Chat equipe"),
         description: String(d.body || "Nova mensagem"),
