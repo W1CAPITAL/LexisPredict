@@ -37,7 +37,7 @@ export function EvolutionConnectionCard(){
           <div className="flex items-center gap-2 flex-wrap">
             <strong className="text-sm">WA.Auto · WhatsApp integrado</strong>
             <Badge variant={ready?'default':'outline'}>
-              {ready?'CONECTADO':qrReady?'QR CODE PRONTO':starting?'INICIANDO':loading?'VERIFICANDO':'DESCONECTADO'}
+              {ready?'CONECTADO':qrReady?(bridge?.qrFresh?'QR CODE ATUAL':'QR ANTERIOR'):starting?'INICIANDO':loading?'VERIFICANDO':'DESCONECTADO'}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
