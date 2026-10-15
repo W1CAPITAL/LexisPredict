@@ -231,7 +231,7 @@ export function ExperienceGate(){
  },[data]);
  if(done||loading||!data?.ok)return null;
  const d=data.profile;
- if(d&&Number(d.onboarding_version)>=3&&d.terms_version===EXPERIENCE_TERMS_VERSION&&d.phone)return null;
+ if(d&&Number(d.onboarding_version)>=4&&d.terms_version===EXPERIENCE_TERMS_VERSION&&d.phone)return null;
  if(['/login','/signup','/primeiro-acesso','/setup-empresa','/termos'].some(x=>path===x))return null;
  return <ExperienceStudio wizard record={d||null} user={data.user} onDone={()=>setDone(true)}/>;
 }
