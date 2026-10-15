@@ -82,7 +82,7 @@ export function SubstabelecimentoSimplesPDF({ data }: { data: any }) {
 
           <View style={styles.paragraph}>
             <Text>
-              O <Text style={styles.bold}>DR(A). {substabelecente.nome.toUpperCase()}</Text>, brasileiro(a), advogado(a), inscrito(a) na <Text style={styles.bold}>{substabelecente.oabCompleta}</Text>, <Text style={styles.bold}>SUBSTABELECE SEM RESERVA DE PODERES</Text> na pessoa do <Text style={styles.bold}>DR(A). {substabelecido.nome.toUpperCase()}</Text>, inscrito(a) na <Text style={styles.bold}>{substabelecido.oabCompleta}</Text>, os poderes conferidos por <Text style={styles.bold}>{parteNome.toUpperCase()}</Text>, <Text style={styles.bold}>PARA A PROMOÇÃO DE {tipoAcao.toUpperCase()}</Text>, processo de n.º <Text style={styles.bold}>{numeroProcesso}</Text> por meio do instrumento outrora outorgado, requerendo a exclusão do advogado substabelecente <Text style={styles.bold}>{substabelecente.nome.toUpperCase()}</Text> sob <Text style={styles.bold}>{substabelecente.oabCurta}</Text> da contracapa dos autos, bem como de qualquer outro meio de intimação do processo sendo assim que <Text style={styles.bold}>todas as futuras intimações passem a ser exclusivamente dirigidas ao substabelecido</Text>, <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text> sob <Text style={styles.bold}>{substabelecido.oabCurta}</Text>, nos termos do artigo 272, §5º, do CPC, sob pena de nulidade.
+              O <Text style={styles.bold}>DR(A). {substabelecente.nome.toUpperCase()}</Text>, brasileiro(a), advogado(a), inscrito(a) na <Text style={styles.bold}>{substabelecente.oabCompleta}</Text>, <Text style={styles.bold}>SUBSTABELECE SEM RESERVA DE PODERES</Text> na pessoa do <Text style={styles.bold}>DR(A). {substabelecido.nome.toUpperCase()}</Text>, inscrito(a) na <Text style={styles.bold}>{substabelecido.oabCompleta}</Text>, os poderes conferidos por <Text style={styles.bold}>{parteNome.toUpperCase()}</Text>, <Text style={styles.bold}>PARA A PROMOÇÃO DE {tipoAcao.toUpperCase()}</Text>, processo de n.º <Text style={styles.bold}>{numeroProcesso}</Text> nos limites do mandato originário, conforme o instrumento de procuração que fundamenta a representação.
             </Text>
           </View>
 
@@ -109,7 +109,7 @@ export function SubstabelecimentoSimplesPDF({ data }: { data: any }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={[styles.title, { textDecoration: 'underline', marginBottom: 30 }]}>SUBSTABELECIMENTO SEM RESERVA DE PODERES</Text>
+        <Text style={[styles.title, { textDecoration: 'underline', marginBottom: 20 }]}>SUBSTABELECIMENTO SEM RESERVA DE PODERES</Text>
 
         <View style={styles.paragraph}>
           <Text>

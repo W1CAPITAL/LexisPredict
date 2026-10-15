@@ -62,8 +62,8 @@ export function ProcuracaoPDF({ data }: { data: any }) {
 
   const { cliente, advogado, processos, local, dataExtenso, includeBankInfo, includeProcessNumber } = data;
   
-  const acaoPrincipal = processos?.[0]?.acao || "AÇÃO DE REVISÃO CONTRATUAL COM PEDIDO DE TUTELA DE URGÊNCIA";
-  const bancoPrincipal = processos?.[0]?.banco || "INSTITUIÇÃO FINANCEIRA";
+  const acaoPrincipal = processos?.[0]?.acao || "[DESCREVER AÇÃO CONFORME OS AUTOS]";
+  const bancoPrincipal = processos?.[0]?.banco || "[BANCO NÃO INFORMADO]";
   const cnpjBancoPrincipal = processos?.[0]?.cnpjBanco;
   const numeroPrincipal = processos?.[0]?.numero || "S/N";
 
