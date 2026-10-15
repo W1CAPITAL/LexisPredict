@@ -16,11 +16,7 @@ type StudioProps={
  onDone?:()=>void;
  onClose?:()=>void;
 };
-const themes=[
- ['minimal-steel','Aço minimalista'],['paper-legal','Papel jurídico'],
- ['night-ops','Night Ops'],['graphite','Grafite'],['esmeralda','Esmeralda'],
- ['violeta','Violeta'],['ocean','Oceano'],['sheetspredict-dark','SheetsPredict Dark'],
-] as const;
+const themes=AUTHORITY_PRESETS.map(p=>[p.id,p.name] as const);
 const wallPresets=[
  ['','Sem imagem'],
  ['https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600&q=80','Terra noturna'],
@@ -112,7 +108,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      <div className="min-w-0 flex-1">
       <p className="text-[11px] font-bold uppercase tracking-widest text-primary">LEXISPREDICT · EXPERIÊNCIA PESSOAL</p>
       <h2 className="text-lg font-extrabold sm:text-xl">{wizard?'Bem-vindo! Personalize seu espaço de trabalho':TITLE}</h2>
-      <p className="text-xs text-muted-foreground">{wizard?'Este guia aparece uma vez nesta atualização. Suas escolhas ficam salvas no seu perfil.':'Altere quando quiser; não muda permissões de acesso.'}</p>
+      <p className="text-xs text-muted-foreground">{wizard?'Este guia aparece nesta atualização para cada usuário; suas escolhas ficam salvas no seu perfil.':'Altere quando quiser; não muda permissões de acesso.'}</p>
      </div>
      {!wizard&&onClose?<button onClick={onClose} aria-label="Fechar" className="rounded-lg p-2 hover:bg-muted"><X className="h-5 w-5"/></button>:null}
     </header>
