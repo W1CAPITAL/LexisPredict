@@ -138,6 +138,22 @@ export function applyWallpaperUrl(url: string) {
   localStorage.setItem("lexisPredict_wallpaper", url);
   const root = document.documentElement;
   root.classList.add("lexis-wallpaper-active");
+  // Paint the photo on the document canvas too; a page-level background
+  // must not make the detached wallpaper layer disappear behind the main shell.
+  // Valid HTTPS or data image URLs only: never interpolate arbitrary CSS.
+  const wallpaperCssUrl=/^https:\/\/[^"'()\\\s]+$/i.test(url)
+    ? `url("${url}")`
+    : /^data:image\/(?:png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/.test(url)
+      ? `url("${url}")` : '';
+  if(!wallpaperCssUrl){
+    root.classList.remove("lexis-wallpaper-active");
+    return;
+  }
+  root.style.setProperty('--lexis-wallpaper-image',wallpaperCssUrl);
+  root.style.backgroundImage=wallpaperCssUrl;
+  root.style.backgroundSize='cover';
+  root.style.backgroundPosition='center';
+  root.style.backgroundAttachment='fixed';
   const layer = ensureLayer();
   if (layer) {
     layer.style.backgroundImage = url.startsWith("url(") ? url : `url(${url})`;
@@ -171,6 +187,10 @@ export async function resetWallpaper() {
   localStorage.removeItem("lexisPredict_wallpaper");
   const root = document.documentElement;
   root.classList.remove("lexis-wallpaper-active");
+  root.style.removeProperty('--lexis-wallpaper-image');
+  root.style.backgroundSize='';
+  root.style.backgroundPosition='';
+  root.style.backgroundAttachment='';
   root.style.backgroundImage = "none";
   const layer = document.getElementById("lexis-wallpaper-layer");
   if (layer) layer.remove();
