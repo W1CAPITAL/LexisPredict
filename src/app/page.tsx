@@ -91,6 +91,7 @@ import { computeKpiUnificado } from '@/lib/kpi-unificado';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { RevisionalJuridicoKpis } from "@/components/dashboard/revisional-juridico-kpis";
+import {loadExperiencePrefs} from '@/lib/experience-prefs';
 
 export default function Dashboard() {
   const { cases, setCases, locale, updateLastSync, sync } = useAppStore();
@@ -101,6 +102,8 @@ export default function Dashboard() {
   const [portfolioSummary, setPortfolioSummary] = useState<CarteiraSnapshot | null>(null);
   const [carteiraError, setCarteiraError] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [phrase,setPhrase]=useState('');
+  const [favorite,setFavorite]=useState('/');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [iaInsights, setIaInsights] = useState<any>(null);
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false);
@@ -152,6 +155,12 @@ export default function Dashboard() {
     window.addEventListener('lexis-insights-updated', handleStorageUpdate);
     return () => window.removeEventListener('lexis-insights-updated', handleStorageUpdate);
   }, [loadInsights, loadData]);
+
+  useEffect(()=>{
+    const sync=()=>{const p=loadExperiencePrefs();setPhrase(p.dashboardPhrase);setFavorite(p.favoriteTab)};
+    sync();window.addEventListener('lexis-experience-updated',sync);
+    return()=>window.removeEventListener('lexis-experience-updated',sync);
+  },[]);
 
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
@@ -287,10 +296,11 @@ export default function Dashboard() {
               Olá, {String(profile?.nome || 'Usuário').split(/\s+/)[0]}!
             </h1>
             <p className="mt-2 text-sm font-medium text-[#617693]">
-              Aqui está o panorama da sua operação jurídica hoje.
+              {phrase||'Aqui está o panorama da sua operação jurídica hoje.'}
             </p>
           </div>
           <div className="hidden items-center gap-3 lg:flex">
+            {favorite!=='/'?<Link href={favorite} className="inline-flex h-10 items-center rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted"><Zap className="mr-2 h-4 w-4 text-primary"/>Minha aba favorita</Link>:null}
             <Button variant="outline" size="sm" asChild className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <Link href="/report">
                 <FileDown size={15} className="mr-2" /> Relatório
