@@ -23,6 +23,27 @@ export const CLIENT_NOTICE_CLOSING =
 export const CLIENT_NOTICE_OPT_OUT =
   'Se preferir não receber esses avisos pelo WhatsApp, é só responder SAIR.';
 
+/** Trecho fiel do teor oficial, sem substituir publicações longas por texto vago.
+ * Cortar apenas o volume; nunca resumir como decisão ou promessa jurídica.
+ */
+export function officialNoticeExcerpt(text:string,max=850):{excerpt:string;shortened:boolean}{
+  const original=String(text||'').replace(/\\r/g,' ').replace(/[\\t\\n]+/g,' ')
+    .replace(/\\s+/g,' ').trim();
+  if(original.length<=max)return {excerpt:original,shortened:false};
+  // Cabeçalhos de DJEN podem conter apenas tribunal, advogado e distribuição.
+  // Procura o início do ato comunicado para que o trecho tenha utilidade.
+  const body=original.slice(100);
+  const match=/(?:\\b(?:intima[cç][aã]o|intime-se|fica\\s+(?:intimad[oa]|a\\s+parte)|determino|decido|senten[cç]a|despacho|cite-se|defiro|indefiro|homologo|considerando|para\\s+que|manifeste-se|prazo\\s+de)\\b)/i.exec(body);
+  const actionAt=match?match.index+100:0;
+  const prefix=actionAt>260?original.slice(0,Math.min(135,Math.floor(max/5))).trim()+' […] ':''; 
+  const available=max-prefix.length;
+  const section=original.slice(actionAt,actionAt+available+1);
+  const cut=section.slice(0,available);
+  const end=cut.lastIndexOf(' ');
+  const excerpt=prefix+(end>available*.65?cut.slice(0,end):cut).trim()+'…';
+  return {excerpt,shortened:true};
+}
+
 export function buildClientMovementMessage(input: {
   firstName: string; cnj: string; date: string; detail: string; source?: 'DJEN'|'DataJud'; now?: Date;
   confirmedTerminal?:TerminalEvidence|null;
@@ -49,9 +70,12 @@ export function buildClientMovementMessage(input: {
           ? `Referente ao seu processo nº ${input.cnj}, em ${input.date} foi registrada a inclusão de ${/peticao/.test(normalized)?'uma petição':'documentos'} no processo.`
           : expiredTerm
             ? `Referente ao seu processo nº ${input.cnj}, em ${input.date} foi registrado o término de um prazo processual.`
-            : detail.length > 240
-              ? `Passando para atualizar você sobre o processo nº ${input.cnj}. Houve uma nova ${input.source==='DJEN'?'publicação':'movimentação'} em ${input.date}. Os detalhes desse registro estão disponíveis para conferência pelo nosso Setor Processual.`
-              : `Passando para atualizar você sobre o processo nº ${input.cnj}. A atualização de ${input.date} foi: ${detail}${/[.!?]$/.test(detail)?'':'.'}`;
+            : `Passando para atualizar você sobre o processo nº ${input.cnj}. Em ${input.date}, foi registrada a seguinte ${input.source==='DJEN'?'publicação no Diário da Justiça':'movimentação processual'}:`;
+  const excerpt=officialNoticeExcerpt(detail);
+  const includeLiteralExcerpt=!conclusos&&!conditionalCosts&&!proofNotice&&!joinedPetition&&!expiredTerm;
+  const sourceLiteral=includeLiteralExcerpt
+    ? `*Trecho do registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\\nO texto foi abreviado por tamanho, sem alterar o conteúdo do trecho. O teor integral pode ser consultado no tribunal/Diário da Justiça.':''}`
+    : `*Registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?'\\nTrecho abreviado; consulte o teor completo na fonte oficial.':''}`;
   if(input.confirmedTerminal){
     const labels:Record<TerminalEvidence,string>={
       extincao:'extinção ou cancelamento da distribuição',
@@ -67,7 +91,8 @@ export function buildClientMovementMessage(input: {
   return [
     clientGreeting(input.firstName, input.now),
     update,
-    ...(terminal ? ['Para explicar o motivo desse registro e os próximos passos, é preciso conferir os detalhes do processo.'] : []),
+    sourceLiteral,
+    ...(terminal ? ['Esse registro não demonstra sozinho pagamento, resultado favorável ou encerramento definitivo de outros incidentes.'] : []),
     CLIENT_NOTICE_CLOSING,
     CLIENT_NOTICE_OPT_OUT,
   ].join('\n\n');
