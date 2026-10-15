@@ -1,4 +1,5 @@
 "use client";
+import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
 import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
@@ -219,10 +220,7 @@ export default function DocumentGenerator() {
       };
       const res = await generateProcuracaoPDFAction(payload);
       if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:application/pdf;base64,${res.base64}`;
-        link.download = `Procuracao_${extractedData.cliente.nome.replace(/\s/g, '_')}.pdf`;
-        link.click();
+        downloadGeneratedPdf(res.base64, `Procuracao_${extractedData.cliente.nome.replace(/\s/g, '_')}.pdf`);
         toast({ title: "Documento Selado" });
       } else {
         toast({ title: "Erro na Selagem", description: res.error, variant: "destructive" });

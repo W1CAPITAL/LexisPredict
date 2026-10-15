@@ -3,22 +3,17 @@
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
-
-Font.register({
-  family: 'Times-Roman',
-  fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman-Bold.ttf', fontWeight: 'bold' }
-  ]
-});
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: '30mm 25mm',
+    paddingTop: 85,
+    paddingLeft: 85,
+    paddingRight: 57,
+    paddingBottom: 57,
     fontFamily: 'Times-Roman',
     fontSize: 12,
-    lineHeight: 1.8,
+    lineHeight: 1.5,
     textAlign: 'justify',
   },
   title: {
@@ -32,24 +27,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
     fontSize: 12,
-    marginBottom: 60,
+    marginBottom: 20,
   },
   paragraph: {
-    marginBottom: 60,
-    textIndent: 60,
+    marginBottom: 20,
+    textIndent: 36,
   },
   bold: {
     fontWeight: 'bold'
   },
   dateArea: {
     textAlign: 'center',
-    marginBottom: 80,
+    marginBottom: 20,
   },
   signatureArea: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 60,
+    gap: 24,
   },
   signatureBlock: {
     width: '60%',
