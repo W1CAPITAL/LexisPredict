@@ -1,0 +1,184 @@
+/* LexisPredict · personalização v4. Este arquivo é importado por último.
+ * Corrige os estilos comerciais legados que impunham branco/azul com !important.
+ * Todos os tokens de interface usam HSL; cores de status semânticas são preservadas.
+ */
+html[data-lexis-experience="1"] {
+  --lx-ui-radius: var(--radius, 12px);
+  --lx-ui-text: hsl(var(--foreground));
+  --lx-ui-muted: hsl(var(--muted-foreground));
+  --lx-ui-panel: hsl(var(--card));
+  --lx-ui-panel-text: hsl(var(--card-foreground));
+  --lx-ui-edge: hsl(var(--border));
+  --lx-ui-primary: hsl(var(--primary));
+  --lx-ui-primary-text: hsl(var(--primary-foreground));
+}
+
+/* Sobrescreve os seletores :has() do layout comercial nos dois modos. */
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]),
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) main {
+  background: hsl(var(--background)) !important;
+  color: var(--lx-ui-text) !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]),
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) main {
+  background: hsl(var(--background) / var(--bg-opacity, .82)) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(.premium-card,.lexis-metric,[data-slot="card"],[data-admin-card],[data-efferd-kpi],.bg-card) {
+  background: var(--lx-ui-panel) !important;
+  color: var(--lx-ui-panel-text) !important;
+  border-color: var(--lx-ui-edge) !important;
+  border-radius: var(--lx-ui-radius) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(.admin-page-title,.lexis-metric-value,main h1,main h2,main h3,main > header,main > header h1,
+table,table td,[role="dialog"]) {
+  color: var(--lx-ui-text) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(.lexis-metric-label,.text-muted-foreground,table th,table thead,.admin-page-header p) {
+  color: var(--lx-ui-muted) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(input,textarea,select,[role="combobox"]) {
+  background-color: var(--lx-ui-panel) !important;
+  color: var(--lx-ui-panel-text) !important;
+  border-color: var(--lx-ui-edge) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(table thead,table thead tr,.bg-muted,.bg-secondary\/30,.bg-secondary\/40) {
+  background: hsl(var(--muted)) !important;
+  color: var(--lx-ui-muted) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar])
+:is(.bg-primary,button.bg-primary,a.bg-primary) {
+  background-color: var(--lx-ui-primary) !important;
+  color: var(--lx-ui-primary-text) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) .text-primary {
+  color: var(--lx-ui-primary) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) .border-primary {
+  border-color: var(--lx-ui-primary) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) table td {
+  border-color: var(--lx-ui-edge) !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) table tbody tr:hover {
+  background: hsl(var(--accent)/.45) !important;
+}
+
+/* O tema alcança realmente a navegação, em vez de só alterar o fundo atrás dela. */
+html[data-lexis-experience="1"] [data-lexis-sidebar] > div:first-child {
+  background: hsl(var(--sidebar-background)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a:not([aria-current="page"]),
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav button:not([data-state="active"]),
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav svg {
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a[aria-current="page"] {
+  background: hsl(var(--sidebar-primary)/.22) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a:hover,
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav button:hover {
+  background: hsl(var(--sidebar-accent)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-desktop-dock] {
+  background: hsl(var(--sidebar-background)/.96) !important;
+  border-color: hsl(var(--sidebar-border)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-desktop-dock] a:not([aria-current="page"]) {
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-desktop-dock] a[aria-current="page"] {
+  background: hsl(var(--sidebar-primary)) !important;
+  color: hsl(var(--sidebar-primary-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-commercial-topbar] {
+  background: hsl(var(--card)/.97) !important;
+  border-color: var(--lx-ui-edge) !important;
+  color: var(--lx-ui-text) !important;
+}
+
+/* Cartões, KPIs, botões e redimensionamento visível. */
+html[data-lexis-experience="1"][data-lexis-card-style="outlined"]
+ body:has([data-lexis-commercial-sidebar]) :is(.premium-card,.lexis-metric,[data-slot="card"]) {
+  border:2px solid var(--lx-ui-edge) !important;
+  box-shadow:none !important;
+}
+html[data-lexis-experience="1"][data-lexis-card-style="elevated"]
+ body:has([data-lexis-commercial-sidebar]) :is(.premium-card,.lexis-metric,[data-slot="card"]) {
+  box-shadow:0 14px 40px hsl(var(--foreground)/.15) !important;
+}
+html[data-lexis-experience="1"][data-lexis-card-style="glass"]
+ body:has([data-lexis-commercial-sidebar]) :is(.premium-card,.lexis-metric,[data-slot="card"]) {
+  background:hsl(var(--card)/.73) !important;
+  backdrop-filter:blur(var(--experience-blur,12px)) !important;
+}
+html[data-lexis-experience="1"][data-lexis-kpi-style="gradient"]
+ body:has([data-lexis-commercial-sidebar]) :is(.lexis-metric,[data-efferd-kpi]) {
+  background:linear-gradient(145deg,hsl(var(--primary)/.14),hsl(var(--card))) !important;
+}
+html[data-lexis-experience="1"][data-lexis-kpi-style="compact"]
+ body:has([data-lexis-commercial-sidebar]) :is(.lexis-metric,[data-efferd-kpi]) {
+  padding:10px !important;
+}
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) 
+:is(.premium-card,.lexis-metric,[data-admin-card],[data-slot="card"]) {
+  border-radius:var(--radius) !important;
+}
+
+/* Para o controle por seta a sidebar NÃO ocupa espaço enquanto estiver oculta. */
+@media (min-width:768px){
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"]
+ :is(.flex,.lg\:flex):has(> [data-lexis-sidebar]){
+  flex-direction:row-reverse !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"]
+ body:has([data-lexis-commercial-sidebar]) [data-lexis-commercial-topbar]{
+  left:0 !important;right:228px !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar],
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar]{
+  position:fixed !important;width:228px !important;height:100dvh !important;
+  left:0;top:0;z-index:180 !important;
+  box-shadow:0 18px 55px rgba(0,0,0,.3);
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar],
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar]{
+  left:auto !important;right:0 !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar][data-nav-open="false"],
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar][data-nav-open="false"]{
+  visibility:hidden !important;pointer-events:none !important;transform:translateX(-110%) !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar][data-nav-open="false"],
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar][data-nav-open="false"]{
+  transform:translateX(110%) !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="toggle"] [data-lexis-nav-handle],
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="floating"] [data-lexis-nav-handle] {
+  position:fixed !important;bottom:1.25rem !important;top:auto !important;
+  left:1.25rem !important;transform:none !important;
+  z-index:195 !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"] [data-lexis-nav-handle]{
+  left:auto !important;right:1.25rem !important;transform:none !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="toggle"]
+ body:has([data-lexis-commercial-sidebar]) [data-lexis-commercial-topbar],
+ html[data-lexis-experience="1"][data-lexis-sidebar-behavior="floating"]
+ body:has([data-lexis-commercial-sidebar]) [data-lexis-commercial-topbar]{
+  left:0 !important;right:0 !important;
+ }
+}
+/* A experiência inclui acessibilidade, nunca aplica Glass ao aviso de erro. */
+@media (prefers-reduced-transparency: reduce){
+ html[data-lexis-experience="1"] :is([data-slot="card"],.premium-card,.lexis-metric){
+  backdrop-filter:none !important;background:hsl(var(--card)) !important;
+ }
+}
