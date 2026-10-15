@@ -50,7 +50,13 @@ async function scope() {
 export async function searchDocumentCasesAction(term: string): Promise<{ok:boolean;options:DocumentCaseOption[];error?:string}> {
   try {
     const q = String(term || "").trim().replace(/[%,()]/g, " ").slice(0, 100);
-    if (q.length < 2) return {ok:true,options:[]};
+    if (q.length < 2) {
+      const {admin,empresaId} = await scope();
+      const {data,error} = await admin.from("processos").select("id,protocolo_ref,dados")
+        .eq("empresa_id",empresaId).order("id",{ascending:false}).limit(30);
+      if (error) throw Error("Não foi possível listar os clientes.");
+      return {ok:true,options:(data||[]).map(mapCase).filter(x=>x.cliente).map(x=>({id:x.id,cliente:x.cliente,cnj:x.cnj}))};
+    }
     const {admin,empresaId} = await scope();
     const cols = "id,protocolo_ref,dados";
     const byColumn = (column: string) => admin.from("processos")
