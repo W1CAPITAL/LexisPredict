@@ -6,6 +6,7 @@ import {X,ArrowLeft,ArrowRight,Check,ShieldCheck,Upload,Palette,PanelLeft,Type,L
 import {getExperienceAction,saveExperienceAction,uploadExperienceImageAction} from '@/app/actions/experience-actions';
 import {EXPERIENCE_TERMS,EXPERIENCE_TERMS_VERSION} from '@/lib/experience-terms';
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
+import {AUTHORITY_PRESETS,getPresetColors} from '@/lib/theme';
 
 type ExperienceRecord={display_name?:string;display_role?:string;phone?:string;preferences?:unknown;onboarding_version?:number;terms_version?:string;welcome_opt_in?:boolean};
 type StudioProps={
@@ -146,7 +147,11 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      </div>:null}
      {step===1?<div className="space-y-5">
       <div><p className={labelClass}>Tema visual</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-       {themes.map(([id,title])=><button key={id} type="button" onClick={()=>set('theme',id)}
+       {themes.map(([id,title])=><button key={id} type="button" onClick={()=>{
+          const theme=AUTHORITY_PRESETS.find(x=>x.id===id);
+          setPrefs(p=>({...p,theme:id,primary:theme?getPresetColors(theme,p.mode==='dark'?'dark':'light').primary:p.primary,
+            textColor:'',mutedTextColor:''}));
+        }}
         className={`rounded-xl border p-3 text-left text-xs font-bold transition ${prefs.theme===id?'border-primary ring-2 ring-primary/20':'border-border'}`}>
         <span className="mb-2 block h-8 rounded-lg" style={{background:id==='night-ops'||id==='sheetspredict-dark'?'linear-gradient(135deg,#0b1220,#334155)':'linear-gradient(135deg,#e2e8f0,#fff)'}}/>
         {title}</button>)}
