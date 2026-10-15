@@ -312,9 +312,9 @@ export default function SubstabelecimentoGenerator() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
+    <div className="flex min-h-screen min-w-0 bg-[#f3f2f2] font-sans text-black relative z-10">
       <Sidebar />
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <main className="min-w-0 flex-1 flex flex-col min-h-screen relative">
         <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
           setCarteiraCase(item);
           setManualClient(item.cliente);
@@ -324,7 +324,7 @@ export default function SubstabelecimentoGenerator() {
           setManualComarca(item.comarca);
           partes.setCliente(clientAsParte(item));
         }} />
-        <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
+        <header className="min-h-14 border-b border-[#dddbda] bg-white flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-5 shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-sm bg-primary flex items-center justify-center">
               <Repeat size={20} className="text-white" />
@@ -334,7 +334,7 @@ export default function SubstabelecimentoGenerator() {
           <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Cloud Repository</Badge>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 lg:p-8 max-w-7xl mx-auto w-full">
+        <div className="flex-1 min-w-0 w-full max-w-6xl mx-auto px-3 pb-16 pt-4 sm:px-5 lg:px-6">
           {banca.length === 0 && (
             <Alert className="border-l-4 border-amber-500 bg-white p-3 text-xs">
                <Settings className="h-4 w-4" />
@@ -356,8 +356,8 @@ export default function SubstabelecimentoGenerator() {
                 </Alert>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-5">
+                <div className="xl:col-span-2 min-w-0 space-y-4">
                   <Card className="bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000]">
                     <CardHeader className="bg-black text-white py-3">
                       <CardTitle className="text-[10px] font-black uppercase tracking-widest">1. Configuração de Gabinete</CardTitle>
@@ -481,7 +481,7 @@ export default function SubstabelecimentoGenerator() {
                 <Button metal={false} variant="ghost" onClick={() => setStep(1)} className="font-black uppercase text-[10px] border-2 border-black rounded-none h-10 px-4">Voltar</Button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5">
                 <Card className="bg-white border-2 border-black rounded-none shadow-[6px_6px_0px_#000]">
                   <CardHeader className="bg-[#f8f9fb] border-b-2 border-black py-3">
                     <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><User size={14} /> Dados do Cliente</CardTitle>
