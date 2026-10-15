@@ -14,7 +14,7 @@ import {
 type QueueCase={id:number;cnj:string;cliente?:string|null;proximo_retorno:string;verified_at?:string};
 type ClosureReview={id:number;cnj:string;review_priority:string;court_flag_reason?:string|null;last_court_event?:string|null};
 type DueQueue={dueTotal:number;missingPhone:number;alreadyClosed:number;awaitingWhatsApp:number;needsSourceCheck:number;closureReview:number;oldClosureReview:number};
-type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number;sendAnytime?:boolean};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;dueQueue?:DueQueue;dueItems?:{ready:QueueCase[];closureReview:ClosureReview[]};error?:string};
+type Dashboard={ok:boolean;waSafety?:{paused:boolean;min_gap_minutes:number;daily_limit:number;business_start_hour:number;business_end_hour:number;cooldown_until?:string|null;pause_reason?:string|null}|null;settings?:{enabled:boolean;intervalDays:number;sendAnytime?:boolean};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;dueQueue?:DueQueue;dueItems?:{ready:QueueCase[];closureReview:ClosureReview[]};error?:string};
 const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
@@ -111,11 +111,15 @@ export function WaDailyReturnPanel(){
    <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto overscroll-contain rounded-2xl">
     <DialogHeader><DialogTitle>Retorno inteligente da carteira</DialogTitle>
      <DialogDescription>Processos abertos com novidade posterior ao último retorno, de todos os responsáveis da empresa.</DialogDescription></DialogHeader>
+  {dash?.ok&&dash.waSafety?.paused?<div role="status" className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
+   <strong>Envios pausados para proteger o número WhatsApp.</strong>
+   <p className="mt-1 text-xs">A conexão sofreu restrição. O scanner pode conservar as verificações, mas o sistema não enviará avisos nem mensagens de boas-vindas durante a suspensão. Após a liberação: no máximo uma mensagem a cada {dash.waSafety.min_gap_minutes} minutos, até {dash.waSafety.daily_limit} por dia, das {dash.waSafety.business_start_hour}h às {dash.waSafety.business_end_hour}h nos dias úteis. Nenhum limite garante imunidade a bloqueios.</p>
+  </div>:null}
   <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
   <div className="flex flex-wrap items-center justify-between gap-3">
-   <div><h3 className="font-semibold text-sm">Retorno inteligente · 1 comunicado por dia</h3>
+   <div><h3 className="font-semibold text-sm">Retorno inteligente · envios graduais</h3>
     <p className="text-xs text-muted-foreground">Compara DataJud/DJEN com o último retorno. Sem movimento novo, não envia e não altera as datas.</p></div>
-   <div className="flex items-center gap-2 text-xs"><Checkbox checked={enabled} disabled={busy}
+   <div className="flex items-center gap-2 text-xs"><Checkbox checked={enabled} disabled={busy||dash?.waSafety?.paused===true}
      onCheckedChange={v=>void save(v===true)}/><span>Automação {enabled?'ativa':'desligada'}</span></div>
   </div>
   <div className="flex flex-wrap gap-3 items-center text-xs">
@@ -147,8 +151,8 @@ export function WaDailyReturnPanel(){
     </p>
     <p className="col-span-2 rounded-lg border px-2.5 py-2 text-muted-foreground sm:col-span-3">
      O scanner pode preparar novas verificações na nuvem sem esta página aberta.
-     {dash.settings?.sendAnytime
-      ? 'Sua empresa autorizou envio sequencial automático, inclusive à noite, com intervalo de segurança, limite diário e bloqueios por contato.'
+     {dash.waSafety?.paused?'Envios temporariamente bloqueados por proteção do número. O scanner não pode liberar a entrega.' : dash.settings?.sendAnytime
+      ? 'Sua empresa autorizou envio sequencial automático, com limites da conexão, sem garantia contra restrições.'
       : 'O envio ocorre de segunda a sexta, das 9h às 18h (horário de São Paulo). Fora dessa janela, os avisos permanecem preparados.'}
      A fila do dispositivo exibe somente os trabalhos entregues ao worker, não toda a campanha pendente.
      Apenas o aceite confirmado pelo dispositivo atualiza «Enviados hoje».
