@@ -54,11 +54,20 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
    if(signedName.toLocaleLowerCase('pt-BR')!==name.toLocaleLowerCase('pt-BR'))
     throw Error('Digite seu nome completo na assinatura como informado no perfil.');
    const hash=createHash('sha256').update(EXPERIENCE_TERMS_TEXT).digest('hex');
-   const {error:signErr}=await db.from('lexis_user_legal_acceptances').upsert({
-    auth_user_id:uid,empresa_id:tenant,contract_version:EXPERIENCE_TERMS_VERSION,
-    contract_sha256:hash,signed_name:signedName,
-   },{onConflict:'auth_user_id,contract_version'});
-   if(signErr)throw Error('Não foi possível registrar o aceite contratual: '+signErr.message);
+   const {data:existing,error:existingErr}=await db.from('lexis_user_legal_acceptances')
+     .select('id,contract_sha256').eq('auth_user_id',uid)
+     .eq('contract_version',EXPERIENCE_TERMS_VERSION).maybeSingle();
+   if(existingErr)throw Error('Não foi possível verificar o aceite existente.');
+   if(existing&&existing.contract_sha256!==hash)
+     throw Error('O texto contratual mudou sem alteração da versão. Contate o administrador.');
+   if(!existing){
+     const {error:signErr}=await db.from('lexis_user_legal_acceptances').insert({
+       auth_user_id:uid,empresa_id:tenant,contract_version:EXPERIENCE_TERMS_VERSION,
+       contract_sha256:hash,signed_name:signedName,
+     });
+     if(signErr&&signErr.code!=='23505')
+       throw Error('Não foi possível registrar o aceite contratual: '+signErr.message);
+   }
   }
   const now=new Date().toISOString();
   const payload={
