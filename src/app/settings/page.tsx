@@ -662,6 +662,7 @@ export default function SettingsPage() {
         </header>
 
         <div className="flex-1">
+          <div className="mx-auto w-full max-w-[1500px] px-4 pt-4 sm:px-6"><ExperienceSettingsPanel/></div>
           <div className="mx-auto grid w-full max-w-[1500px] items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)]">
             {/* navegação horizontal em chips */}
             <nav data-lexis-settings-tabs aria-label="Seções das configurações" className="-mx-4 flex max-w-[calc(100vw-2rem)] gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:max-w-none lg:px-0 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
