@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/server-db';
 import { queueNextMovementForTenant } from '@/lib/wa-movement-campaign';
 import { prepareMovementAlert } from '@/lib/wa-movement-builder';
 import { contactOptedOut } from '@/lib/wa-contact-privacy';
-import { queueCheckedPortfolioContact } from '@/lib/wa-portfolio-outreach';
+import { queueCheckedPortfolioContact, queueOverdueContact } from '@/lib/wa-portfolio-outreach';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -91,21 +91,34 @@ export async function GET(request: Request) {
         // authorization marker; normal cancellations are never restarted.
         const recovered = cfg.owner_auth_id
           ? await recoverApprovedNotices(db,cfg.empresa_id,cfg.owner_auth_id) : 0;
-        const next = await queueNextMovementForTenant(cfg.empresa_id);
+        // A long-running movement campaign must not starve overdue check-ins.
+        // Fair scheduling: two ticks out of three go to checked overdue
+        // clients first, with movements prioritized on the third tick.
+        // Both flows share the same 45s lock, 120/day ceiling and opt-outs.
+        const minute=Number(new Intl.DateTimeFormat('en-GB',{
+          timeZone:'America/Sao_Paulo',minute:'2-digit',
+        }).format(new Date()));
+        const {data:tenantSettings}=await db.from('wa_daily_return_settings')
+          .select('send_anytime').eq('empresa_id',cfg.empresa_id).maybeSingle();
+        let next:{queued:boolean;reason?:string}|null=null;
         let checkin:{queued:boolean;reason:string}|null=null;
-        if(!next.queued){
-          // Prioritize all meaningful court-movement notices over neutral
-          // check-ins. The shared server-side reservation still enforces
-          // per-contact and per-day limits when movement queues are empty.
-          const {data:active}=await db.from('wa_movement_campaigns')
-            .select('id').eq('empresa_id',cfg.empresa_id).eq('status','running')
-            .limit(1);
-          if(!active?.length)checkin=await queueCheckedPortfolioContact(cfg.empresa_id);
+        if(tenantSettings?.send_anytime && minute%3!==0){
+          checkin=await queueOverdueContact(cfg.empresa_id);
+          if(!checkin.queued)next=await queueNextMovementForTenant(cfg.empresa_id);
+        }else{
+          next=await queueNextMovementForTenant(cfg.empresa_id);
+          if(!next.queued && tenantSettings?.send_anytime){
+            checkin=await queueOverdueContact(cfg.empresa_id);
+          }else if(!next.queued){
+            const {data:active}=await db.from('wa_movement_campaigns')
+              .select('id').eq('empresa_id',cfg.empresa_id).eq('status','running').limit(1);
+            if(!active?.length)checkin=await queueCheckedPortfolioContact(cfg.empresa_id);
+          }
         }
         results.push({
-          tenant: cfg.empresa_id,
-          queued: next.queued === true || checkin?.queued === true,
-          reason: checkin?.reason || ('reason' in next ? String(next.reason) : 'processed'),
+          tenant:cfg.empresa_id,
+          queued:next?.queued===true||checkin?.queued===true,
+          reason:checkin?.queued?checkin.reason:(next?.queued?next.reason:(checkin?.reason||next?.reason||'nothing_due')),
           recovered,
         });
       } catch (e) {
