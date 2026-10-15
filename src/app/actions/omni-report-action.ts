@@ -849,9 +849,10 @@ export async function generateOmniReportAction(
     // O pedido descreve o OBJETO da pesquisa, não é evidência documental.
     // Nunca apresentar a própria pergunta como "fonte S01".
     const invalidLongCnjs=(instruction.match(/\b\d{21,25}\b/g)||[]);
-    if(invalidLongCnjs.length){
+    const invalidLongCnj=invalidLongCnjs[0];
+    if(invalidLongCnj){
       return {success:false,error:
-        'O número '+invalidLongCnjs[0]+' tem '+invalidLongCnjs[0].length+
+        'O número '+invalidLongCnj+' tem '+invalidLongCnj.length+
         ' dígitos. Um CNJ precisa de 20 dígitos. Confira e envie o número correto antes de gerar o dossiê.'};
     }
 
