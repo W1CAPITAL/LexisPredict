@@ -219,6 +219,11 @@ export function ExperienceGate(){
   getExperienceAction().then(r=>{if(active)setData(r)}).finally(()=>{if(active)setLoading(false)});
   return()=>{active=false};
  },[user?.id,profile?.empresa_id,path]);
+ useEffect(()=>{
+  if(data?.ok && data.profile?.preferences){
+   applyExperiencePrefs(cleanExperiencePrefs(data.profile.preferences));
+  }
+ },[data]);
  if(done||loading||!data?.ok)return null;
  const d=data.profile;
  if(d&&Number(d.onboarding_version)>=3&&d.terms_version===EXPERIENCE_TERMS_VERSION&&d.phone)return null;
