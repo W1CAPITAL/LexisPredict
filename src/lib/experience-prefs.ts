@@ -1,5 +1,5 @@
 /** Preferências visuais por usuário. Nunca alterar cargo/permissão reais. */
-import {applyPresetById,AUTHORITY_PRESETS,applyGlobalTheme,saveCustomTheme,getPresetColors,getContrastRatio} from '@/lib/theme';
+import {applyPresetById,AUTHORITY_PRESETS,applyGlobalTheme,getPresetColors} from '@/lib/theme';
 import {saveUiPrefs,loadUiPrefs} from '@/lib/ui-prefs';
 import {saveNavLayout} from '@/lib/nav-layout';
 import {applyWallpaperUrl,resetWallpaper} from '@/lib/visual-hardware';
