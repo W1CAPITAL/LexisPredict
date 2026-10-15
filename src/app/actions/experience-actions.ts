@@ -39,7 +39,7 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
   const {db,uid,tenant,user}=await currentActor();
   const name=String(input?.name||'').trim().replace(/\s+/g,' ').slice(0,100);
   const roleLabel=String(input?.roleLabel||'').trim().replace(/\s+/g,' ').slice(0,70);
-  if(name.length<3||name.length>100)throw Error('Informe seu nome completo.');
+  if(name.length<2||name.length>100)throw Error('Informe um nome de perfil válido.');
   const phone=normalizedPhone(input?.phone);
   if(!phone)throw Error('WhatsApp obrigatório: informe DDD + número brasileiro válido.');
   const prefs=cleanExperiencePrefs(input.preferences);
@@ -52,7 +52,7 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
    if(!input.acceptTerms)throw Error('Leia e aceite os termos antes de assinar.');
    const signedName=String(input.signature||'').trim().replace(/\s+/g,' ');
    if(signedName.toLocaleLowerCase('pt-BR')!==name.toLocaleLowerCase('pt-BR'))
-    throw Error('Digite seu nome completo na assinatura como informado no perfil.');
+    throw Error('A assinatura eletrônica precisa corresponder ao nome exibido no perfil.');
    const hash=createHash('sha256').update(EXPERIENCE_TERMS_TEXT).digest('hex');
    const {data:existing,error:existingErr}=await db.from('lexis_user_legal_acceptances')
      .select('id,contract_sha256').eq('auth_user_id',uid)
