@@ -23,13 +23,13 @@ export async function GET(request:Request){
  const sendingWindow=!['Sat','Sun'].includes(weekday)&&hour>=9&&hour<18;
  const db=await getSupabaseAdmin(),day=brazilToday(now);
  const {data:configs,error}=await db.from('wa_daily_return_settings')
-   .select('empresa_id,interval_days').eq('enabled',true).eq('consent_attested',true).limit(25);
+   .select('empresa_id,interval_days,send_anytime').eq('enabled',true).eq('consent_attested',true).limit(25);
  if(error)return NextResponse.json({ok:false,error:'Configuration unavailable'},{status:503});
  const started=Date.now(),maxRuntime=40000;
  let prepared=0,checked=0,lastReason='nothing_due';
  for(const config of configs||[]){
   if(Date.now()-started>maxRuntime)break;
-  if(!sendingWindow){
+  if(!sendingWindow && !config.send_anytime){
     // Pre-verify up to three due processes per run, conserving the court
     // request budget. queueOnly=true cannot enqueue or send any message.
     for(let n=0;n<3&&Date.now()-started<35000;n++){
