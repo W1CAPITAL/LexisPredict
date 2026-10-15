@@ -145,9 +145,19 @@ export function applyUiPrefsToDom(prefs?: UiPrefs) {
   root.style.setProperty("--status-vencido", p.colorVencido);
   root.style.setProperty("--status-hoje", p.colorHoje);
   root.style.setProperty("--status-ba", p.colorBa);
-  if (p.sidebarHex) {
+  if (p.sidebarHex && root.dataset.lexisExperience !== '1') {
+    // Legacy standalone sidebar color. The v4 theme owns BOTH background and
+    // foreground tokens. Reapplying only a legacy background turned text white
+    // on white in the modern sidebar.
     const hsl = hexToHslComponents(p.sidebarHex);
-    if (hsl) root.style.setProperty("--sidebar-background", hsl);
+    if (hsl) {
+      root.style.setProperty("--sidebar-background", hsl);
+      const value=parseInt(p.sidebarHex.replace(/^#/,''),16);
+      const r=(value>>16)&255,g=(value>>8)&255,b=value&255;
+      const luminance=(.2126*r+.7152*g+.0722*b)/255;
+      root.style.setProperty("--sidebar-foreground",
+        luminance>.52?'222 47% 11%':'210 40% 98%');
+    }
   }
 
   let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
