@@ -37,18 +37,31 @@ async function initialize(requestId) {
         emit(requestId, 'loading', { message: 'Baixando modelo local pela primeira vez...' });
       }
     };
-    const opts = { dtype: self.navigator?.gpu ? 'q4' : 'q8', device: self.navigator?.gpu ? 'webgpu' : 'wasm', progress_callback };
-    try {
-      generator = await lib.pipeline('text-generation', MODEL, opts);
-    } catch (error) {
-      if (opts.device !== 'webgpu') {
-        const detail=String(error?.message || error);
+    // Disponibilidade da API não garante uma GPU utilizável. Testar o adapter
+    // apenas quando o usuário invoca o LLM; pesos continuam fora do bundle.
+    let gpuReady=false;
+    try{gpuReady=!!(await self.navigator?.gpu?.requestAdapter?.({powerPreference:'low-power'}));}
+    catch{/* CPU fallback */}
+    const cores=Number(self.navigator?.hardwareConcurrency||2);
+    const memory=Number(self.navigator?.deviceMemory||0);
+    if(!gpuReady && memory && memory<=4){
+      emit(requestId,'loading',{message:'Memória limitada detectada. Tentando Qwen 0.5B compactado na CPU; outras abas abertas podem reduzir a velocidade.'});
+    }
+    const opts={dtype:'q4',device:gpuReady?'webgpu':'wasm',progress_callback};
+    try{
+      generator=await lib.pipeline('text-generation',MODEL,opts);
+    }catch(primaryError){
+      emit(requestId,'loading',{message:'Ajustando compatibilidade do modelo para CPU/WASM...'});
+      try{
+        generator=await lib.pipeline('text-generation',MODEL,{
+          ...opts,device:'wasm',dtype:'q8',numThreads:Math.max(1,Math.min(4,cores-1)),
+        });
+      }catch(fallbackError){
+        const detail=String(fallbackError?.message||primaryError);
         throw new Error(/fetch|network|load/i.test(detail)
-          ? 'Download do modelo indisponível; verifique rede, cache do navegador e permissões de acesso ao Hugging Face. ' + detail
-          : detail);
+          ? 'Download do modelo indisponível; confira rede, cache e espaço disponível. '+detail
+          : 'Não foi possível executar o modelo neste navegador. '+detail);
       }
-      emit(requestId, 'loading', { message: 'WebGPU indisponível. Tentando processador (WASM)...' });
-      generator = await lib.pipeline('text-generation', MODEL, { ...opts, device: 'wasm', dtype: 'q8' });
     }
     return generator;
   })();
