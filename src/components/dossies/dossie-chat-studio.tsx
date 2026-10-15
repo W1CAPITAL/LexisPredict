@@ -160,6 +160,13 @@ export function DossieChatStudio() {
     const userText =
       text ||
       "Analise integralmente o material anexado e gere um dossiê extremamente detalhado.";
+    // Evita HTTP 413 em múltiplas imagens/fontes de uma só vez.
+    const requestBytes=images.reduce((n,x)=>n+x.data.length,0)
+      +sources.reduce((n,x)=>n+x.text.length*2,0)+userText.length;
+    if(requestBytes>7_000_000){
+      setError('Os anexos deste pedido ultrapassam o limite seguro de transmissão. Envie menos imagens por vez ou peça continuação do dossiê.');
+      return;
+    }
     const attachments = activeNames.slice();
     setTurns((prev) => [
       ...prev,
