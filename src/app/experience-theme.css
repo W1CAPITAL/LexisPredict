@@ -1,0 +1,129 @@
+/* Personalização LexisPredict v3. Tokens semânticos prevalecem sobre cores fixas
+ * legadas, mantendo contraste por superfície e modo claro/escuro. */
+html[data-lexis-experience="1"] {
+  font-family: var(--experience-font, Inter, sans-serif);
+  color-scheme: light;
+}
+html.dark[data-lexis-experience="1"] { color-scheme: dark; }
+html[data-lexis-experience="1"] body,
+html[data-lexis-experience="1"] button,
+html[data-lexis-experience="1"] input,
+html[data-lexis-experience="1"] select,
+html[data-lexis-experience="1"] textarea {
+  font-family: var(--experience-font, Inter, sans-serif) !important;
+}
+html[data-lexis-experience="1"] body,
+html[data-lexis-experience="1"] main {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body,
+html[data-lexis-experience="1"].lexis-wallpaper-active main {
+  background-color: transparent !important;
+}
+html[data-lexis-experience="1"] :is(.bg-card, [data-admin-card], [data-efferd-kpi], [data-slot="card"]) {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  border-radius: var(--radius, 12px) !important;
+}
+html[data-lexis-experience="1"] :is(.bg-card, [data-admin-card], [data-efferd-kpi]) :is(.text-muted-foreground, .lexis-metric-label) {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html[data-lexis-experience="1"] :is(input, textarea, select) {
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+}
+html[data-lexis-experience="1"] input::placeholder,
+html[data-lexis-experience="1"] textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 1;
+}
+html[data-lexis-experience="1"].dark :is(
+  .bg-white,.bg-gray-50,.bg-slate-50,.bg-blue-50,.bg-zinc-50,
+  .bg-gray-100,.bg-slate-100,.bg-blue-100
+) {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+html[data-lexis-experience="1"].dark :is(
+  .text-black,.text-gray-900,.text-slate-900,.text-blue-900,.text-zinc-900,
+  .text-gray-800,.text-slate-800,.text-blue-800,
+  .text-gray-700,.text-slate-700
+) {
+  color: hsl(var(--foreground)) !important;
+}
+html[data-lexis-experience="1"].dark :is(
+  .text-gray-500,.text-gray-600,.text-slate-500,.text-slate-600,.text-blue-600
+) {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html[data-lexis-experience="1"] :is(h1,h2,h3,h4).text-foreground,
+html[data-lexis-experience="1"] .text-foreground {
+  color: hsl(var(--foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] > div:first-child {
+  background: hsl(var(--sidebar-background)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] {
+  border-color: hsl(var(--sidebar-border)) !important;
+}
+html[data-lexis-experience="1"][data-lexis-card-style="outlined"] :is(.bg-card,[data-admin-card],[data-efferd-kpi]) {
+  box-shadow: none !important;
+  border: 2px solid hsl(var(--border)) !important;
+}
+html[data-lexis-experience="1"][data-lexis-card-style="elevated"] :is(.bg-card,[data-admin-card],[data-efferd-kpi]) {
+  box-shadow: 0 12px 36px hsl(var(--foreground)/0.13) !important;
+}
+html[data-lexis-experience="1"][data-lexis-card-style="glass"] :is(.bg-card,[data-admin-card],[data-efferd-kpi]) {
+  background: hsl(var(--card)/0.78) !important;
+  backdrop-filter: blur(var(--experience-blur, 12px)) !important;
+  -webkit-backdrop-filter: blur(var(--experience-blur, 12px)) !important;
+}
+html[data-lexis-experience="1"][data-lexis-kpi-style="compact"] :is([data-efferd-kpi],[data-admin-card]) {
+  padding: 10px !important;
+}
+html[data-lexis-experience="1"][data-lexis-kpi-style="gradient"] :is([data-efferd-kpi],[data-admin-card]) {
+  background: linear-gradient(145deg,hsl(var(--primary)/.15),hsl(var(--card))) !important;
+}
+html[data-lexis-experience="1"][data-lexis-button-style="pill"] :is(button:not([role="switch"]), a[role="button"]) {
+  border-radius: 999px !important;
+}
+html[data-lexis-experience="1"][data-lexis-button-style="square"] :is(button:not([role="switch"]), a[role="button"]) {
+  border-radius: 2px !important;
+}
+/* Sidebar à direita no desktop. A navegação pertence ao layout de cada tela. */
+@media(min-width:768px){
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="right"] :is(.flex,.lg\:flex):has(> [data-lexis-sidebar]) {
+  flex-direction: row-reverse !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="top"] [data-lexis-desktop-dock] {
+  top: 10px !important; bottom:auto !important;
+ }
+ html[data-lexis-experience="1"][data-lexis-sidebar-position="bottom"] [data-lexis-desktop-dock] {
+  bottom: 10px !important; top:auto !important;
+ }
+ html[data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar][data-nav-open="true"],
+ html[data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar][data-nav-open="true"] {
+  position:fixed !important;
+  z-index:190 !important;
+  top:0 !important;
+  left:0 !important;
+  box-shadow: 0 20px 55px rgba(0,0,0,.24) !important;
+ }
+ html[data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar][data-nav-open="true"],
+ html[data-lexis-sidebar-position="right"][data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar][data-nav-open="true"] {
+  left:auto !important;
+  right:0 !important;
+ }
+ html[data-lexis-sidebar-behavior="floating"] [data-lexis-sidebar][data-nav-open="false"],
+ html[data-lexis-sidebar-behavior="toggle"] [data-lexis-sidebar][data-nav-open="false"] {
+  display:none !important;
+ }
+}
+@media(prefers-reduced-transparency:reduce){
+ html[data-lexis-experience="1"] :is([data-admin-card], [data-efferd-kpi], .bg-card) {
+  background: hsl(var(--card)) !important;backdrop-filter:none !important;
+ }
+}
