@@ -11,6 +11,7 @@ export type ExperiencePreferences={
  theme:string;
  mode:'light'|'dark'|'system';
  primary:string; textColor:string; mutedTextColor:string;
+ backgroundColor:string;cardColor:string;sidebarColor:string;
  font:'Inter'|'Roboto'|'Poppins'|'Georgia'|'Arial';
  wallpaper:string; avatarUrl:string;
  sidebarPosition:'left'|'right'|'top'|'bottom';
@@ -26,7 +27,7 @@ export type ExperiencePreferences={
 };
 export const EXPERIENCE_DEFAULT:ExperiencePreferences={
  theme:'minimal-steel',mode:'light',primary:'#2563EB',
- textColor:'',mutedTextColor:'',font:'Inter',wallpaper:'',avatarUrl:'',
+ textColor:'',mutedTextColor:'',backgroundColor:'',cardColor:'',sidebarColor:'',font:'Inter',wallpaper:'',avatarUrl:'',
  sidebarPosition:'left',sidebarBehavior:'fixed',sidebarCompact:false,
  cornerRadius:12,cardStyle:'solid',kpiStyle:'normal',buttonStyle:'rounded',
  glass:false,blur:12,density:'comfortable',notifications:'important',
@@ -52,6 +53,7 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
   mode:select('mode',['light','dark','system'],EXPERIENCE_DEFAULT.mode),
   primary:hex('primary',EXPERIENCE_DEFAULT.primary),
   textColor:hex('textColor',''),mutedTextColor:hex('mutedTextColor',''),
+  backgroundColor:hex('backgroundColor',''),cardColor:hex('cardColor',''),sidebarColor:hex('sidebarColor',''),
   font:select('font',['Inter','Roboto','Poppins','Georgia','Arial'],EXPERIENCE_DEFAULT.font),
   wallpaper:url('wallpaper'),avatarUrl:url('avatarUrl'),
   sidebarPosition:select('sidebarPosition',['left','right','top','bottom'],EXPERIENCE_DEFAULT.sidebarPosition),
@@ -90,6 +92,9 @@ export function applyExperiencePrefs(input:ExperiencePreferences){
  if(preset){
   const base=getPresetColors(preset,dark?'dark':'light');
   const safe={...base,primary:p.primary,
+   background:p.backgroundColor||base.background,
+   bgSecondary:p.cardColor||base.bgSecondary,
+   nav:p.sidebarColor||base.nav,
    foreground:p.textColor||base.foreground,
    fontMuted:p.mutedTextColor||base.fontMuted};
   // Do not persist over preset identity; applyGlobalTheme retains HSL tokens.
