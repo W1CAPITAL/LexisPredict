@@ -1,4 +1,5 @@
 "use client";
+import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
 import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
@@ -55,12 +56,7 @@ const UFS = [
 const DELAY_MS = 400;
 
 function downloadBase64Pdf(base64: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = `data:application/pdf;base64,${base64}`;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  downloadGeneratedPdf(base64, filename);
 }
 
 function sleep(ms: number, signal: { cancelled: boolean }) {

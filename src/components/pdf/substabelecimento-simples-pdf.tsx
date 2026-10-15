@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   paragraph: {
-    marginBottom: 30,
+    marginBottom: 15,
     textIndent: 36,
   },
   bold: {
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   },
   dateArea: {
     marginTop: 20,
-    marginBottom: 40,
+    marginBottom: 25,
     textAlign: 'center',
   },
   signatureArea: {
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     marginTop: 10,
-    gap: 30
+    gap: 22
   },
   signatureBlock: {
     width: '60%',
