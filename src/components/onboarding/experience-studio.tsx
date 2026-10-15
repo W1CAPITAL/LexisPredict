@@ -97,7 +97,9 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
  };
  const save=async()=>{
   setBusy(true);setError('');
-  const complete=wizard||!record?.terms_version;
+  // Usuários já assinados podem personalizar livremente; nova versão jurídica
+  // é aceite voluntário no estúdio, sem reabrir o onboarding automaticamente.
+  const complete=wizard||!record?.terms_version||accepted;
   try{
    const r=await saveExperienceAction({
     name,roleLabel:role,phone,preferences:prefs,complete,
@@ -231,13 +233,13 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      {step===3?<div className="space-y-4">
       <p className="text-sm font-bold">Termos de responsabilidade, licença e tratamento de dados</p>
       <p className="text-xs text-muted-foreground">Versão {EXPERIENCE_TERMS_VERSION}. Aceite eletrônico simples; o contrato comercial formal, quando exigido, deve ser assinado separadamente.</p>
-      <div className="max-h-56 overflow-y-auto rounded-xl border bg-muted/30 p-4 space-y-3" tabIndex={0} aria-label="Leia os termos completos">
+      <div className="max-h-[min(42dvh,450px)] overflow-y-auto rounded-xl border bg-muted/30 p-4 space-y-4" tabIndex={0} aria-label="Leia os termos completos">
        {EXPERIENCE_TERMS.map(t=><section key={t.title}><h3 className="text-sm font-bold">{t.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.body}</p></section>)}
       </div>
-      {wizard||!record?.terms_version?<><label className="flex gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>Li, compreendi e aceito expressamente esta versão dos termos e das responsabilidades de uso.</span></label>
+      {wizard||record?.terms_version!==EXPERIENCE_TERMS_VERSION?<><label className="flex gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/><span>Li, compreendi e aceito expressamente esta versão dos termos e das responsabilidades de uso.</span></label>
        <div className="rounded-xl border border-border bg-muted/30 p-3"><p className={labelClass}>Assinatura eletrônica com seu nome de perfil</p><p className="text-sm font-semibold text-foreground">{name.trim()||'Informe o nome do perfil na primeira etapa'}</p><p className="mt-1 text-xs text-muted-foreground">Ao selecionar a caixa de aceite e confirmar, este nome será registrado como sua assinatura eletrônica simples.</p></div>
       </>:<div className="rounded-xl border border-border p-3 text-xs">Seu aceite anterior está registrado. Alterar a aparência não renova o contrato.</div>}
-      <p className="text-xs text-muted-foreground">O aceite será vinculado à sua conta e à versão do documento, com data e hora no servidor. Esta confirmação não substitui assinatura qualificada quando legalmente exigida.</p>
+      <p className="text-xs text-muted-foreground">O aceite será vinculado à sua conta e à versão do documento, com data e hora no servidor. Esta confirmação não substitui assinatura qualificada quando legalmente exigida. Quem já concluiu o guia poderá alterar seu visual sem repetir o onboarding.</p>
      </div>:null}
     </div>
     <footer className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3 sm:px-6">
@@ -245,7 +247,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      <div className="flex gap-2">
       {step>0?<button type="button" onClick={()=>{setStep(x=>x-1);setError('')}} disabled={busy} className="rounded-xl border px-3 py-2 text-xs font-semibold"><ArrowLeft className="mr-1 inline h-4 w-4"/>Voltar</button>:null}
       {step<3?<button type="button" onClick={next} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">Continuar<ArrowRight className="ml-2 inline h-4 w-4"/></button>:
-       <button type="button" onClick={()=>void save()} disabled={busy||uploading} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">{busy?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<ShieldCheck className="mr-1 inline h-4 w-4"/>}{wizard?'Assinar e começar':'Salvar experiência'}</button>}
+       <button type="button" onClick={()=>void save()} disabled={busy||uploading} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">{busy?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<ShieldCheck className="mr-1 inline h-4 w-4"/>}{wizard?'Salvar, assinar e não perguntar novamente':'Salvar personalização'}</button>}
      </div>
     </footer>
    </section>
@@ -283,7 +285,7 @@ export function ExperienceGate(){
  },[data]);
  if(done||loading||!data?.ok)return null;
  const d=data.profile;
- if(d&&Number(d.onboarding_version)>=4&&d.terms_version===EXPERIENCE_TERMS_VERSION&&d.phone)return null;
+ if(d&&Number(d.onboarding_version)>=4&&!!d.terms_version&&!!d.phone)return null;
  if(['/login','/signup','/primeiro-acesso','/setup-empresa','/termos'].some(x=>path===x))return null;
  return <ExperienceStudio wizard record={d||null} user={data.user} onDone={()=>setDone(true)}/>;
 }
