@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { listAdvogadosBanca } from "@/lib/server-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -157,6 +158,10 @@ export default function LegalDocumentGeneratorPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [sourceText, setSourceText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [banca, setBanca] = useState<any[]>([]);
+  const [advId, setAdvId] = useState("");
+  const [novoAdvId, setNovoAdvId] = useState("");
+  const [bancaError, setBancaError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -177,6 +182,54 @@ export default function LegalDocumentGeneratorPage() {
     () => LEGAL_DOCUMENT_TEMPLATES.find((x) => x.id === kind) || LEGAL_DOCUMENT_TEMPLATES[0],
     [kind]
   );
+
+  const oabRegistrada = (adv: any): string => {
+    const map = adv?.oabs || {};
+    const uf = map.SP ? "SP" : Object.keys(map)[0];
+    return uf && map[uf] ? String(uf + " " + map[uf]) : "";
+  };
+  const selecionarAnterior = (id: string) => {
+    setAdvId(id);
+    const adv = banca.find(x => x.id === id);
+    if (!adv) return;
+    setForm(prev => ({
+      ...prev, advogadoNome: adv.nome || "", oab: oabRegistrada(adv),
+      advogadoAnteriorNome: adv.nome || "", oabAnterior: oabRegistrada(adv),
+    }));
+  };
+  const selecionarNovo = (id: string) => {
+    setNovoAdvId(id);
+    const adv = banca.find(x => x.id === id);
+    if (!adv) return;
+    setForm(prev => ({ ...prev, advogadoNovoNome: adv.nome || "", oabNovo: oabRegistrada(adv) }));
+  };
+  useEffect(() => {
+    let mounted = true;
+    listAdvogadosBanca().then(rows => {
+      if (!mounted) return;
+      const list = Array.isArray(rows) ? rows : [];
+      setBanca(list);
+      if (!list.length) {
+        setBancaError("Advogados não disponíveis nesta sessão. Confira login e empresa antes de recadastrar.");
+        return;
+      }
+      const first = list[0], second = list.find((x: any) => x.id !== first.id);
+      setAdvId(first.id); setNovoAdvId(second?.id || "");
+      setForm(prev => ({
+        ...prev,
+        advogadoNome: prev.advogadoNome || first.nome || "",
+        oab: prev.oab || oabRegistrada(first),
+        advogadoAnteriorNome: prev.advogadoAnteriorNome || first.nome || "",
+        oabAnterior: prev.oabAnterior || oabRegistrada(first),
+        advogadoNovoNome: prev.advogadoNovoNome || second?.nome || "",
+        oabNovo: prev.oabNovo || (second ? oabRegistrada(second) : ""),
+      }));
+    }).catch(error => {
+      if (mounted) setBancaError("Erro ao consultar a banca. Refaça o login e tente novamente.");
+      console.error("[documents/generator] Falha ao carregar advogados", error);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const set = (key: keyof LegalDocumentData, value: any) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -399,6 +452,25 @@ export default function LegalDocumentGeneratorPage() {
                          {kind === "substabelecimento-sem-reserva" ? " Sem reserva: preserve prova de conhecimento prévio e inequívoco do cliente." : " Com reserva: o substabelecente continua com seus poderes."}
                        </div>
                      )}
+                     {banca.length ? (
+                      <>
+                        <div className="space-y-1">
+                          <Label>Advogado responsável / substabelecente cadastrado</Label>
+                          <select value={advId} onChange={e => selecionarAnterior(e.target.value)} className="h-11 w-full rounded border border-[#b89b5e] bg-white px-2 text-xs">
+                            {banca.map((adv: any) => <option key={adv.id} value={adv.id}>{adv.nome} — {oabRegistrada(adv)}</option>)}
+                          </select>
+                        </div>
+                        {kind !== "procuracao" && (
+                          <div className="space-y-1">
+                            <Label>Novo advogado / substabelecido cadastrado</Label>
+                            <select value={novoAdvId} onChange={e => selecionarNovo(e.target.value)} className="h-11 w-full rounded border border-[#b89b5e] bg-white px-2 text-xs">
+                              <option value="">Selecione outro advogado</option>
+                              {banca.filter((adv: any) => adv.id !== advId).map((adv: any) => <option key={adv.id} value={adv.id}>{adv.nome} — {oabRegistrada(adv)}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </>
+                    ) : <p className="col-span-full text-xs text-amber-700">{bancaError || "Carregando advogados cadastrados..."}</p>}
                      <Field label="Advogado anterior / substabelecente" value={form.advogadoAnteriorNome} onChange={(v)=>set("advogadoAnteriorNome",v)} />
                     <Field label="OAB anterior" value={form.oabAnterior} onChange={(v)=>set("oabAnterior",v)} />
                     <Field label="Novo advogado / substabelecido" value={form.advogadoNovoNome} onChange={(v)=>set("advogadoNovoNome",v)} />
