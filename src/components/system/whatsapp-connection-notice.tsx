@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
-import {AlertTriangle,Check,ChevronRight,RefreshCw,WifiOff,X} from 'lucide-react';
+import {ChevronRight,RefreshCw,WifiOff,X} from 'lucide-react';
 import {useAuth} from '@/components/auth/auth-provider';
 import {waLocalStatusAction} from '@/app/actions/whatsapp-local-actions';
 
