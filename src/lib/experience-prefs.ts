@@ -8,7 +8,7 @@ export const EXPERIENCE_VERSION=3;
 export const EXPERIENCE_KEY='lexis_user_experience_v3';
 
 export type ExperiencePreferences={
- theme:'minimal-steel'|'paper-legal'|'night-ops'|'graphite'|'esmeralda'|'violeta'|'ocean'|'sheetspredict-dark';
+ theme:string;
  mode:'light'|'dark'|'system';
  primary:string; textColor:string; mutedTextColor:string;
  font:'Inter'|'Roboto'|'Poppins'|'Georgia'|'Arial';
@@ -48,7 +48,7 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
   return '';
  };
  return {
-  theme:select('theme',['minimal-steel','paper-legal','night-ops','graphite','esmeralda','violeta','ocean','sheetspredict-dark'],EXPERIENCE_DEFAULT.theme),
+  theme:typeof d.theme==='string'&&AUTHORITY_PRESETS.some(p=>p.id===d.theme)?d.theme:EXPERIENCE_DEFAULT.theme,
   mode:select('mode',['light','dark','system'],EXPERIENCE_DEFAULT.mode),
   primary:hex('primary',EXPERIENCE_DEFAULT.primary),
   textColor:hex('textColor',''),mutedTextColor:hex('mutedTextColor',''),
