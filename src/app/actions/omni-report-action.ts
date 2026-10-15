@@ -1167,6 +1167,65 @@ export async function generateOmniReportAction(
   }
 }
 
+/** Exportação nativa sem Chromium. Funciona no runtime Node da Vercel e
+ * mantém PDF real mesmo quando bibliotecas como libnss3 não estão instaladas.
+ * Não renderiza HTML arbitrário: extrai o conteúdo textual e títulos do
+ * relatório gerado e produz páginas A4 com quebra automática.
+ */
+async function buildOmniReportNativePdf(content:string):Promise<Buffer>{
+  const {load}=await import('cheerio');
+  const cheerio=load(content);
+  const React=await import('react');
+  const pdf=await import('@react-pdf/renderer');
+  const h=(React as any).createElement;
+  const nodes:any[]=[];
+  const normal=(text:string)=>String(text||'')
+    .replace(/[\u0000-\u001f]+/g,' ').replace(/[\u{1F300}-\u{1FAFF}]/gu,' ')
+    .replace(/\s+/g,' ').trim();
+  const title=normal(cheerio('main .hero h1').first().text())||'Dossiê LexisPredict';
+  nodes.push(h(pdf.Text,{key:'title',style:{fontSize:19,color:'#182e43',fontWeight:'bold',marginBottom:12}},title));
+  nodes.push(h(pdf.Text,{key:'subtitle',style:{fontSize:8,color:'#59687a',marginBottom:14}},
+    'LexisPredict · OmniReport | Evidências e limitações constam das seções abaixo'));
+  let totalText=0, count=0;
+  cheerio('main section').each((sectionIndex,section)=>{
+    if(totalText>120000||count>1000)return false;
+    const sec=cheerio(section);
+    const heading=normal(sec.find('.section-head h2, .exec-head h2').first().text());
+    if(heading){
+      nodes.push(h(pdf.Text,{key:'s'+sectionIndex,style:{fontSize:13,fontWeight:'bold',color:'#182e43',
+        borderBottomWidth:.6,borderColor:'#d1d9e0',paddingBottom:4,marginTop:15,marginBottom:8}},heading));
+    }
+    sec.find('h2,h3,h4,p,li,th,td').each((i,el)=>{
+      if(totalText>120000||count++>1000)return false;
+      const tag=(el as any).tagName?.toLowerCase()||'';
+      // Ignore the heading already rendered above.
+      if(heading&&normal(cheerio(el).text())===heading)return;
+      const t=normal(cheerio(el).text());
+      if(!t)return;
+      // Append content in individual text objects so the renderer can paginate.
+      const body=t.slice(0,2400);
+      totalText+=body.length;
+      nodes.push(h(pdf.Text,{key:'s'+sectionIndex+'p'+i,style:{
+        fontSize:tag.startsWith('h')?11:tag==='th'?9:9,
+        color:'#24313c',lineHeight:1.45,
+        fontWeight:tag.startsWith('h')||tag==='th'?'bold':'normal',
+        marginTop:tag.startsWith('h')?9:2,marginBottom:5,
+      }},(tag==='li'?'• ':'')+body));
+    });
+  });
+  if(!nodes.length)throw Error('O relatório não tem conteúdo exportável.');
+  const doc=h(pdf.Document,{title,author:'LexisPredict'},
+    h(pdf.Page,{size:'A4',wrap:true,style:{paddingTop:38,paddingBottom:44,
+      paddingHorizontal:37,fontFamily:'Helvetica',fontSize:9,backgroundColor:'#ffffff'}},
+      ...nodes,
+      h(pdf.Text,{fixed:true,style:{position:'absolute',bottom:21,left:37,right:37,
+        textAlign:'right',color:'#64748b',fontSize:8},
+      render:({pageNumber,totalPages}:{pageNumber:number;totalPages:number})=>
+        'LexisPredict · '+pageNumber+' / '+totalPages})
+    ));
+  return Buffer.from(await pdf.renderToBuffer(doc));
+}
+
 export async function renderOmniReportPdfAction(html: string, filenameBase?: string) {
   let browser: any = null;
   try {
@@ -1179,27 +1238,9 @@ export async function renderOmniReportPdfAction(html: string, filenameBase?: str
       return { success: false as const, error: 'Relatório grande demais para conversão direta em PDF.' };
     }
 
-    const puppeteerMod: any = await import('puppeteer-core');
-    const chromiumMod: any = await import('@sparticuz/chromium');
-    const puppeteer = puppeteerMod.default || puppeteerMod;
-    const chromium = chromiumMod.default || chromiumMod;
-
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: { width: 1440, height: 900 },
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
-
-    const page = await browser.newPage();
-    await page.setContent(content, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.emulateMediaType('print');
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: '10mm', right: '8mm', bottom: '12mm', left: '8mm' },
-    });
+    // PDF por @react-pdf/renderer: evita libnss3/chromium ausente e processo
+    // headless instável em ambiente serverless.
+    const pdf = await buildOmniReportNativePdf(content);
     const safe = String(filenameBase || 'OmniReport_LexisPredict')
       .replace(/[^a-zA-Z0-9_-]+/g, '_')
       .slice(0, 80);
