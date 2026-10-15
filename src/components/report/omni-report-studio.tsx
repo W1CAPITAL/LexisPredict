@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {prepareOmniImage} from "@/lib/omni-client-ingest";
 import {
   extractOmniReportFileAction,
   generateOmniReportAction,
@@ -78,6 +79,15 @@ export function OmniReportStudio() {
     setError("");
     try {
       for (const file of list.slice(0, 12)) {
+        if(file.type.startsWith('image/')){
+          try{const ready=await prepareOmniImage(file);setImages(prev=>[...prev,ready]);}
+          catch(e){setError(prev=>[prev,file.name+': '+(e instanceof Error?e.message:'Falha ao preparar imagem')].filter(Boolean).join('\n'));}
+          continue;
+        }
+        if(file.size>6*1024*1024){
+          setError(prev=>[prev,file.name+': arquivo acima de 6 MB; divida ou reduza o arquivo.'].filter(Boolean).join('\n'));
+          continue;
+        }
         const fd = new FormData();
         fd.append("file", file);
         const res = await extractOmniReportFileAction(fd);
