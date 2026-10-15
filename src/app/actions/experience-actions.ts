@@ -63,7 +63,8 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
    if(!existing){
      const {error:signErr}=await db.from('lexis_user_legal_acceptances').insert({
        auth_user_id:uid,empresa_id:tenant,contract_version:EXPERIENCE_TERMS_VERSION,
-       contract_sha256:hash,signed_name:signedName,
+       contract_sha256:hash,signed_name:signedName,contract_text_snapshot:EXPERIENCE_TERMS_TEXT,
+       contract_locale:'pt-BR',acceptance_context:'lexispredict-onboarding',
      });
      if(signErr&&signErr.code!=='23505')
        throw Error('Não foi possível registrar o aceite contratual: '+signErr.message);
