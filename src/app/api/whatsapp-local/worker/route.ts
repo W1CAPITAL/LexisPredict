@@ -77,7 +77,7 @@ export async function POST(req:Request){
         timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23',
       }).format(d));
       const weekday=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(d);
-      if(hour<9||hour>=18||['Sat','Sun'].includes(weekday))
+      if(!settings.sendAnytime&&(hour<9||hour>=18||['Sat','Sun'].includes(weekday)))
         return result({ok:true,queued:false,reason:'outside_business_hours'});
       try{
         const pending=await dispatchPreparedDailyReturns(tenant,settings.intervalDays);
@@ -96,11 +96,13 @@ export async function POST(req:Request){
       const hour=Number(new Intl.DateTimeFormat('en-GB',{
         timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23',
       }).format(now));
-      if(!['Sat','Sun'].includes(weekday)&&hour>=9&&hour<18){
+      const inBusinessHours=!['Sat','Sun'].includes(weekday)&&hour>=9&&hour<18;
+      const liveSettings=await getDailyReturnSettings(tenant);
+      if(inBusinessHours||liveSettings.sendAnytime){
         const {data:pulse}=await db.rpc('wa_auto_pulse',{p_empresa:tenant});
         if(pulse===true){
           try{
-            const cfg=await getDailyReturnSettings(tenant);
+            const cfg=liveSettings;
             if(cfg.enabled&&cfg.consentAttested){
               // Both sources share the same 45s/120-per-day atomic reservation.
               // Alternate priority so a large due-return backlog never starves
