@@ -5,6 +5,7 @@ import {contactOptedOut} from '@/lib/wa-contact-privacy';
 import {prepareMovementAlert} from '@/lib/wa-movement-builder';
 import {enqueueScannedMovement} from '@/lib/wa-movement-campaign';
 import {bridgeStatus} from '@/lib/whatsapp-local';
+import {getDailyReturnSettings} from '@/lib/wa-daily-return-service';
 
 function normalizePhone(input:unknown) {
   const digits=String(input||'').replace(/\D/g,'');
@@ -34,7 +35,9 @@ function businessWindow(){
  * Each contact number appears only once in the one-time portfolio campaign.
  */
 export async function queueCheckedPortfolioContact(empresaId:string){
-  if(!businessWindow())return {queued:false,reason:'outside_business_hours'};
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled||!settings.consentAttested)return {queued:false,reason:'automation_disabled'};
+  if(!settings.sendAnytime&&!businessWindow())return {queued:false,reason:'outside_business_hours'};
   const db=await getSupabaseAdmin();
   const status=await bridgeStatus(empresaId);
   if(!status.connected)return {queued:false,reason:'device_offline'};
