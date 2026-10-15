@@ -28,7 +28,9 @@ export async function bridgeStatus(tenant:string,canSeeQr=false){
     &&String(data.qr_data_url||'').length<90000;
   // A imagem pode ser mostrada para recuperar a interface, mas não pode ser
   // apresentada como QR válido sem um heartbeat recente do worker.
-  const qrRecent=!!qrStored&&Number.isFinite(age)&&age>=0&&age<=180000;
+  // Show the last image for diagnostics even if the service is offline.
+  // qrFresh stays false, so the UI warns that the QR may be expired.
+  const qrRecent=!!qrStored;
   return {
     provisioned:!!data,online,connected:online&&data?.state==='ready',
     state:online?data?.state||'offline':'offline',
