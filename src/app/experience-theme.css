@@ -148,3 +148,14 @@ html[data-lexis-experience="1"] .admin-page-header p:not([class*="text-primary"]
   left:50% !important; transform:translateX(-50%) !important;
  }
 }
+
+@media(max-width:767px){
+ html[data-lexis-sidebar-behavior="floating"] [data-lexis-mobile-bottom-nav],
+ html[data-lexis-sidebar-behavior="toggle"] [data-lexis-mobile-bottom-nav]{
+  display:none !important;
+ }
+ html[data-lexis-sidebar-behavior="floating"] main,
+ html[data-lexis-sidebar-behavior="toggle"] main{
+  padding-bottom:4.5rem !important;
+ }
+}
