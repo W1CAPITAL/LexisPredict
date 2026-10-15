@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
+import {prepareOmniImage} from "@/lib/omni-client-ingest";
 import {
   extractOmniReportFileAction,
   generateOmniReportAction,
@@ -84,6 +85,7 @@ export function DossieChatStudio() {
   const [images, setImages] = useState<ImageInput[]>([]);
   const [reading, setReading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [executionMode,setExecutionMode]=useState<'ia_online'|'local_gratis'>('ia_online');
   const [pdfBusy, setPdfBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Result | null>(null);
   const [error, setError] = useState("");
@@ -107,6 +109,15 @@ export function DossieChatStudio() {
     setError("");
     try {
       for (const file of list.slice(0, 12)) {
+        if(file.type.startsWith('image/')){
+          try{const ready=await prepareOmniImage(file);setImages(prev=>[...prev,ready]);}
+          catch(e){setError(prev=>[prev,file.name+': '+(e instanceof Error?e.message:'Falha ao preparar imagem')].filter(Boolean).join('\n'));}
+          continue;
+        }
+        if(file.size>6*1024*1024){
+          setError(prev=>[prev,file.name+': arquivo acima de 6 MB. Divida o PDF ou reduza o tamanho; o servidor recusaria a requisição (413).'].filter(Boolean).join('\n'));
+          continue;
+        }
         const fd = new FormData();
         fd.append("file", file);
         const res = await extractOmniReportFileAction(fd);
@@ -185,6 +196,7 @@ export function DossieChatStudio() {
         sources: contextualSources,
         images: images.map(({ mediaType, data }) => ({ mediaType, data })),
         detail: "maximo",
+        executionMode,
       });
 
       if (!res.success) {
@@ -216,13 +228,13 @@ export function DossieChatStudio() {
           id: "a-" + Date.now(),
           role: "assistant",
           text:
-            "Dossiê pronto. Cruzei " +
+            (result.stats.engines.includes('DOCUMENTAL_LOCAL_SEM_LLM')?'Relatório documental produzido com ':'Dossiê gerado com análise assistida e ') +
             result.sources.length +
-            " fonte(s), processei " +
-            result.stats.inputChars.toLocaleString("pt-BR") +
-            " caracteres e montei " +
+            " fonte(s) rastreáveis, " +
+            result.stats.cnjs +
+            " CNJ(s) identificado(s) e " +
             result.stats.sections +
-            " seções. Você pode abrir, baixar ou continuar a conversa pedindo outra lente, correção, comparação ou aprofundamento.",
+            " seções. Abra as fontes e confira o conteúdo. A consulta judicial só é considerada realizada quando a origem indicar sucesso.",
           result,
         },
       ]);
@@ -560,6 +572,15 @@ export function DossieChatStudio() {
             >
               {generating ? <LexisThinkingOrb state="composing" size={20} /> : <Send className="h-4 w-4" />}
             </Button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 px-1 text-xs">
+            <label htmlFor="omni-execution-mode" className="font-semibold text-foreground">Motor do dossiê:</label>
+            <select id="omni-execution-mode" value={executionMode}
+              onChange={e=>setExecutionMode(e.target.value as 'ia_online'|'local_gratis')}
+              className="rounded-lg border border-border bg-card px-2 py-1 text-foreground">
+              <option value="ia_online">IA automática (Colibri/cascata, quando disponível)</option>
+              <option value="local_gratis">Somente documentos (sem LLM)</option>
+            </select>
           </div>
           <p className="mt-1.5 px-1 text-[9px] leading-relaxed text-muted-foreground">
             O Lexis diferencia evidência, relato, indício e hipótese. O dossiê anterior entra no contexto quando você pede uma continuação.
