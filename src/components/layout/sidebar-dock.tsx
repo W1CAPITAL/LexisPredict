@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert,
   Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users,
   ShieldCheck, Kanban, Wallet, Calculator, Bot, Upload,
-  Settings, Search, Menu, LogOut, Zap,
+  Settings, Search, Menu, LogOut, Zap, ArrowUp,
   Crown, Scale,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from 
 import { cn } from "@/lib/utils";
 import { operatorRouteAllowed, canViewCompanyCaseList } from "@/lib/roles";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
+import {loadExperiencePrefs} from '@/lib/experience-prefs';
 
 const primary = [
   ["Painel", "/", LayoutDashboard],
@@ -55,6 +56,16 @@ export function SidebarDock() {
   const { status, toggleMinimize } = useDataJudScanStore();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [dockBehavior,setDockBehavior]=useState<'fixed'|'floating'|'toggle'>('fixed');
+  const [dockVisible,setDockVisible]=useState(true);
+  useEffect(()=>{
+    const refresh=()=>{
+      const value=loadExperiencePrefs().sidebarBehavior;
+      setDockBehavior(value);setDockVisible(value==='fixed');
+    };
+    refresh();window.addEventListener('lexis-experience-updated',refresh);
+    return()=>window.removeEventListener('lexis-experience-updated',refresh);
+  },[]);
 
   const extras = useMemo(() => {
     // label: string — admin/superadmin labels are not in the `more` const union
@@ -101,7 +112,17 @@ export function SidebarDock() {
     <>
       <div data-lexis-sidebar data-lexis-dock className="hidden md:block h-0 w-0" aria-hidden />
       <CommercialTopbar />
+      {dockBehavior!=='fixed'?<button
+        type="button" data-lexis-dock-handle
+        aria-label={dockVisible?'Ocultar barra de navegação':'Abrir barra de navegação'}
+        aria-expanded={dockVisible}
+        onClick={()=>setDockVisible(v=>!v)}
+        className="fixed bottom-3 left-1/2 z-[90] hidden -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-bold text-foreground shadow-xl md:flex">
+        <ArrowUp size={16}/>{dockVisible?'Recolher menu':'Abrir menu'}
+      </button>:null}
       <header
+        data-nav-open={dockVisible?'true':'false'}
+        aria-hidden={dockVisible?'false':'true'}
         data-lexis-desktop-dock
         className="fixed bottom-4 left-1/2 z-50 hidden h-16 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-1.5 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(180deg,rgba(8,35,61,.96),rgba(5,25,46,.98))] px-2 text-white shadow-[0_20px_50px_rgba(4,20,38,.30),inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-xl md:flex"
       >
@@ -116,6 +137,7 @@ export function SidebarDock() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active?'page':undefined}
                 prefetch={false}
                 className={cn(
                   "flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition",
