@@ -24,16 +24,8 @@ export function ThemeBoot() {
       }
       applySavedPreset(dark ? "dark" : "light");
 
-      const solid = {
-        ...UI_PREFS_DEFAULT,
-        ...loadUiPrefs(),
-        glassSidebar: false,
-        glassDialogs: false,
-        glassCards: false,
-        glassTabs: false,
-      };
-      saveUiPrefs(solid);
-      applyUiPrefsToDom(solid);
+      // A preferência visual pertence ao usuário; não desligar Glass/Blur no login.
+      applyUiPrefsToDom(loadUiPrefs());
 
       const legacyForce = document.getElementById("lexis-force-contrast");
       if (legacyForce) legacyForce.remove();
