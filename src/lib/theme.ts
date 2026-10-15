@@ -758,14 +758,9 @@ export function applyGlobalTheme(
     fontStyle.id = 'lexis-font-color-style';
     document.head.appendChild(fontStyle);
   }
-  fontStyle.textContent = `
-    body, .text-foreground, [data-lexis-root] {
-      color: ${finalForeground} !important;
-    }
-    .text-muted-foreground {
-      color: ${finalMuted} !important;
-    }
-  `;
+  // Contraste vem dos tokens semânticos; nunca force a mesma cor sobre
+  // botões, fundos escuros, badges e componentes com cores próprias.
+  fontStyle.textContent = '';
 
   root.style.setProperty('--card-foreground', hexToHsl(finalForeground));
   root.style.setProperty('--popover-foreground', hexToHsl(finalForeground));
