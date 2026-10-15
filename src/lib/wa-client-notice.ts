@@ -27,13 +27,13 @@ export const CLIENT_NOTICE_OPT_OUT =
  * Cortar apenas o volume; nunca resumir como decisão ou promessa jurídica.
  */
 export function officialNoticeExcerpt(text:string,max=850):{excerpt:string;shortened:boolean}{
-  const original=String(text||'').replace(/\\r/g,' ').replace(/[\\t\\n]+/g,' ')
-    .replace(/\\s+/g,' ').trim();
+  const original=String(text||'').replace(/\r/g,' ').replace(/[\t\n]+/g,' ')
+    .replace(/\s+/g,' ').trim();
   if(original.length<=max)return {excerpt:original,shortened:false};
   // Cabeçalhos de DJEN podem conter apenas tribunal, advogado e distribuição.
   // Procura o início do ato comunicado para que o trecho tenha utilidade.
   const body=original.slice(100);
-  const match=/(?:\\b(?:intima[cç][aã]o|intime-se|fica\\s+(?:intimad[oa]|a\\s+parte)|determino|decido|senten[cç]a|despacho|cite-se|defiro|indefiro|homologo|considerando|para\\s+que|manifeste-se|prazo\\s+de)\\b)/i.exec(body);
+  const match=/(?:\b(?:intima[cç][aã]o|intime-se|fica\s+(?:intimad[oa]|a\s+parte)|determino|decido|senten[cç]a|despacho|cite-se|defiro|indefiro|homologo|considerando|para\s+que|manifeste-se|prazo\s+de)\b)/i.exec(body);
   const actionAt=match?match.index+100:0;
   const prefix=actionAt>260?original.slice(0,Math.min(135,Math.floor(max/5))).trim()+' […] ':''; 
   const available=max-prefix.length;
@@ -85,6 +85,7 @@ export function buildClientMovementMessage(input: {
     };
     return [clientGreeting(input.firstName,input.now),
       `Sobre seu processo nº ${input.cnj}, há um registro de ${labels[input.confirmedTerminal]} em ${input.date}, conforme ${input.source}.`,
+      `*Trecho do registro oficial:* “${excerpt.excerpt}”${excerpt.shortened?' (trecho abreviado; o teor integral está na fonte oficial)':''}`,
       'Esse registro não comprova, por si só, pagamento, decisão favorável ou a situação de outros procedimentos. Se quiser esclarecer os efeitos no seu caso, nossa equipe pode conferir.',
       CLIENT_NOTICE_OPT_OUT].join('\n\n');
   }
