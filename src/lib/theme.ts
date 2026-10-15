@@ -729,16 +729,18 @@ export function applyGlobalTheme(
   const m: ThemeMode = mode || getCurrentMode();
   const isLight = m === 'light';
 
-  // Respeita cor escolhida pelo usuário; só corrige se contraste for catastrófico (<2.5)
-  let finalForeground = colors.foreground;
-  if (Math.min(getContrastRatio(colors.background, colors.foreground), getContrastRatio(colors.bgSecondary, colors.foreground)) < 4.5) {
-    finalForeground = getIdealTextColor(colors.background);
-  }
-
-  let finalMuted = colors.fontMuted;
-  if (Math.min(getContrastRatio(colors.background, colors.fontMuted), getContrastRatio(colors.bgSecondary, colors.fontMuted)) < 4.5) {
-    finalMuted = getContrastRatio(colors.bgSecondary, '#111827') >= 4.5 ? '#111827' : '#F1F5F9';
-  }
+  // Cada superfície exige SUA própria cor de texto. Usar o texto do canvas
+  // sobre cards claros no modo escuro era a causa de branco-sobre-branco.
+  // Usuário escolhe a preferência; WCAG 4.5:1 define o fallback local.
+  const safeOnSurface=(surface:string, preferred:string):string=>{
+    if(getContrastRatio(surface,preferred)>=4.5)return preferred;
+    return getContrastRatio(surface,'#FFFFFF')>=getContrastRatio(surface,'#111827')
+      ? '#FFFFFF' : '#111827';
+  };
+  const finalForeground=safeOnSurface(colors.background,colors.foreground);
+  const cardForeground=safeOnSurface(colors.bgSecondary,colors.foreground);
+  const finalMuted=safeOnSurface(colors.background,colors.fontMuted);
+  const cardMuted=safeOnSurface(colors.bgSecondary,colors.fontMuted);
 
   const primary = normalize(colors.primary);
   const onPrimary = getContrastRatio(primary, '#FFFFFF') >= getContrastRatio(primary, '#000000') ? '#FFFFFF' : '#000000';
@@ -776,14 +778,15 @@ export function applyGlobalTheme(
   // botões, fundos escuros, badges e componentes com cores próprias.
   fontStyle.textContent = '';
 
-  root.style.setProperty('--card-foreground', hexToHsl(finalForeground));
-  root.style.setProperty('--popover-foreground', hexToHsl(finalForeground));
-  root.style.setProperty('--secondary-foreground', hexToHsl(finalForeground));
+  root.style.setProperty('--card-foreground', hexToHsl(cardForeground));
+  root.style.setProperty('--card-muted-foreground', hexToHsl(cardMuted));
+  root.style.setProperty('--popover-foreground', hexToHsl(cardForeground));
+  root.style.setProperty('--secondary-foreground', hexToHsl(cardForeground));
   root.style.setProperty('--muted-foreground', hexToHsl(finalMuted));
   root.style.setProperty('--primary', hexToHsl(primary));
   root.style.setProperty('--primary-foreground', hexToHsl(onPrimary));
   root.style.setProperty('--accent', hexToHsl(colors.accent));
-  root.style.setProperty('--accent-foreground', hexToHsl(finalForeground));
+  root.style.setProperty('--accent-foreground', hexToHsl(safeOnSurface(colors.accent,finalForeground)));
   root.style.setProperty('--border', hexToHsl(colors.border));
   root.style.setProperty('--input', hexToHsl(colors.border));
   root.style.setProperty('--ring', hexToHsl(primary));
