@@ -7,10 +7,13 @@ import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: '30mm 25mm',
+    paddingTop: 85,
+    paddingLeft: 85,
+    paddingRight: 57,
+    paddingBottom: 57,
     fontFamily: 'Times-Roman',
     fontSize: 12,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     textAlign: 'justify',
     color: '#000000'
   },
@@ -26,7 +29,7 @@ const styles = StyleSheet.create({
   },
   paragraph: {
     marginBottom: 20,
-    textIndent: 50,
+    textIndent: 36,
   },
   bold: {
     fontWeight: 'bold'
@@ -40,7 +43,7 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: 60,
+    marginTop: 30,
   },
   line: {
     width: '60%',

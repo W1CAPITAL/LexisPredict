@@ -3,22 +3,17 @@
  * @license Proprietary - All rights reserved. See LICENSE file.
  */
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
-
-Font.register({
-  family: 'Times-Roman',
-  fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman-Bold.ttf', fontWeight: 'bold' }
-  ]
-});
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: '30mm 25mm',
+    paddingTop: 85,
+    paddingLeft: 85,
+    paddingRight: 57,
+    paddingBottom: 57,
     fontFamily: 'Times-Roman',
     fontSize: 12,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     textAlign: 'justify',
     color: '#000000'
   },
@@ -31,14 +26,14 @@ const styles = StyleSheet.create({
   },
   paragraph: {
     marginBottom: 20,
-    textIndent: 50,
+    textIndent: 36,
   },
   bold: {
     fontWeight: 'bold'
   },
   date: {
     textAlign: 'center',
-    marginTop: 60,
+    marginTop: 30,
     marginBottom: 40
   },
   signatureArea: {
@@ -67,8 +62,8 @@ export function ProcuracaoPDF({ data }: { data: any }) {
 
   const { cliente, advogado, processos, local, dataExtenso, includeBankInfo, includeProcessNumber } = data;
   
-  const acaoPrincipal = processos?.[0]?.acao || "AÇÃO DE REVISÃO CONTRATUAL COM PEDIDO DE TUTELA DE URGÊNCIA";
-  const bancoPrincipal = processos?.[0]?.banco || "INSTITUIÇÃO FINANCEIRA";
+  const acaoPrincipal = processos?.[0]?.acao || "[DESCREVER AÇÃO CONFORME OS AUTOS]";
+  const bancoPrincipal = processos?.[0]?.banco || "[BANCO NÃO INFORMADO]";
   const cnpjBancoPrincipal = processos?.[0]?.cnpjBanco;
   const numeroPrincipal = processos?.[0]?.numero || "S/N";
 

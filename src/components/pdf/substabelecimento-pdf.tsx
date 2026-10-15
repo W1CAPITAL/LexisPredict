@@ -1,20 +1,15 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
-
-Font.register({
-  family: 'Times-Roman',
-  fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman@1.0.4/Times-New-Roman-Bold.ttf', fontWeight: 'bold' }
-  ]
-});
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: '30mm 25mm',
+    paddingTop: 85,
+    paddingLeft: 85,
+    paddingRight: 57,
+    paddingBottom: 57,
     fontFamily: 'Times-Roman',
     fontSize: 12,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     textAlign: 'justify',
     color: '#000000'
   },
@@ -33,7 +28,7 @@ const styles = StyleSheet.create({
   },
   paragraph: {
     marginBottom: 15,
-    textIndent: 40
+    textIndent: 36
   },
   bold: {
     fontWeight: 'bold'
@@ -78,7 +73,7 @@ export function SubstabelecimentoPDF({ data }: { data: any }) {
         
         <View style={styles.paragraph}>
           <Text>
-            O <Text style={styles.bold}>{substabelecente.nome.toUpperCase()}</Text>, {substabelecente.nacionalidade || ''}, {substabelecente.estadoCivil || ''}, advogado, inscrito na <Text style={styles.bold}>{substabelecente.oabCompleta}</Text>, <Text style={styles.bold}>SUBSTABELECE SEM RESERVA DE PODERES</Text> na pessoa do <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text>, {substabelecido.nacionalidade || ''}, {substabelecido.estadoCivil || ''}, inscrito na <Text style={styles.bold}>{substabelecido.oabCompleta}</Text>, os poderes conferidos por <Text style={styles.bold}>{cliente.nome.toUpperCase()}</Text>, <Text style={styles.bold}>PARA A PROMOÇÃO DE {processo.acao.toUpperCase()}</Text> {includeBankInfo ? `promovida contra o ${processo.banco.toUpperCase()}, inscrito no CNPJ sob o nº ${processo.cnpjBanco || '---'}` : ""}{includeProcessNumber ? `, processo de n.º ${processo.numero}` : ""} por meio do instrumento outrora outorgado, requerendo a exclusão do advogado substabelecente <Text style={styles.bold}>{substabelecente.nome.toUpperCase()}</Text> sob <Text style={styles.bold}>{substabelecente.oabCurta}</Text> da contracapa dos autos, bem como de qualquer outro meio de intimação do processo, sendo assim que <Text style={styles.bold}>todas as futuras intimações passsem a ser exclusivamente dirigidas ao substabelecido</Text>, <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text> sob <Text style={styles.bold}>{substabelecido.oabCurta}</Text>, nos termos do artigo 272, §5º, do CPC, sob pena de nulidade.
+            O <Text style={styles.bold}>{substabelecente.nome.toUpperCase()}</Text>, {substabelecente.nacionalidade || ''}, {substabelecente.estadoCivil || ''}, advogado, inscrito na <Text style={styles.bold}>{substabelecente.oabCompleta}</Text>, <Text style={styles.bold}>SUBSTABELECE SEM RESERVA DE PODERES</Text> na pessoa do <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text>, {substabelecido.nacionalidade || ''}, {substabelecido.estadoCivil || ''}, inscrito na <Text style={styles.bold}>{substabelecido.oabCompleta}</Text>, os poderes conferidos por <Text style={styles.bold}>{cliente.nome.toUpperCase()}</Text>, <Text style={styles.bold}>PARA A PROMOÇÃO DE {processo.acao.toUpperCase()}</Text> {includeBankInfo ? `promovida contra o ${processo.banco.toUpperCase()}, inscrito no CNPJ sob o nº ${processo.cnpjBanco || '---'}` : ""}{includeProcessNumber ? `, processo de n.º ${processo.numero}` : ""} nos limites do mandato originário, conforme o instrumento de procuração que fundamenta a representação.
           </Text>
         </View>
 

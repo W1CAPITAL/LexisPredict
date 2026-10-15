@@ -1,4 +1,5 @@
 "use client";
+import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
 import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
@@ -199,10 +200,7 @@ export default function SubstabelecimentoPecaGenerator() {
         includeProcessNumber 
       });
       if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:application/pdf;base64,${res.base64}`;
-        link.download = `Peca_Subst_${extractedData.cliente.nome.replace(/\s/g, '_')}.pdf`;
-        link.click();
+        downloadGeneratedPdf(res.base64, `Peca_Subst_${extractedData.cliente.nome.replace(/\s/g, '_')}.pdf`);
         toast({ title: "Peça Selada com Sucesso" });
       } else {
         toast({ title: "Erro na Selagem", description: res.error, variant: "destructive" });

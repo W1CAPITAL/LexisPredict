@@ -1387,63 +1387,83 @@ export async function getWhatsAppHistory(phone: string) {
   }
 }
 
+/** Banco da banca somente após confirmar a identidade da requisição.
+ * O cliente global anon inicializado no servidor não transporta cookies de usuário.
+ * O acesso admin é sempre condicionado à sessão e restrito por empresa_id.
+ */
+async function bancoBancaAutenticado() {
+  const request = await createRequestClient();
+  if (!request) return null;
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ? await getSupabaseAdmin() : request;
+}
+
 export async function listAdvogadosBanca() {
+  const ctx = await getUserContext();
+  if (!ctx.auth_id || !ctx.empresa_id) return [];
   try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id || !supabase) return [];
-    const { data, error } = await supabase
+    const db = await bancoBancaAutenticado();
+    if (!db) return [];
+    const { data, error } = await db
       .from("advogados_banca")
-      .select("*")
-      .eq("empresa_id", empresa_id)
+      .select("id,empresa_id,nome,genero,endereco,email,oabs,ativo,nacionalidade,estado_civil,avatar_url,telefone,celular,cidade,uf,cep,cpf,rg,email_profissional,site,observacao")
+      .eq("empresa_id", ctx.empresa_id)
       .eq("ativo", true)
       .order("nome", { ascending: true });
     if (error) {
-      console.warn("[listAdvogadosBanca]", error.message);
+      console.error("[listAdvogadosBanca] Erro ao ler banca da empresa:", error.code, error.message);
       return [];
     }
     return data || [];
-  } catch (e) {
-    console.warn("[listAdvogadosBanca]", e);
+  } catch (error) {
+    console.error("[listAdvogadosBanca] Falha de consulta:", error);
     return [];
   }
 }
 
 export async function upsertAdvogadoBanca(adv: any) {
   try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id || !supabase) {
-      return { success: false, error: "offline_or_session", offline: true as const };
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id) return { success: false, error: "Sessão expirada", offline: true as const };
+    const db = await bancoBancaAutenticado();
+    if (!db) return { success: false, error: "Banco indisponível", offline: true as const };
+    if (adv.id) {
+      const { data: original, error: readError } = await db
+        .from("advogados_banca").select("id,empresa_id").eq("id", adv.id).maybeSingle();
+      if (readError) return { success: false, error: readError.message, offline: false as const };
+      if (original && original.empresa_id !== ctx.empresa_id)
+        return { success: false, error: "Advogado de outra empresa", offline: false as const };
     }
-    const payload = {
-      ...adv,
-      empresa_id,
-      ativo: adv.ativo ?? true,
-      estado_civil: adv.estado_civil ?? adv.estadoCivil ?? null,
-      nacionalidade: adv.nacionalidade ?? null,
-    };
-    const { data, error } = await supabase
-      .from("advogados_banca")
-      .upsert(payload, { onConflict: "id" })
-      .select()
-      .single();
+    const allowed = [
+      "id", "nome", "genero", "endereco", "email", "oabs", "ativo", "nacionalidade",
+      "estado_civil", "avatar_url", "telefone", "celular", "cidade", "uf",
+      "cep", "cpf", "rg", "email_profissional", "site", "observacao",
+    ];
+    const payload: Record<string, any> = { empresa_id: ctx.empresa_id, ativo: adv.ativo ?? true };
+    for (const key of allowed) if (adv[key] !== undefined) payload[key] = adv[key];
+    if (adv.estado_civil === undefined && adv.estadoCivil !== undefined) payload.estado_civil = adv.estadoCivil;
+    if (adv.email_profissional === undefined && adv.emailProfissional !== undefined) payload.email_profissional = adv.emailProfissional;
+    if (!String(payload.nome || "").trim()) return { success: false, error: "Nome obrigatório", offline: false as const };
+    const { data, error } = await db.from("advogados_banca")
+      .upsert(payload, { onConflict: "id" }).select().single();
     if (error) return { success: false, error: error.message, offline: false as const };
     return { success: true, data };
-  } catch (e: any) {
-    return { success: false, error: e?.message || "erro", offline: true as const };
+  } catch (error: any) {
+    return { success: false, error: error?.message || "Falha ao salvar advogado", offline: true as const };
   }
 }
 
 export async function desativarAdvogadoBanca(id: string) {
   try {
-    const { empresa_id } = await getUserContext();
-    if (!empresa_id || !supabase) return { success: false, offline: true as const };
-    const { error } = await supabase
-      .from("advogados_banca")
-      .update({ ativo: false })
-      .eq("id", id)
-      .eq("empresa_id", empresa_id);
+    const ctx = await getUserContext();
+    if (!ctx.auth_id || !ctx.empresa_id || !id) return { success: false, offline: true as const };
+    const db = await bancoBancaAutenticado();
+    if (!db) return { success: false, offline: true as const };
+    const { error } = await db.from("advogados_banca")
+      .update({ ativo: false }).eq("id", id).eq("empresa_id", ctx.empresa_id);
+    if (error) console.error("[desativarAdvogadoBanca]", error.message);
     return { success: !error, offline: false as const };
-  } catch {
+  } catch (error) {
+    console.error("[desativarAdvogadoBanca] Falha:", error);
     return { success: false, offline: true as const };
   }
 }

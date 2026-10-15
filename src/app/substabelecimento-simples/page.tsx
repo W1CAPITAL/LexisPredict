@@ -1,4 +1,5 @@
 "use client";
+import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
 import { usePartesEditaveis } from "@/hooks/use-partes-editaveis";
@@ -134,6 +135,7 @@ export default function SubstabelecimentoSimplesPage() {
     }
   };
 
+  // A exigência de ciência do cliente e o pedido de intimação são atos distintos.
   const handleSeal = async () => {
     if (!nameLeaving || !nameEntering || !numeroProcesso || !parteNome || !oabNumLeaving || !oabNumEntering) {
       toast({ title: "Dados Incompletos", variant: "destructive" });
@@ -162,10 +164,7 @@ export default function SubstabelecimentoSimplesPage() {
 
       const res = await generateSubstabelecimentoSimplesPDFAction(payload);
       if (res.success && res.base64) {
-        const link = document.createElement('a');
-        link.href = `data:application/pdf;base64,${res.base64}`;
-        link.download = `Subst_Simples_${parteNome.replace(/\s/g, '_')}.pdf`;
-        link.click();
+        downloadGeneratedPdf(res.base64, `Subst_Simples_${parteNome.replace(/\s/g, '_')}.pdf`);
         toast({ title: "Documento Selado" });
       } else {
         toast({ title: "Erro na Selagem", description: res.error, variant: "destructive" });
@@ -179,6 +178,7 @@ export default function SubstabelecimentoSimplesPage() {
     <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
       <Sidebar />
 
+          <p className="mx-auto mt-3 w-full max-w-5xl border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-amber-900">Sem reserva: documente a ciência prévia e inequívoca do cliente (Código de Ética da OAB, art. 26, §1º). Para direcionamento exclusivo de intimações, faça pedido expresso em petição própria nos autos (CPC, art. 272, §5º).</p>
           <div className="max-w-5xl mx-auto w-full mt-4 mb-6 px-4">
             <div className="bg-white border-2 border-black rounded-none shadow-[6px_6px_0px_#000] p-4">
               <p className="text-[10px] font-black uppercase tracking-widest mb-2">Partes 100% editáveis</p>
