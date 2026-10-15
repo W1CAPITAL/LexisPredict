@@ -23,6 +23,17 @@ export function CommercialTopbar() {
   const { plan } = usePlano();
   const [query, setQuery] = useState("");
   const [companyName, setCompanyName] = useState("Empresa LexisPredict");
+  const [cosmeticRole,setCosmeticRole]=useState('');
+  const [cosmeticName,setCosmeticName]=useState('');
+  const [cosmeticAvatar,setCosmeticAvatar]=useState('');
+  useEffect(()=>{
+    const update=(evt:Event)=>{
+      const d=(evt as CustomEvent<{name?:string;role?:string;avatar?:string}>).detail||{};
+      setCosmeticName(d.name||'');setCosmeticRole(d.role||'');setCosmeticAvatar(d.avatar||'');
+    };
+    window.addEventListener('lexis-profile-appearance',update);
+    return()=>window.removeEventListener('lexis-profile-appearance',update);
+  },[]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +72,7 @@ export function CommercialTopbar() {
     router.push(`/cases?q=${encodeURIComponent(q)}`);
   };
 
-  const initials = String(profile?.nome || profile?.email || "LP")
+  const initials = String(cosmeticName || profile?.nome || profile?.email || "LP")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -140,11 +151,11 @@ export function CommercialTopbar() {
               aria-label="Abrir menu do perfil"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1f6fff] text-sm font-black text-white">
-                {initials || "LP"}
+                {cosmeticAvatar?<img src={cosmeticAvatar} alt="Foto do perfil" className="h-full w-full rounded-full object-cover"/>:initials || "LP"}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-[#102447]">{profile?.nome || "Usuário"}</p>
-                <p className="truncate text-[11px] font-medium text-[#6d7f9b]">{profile?.cargo || "Equipe jurídica"}</p>
+                <p className="truncate text-sm font-black text-[#102447]">{cosmeticName || profile?.nome || "Usuário"}</p>
+                <p className="truncate text-[11px] font-medium text-[#6d7f9b]">{cosmeticRole || profile?.cargo || "Equipe jurídica"}</p>
               </div>
               <ChevronDown className="h-4 w-4 shrink-0 text-[#6e809c]" />
             </button>
