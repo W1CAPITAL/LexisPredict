@@ -93,6 +93,9 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
    });
    if(!r.ok)throw Error(r.error);
    applyExperiencePrefs(r.preferences);
+   window.dispatchEvent(new CustomEvent('lexis-profile-appearance',{detail:{
+    name:name.trim(),role:role.trim(),avatar:r.preferences.avatarUrl,
+   }}));
    onDone?.();
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar.')}
   finally{setBusy(false)}
@@ -221,8 +224,13 @@ export function ExperienceGate(){
   return()=>{active=false};
  },[user?.id,profile?.empresa_id,path]);
  useEffect(()=>{
-  if(data?.ok && data.profile?.preferences){
-   applyExperiencePrefs(cleanExperiencePrefs(data.profile.preferences));
+  if(data?.ok){
+   if(data.profile?.preferences)applyExperiencePrefs(cleanExperiencePrefs(data.profile.preferences));
+   window.dispatchEvent(new CustomEvent('lexis-profile-appearance',{detail:{
+     name:data.profile?.display_name||data.user?.nome||'',
+     role:data.profile?.display_role||data.user?.cargo||'',
+     avatar:cleanExperiencePrefs(data.profile?.preferences||{}).avatarUrl||data.user?.avatar_url||'',
+   }}));
   }
  },[data]);
  if(done||loading||!data?.ok)return null;
