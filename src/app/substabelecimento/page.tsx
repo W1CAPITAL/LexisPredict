@@ -335,19 +335,18 @@ export default function SubstabelecimentoGenerator() {
         </header>
 
         <div className="flex-1 overflow-auto p-4 lg:p-8 max-w-7xl mx-auto w-full">
-          {banca.length === 0 ? (
-            <Alert className="border-2 border-black rounded-none shadow-[8px_8px_0px_#000]">
+          {banca.length === 0 && (
+            <Alert className="border-l-4 border-amber-500 bg-white p-3 text-xs">
                <Settings className="h-4 w-4" />
                <AlertTitle className="font-black uppercase text-xs">Configuração Requerida</AlertTitle>
                <AlertDescription className="text-[10px] font-bold uppercase space-y-4">
                   <p>{bancaLoading ? 'Consultando os advogados cadastrados...' : (bancaError || 'Nenhum advogado acessível na sessão atual. Não recadastre antes de verificar seu login.')}</p>
                   <Button metal={false} onClick={() => void loadBanca()} disabled={bancaLoading} className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">Recarregar banca</Button>
-                  <Button metal={false} asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
-                    <Link href="/settings">Configurar Banca Agora</Link>
-                  </Button>
+                  <span className="text-xs normal-case font-medium">Você pode preencher cliente e processo enquanto os advogados carregam.</span>
                </AlertDescription>
             </Alert>
-          ) : step === 1 && (
+          )}
+          {step === 1 && (
             <div className="space-y-8 animate-in fade-in duration-500">
               {apiError && (
                 <Alert variant="destructive" className="border-2 border-red-600 rounded-none shadow-[8px_8px_0px_#000]">
@@ -419,7 +418,7 @@ export default function SubstabelecimentoGenerator() {
                           <div className="space-y-1"><Label>Comarca / cidade *</Label><Input value={manualComarca} onChange={e => setManualComarca(e.target.value)} placeholder="Cidade correta" /></div>
                           <div className="space-y-1 sm:col-span-2"><Label>Instituição financeira (opcional)</Label><Input value={manualBanco} onChange={e => setManualBanco(e.target.value)} placeholder="Preencher somente se pertinente" /></div>
                         </div>
-                        <Button metal={false} onClick={handleManualReview} disabled={bancaLoading || banca.length < 2} className="w-full bg-[#6f1d2b] text-white">Revisar documento sem IA e gerar PDF</Button>
+                        <Button metal={false} onClick={handleManualReview} disabled={banca.length < 2} className="w-full bg-[#6f1d2b] text-white">Revisar documento sem IA e gerar PDF</Button>
                         <p className="text-xs">Os dois advogados e suas respectivas inscrições são carregados do cadastro. Confira o mandato original, as OABs e a ciência prévia do cliente para substabelecimento sem reserva.</p>
                       </div>
                       <Label className="uppercase text-[10px] font-black">2. Importar documento antigo (opcional)</Label>
