@@ -507,6 +507,13 @@ export function SidebarVertical() {
       </div>
 
 
+      {navBehavior!=='fixed'?(
+        <button type="button" onClick={openToolsMenu}
+          aria-label="Abrir navegação flutuante" aria-expanded={toolsOpen}
+          className="fixed bottom-3 left-1/2 z-[85] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-5 py-3 text-sm font-bold text-foreground shadow-xl md:hidden">
+          <ArrowUp className="h-5 w-5 text-primary"/> Menu
+        </button>
+      ):null}
       <nav
         data-lexis-mobile-bottom-nav
         className="fixed inset-x-0 bottom-0 z-[70] grid h-[76px] grid-cols-5 border-t border-[#dfe7f2] bg-white px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.12)] md:hidden"
