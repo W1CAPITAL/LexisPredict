@@ -87,7 +87,7 @@ export async function GET(request:Request){
           &&verified.em_cumprimento_sentenca!==true
           &&verified.cumprimento_pendente_necessario!==true
           &&!/execut|cumprim|pendente|ativo/i.test(String(verified.status_executivo||''))
-          &&String(verified.telefone||'').replace(/\\D/g,'').length<10
+          &&String(verified.telefone||'').replace(/\D/g,'').length<10
           &&verified.status!=='Encerrado'&&verified.status_interno!=='ENCERRADO';
         if(strongProof){
           const {error:closeError}=await db.from('processos').update({
