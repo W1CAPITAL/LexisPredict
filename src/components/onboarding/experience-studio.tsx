@@ -249,7 +249,8 @@ export function ExperienceSettingsPanel(){
     </div>
     <button onClick={()=>setOpened(true)} type="button" className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">Personalizar experiência</button>
    </div>
-   {opened?<ExperienceStudio wizard={false} record={data.profile||null} user={data.user} onClose={()=>setOpened(false)}
+   {opened?<ExperienceStudio wizard={false} record={data.profile||null} user={data.user}
+     onClose={()=>{applyExperiencePrefs(cleanExperiencePrefs(data.profile?.preferences));setOpened(false)}}
      onDone={()=>{setOpened(false);getExperienceAction().then(setData)}}/>:null}
   </section>
 }
