@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { NavProgress } from "@/components/system/nav-progress";
+const ExperienceGate = dynamic(() => import('@/components/onboarding/experience-studio').then(m=>m.ExperienceGate),{ssr:false});
 
 const GuidedTour = dynamic(
   () => import("@/components/onboarding/guided-tour").then((m) => m.GuidedTour),
@@ -130,6 +131,7 @@ export function ClientChrome() {
   return (
     <>
       <NavProgress />
+      <ExperienceGate />
 
       {tourReady ? <GuidedTour /> : null}
       {scannerReady ? <DataJudScannerPanel /> : null}
