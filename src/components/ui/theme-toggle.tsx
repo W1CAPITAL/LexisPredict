@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
+import {loadExperiencePrefs,applyExperiencePrefs} from '@/lib/experience-prefs';
+import {updateExperienceAppearanceAction} from '@/app/actions/experience-actions';
 import {
   AUTHORITY_PRESETS,
   applyPresetById,
@@ -95,6 +97,9 @@ export function ThemeToggle({ className }: { className?: string }) {
     const run = () => {
       setMode(next);
       setDarkMode(applyLexisThemeMode(next));
+      const p=loadExperiencePrefs();
+      applyExperiencePrefs({...p,mode:next});
+      void updateExperienceAppearanceAction({mode:next});
     };
     if (document.startViewTransition) {
       document.documentElement.style.viewTransitionName = "theme-transition";
@@ -107,7 +112,15 @@ export function ThemeToggle({ className }: { className?: string }) {
 
   function choosePreset(id: string | null) {
     selectThemePreset(id);
-    setPresetId(id);
+    const p=loadExperiencePrefs();
+    const preset=AUTHORITY_PRESETS.find(x=>x.id===id);
+    const themeId=id||'minimal-steel';
+    const mode=(preset?.preferredMode||p.mode) as LexisThemeMode;
+    const primary=preset?getPresetColors(preset,currentMode()).primary:'#2563EB';
+    applyExperiencePrefs({...p,theme:themeId,mode,primary,textColor:'',mutedTextColor:''});
+    void updateExperienceAppearanceAction({theme:themeId,mode,primary});
+    setPresetId(themeId);
+    setMode(mode);
     setDarkMode(currentMode() === "dark");
   }
 
