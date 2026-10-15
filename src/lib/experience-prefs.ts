@@ -103,6 +103,7 @@ export function applyExperiencePrefs(input:ExperiencePreferences){
  root.dataset.lexisKpiStyle=p.kpiStyle;
  root.dataset.lexisButtonStyle=p.buttonStyle;
  root.dataset.lexisNotifications=p.notifications;
+ root.dataset.lexisSidebarCompact=p.sidebarCompact?'true':'false';
  root.style.setProperty('--radius',p.cornerRadius+'px');
  root.style.setProperty('--experience-font',p.font==='Georgia'?'Georgia,serif':p.font+',sans-serif');
  root.style.setProperty('--experience-blur',p.blur+'px');
