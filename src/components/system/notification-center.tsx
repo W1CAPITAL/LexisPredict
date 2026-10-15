@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import {loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {
   getNotificationBootstrapAction,
   markAllNotificationsReadAction,
@@ -96,7 +97,15 @@ export function NotificationCenter() {
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [noticeMode,setNoticeMode]=useState<ExperiencePreferences['notifications']>('important');
   const prefRef = useRef(prefs);
+  const modeRef=useRef(noticeMode);
+  modeRef.current=noticeMode;
+  useEffect(()=>{
+    const refresh=()=>setNoticeMode(loadExperiencePrefs().notifications);
+    refresh();window.addEventListener('lexis-experience-updated',refresh);
+    return()=>window.removeEventListener('lexis-experience-updated',refresh);
+  },[]);
   prefRef.current = prefs;
 
   const authId = String((profile as any)?.auth_user_id || "").trim();
@@ -147,7 +156,7 @@ export function NotificationCenter() {
             }
 
             if (payload.eventType === "INSERT" && !prefRef.current.in_app_enabled) {
-              browserNotify(row, prefRef.current);
+              if(modeRef.current==='all'||(modeRef.current==='important'&&['critica','alta'].includes(row.prioridade))) browserNotify(row, prefRef.current);
               return;
             }
 
@@ -158,7 +167,7 @@ export function NotificationCenter() {
                 .slice(0, 50);
             });
 
-            if (payload.eventType === "INSERT") browserNotify(row, prefRef.current);
+            if (payload.eventType === "INSERT" && (modeRef.current==='all'||(modeRef.current==='important'&&['critica','alta'].includes(row.prioridade)))) browserNotify(row, prefRef.current);
           }
         )
         .subscribe();
@@ -175,7 +184,8 @@ export function NotificationCenter() {
     };
   }, [authId]);
 
-  const unread = useMemo(() => items.filter((item) => !item.lida).length, [items]);
+  const visibleItems=useMemo(()=>items.filter((item)=>noticeMode!=='important'||['critica','alta'].includes(item.prioridade)),[items,noticeMode]);
+  const unread = useMemo(() => visibleItems.filter((item) => !item.lida).length, [visibleItems]);
 
   const markOne = async (row: LexisNotification) => {
     if (!row.lida) {
@@ -229,7 +239,7 @@ export function NotificationCenter() {
         </div>
 
         <ScrollArea className="h-[420px]">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="flex h-[300px] flex-col items-center justify-center px-8 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                 <Check className="h-6 w-6" />
@@ -241,7 +251,7 @@ export function NotificationCenter() {
             </div>
           ) : (
             <div className="divide-y divide-[#eef2f7]">
-              {items.map((row) => (
+              {visibleItems.map((row) => (
                 <button
                   key={row.id}
                   type="button"
