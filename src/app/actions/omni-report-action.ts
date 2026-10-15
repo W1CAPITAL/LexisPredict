@@ -529,13 +529,17 @@ async function buildProcessSources(instruction: string, sourceBlob: string, cons
     try {
       const { scanSingleCaseAction } = await import('@/app/actions/case-actions');
       const scan: any = await scanSingleCaseAction(cnj, { mode: 'both' } as any);
-      if (scan && scan.success !== false) {
+      const verified=scan?.sourceStatus?.datajud?.ok===true||scan?.sourceStatus?.djen?.ok===true;
+      if (scan && scan.success !== false && verified) {
         out.push({
           name: 'Tribunal DataJud/DJEN · ' + cnj,
           kind: 'tribunal',
           text: JSON.stringify(
             {
               processo: cnj,
+              fonte:'Consulta DataJud/DJEN via LexisPredict; consultar eventuais erros por fonte',
+              checkedAt:new Date().toISOString(),
+              sourceStatus:scan.sourceStatus,
               case: scan.case || scan.casePatch || null,
               movimentos: (scan.movimentos || []).slice(0, 120),
               comunicacoes: (scan.comunicacoes || []).slice(0, 80),
@@ -842,12 +846,13 @@ export async function generateOmniReportAction(
       }))
       .filter((s) => s.text);
 
-    if (instruction) {
-      supplied.unshift({
-        name: 'Contexto digitado pelo usuário',
-        kind: 'contexto_usuario',
-        text: instruction.slice(0, MAX_SOURCE_CHARS),
-      });
+    // O pedido descreve o OBJETO da pesquisa, não é evidência documental.
+    // Nunca apresentar a própria pergunta como "fonte S01".
+    const invalidLongCnjs=(instruction.match(/\b\d{21,25}\b/g)||[]);
+    if(invalidLongCnjs.length){
+      return {success:false,error:
+        'O número '+invalidLongCnjs[0]+' tem '+invalidLongCnjs[0].length+
+        ' dígitos. Um CNJ precisa de 20 dígitos. Confira e envie o número correto antes de gerar o dossiê.'};
     }
 
     const executionMode = input.executionMode === 'ia_online' ? 'ia_online' : 'local_gratis';
@@ -881,17 +886,24 @@ export async function generateOmniReportAction(
     }
 
     const sourceBlob = supplied.map((s) => s.text).join('\n\n').slice(0, MAX_TOTAL_CHARS);
-    const processSources = await buildProcessSources(instruction, sourceBlob, executionMode === 'ia_online');
+    // Consultas a DataJud/DJEN usam as integrações existentes, não LLM.
+    // Quando o usuário informou um CNJ completo, conferir também no modo grátis.
+    const recognizedCnjs=extractCnjs(instruction);
+    const processSources = await buildProcessSources(instruction, sourceBlob,
+      recognizedCnjs.length>0 || executionMode === 'ia_online');
     // In free mode do not query external websites or spend provider credits.
     const webSources = executionMode === 'ia_online'
       ? await import('@/lib/ai/research/spider-sources').then(x => x.spiderPublicSources(instruction)).catch(() => [])
       : [];
     const all = [...supplied, ...processSources, ...webSources];
 
-    if (!instruction && all.length === 0) {
+    if (all.filter(x=>x.kind!=='imagem_nao_transcrita').length === 0) {
       return {
         success: false,
-        error: 'Descreva o relatório, informe um processo ou envie algum material.',
+        error: recognizedCnjs.length
+          ? 'Não encontrei documentos ou movimentações verificáveis para '+recognizedCnjs[0]+
+            ' nesta tentativa. Confirme o CNJ, consulte DataJud/DJEN ou anexe os autos. Não vou gerar um relatório vazio fingindo que foi pesquisado.'
+          : 'Nenhuma fonte documental ou judicial foi localizada. Informe um CNJ válido, anexe documentos ou indique materiais verificáveis para produzir o dossiê.',
       };
     }
 
@@ -927,8 +939,8 @@ export async function generateOmniReportAction(
     const detail = input.detail || 'maximo';
     const asOffline = () => {
       const local = buildOfflineOmniReport(instruction, registered, detail);
-      const titleSeed = instruction.split('\n')[0].slice(0, 120)
-        || registered.find(x => x.kind === 'processo_interno')?.name || 'Dossiê OmniReport';
+      const titleSeed = recognizedCnjs.length?'Dossiê processual · '+recognizedCnjs[0]
+        : (instruction.split('\n')[0].slice(0, 90) || 'Dossiê OmniReport');
       const title = /dossi[eê]|relat[oó]rio|auditoria/i.test(titleSeed)
         ? titleSeed : 'Dossiê OmniReport · ' + titleSeed;
       const generatedAt = new Date().toLocaleString('pt-BR');
