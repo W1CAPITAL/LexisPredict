@@ -229,3 +229,17 @@ html[data-lexis-experience="1"] :is([data-slot="card"],[data-admin-card],[data-e
     colored success/destructive/primary buttons. */
  color:inherit;
 }
+
+/* Contraste adaptativo por superfície: a cor definida para o canvas não pode
+ * virar texto de card se o card possuir luminosidade oposta. */
+html[data-lexis-experience="1"] :is(.bg-card,.premium-card,[data-slot="card"],[data-admin-card],[data-efferd-kpi])
+ :is(.text-foreground,.text-card-foreground,.lexis-metric-value) {
+  color:hsl(var(--card-foreground)) !important;
+}
+html[data-lexis-experience="1"] :is(.bg-card,.premium-card,[data-slot="card"],[data-admin-card],[data-efferd-kpi])
+ :is(.text-muted-foreground,.lexis-metric-label) {
+  color:hsl(var(--card-muted-foreground,var(--muted-foreground))) !important;
+}
+html[data-lexis-experience="1"] :is([role="dialog"],[data-radix-popper-content-wrapper],[data-slot="popover"]) {
+  color:hsl(var(--popover-foreground)) !important;
+}
