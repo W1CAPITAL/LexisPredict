@@ -11,7 +11,10 @@ import {
  previewWaReturnCnjAction,scanOneWaReturnAction,scanNextWaReturnAction,
  scanWaReturnBatchAction,
 } from '@/app/actions/wa-daily-return-actions';
-type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number;sendAnytime?:boolean};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;error?:string};
+type QueueCase={id:number;cnj:string;cliente?:string|null;proximo_retorno:string;verified_at?:string};
+type ClosureReview={id:number;cnj:string;review_priority:string;court_flag_reason?:string|null;last_court_event?:string|null};
+type DueQueue={dueTotal:number;missingPhone:number;alreadyClosed:number;awaitingWhatsApp:number;needsSourceCheck:number;closureReview:number;oldClosureReview:number};
+type Dashboard={ok:boolean;settings?:{enabled:boolean;intervalDays:number;sendAnytime?:boolean};due?:number;sentToday?:number;readyToday?:number;reusedToday?:number;queuedToday?:number;deviceQueued?:number;campaignWaiting?:number;pausedWaiting?:number;courtUnavailable?:number;needsReview?:number;dueQueue?:DueQueue;dueItems?:{ready:QueueCase[];closureReview:ClosureReview[]};error?:string};
 const captions:Record<string,string>={
  not_due:'Próximo retorno ainda não venceu',closed:'Processo encerrado',no_consent:'Sem autorização para WhatsApp',court_unavailable:'Tribunais indisponíveis nesta tentativa; sem envio',checked_for_queue:'Conferência preparada na nuvem; nenhum envio realizado',
  blocked:'Contato bloqueado',phone:'Telefone não cadastrado',missing_return:'Sem data de último retorno para comparar',
@@ -151,6 +154,65 @@ export function WaDailyReturnPanel(){
      Apenas o aceite confirmado pelo dispositivo atualiza «Enviados hoje».
     </p>
    </div>
+  ):null}
+  {dash?.ok&&dash.dueQueue?(
+   <section className="rounded-xl border border-border p-3 space-y-3" aria-label="Fila de vencidos e casos sem telefone">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+     <strong className="text-sm">Fila de retornos vencidos</strong>
+     <span className="text-[11px] text-muted-foreground">Preparação na nuvem · não significa envio concluído</span>
+    </div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+     {([
+      ['Preparados para envio',dash.dueQueue.awaitingWhatsApp],
+      ['Sem telefone válido',dash.dueQueue.missingPhone],
+      ['Falta conferência oficial',dash.dueQueue.needsSourceCheck],
+      ['Já encerrados',dash.dueQueue.alreadyClosed],
+      ['Encerramento a revisar',dash.dueQueue.closureReview],
+      ['Antigos (+1 ano)',dash.dueQueue.oldClosureReview],
+     ] as [string,number][]).map(([title,n])=>(
+      <div key={title} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+       <div className="text-[11px] text-muted-foreground">{title}</div>
+       <strong className="text-lg tabular-nums">{n}</strong>
+      </div>
+     ))}
+    </div>
+    <p className="text-xs text-muted-foreground">
+     Os avisos preparados ficam registrados na fila persistente do servidor.
+     A fila do dispositivo é separada: só recebe um trabalho quando há WhatsApp conectado
+     e chega sua vez, respeitando intervalo, consentimento e bloqueios.
+     Processos sem telefone não serão marcados como atendidos.
+    </p>
+    <details className="rounded-lg border border-border p-2.5">
+     <summary className="cursor-pointer text-xs font-semibold">Ver próximos processos preparados</summary>
+     <div className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">
+      {(dash.dueItems?.ready||[]).map(item=>(
+       <div key={item.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+        <span className="font-semibold">{item.cnj||'CNJ indisponível'}</span>
+        <span className="ml-2 text-muted-foreground">{item.cliente||'Cliente sem nome'} · retorno vencido em {item.proximo_retorno}</span>
+       </div>
+      ))}
+      {!dash.dueItems?.ready?.length?<span className="text-muted-foreground">Nenhum caso pronto nesta consulta.</span>:null}
+     </div>
+     <p className="mt-2 text-[11px] text-muted-foreground">Exibindo até 15 registros; o servidor conserva os demais.</p>
+    </details>
+    {Number(dash.dueQueue.closureReview)>0?(
+     <details className="rounded-lg border border-border p-2.5">
+      <summary className="cursor-pointer text-xs font-semibold">Ver encerramentos que exigem confirmação oficial</summary>
+      <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto text-xs">
+       {(dash.dueItems?.closureReview||[]).map(item=>(
+        <div key={item.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+         <div className="font-semibold">{item.cnj}</div>
+         <div className="text-muted-foreground">
+          {item.review_priority==='old_over_365_days'?'Movimentação com mais de 1 ano':item.review_priority==='old_over_180_days'?'Movimentação entre 6 e 12 meses':'Encerramento não confirmado'}
+          {item.last_court_event?' · registro de '+item.last_court_event:''}
+         </div>
+         <div className="text-muted-foreground">Registro anterior: {item.court_flag_reason||'motivo não documentado'}. Aguardando validação das fontes oficiais.</div>
+        </div>
+       ))}
+      </div>
+     </details>
+    ):null}
+   </section>
   ):null}
   <div className="rounded-xl border border-border p-3 space-y-2">
    <p className="text-xs font-semibold">Scanner de retornos · lotes rápidos na nuvem</p>
