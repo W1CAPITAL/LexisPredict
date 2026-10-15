@@ -106,3 +106,18 @@ export async function uploadExperienceImageAction(base64:string,kind:'avatar'|'w
   return {ok:true as const,url:data.publicUrl};
  }catch(e){return {ok:false as const,error:e instanceof Error?e.message:'Upload indisponível'}}
 }
+
+/** Quick theme-toggle persistence without altering legal acceptance/profile. */
+export async function updateExperienceAppearanceAction(patch:{mode?:'light'|'dark'|'system';theme?:string;primary?:string}){
+ try{
+  const {db,uid}=await currentActor();
+  const {data,error}=await db.from('lexis_user_experience')
+   .select('preferences').eq('auth_user_id',uid).maybeSingle();
+  if(error||!data) return {ok:false as const};
+  const next=cleanExperiencePrefs({...data.preferences,...patch});
+  const {error:saveError}=await db.from('lexis_user_experience')
+   .update({preferences:next,updated_at:new Date().toISOString()})
+   .eq('auth_user_id',uid);
+  return {ok:!saveError};
+ }catch{return {ok:false as const}}
+}
