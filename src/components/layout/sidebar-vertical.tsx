@@ -12,6 +12,8 @@ import {
   CalendarDays,
   Calculator,
   ChevronRight,
+  ArrowUp,
+  PanelLeftClose,
   Crown,
   FileText,
   FolderOpen,
@@ -41,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
+import {loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 
 type NavItem = {
   label: string;
@@ -90,6 +93,8 @@ export function SidebarVertical() {
   const { plan } = usePlano();
   const openScanner = useDataJudScanStore((state) => state.openScanner);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [navBehavior,setNavBehavior]=useState<ExperiencePreferences['sidebarBehavior']>('fixed');
+  const [navOpened,setNavOpened]=useState(true);
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
 
@@ -134,6 +139,17 @@ export function SidebarVertical() {
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems],
   );
+
+  useEffect(()=>{
+    const refresh=()=>{
+      const behavior=loadExperiencePrefs().sidebarBehavior;
+      setNavBehavior(behavior);
+      setNavOpened(behavior==='fixed');
+    };
+    refresh();
+    window.addEventListener('lexis-experience-updated',refresh);
+    return()=>window.removeEventListener('lexis-experience-updated',refresh);
+  },[]);
 
   // Tudo continua disponível, mas fora do primeiro nível.
   const mobileExtraItems = extraItems;
@@ -434,10 +450,20 @@ export function SidebarVertical() {
 
   return (
     <>
+      {navBehavior!=='fixed'?(
+        <button type="button" onClick={()=>setNavOpened(o=>!o)}
+          aria-label={navOpened?'Ocultar menu lateral':'Mostrar menu lateral'}
+          aria-expanded={navOpened}
+          className="fixed left-2 top-1/2 z-[195] hidden -translate-y-1/2 items-center gap-1 rounded-xl border border-border bg-card px-3 py-3 text-foreground shadow-xl md:flex"
+          title={navOpened?'Ocultar menu':'Abrir menu'}>
+          {navOpened?<PanelLeftClose className="h-5 w-5"/>:<ArrowUp className="h-5 w-5"/>}
+        </button>
+      ):null}
       <aside
         data-lexis-sidebar
+        data-nav-open={navOpened?'true':'false'}
         data-lexis-commercial-sidebar
-        className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-[#dce5f1] md:block"
+        className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-border transition-transform duration-200 md:block"
       >
         <SidebarBody />
       </aside>
