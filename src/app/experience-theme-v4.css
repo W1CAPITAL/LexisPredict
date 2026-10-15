@@ -243,3 +243,69 @@ html[data-lexis-experience="1"] :is(.bg-card,.premium-card,[data-slot="card"],[d
 html[data-lexis-experience="1"] :is([role="dialog"],[data-radix-popper-content-wrapper],[data-slot="popover"]) {
   color:hsl(var(--popover-foreground)) !important;
 }
+
+
+/* LexisPredict · correção de contraste e wallpaper (2026-10-15)
+ * A barra vertical tinha caracteres claros em superfícies brancas após
+ * a aplicação de overrides do painel comercial.
+ */
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-lexis-sidebar],
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-lexis-sidebar] > div:first-child {
+  background: hsl(var(--sidebar-background, 215 70% 16%)) !important;
+  color: hsl(var(--sidebar-foreground, 0 0% 100%)) !important;
+  border-color: hsl(var(--sidebar-border, 215 22% 36%)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav :is(a,button,svg),
+html[data-lexis-experience="1"] [data-lexis-sidebar] > div:first-child > div:first-child :is(p,span,a),
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav :is(a,button) :is(span,svg) {
+  color: hsl(var(--sidebar-foreground, 0 0% 100%)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a[aria-current="page"],
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a[aria-current="page"] :is(span,svg) {
+  color: hsl(var(--sidebar-foreground)) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav a:hover,
+html[data-lexis-experience="1"] [data-lexis-sidebar] nav button:hover {
+  background-color: hsl(var(--sidebar-accent)) !important;
+  color: hsl(var(--sidebar-accent-foreground,var(--sidebar-foreground))) !important;
+}
+
+/* Fundo da página: sem esta regra, o background sólido das antigas páginas
+ * comerciais mascara completamente a camada de imagem.
+ */
+html[data-lexis-experience="1"].lexis-wallpaper-active,
+html[data-lexis-experience="1"].lexis-wallpaper-active body.ops-ui:has([data-lexis-commercial-sidebar]) {
+  background-image: var(--lexis-wallpaper-image) !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body.ops-ui:has([data-lexis-commercial-sidebar]) {
+  background: transparent !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) main,
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) [data-main-shell],
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) .admin-page-header {
+  background-image: none !important;
+  background-color: hsl(var(--background) / .69) !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) :is(
+ .premium-card,.lexis-metric,[data-slot="card"],[data-admin-card],[data-efferd-kpi],.bg-card
+) {
+  background: hsl(var(--card) / .90) !important;
+  color: hsl(var(--card-foreground)) !important;
+  border-color: hsl(var(--border) / .9) !important;
+}
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) table,
+html[data-lexis-experience="1"].lexis-wallpaper-active body:has([data-lexis-commercial-sidebar]) :is(input,select,textarea) {
+  background: hsl(var(--card)/.92) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+/* Conserva formulários e janelas modais opacos para leitura/contraste. */
+html[data-lexis-experience="1"] :is([role="dialog"],[role="alertdialog"]) {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+html[data-lexis-experience="1"] :is([role="dialog"],[role="alertdialog"]) :is(h1,h2,h3,p,label) {
+  color: inherit;
+}
