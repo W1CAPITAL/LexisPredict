@@ -38,7 +38,21 @@ export type ThemePreset = {
 };
 
 export function getPresetColors(preset: ThemePreset, mode: ThemeMode): ThemeColors {
-  return preset.colors[mode] || preset.colors.light;
+  const colors=preset.colors[mode]||preset.colors.light;
+  if(mode==='dark'){
+    // Imported palettes sometimes contain a duplicate light theme in their
+    // dark slot. Enforce an actual dark surface instead of merely changing
+    // the .dark class and leaving cards white or text illegible.
+    const bg=normalize(colors.background);
+    const n=parseInt(bg.slice(1),16);
+    const lum=((n>>16)&255)*.2126+((n>>8)&255)*.7152+(n&255)*.0722;
+    if(lum>150){
+      return {background:'#0B1220',bgSecondary:'#152033',
+        foreground:'#F1F5F9',fontMuted:'#CBD5E1',
+        primary:colors.primary,accent:'#25344D',border:'#34465F',nav:'#080F1B'};
+    }
+  }
+  return colors;
 }
 
 function normalize(hex: string): string {
