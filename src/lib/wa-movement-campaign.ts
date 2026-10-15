@@ -196,8 +196,6 @@ export async function queueNextMovementForTenant(empresaId:string,campaignId?:st
   }).format(local)), weekday=new Intl.DateTimeFormat('en-US',{
     timeZone:'America/Sao_Paulo',weekday:'short',
   }).format(local);
-  if(hour<9||hour>=18||['Sat','Sun'].includes(weekday))
-    return {ok:true as const,queued:false,processed:false,reason:'outside_business_hours'};
   const connection=await bridgeStatus(empresaId);
   if(!connection.connected)
     return {ok:true as const,queued:false,processed:false,reason:'device_offline'};
@@ -205,6 +203,8 @@ export async function queueNextMovementForTenant(empresaId:string,campaignId?:st
   const settings=await getDailyReturnSettings(empresaId);
   if(!settings.enabled||!settings.consentAttested)
     return {ok:true as const,queued:false,processed:false,reason:'automation_disabled'};
+  if(!settings.sendAnytime && (hour<9||hour>=18||['Sat','Sun'].includes(weekday)))
+    return {ok:true as const,queued:false,processed:false,reason:'outside_business_hours'};
   let id=campaignId;
   if(!id){
     const {data,error}=await db.from('wa_movement_campaigns')
