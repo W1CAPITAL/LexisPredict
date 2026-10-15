@@ -454,6 +454,7 @@ export function SidebarVertical() {
         <button type="button" onClick={()=>setNavOpened(o=>!o)}
           aria-label={navOpened?'Ocultar menu lateral':'Mostrar menu lateral'}
           aria-expanded={navOpened}
+          data-lexis-nav-handle
           className="fixed left-2 top-1/2 z-[195] hidden -translate-y-1/2 items-center gap-1 rounded-xl border border-border bg-card px-3 py-3 text-foreground shadow-xl md:flex"
           title={navOpened?'Ocultar menu':'Abrir menu'}>
           {navOpened?<PanelLeftClose className="h-5 w-5"/>:<ArrowUp className="h-5 w-5"/>}
