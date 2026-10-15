@@ -153,7 +153,9 @@ export async function getMovementCampaign() {
         .eq('empresa_id',ctx.empresa_id).eq('campaign_id',data.id).eq('status','cancelled').like('last_error','source_review:%'),
     ]);
     if(pending.error||review.error)throw new Error('Não foi possível conferir o progresso da fila.');
-    return {ok:true as const,campaign:{...data,pending_count:pending.count||0,review_count:review.count||0}};
+    const settings=await getDailyReturnSettings(ctx.empresa_id);
+    return {ok:true as const,campaign:{...data,send_anytime:settings.sendAnytime,
+      pending_count:pending.count||0,review_count:review.count||0}};
   } catch(e:any) {return {ok:false as const,error:String(e?.message||e)};}
 }
 
