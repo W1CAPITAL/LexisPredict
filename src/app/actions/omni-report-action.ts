@@ -1,6 +1,6 @@
 'use server';
 
-import { getUserContext, getStoredCasesForEmpresa } from '@/lib/server-db';
+import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
 import { runCascade, type VisionImage } from '@/lib/ai/cascade';
 import { buildOfflineOmniReport } from '@/lib/omni-report-offline';
 
@@ -479,9 +479,38 @@ async function buildProcessSources(instruction: string, sourceBlob: string, cons
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return [] as OmniReportSource[];
 
-  const cases = await getStoredCasesForEmpresa(ctx.empresa_id, false);
   const blob = instruction + '\n' + sourceBlob;
   const cnjs = extractCnjs(blob).slice(0, 5);
+  // Consultas por CNJ usam SELECT filtrado e indexável. Evita carregar
+  // a carteira inteira só para encontrar um processo entre milhares.
+  let cases:any[]=[];
+  if(cnjs.length){
+    const db=await getSupabaseAdmin();
+    const variants=new Set<string>();
+    for(const cnj of cnjs){
+      const digits=onlyDigits(cnj);
+      if(digits.length!==20)continue;
+      variants.add(digits);
+      variants.add(digits.slice(0,7)+'-'+digits.slice(7,9)+'.'+digits.slice(9,13)
+        +'.'+digits.slice(13,14)+'.'+digits.slice(14,16)+'.'+digits.slice(16,20));
+    }
+    if(variants.size){
+      const {data,error}=await db.from('processos')
+        .select('id,cliente,protocolo_ref,tribunal,advogado,escritorio,status,status_interno,ultimo_retorno,proximo_retorno,observacoes,datajud_ultimo_nome,datajud_ultimo_movimento,djen_ultimo_resumo,datajud_encerrado_tribunal,em_cumprimento_sentenca,indicio_busca_apreensao,dados')
+        .eq('empresa_id',ctx.empresa_id)
+        .in('protocolo_ref',[...variants]).limit(15);
+      if(!error)cases=(data||[]).map((row:any)=>({
+        ...(row.dados&&typeof row.dados==='object'?row.dados:{}),...row,
+        protocolo:row.protocolo_ref,cliente:row.cliente||row.dados?.cliente,
+        situacao:row.status_interno||row.dados?.situacao,
+        observacao:row.observacoes||row.dados?.observacao,
+        ultimoRetorno:row.ultimo_retorno||row.dados?.ultimoRetorno,
+        proximoPrazo:row.proximo_retorno||row.dados?.proximoPrazo,
+      }));
+    }
+  }else{
+    cases=await getStoredCasesForEmpresa(ctx.empresa_id,false) as any[];
+  }
   const out: OmniReportSource[] = [];
   const used = new Set<string>();
 
