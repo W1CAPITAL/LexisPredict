@@ -23,13 +23,21 @@ export async function bridgeStatus(tenant:string,canSeeQr=false){
   if(error)throw new Error('Não foi possível consultar a ponte WhatsApp: '+error.message);
   const age=data?.last_seen?Date.now()-Date.parse(data.last_seen):Infinity;
   const online=!!data&&Number.isFinite(age)&&age>=0&&age<45000;
+  const qrStored=data?.state==='qr'
+    &&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(data.qr_data_url||''))
+    &&String(data.qr_data_url||'').length<90000;
+  // A imagem pode ser mostrada para recuperar a interface, mas não pode ser
+  // apresentada como QR válido sem um heartbeat recente do worker.
+  const qrRecent=!!qrStored&&Number.isFinite(age)&&age>=0&&age<=180000;
   return {
     provisioned:!!data,online,connected:online&&data?.state==='ready',
     state:online?data?.state||'offline':'offline',
-    qr:online&&canSeeQr&&data?.state==='qr'&&String(data.qr_data_url||'').startsWith('data:image/png;base64,')
-      ?String(data.qr_data_url):null,
+    connectionState:data?.state||'offline',
+    qr:canSeeQr&&qrRecent?String(data.qr_data_url):null,
+    qrFresh:online&&!!qrRecent,
+    qrStale:!!qrStored&&!online,
     phone:online?data?.phone||null:null,
-    error:online?data?.last_error||null:null,
+    error:data?.last_error||null,
     lastSeen:data?.last_seen||null,
   };
 }
