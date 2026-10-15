@@ -6,6 +6,9 @@ import {prepareMovementAlert} from '@/lib/wa-movement-builder';
 import {enqueueScannedMovement} from '@/lib/wa-movement-campaign';
 import {bridgeStatus} from '@/lib/whatsapp-local';
 import {getDailyReturnSettings} from '@/lib/wa-daily-return-service';
+import {brazilToday} from '@/lib/wa-daily-return-policy';
+import {clientFirstName,clientGreeting,CLIENT_NOTICE_OPT_OUT} from '@/lib/wa-client-notice';
+import {isCasoEncerrado} from '@/lib/status-encerrado';
 
 function normalizePhone(input:unknown) {
   const digits=String(input||'').replace(/\D/g,'');
@@ -111,4 +114,99 @@ export async function queueCheckedPortfolioContact(empresaId:string){
     return {queued:true,reason:'queued_neutral_checkin'};
   }
   return {queued:false,reason:'no_eligible_contact'};
+}
+
+
+/**
+ * One real overdue follow-up, distinct from a new judicial movement.
+ * Every candidate was scanned through at least one official court source,
+ * is due TODAY, and belongs to a tenant with ongoing opt-in attestation.
+ * This never changes last/next return dates itself: the WhatsApp ACK trigger
+ * is the sole writer of a confirmed check-in's dates.
+ */
+export async function queueOverdueContact(empresaId:string){
+  const settings=await getDailyReturnSettings(empresaId);
+  if(!settings.enabled||!settings.consentAttested)
+    return {queued:false,reason:'automation_disabled'};
+  if(!settings.sendAnytime&&!businessWindow())
+    return {queued:false,reason:'outside_business_hours'};
+  if(!(await bridgeStatus(empresaId)).connected)
+    return {queued:false,reason:'device_offline'};
+  const db=await getSupabaseAdmin(),day=brazilToday();
+  const {data:candidates,error:loadError}=await db.rpc('wa_next_checked_overdue',{
+    p_empresa:empresaId,p_day:day,p_limit:30,
+  });
+  if(loadError)throw new Error('Erro na seleção de vencidos: '+loadError.message);
+  if(!candidates?.length)return {queued:false,reason:'no_verified_overdue'};
+  for(const item of candidates){
+    const update=async (state:'no_phone'|'blocked'|'ineligible'|'movement'|'queued',jobId?:string)=>{
+      const {error}=await db.from('wa_portfolio_scan_queue')
+        .update({outreach_status:state,...(jobId?{outreach_job_id:jobId}:{})})
+        .eq('empresa_id',empresaId).eq('id',item.queue_id).eq('outreach_status','pending');
+      if(error)throw new Error('Registro da fila indisponível');
+    };
+    const {data:row,error:caseError}=await db.from('processos').select('*')
+      .eq('empresa_id',empresaId).eq('id',item.process_id).maybeSingle();
+    if(caseError||!row){await update('ineligible');continue;}
+    const phone=normalizePhone(row.telefone||row.dados?.telefone||row.dados?.TELEFONE);
+    if(!phone||phone!==item.phone){await update('no_phone');continue;}
+    if(!row.proximo_retorno || String(row.proximo_retorno).slice(0,10)>day ||
+       isCasoEncerrado(row)){await update('ineligible');continue;}
+    if(explicitBlock(row.dados||{}) || await contactOptedOut(empresaId,phone)){
+      await update('blocked');continue;
+    }
+    // New court evidence is actionable and gets a substantive notice, rather
+    // than being replaced by a generic overdue follow-up.
+    const newEvent=prepareMovementAlert(row,settings.consentAttested);
+    if(newEvent.alert){
+      await enqueueScannedMovement(empresaId,Number(row.id));
+      await update('movement');
+      continue;
+    }
+    // A phone can legitimately own several cases, but it should not receive
+    // repeated outbound notices on the same day or within 24 hours.
+    const {data:recent,error:recentError}=await db.from('wa_daily_return_sends')
+      .select('id').eq('empresa_id',empresaId).eq('phone',phone)
+      .in('status',['reserved','sent','uncertain'])
+      .gte('created_at',new Date(Date.now()-24*3600_000).toISOString()).limit(1);
+    if(recentError)throw new Error('Não foi possível conferir contatos recentes');
+    if(recent?.length)continue;
+    const name=clientFirstName(String(row.cliente||row.dados?.cliente||''));
+    const digits=String(row.protocolo_ref||'').replace(/\D/g,'');
+    const cnj=digits.length===20
+      ?digits.slice(0,7)+'-'+digits.slice(7,9)+'.'+digits.slice(9,13)+'.'+digits.slice(13,14)+'.'+digits.slice(14,16)+'.'+digits.slice(16)
+      :'';
+    if(!cnj){await update('ineligible');continue;}
+    const message=[
+      clientGreeting(name),
+      'Estamos entrando em contato para realizar seu retorno periódico referente ao processo nº '+cnj+'.',
+      'Nossa equipe realizou uma conferência das informações oficiais disponíveis e segue à disposição para explicar os registros e esclarecer suas dúvidas. Esta mensagem não indica, por si só, uma nova decisão ou movimentação.',
+      'Se quiser conversar sobre o andamento do seu processo, pode responder por aqui.',
+      CLIENT_NOTICE_OPT_OUT,
+    ].join('\n\n');
+    // Same due cycle = same hash; a fresh cycle only starts when the prior
+    // contact was actually acknowledged and the next-return date advanced.
+    const hash=createHash('sha256').update(
+      [empresaId,row.id,String(row.proximo_retorno).slice(0,10),'overdue-checkin-v1'].join('|')
+    ).digest('hex');
+    const {data:sendId,error:reserveError}=await db.rpc('wa_reserve_return',{
+      p_empresa:empresaId,p_processo:row.id,p_phone:phone,
+      p_hash:hash,p_source:'Acompanhamento',p_event_at:new Date().toISOString(),
+      p_mode:'checkin',p_message:message,
+    });
+    if(reserveError)throw new Error('Erro ao reservar retorno vencido: '+reserveError.message);
+    if(!sendId)return {queued:false,reason:'shared_gap_or_daily_limit'};
+    const {data:jobId,error:attachError}=await db.rpc('wa_local_attach_return',{
+      p_empresa:empresaId,p_send:sendId,
+    });
+    if(attachError||!jobId){
+      await db.from('wa_daily_return_sends').update({
+        status:'rejected',last_error:'Fila de dispositivo indisponível antes do envio'
+      }).eq('empresa_id',empresaId).eq('id',sendId).eq('status','reserved');
+      return {queued:false,reason:'device_queue_unavailable'};
+    }
+    await update('queued',String(jobId));
+    return {queued:true,reason:'overdue_checkin_queued',jobId:String(jobId)};
+  }
+  return {queued:false,reason:'no_available_overdue'};
 }
