@@ -4,7 +4,7 @@ import {saveUiPrefs,loadUiPrefs} from '@/lib/ui-prefs';
 import {saveNavLayout} from '@/lib/nav-layout';
 import {applyWallpaperUrl,resetWallpaper} from '@/lib/visual-hardware';
 
-export const EXPERIENCE_VERSION=3;
+export const EXPERIENCE_VERSION=4;
 export const EXPERIENCE_KEY='lexis_user_experience_v3';
 
 export type ExperiencePreferences={
