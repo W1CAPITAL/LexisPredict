@@ -129,6 +129,13 @@ export function OmniReportStudio() {
       setError("Descreva o que precisa ou envie algum material.");
       return;
     }
+    // Evita HTTP 413 em múltiplas imagens/fontes de uma só vez.
+    const requestBytes=images.reduce((n,x)=>n+x.data.length,0)
+      +sources.reduce((n,x)=>n+x.text.length*2,0)+instruction.length;
+    if(requestBytes>7_000_000){
+      setError('Os anexos deste pedido ultrapassam o limite seguro de transmissão. Envie menos imagens por vez ou peça continuação do dossiê.');
+      return;
+    }
     setGenerating(true);
     setGenerated(null);
     setError("");
