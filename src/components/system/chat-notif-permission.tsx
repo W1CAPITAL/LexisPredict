@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { Bell, BellOff, MessagesSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {loadExperiencePrefs} from '@/lib/experience-prefs';
 
 const LS_KEY = "lexis_chat_notif";
 
@@ -17,6 +18,7 @@ export function ChatNotifPermission() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (loadExperiencePrefs().notifications !== 'all') return;
     if (!("Notification" in window)) return;
 
     let pref = "";
@@ -127,6 +129,7 @@ export function notifyChatMessage(
   opts?: { forceOs?: boolean; silentInApp?: boolean }
 ) {
   if (typeof window === "undefined") return;
+  if (loadExperiencePrefs().notifications !== 'all') return;
 
   const text = String(body || "Nova mensagem").slice(0, 160);
   const ttl = title || "Chat equipe";
