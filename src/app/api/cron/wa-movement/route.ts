@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/server-db';
 import { queueNextMovementForTenant } from '@/lib/wa-movement-campaign';
 import { prepareMovementAlert } from '@/lib/wa-movement-builder';
 import { contactOptedOut } from '@/lib/wa-contact-privacy';
+import { queueCheckedPortfolioContact } from '@/lib/wa-portfolio-outreach';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -91,10 +92,20 @@ export async function GET(request: Request) {
         const recovered = cfg.owner_auth_id
           ? await recoverApprovedNotices(db,cfg.empresa_id,cfg.owner_auth_id) : 0;
         const next = await queueNextMovementForTenant(cfg.empresa_id);
+        let checkin:{queued:boolean;reason:string}|null=null;
+        if(!next.queued){
+          // Prioritize all meaningful court-movement notices over neutral
+          // check-ins. The shared server-side reservation still enforces
+          // per-contact and per-day limits when movement queues are empty.
+          const {data:active}=await db.from('wa_movement_campaigns')
+            .select('id').eq('empresa_id',cfg.empresa_id).eq('status','running')
+            .limit(1);
+          if(!active?.length)checkin=await queueCheckedPortfolioContact(cfg.empresa_id);
+        }
         results.push({
           tenant: cfg.empresa_id,
-          queued: next.queued === true,
-          reason: 'reason' in next ? String(next.reason) : 'processed',
+          queued: next.queued === true || checkin?.queued === true,
+          reason: checkin?.reason || ('reason' in next ? String(next.reason) : 'processed'),
           recovered,
         });
       } catch (e) {
