@@ -54,7 +54,13 @@ export async function getWaDailyReturnDashboardAction(){
   const failed=[sentError,readyError,reusedError,deviceError,campaignError,pausedError,sourceError,reviewError]
     .find(Boolean);
   if(failed)throw new Error('Não foi possível consultar as filas: '+failed.message);
-  return {ok:true as const,settings:{enabled:settings.enabled,intervalDays:settings.intervalDays,sendAnytime:settings.sendAnytime},
+  const [summary,detail]=await Promise.all([
+    db.rpc('wa_overdue_queue_summary',{p_empresa:me.empresaId,p_day:day}),
+    db.rpc('wa_overdue_queue_items',{p_empresa:me.empresaId,p_day:day}),
+  ]);
+  if(summary.error||detail.error)throw new Error('A fila de vencidos está indisponível; tente recarregar.');
+  return {ok:true as const,dueQueue:summary.data,dueItems:detail.data,
+    settings:{enabled:settings.enabled,intervalDays:settings.intervalDays,sendAnytime:settings.sendAnytime},
     due:Number(count||0),sentToday:Number(sentToday||0),readyToday:Number(readyToday||0),
     reusedToday:Number(reusedToday||0),
     queuedToday:Number(deviceJobs||0),deviceQueued:Number(deviceJobs||0),
