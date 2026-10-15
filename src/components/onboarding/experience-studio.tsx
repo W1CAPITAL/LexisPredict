@@ -1,5 +1,7 @@
 "use client";
 import {useEffect,useState,useRef} from 'react';
+import {useAuth} from '@/components/auth/auth-provider';
+import {usePathname} from 'next/navigation';
 import {X,ArrowLeft,ArrowRight,Check,ShieldCheck,Upload,Palette,PanelLeft,Type,LayoutDashboard,UserCircle,Loader2} from 'lucide-react';
 import {getExperienceAction,saveExperienceAction,uploadExperienceImageAction} from '@/app/actions/experience-actions';
 import {EXPERIENCE_TERMS,EXPERIENCE_TERMS_VERSION} from '@/lib/experience-terms';
@@ -207,9 +209,7 @@ export function ExperienceGate(){
  const [data,setData]=useState<Awaited<ReturnType<typeof getExperienceAction>>|null>(null);
  const [done,setDone]=useState(false);
  const [loading,setLoading]=useState(false);
- const {useAuth}=require('@/components/auth/auth-provider') as typeof import('@/components/auth/auth-provider');
  const {user,profile}=useAuth();
- const {usePathname}=require('next/navigation') as typeof import('next/navigation');
  const path=usePathname();
  useEffect(()=>{
   if(!user?.id||!profile?.empresa_id||profile.empresa_id==='guest-local')return;
