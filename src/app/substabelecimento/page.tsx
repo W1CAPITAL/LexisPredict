@@ -289,7 +289,8 @@ export default function SubstabelecimentoGenerator() {
                <Settings className="h-4 w-4" />
                <AlertTitle className="font-black uppercase text-xs">Configuração Requerida</AlertTitle>
                <AlertDescription className="text-[10px] font-bold uppercase space-y-4">
-                  <p>Cadastre os advogados da sua banca em Configurações para habilitar este módulo.</p>
+                  <p>{bancaLoading ? 'Consultando os advogados cadastrados...' : (bancaError || 'Nenhum advogado acessível na sessão atual. Não recadastre antes de verificar seu login.')}</p>
+                  <Button metal={false} onClick={() => void loadBanca()} disabled={bancaLoading} className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">Recarregar banca</Button>
                   <Button metal={false} asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
                     <Link href="/settings">Configurar Banca Agora</Link>
                   </Button>
