@@ -40,7 +40,7 @@ export async function queueCheckedPortfolioContact(empresaId:string){
   if(!status.connected)return {queued:false,reason:'device_offline'};
   const {data:items,error}=await db.from('wa_portfolio_scan_queue')
     .select('id,processo_id,contact_phone')
-    .eq('empresa_id',empresaId).eq('status','verified').eq('outreach_status','pending')
+    .eq('empresa_id',empresaId).in('status',['verified','partial']).eq('outreach_status','pending')
     .order('id',{ascending:true}).limit(8);
   if(error)throw new Error('Full-portfolio contact queue unavailable');
   if(!items?.length)return {queued:false,reason:'no_verified_contact'};
@@ -74,7 +74,7 @@ export async function queueCheckedPortfolioContact(empresaId:string){
     // Do not imply a win, closure, payment, or even the absence of a new
     // movement when it has not been verified. A human can explain on reply.
     const message='Olá! Tudo bem? Aqui é do setor processual da GET Assessoria. '
-      +'Fizemos uma nova conferência dos registros oficiais do processo em acompanhamento. '
+      +'Fizemos uma nova consulta às informações oficiais disponíveis sobre o processo acompanhado pela nossa equipe. '
       +'Se quiser saber os detalhes ou tiver alguma dúvida, pode falar com nossa equipe por aqui. '
       +'Se preferir não receber novos avisos, é só responder SAIR.';
     const hash=createHash('sha256')
