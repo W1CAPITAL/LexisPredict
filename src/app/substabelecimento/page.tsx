@@ -62,6 +62,13 @@ export default function SubstabelecimentoGenerator() {
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [manualClient, setManualClient] = useState('');
+  const [manualCnj, setManualCnj] = useState('');
+  const [manualAcao, setManualAcao] = useState('');
+  const [manualBanco, setManualBanco] = useState('');
+  const [manualComarca, setManualComarca] = useState('');
+  const [bancaLoading, setBancaLoading] = useState(true);
+  const [bancaError, setBancaError] = useState('');
   const [banca, setBanca] = useState<any[]>([]);
   const [advLeavingId, setAdvLeavingId] = useState('');
   const [advEnteringId, setAdvEnteringId] = useState('');
@@ -74,21 +81,85 @@ export default function SubstabelecimentoGenerator() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function load() {
+  const loadBanca = async () => {
+    setBancaLoading(true);
+    setBancaError('');
+    try {
       const data = await listAdvogadosBanca();
-      setBanca(data);
-      if (data.length > 0) {
-        setAdvLeavingId(data[0].id);
-        setAdvEnteringId(data[0].id);
-        setSelectedState(Object.keys(data[0].oabs || {})[0] || 'SP');
+      setBanca(Array.isArray(data) ? data : []);
+      if (data?.length) {
+        setAdvLeavingId(prev => data.some((adv: any) => adv.id === prev) ? prev : data[0].id);
+        setAdvEnteringId(prev => data.some((adv: any) => adv.id === prev && adv.id !== data[0].id)
+          ? prev : (data[1]?.id || ''));
+        const enter = data[1] || data[0];
+        const ufs = Object.keys(enter.oabs || {});
+        setSelectedState(ufs.includes('SP') ? 'SP' : (ufs[0] || 'SP'));
+      } else {
+        setBancaError('A banca não retornou dados para este usuário. Verifique a autenticação e a empresa vinculada.');
       }
+    } catch (error) {
+      setBanca([]);
+      setBancaError('Falha ao consultar banca; renove o login e tente novamente.');
+      console.error('[substabelecimento] Falha ao buscar banca', error);
+    } finally {
+      setBancaLoading(false);
     }
-    load();
-  }, []);
+  };
+  useEffect(() => { void loadBanca(); }, []);
 
   const advLeaving = banca.find(a => a.id === advLeavingId);
   const advEntering = banca.find(a => a.id === advEnteringId);
+
+  const handleManualReview = () => {
+    if (!advLeaving || !advEntering || advLeaving.id === advEntering.id) {
+      toast({ title: 'Selecione dois advogados distintos', variant: 'destructive' });
+      return;
+    }
+    if (!manualClient.trim() || !manualAcao.trim() || !manualComarca.trim()) {
+      toast({ title: 'Preencha cliente, tipo de ação e comarca', variant: 'destructive' });
+      return;
+    }
+    if (manualCnj.trim() && manualCnj.replace(/\D/g, '').length !== 20) {
+      toast({ title: 'Número CNJ inválido: informe 20 dígitos', variant: 'destructive' });
+      return;
+    }
+    const registeredOab = (lawyer: any, preferred: string) => {
+      const map = lawyer?.oabs || {};
+      const uf = map[preferred] ? preferred : (map.SP ? 'SP' : Object.keys(map)[0]);
+      const number = String(map[uf] || '').trim();
+      return { uf, number, completa: number ? 'OAB/' + uf + ' n.º ' + number : '' };
+    };
+    const leavingOab = registeredOab(advLeaving, selectedState);
+    const enteringOab = registeredOab(advEntering, selectedState);
+    if (!leavingOab.number || !enteringOab.number) {
+      toast({ title: 'Inscrição OAB ausente no cadastro', variant: 'destructive' });
+      return;
+    }
+    setApiError(null);
+    setIncludeBankInfo(Boolean(manualBanco.trim()));
+    setIncludeProcessNumber(Boolean(manualCnj.trim()));
+    setExtractedData({
+      cliente: {
+        nome: manualClient.trim(), cpf: '', rg: '', endereco: '', email: '', telefone: '',
+      },
+      processo: {
+        banco: manualBanco.trim(), cnpjBanco: '', numero: manualCnj.trim(), acao: manualAcao.trim(),
+      },
+      substabelecente: {
+        nome: advLeaving.nome, genero: advLeaving.genero || 'M',
+        nacionalidade: advLeaving.nacionalidade || '', estadoCivil: advLeaving.estado_civil || '',
+        oabCompleta: leavingOab.completa, oabCurta: leavingOab.completa,
+      },
+      substabelecido: {
+        nome: advEntering.nome, genero: advEntering.genero || 'M',
+        nacionalidade: advEntering.nacionalidade || '', estadoCivil: advEntering.estado_civil || '',
+        oabCompleta: enteringOab.completa, oabCurta: enteringOab.completa,
+      },
+      comarca: manualComarca.trim(),
+      dataExtenso: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    });
+    setStep(2);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,6 +245,10 @@ export default function SubstabelecimentoGenerator() {
 
   const handleSeal = async () => {
     if (!extractedData) return;
+    if (!extractedData.cliente?.nome?.trim() || !extractedData.substabelecente?.oabCompleta || !extractedData.substabelecido?.oabCompleta) {
+      toast({ title: 'Confira cliente e OABs antes da geração', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       const res = await generateSubstabelecimentoPDFAction({ 
@@ -187,6 +262,8 @@ export default function SubstabelecimentoGenerator() {
       } else {
         toast({ title: "Erro na Selagem", description: res.error, variant: "destructive" });
       }
+    } catch (error) {
+      toast({ title: 'Falha ao gerar ou baixar o PDF', description: error instanceof Error ? error.message : 'Erro inesperado', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -281,7 +358,19 @@ export default function SubstabelecimentoGenerator() {
 
                   <Card className="bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000]">
                     <CardContent className="p-6 space-y-4">
-                      <Label className="uppercase text-[10px] font-black">2. Texto do Documento Antigo</Label>
+                      <div className="rounded border-2 border-[#6f1d2b] bg-[#fffaf0] p-4 space-y-3">
+                        <p className="text-xs font-black text-[#6f1d2b]">Gerar substabelecimento agora — sem IA</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1"><Label>Cliente / outorgante *</Label><Input value={manualClient} onChange={e => setManualClient(e.target.value)} placeholder="Nome completo" /></div>
+                          <div className="space-y-1"><Label>Número CNJ (se houver)</Label><Input value={manualCnj} onChange={e => setManualCnj(e.target.value)} placeholder="0000000-00.0000.0.00.0000" /></div>
+                          <div className="space-y-1"><Label>Tipo da ação / poderes *</Label><Input value={manualAcao} onChange={e => setManualAcao(e.target.value)} placeholder="Confirme o objeto real" /></div>
+                          <div className="space-y-1"><Label>Comarca / cidade *</Label><Input value={manualComarca} onChange={e => setManualComarca(e.target.value)} placeholder="Cidade correta" /></div>
+                          <div className="space-y-1 sm:col-span-2"><Label>Instituição financeira (opcional)</Label><Input value={manualBanco} onChange={e => setManualBanco(e.target.value)} placeholder="Preencher somente se pertinente" /></div>
+                        </div>
+                        <Button metal={false} onClick={handleManualReview} disabled={bancaLoading || banca.length < 2} className="w-full bg-[#6f1d2b] text-white">Revisar documento sem IA e gerar PDF</Button>
+                        <p className="text-xs">Os dois advogados e suas respectivas inscrições são carregados do cadastro. Confira o mandato original, as OABs e a ciência prévia do cliente para substabelecimento sem reserva.</p>
+                      </div>
+                      <Label className="uppercase text-[10px] font-black">2. Importar documento antigo (opcional)</Label>
                       <Textarea 
                         placeholder="COLE O CONTRATO OU PROCURAÇÃO ANTIGA AQUI..."
                         className="min-h-[300px] border-2 border-black font-black uppercase text-[11px] rounded-none resize-none bg-white"

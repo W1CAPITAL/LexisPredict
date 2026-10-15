@@ -71,6 +71,9 @@ export default function DocumentGenerator() {
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [manualClientName, setManualClientName] = useState('');
+  const [bancaLoading, setBancaLoading] = useState(true);
+  const [bancaLoadError, setBancaLoadError] = useState('');
   const [banca, setBanca] = useState<any[]>([]);
   const [selectedLawyerId, setSelectedLawyerId] = useState('');
   const [selectedState, setSelectedState] = useState('');
@@ -82,18 +85,29 @@ export default function DocumentGenerator() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function load() {
+  const loadBanca = async () => {
+    setBancaLoading(true);
+    setBancaLoadError('');
+    try {
       const data = await listAdvogadosBanca();
-      setBanca(data);
-      if (data.length > 0) {
-        setSelectedLawyerId(data[0].id);
-        const firstUF = Object.keys(data[0].oabs || {})[0] || 'SP';
-        setSelectedState(firstUF);
+      setBanca(Array.isArray(data) ? data : []);
+      if (!data?.length) {
+        setBancaLoadError('Nenhum advogado acessível nesta sessão. Confira seu login e o vínculo da empresa.');
+      } else {
+        setSelectedLawyerId(prev => data.some((adv: any) => adv.id === prev) ? prev : data[0].id);
+        const selected = data.find((adv: any) => adv.id === selectedLawyerId) || data[0];
+        const all = selected.oabs || {};
+        setSelectedState(Object.keys(all).includes('SP') ? 'SP' : (Object.keys(all)[0] || 'SP'));
       }
+    } catch (error) {
+      setBanca([]);
+      setBancaLoadError('Falha ao consultar a banca. Tente novamente após renovar a sessão.');
+      console.error('[documents] Erro ao carregar banca', error);
+    } finally {
+      setBancaLoading(false);
     }
-    load();
-  }, []);
+  };
+  useEffect(() => { void loadBanca(); /* carrega uma vez ao abrir a página */ }, []);
 
     const selectedLawyer = banca.find(a => a.id === selectedLawyerId);
 
@@ -137,6 +151,39 @@ export default function DocumentGenerator() {
     } finally {
       setFileLoading(false);
     }
+  };
+
+
+  const handleManualReview = () => {
+    const name = String(manualClientName || partes.cliente.nome || '').trim();
+    if (!selectedLawyer) {
+      toast({ title: 'Selecione um advogado cadastrado', variant: 'destructive' });
+      return;
+    }
+    if (!name) {
+      toast({ title: 'Informe o nome do outorgante antes de continuar', variant: 'destructive' });
+      return;
+    }
+    setApiError(null);
+    setExtractedData({
+      cliente: {
+        nome: name,
+        cpf: partes.cliente.cpf || '',
+        rg: partes.cliente.rg || '',
+        endereco: partes.cliente.endereco || '',
+        email: partes.cliente.email || '',
+        telefone: partes.cliente.telefone || '',
+        estadoCivil: partes.cliente.estado_civil || partes.cliente.estadoCivil || '',
+        profissao: partes.cliente.profissao || '',
+        nacionalidade: partes.cliente.nacionalidade || '',
+      },
+      processos: [{ banco: '', cnpjBanco: '', numero: '', acao: '[CONFIRMAR OBJETO DO MANDATO]' }],
+      local: '',
+      dataExtenso: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    });
+    setIncludeBankInfo(false);
+    setIncludeProcessNumber(false);
+    setStep(2);
   };
 
   const handleExtract = async () => {
@@ -202,7 +249,12 @@ export default function DocumentGenerator() {
   };
 
   const handleSeal = async () => {
-    if (!selectedLawyer) return;
+    if (!selectedLawyer || !extractedData) return;
+    const oabValue = String(selectedLawyer.oabs?.[selectedState] || Object.values(selectedLawyer.oabs || {})[0] || '').trim();
+    if (!oabValue || !String(extractedData.cliente?.nome || '').trim()) {
+      toast({ title: 'Confirme nome do cliente e inscrição OAB antes do PDF', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -211,7 +263,7 @@ export default function DocumentGenerator() {
         includeProcessNumber,
         advogado: {
           nome: selectedLawyer.nome,
-          oab: selectedLawyer.oabs[selectedState] || Object.values(selectedLawyer.oabs)[0],
+          oab: oabValue,
           nacionalidade: selectedLawyer.nacionalidade || (selectedLawyer.genero === 'F' ? 'brasileira' : 'brasileiro'),
           estadoCivil: selectedLawyer.estado_civil || selectedLawyer.estadoCivil || '',
           endereco: selectedLawyer.endereco,
@@ -225,6 +277,8 @@ export default function DocumentGenerator() {
       } else {
         toast({ title: "Erro na Selagem", description: res.error, variant: "destructive" });
       }
+    } catch (error) {
+      toast({ title: 'Falha no download', description: error instanceof Error ? error.message : 'Não foi possível gerar o PDF.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -367,7 +421,8 @@ export default function DocumentGenerator() {
                <Settings className="h-4 w-4" />
                <AlertTitle className="font-black uppercase text-xs">Atenção Gabinete</AlertTitle>
                <AlertDescription className="text-[10px] font-bold uppercase space-y-4">
-                  <p>Nenhum advogado cadastrado para geração de peças.</p>
+                  <p>{bancaLoading ? 'Consultando advogados da empresa...' : (bancaLoadError || 'Nenhum advogado disponível.')}</p>
+                  <Button metal={false} onClick={() => void loadBanca()} disabled={bancaLoading} className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">Recarregar banca</Button>
                   <Button metal={false} asChild className="bg-black text-white rounded-none h-10 font-black uppercase text-[9px]">
                      <Link href="/settings">Configurar Banca Agora</Link>
                   </Button>
@@ -447,7 +502,16 @@ export default function DocumentGenerator() {
 
                   <Card className="bg-white border-2 border-black rounded-none shadow-[8px_8px_0px_#000]">
                     <CardContent className="p-6 space-y-4">
-                      <Label className="uppercase text-[10px] font-black">2. Conteúdo do PDF ou Texto</Label>
+                      <div className="rounded-md border-2 border-[#6f1d2b] bg-[#fffaf0] p-4 space-y-3">
+                        <p className="text-xs font-black uppercase text-[#6f1d2b]">Gerar diretamente — sem IA e sem PDF antigo</p>
+                        <Label className="text-xs">Nome completo do outorgante</Label>
+                        <Input value={manualClientName} onChange={e => setManualClientName(e.target.value)} placeholder="Nome do cliente (obrigatório)" className="bg-white border-black" />
+                        <Button metal={false} onClick={handleManualReview} disabled={bancaLoading || !selectedLawyer} className="w-full bg-[#6f1d2b] text-white">
+                          Preencher procuração agora — revisar e gerar PDF
+                        </Button>
+                        <p className="text-xs">O advogado vem do cadastro. Complete e revise os demais campos antes de assinar. A leitura por IA abaixo é opcional.</p>
+                      </div>
+                      <Label className="uppercase text-[10px] font-black">2. Importação opcional de PDF ou texto</Label>
                       <Textarea 
                         placeholder="COLE O CONTRATO OU QUALQUER DOCUMENTO AQUI..."
                         className="min-h-[300px] border-2 border-black font-black uppercase text-[11px] rounded-none resize-none bg-white"

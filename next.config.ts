@@ -16,7 +16,12 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: false,
   },
   transpilePackages: ["metal-fx"],
+  // pdfkit resolves built-in font metrics via runtime file paths. Trace them into serverless output.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/*.cjs", "./node_modules/pdfkit/js/standard-fonts/*.cjs"],
+  },
   serverExternalPackages: [
+    "pdfkit",
     "tesseract.js",
     "pdfjs-dist",
     "pdf-parse",
