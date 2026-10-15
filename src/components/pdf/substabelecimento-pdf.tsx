@@ -86,15 +86,6 @@ export function SubstabelecimentoPDF({ data }: { data: any }) {
           <Text style={styles.bold}>{substabelecente.oabCurta}</Text>
         </View>
 
-        {/* Espaçamento entre assinaturas */}
-        <View style={{ marginTop: 40 }} />
-
-        {/* Assinatura do Substabelecido */}
-        <View style={styles.signatureArea}>
-          <View style={styles.signatureLine} />
-          <Text style={styles.bold}>{substabelecido.nome.toUpperCase()}</Text>
-          <Text style={styles.bold}>{substabelecido.oabCurta}</Text>
-        </View>
       </Page>
     </Document>
   );

@@ -87,11 +87,6 @@ export function PecaSubstabelecimentoPDF({ data }: { data: any }) {
             <Text style={styles.bold}>{oabSubstabelecenteCurta}</Text>
           </View>
 
-          <View style={styles.signatureBlock}>
-            <View style={styles.line} />
-            <Text style={styles.bold}>{advogadoSubstabelecido}</Text>
-            <Text style={styles.bold}>{oabSubstabelecidoCurta}</Text>
-          </View>
         </View>
       </Page>
     </Document>
