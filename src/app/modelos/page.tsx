@@ -1,4 +1,9 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+import { clientAsPecaMeta } from "@/lib/documents/document-case-prefill";
+
 
 /**
  * D3 — Modelos & Peças: biblioteca reutilizável de procurações, habilitações,
@@ -87,6 +92,7 @@ export default function ModelosPage() {
   const [categoria, setCategoria] = useState<CategoriaPeca | "Todas">("Todas");
   const [selected, setSelected] = useState<ModeloPeca | null>(null);
   const [meta, setMeta] = useState<PecaMeta>({});
+  const [carteiraCase, setCarteiraCase] = useState<DocumentCase | null>(null);
   const [preview, setPreview] = useState("");
   const [outraInstituicao, setOutraInstituicao] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -109,7 +115,7 @@ export default function ModelosPage() {
 
   const selectModelo = (m: ModeloPeca) => {
     setSelected(m);
-    setMeta({});
+    setMeta(carteiraCase ? clientAsPecaMeta(carteiraCase) : {});
     setPreview("");
     setOutraInstituicao(false);
   };
@@ -241,6 +247,11 @@ export default function ModelosPage() {
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <main className="flex-1 min-h-0 overflow-y-auto">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setCarteiraCase(item);
+          setMeta(prev=>({...prev,...clientAsPecaMeta(item)}));
+          setPreview("");
+        }} />
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 space-y-6">
             <div>
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">

@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -80,6 +84,10 @@ export default function InvestigacaoDocumentalPage() {
     }catch(error){toast({title:"Falha na importação",description:error instanceof Error?error.message:"JSON inválido",variant:"destructive"});}
   };
   return <div className="flex min-h-screen bg-[#f3efe4] text-[#241b17]"><Sidebar/><main className="min-w-0 flex-1">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setObjeto([item.cliente,item.cnj].filter(Boolean).join(" · "));
+          setCurrent(prev=>({...prev,cnj:item.cnj}));
+        }} />
     <header className="border-b border-[#b89b5e] bg-[#fffaf0] p-5 lg:px-8">
       <Link href="/documents" className="inline-flex items-center gap-1 text-xs underline"><ArrowLeft size={14}/> Documentos</Link>
       <h1 className="mt-2 flex items-center gap-2 text-xl font-black text-[#6f1d2b]"><FileSearch/>Investigação documental · método God-Eye</h1>
