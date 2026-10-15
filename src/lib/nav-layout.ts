@@ -18,6 +18,7 @@ export function loadNavLayout(): NavLayoutMode {
 export function saveNavLayout(mode: NavLayoutMode) {
   if (typeof window === "undefined") return;
   try {
+    if(localStorage.getItem(KEY)===mode)return;
     localStorage.setItem(KEY, mode);
     window.dispatchEvent(new CustomEvent("lexis-nav-layout", { detail: { mode } }));
   } catch {
