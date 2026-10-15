@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { NavProgress } from "@/components/system/nav-progress";
 const ExperienceGate = dynamic(() => import('@/components/onboarding/experience-studio').then(m=>m.ExperienceGate),{ssr:false});
+const WhatsAppConnectionNotice=dynamic(()=>import('@/components/system/whatsapp-connection-notice').then(m=>m.WhatsAppConnectionNotice),{ssr:false});
 
 const GuidedTour = dynamic(
   () => import("@/components/onboarding/guided-tour").then((m) => m.GuidedTour),
@@ -139,6 +140,7 @@ export function ClientChrome() {
 
       {deferredReady ? (
         <>
+          <WhatsAppConnectionNotice />
           <AppUpdateBanner />
           {(pathname.startsWith("/chat") || pathname.startsWith("/whatsapp")) ? (
             <>
