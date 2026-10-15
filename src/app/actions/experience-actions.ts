@@ -44,7 +44,7 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
   if(!phone)throw Error('WhatsApp obrigatório: informe DDD + número brasileiro válido.');
   const prefs=cleanExperiencePrefs(input.preferences);
   const {data:old,error:oldErr}=await db.from('lexis_user_experience')
-    .select('onboarding_version,terms_version,terms_accepted_at,welcome_status,phone')
+    .select('onboarding_version,terms_version,terms_accepted_at,signature_name,welcome_opt_in,welcome_status,phone')
     .eq('auth_user_id',uid).maybeSingle();
   if(oldErr)throw Error('Não foi possível validar o cadastro.');
   const complete=input.complete===true;
@@ -67,8 +67,8 @@ export async function saveExperienceAction(input:ExperienceSaveInput){
    onboarding_version:complete?EXPERIENCE_VERSION:Number(old?.onboarding_version||0),
    terms_version:complete?EXPERIENCE_TERMS_VERSION:old?.terms_version||null,
    terms_accepted_at:complete?(old?.terms_version===EXPERIENCE_TERMS_VERSION?old.terms_accepted_at:now):old?.terms_accepted_at||null,
-   signature_name:complete?name:null,
-   welcome_opt_in:complete&&input.welcomeOptIn===true,
+   signature_name:complete?name:old?.signature_name||null,
+   welcome_opt_in:complete?input.welcomeOptIn===true:old?.welcome_opt_in===true,
    welcome_status:complete&&input.welcomeOptIn===true&&old?.welcome_status!=='sent'
     &&old?.welcome_status!=='queued'?'waiting':old?.welcome_status||'not_requested',
    updated_at:now,
