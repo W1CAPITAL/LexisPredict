@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
@@ -288,6 +292,21 @@ export default function DocumentGenerator() {
     <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setManualClientName(item.cliente);
+          partes.setCliente(clientAsParte(item));
+          setExtractedData({
+            cliente: {
+              nome:item.cliente,cpf:item.cpf,rg:item.rg,email:item.email,telefone:item.telefone,
+              endereco:item.endereco,estadoCivil:item.estadoCivil,nacionalidade:item.nacionalidade,profissao:item.profissao,
+            },
+            processos:[{numero:item.cnj,banco:item.banco,cnpjBanco:item.cnpjBanco,acao:item.classeAcao}],
+            local:item.comarca,dataExtenso:new Date().toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"}),
+          });
+          setIncludeBankInfo(Boolean(item.banco));
+          setIncludeProcessNumber(Boolean(item.cnj));
+          setStep(2);
+        }} />
         <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-sm bg-black flex items-center justify-center">

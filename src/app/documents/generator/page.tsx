@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -344,6 +348,14 @@ export default function LegalDocumentGeneratorPage() {
     <div className="flex min-h-screen bg-[#f3efe4] text-[#241b17]">
       <Sidebar />
       <main className="min-w-0 flex-1">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setForm(prev => ({
+            ...prev,clienteNome:item.cliente,autor:item.cliente,cpf:item.cpf,rg:item.rg,email:item.email,
+            endereco:item.endereco,processo:item.cnj,comarca:item.comarca,reu:item.banco,
+            juizo:item.orgaoJulgador,tituloAcao:item.classeAcao,cidade:item.comarca,
+          }));
+          setDraft("");setWarnings([]);
+        }} />
         <header className="sticky top-0 z-30 border-b border-[#b89b5e]/40 bg-[#fffaf0]/95 backdrop-blur">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-4 lg:px-8">
             <div className="flex items-center gap-3">

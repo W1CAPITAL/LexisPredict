@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
@@ -417,6 +421,15 @@ export default function RevogacaoPoderesPage() {
           </div>
 
       <main className="flex-1 flex flex-col overflow-hidden glass-panel">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          partes.setCliente(clientAsParte(item));
+          setCpfByProtocolo(prev=>({...prev,[item.cnj]:item.cpf}));
+          setEmailByProtocolo(prev=>({...prev,[item.cnj]:item.email}));
+          setEstadoCivilByProtocolo(prev=>({...prev,[item.cnj]:item.estadoCivil}));
+          setEnderecoByProtocolo(prev=>({...prev,[item.cnj]:item.endereco}));
+          setBancoByProtocolo(prev=>({...prev,[item.cnj]:item.banco}));
+          setAcaoByProtocolo(prev=>({...prev,[item.cnj]:item.classeAcao}));
+        }} />
         {/* ═══════ HEADER ═══════ */}
         <header className="shrink-0 border-b p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3">

@@ -18,7 +18,14 @@ const nextConfig: NextConfig = {
   transpilePackages: ["metal-fx"],
   // pdfkit resolves built-in font metrics via runtime file paths. Trace them into serverless output.
   outputFileTracingIncludes: {
-    "/*": ["./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/*.cjs", "./node_modules/pdfkit/js/standard-fonts/*.cjs"],
+    // Fontes padrão do PDFKit usam require() dinâmico para chunks de métricas/glyphs.
+    // A Vercel não descobre estes chunks somente pelo tracing estático.
+    "/*": [
+      "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/**/*.cjs",
+      "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/*.cjs",
+      "./node_modules/pdfkit/js/standard-fonts/**/*.cjs",
+      "./node_modules/pdfkit/js/standard-fonts/*.cjs",
+    ],
   },
   serverExternalPackages: [
     "pdfkit",

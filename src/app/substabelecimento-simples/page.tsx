@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
@@ -196,6 +200,13 @@ export default function SubstabelecimentoSimplesPage() {
           </div>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setNumeroProcesso(item.cnj);
+          setParteNome(item.cliente);
+          setTipoAcao(item.classeAcao);
+          setCidadeData(item.comarca ? item.comarca+", "+new Date().toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"}) : "");
+          partes.setCliente(clientAsParte(item));
+        }} />
         <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-sm bg-black flex items-center justify-center">

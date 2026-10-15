@@ -1,4 +1,8 @@
 "use client";
+import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import type { DocumentCase } from "@/app/actions/document-case-actions";
+import { clientAsParte } from "@/lib/documents/document-case-prefill";
+
 import { downloadGeneratedPdf } from "@/lib/documents/download-generated-pdf";
 
 import { EditablePartesPanel } from "@/components/documents/editable-partes-panel";
@@ -57,6 +61,13 @@ import { extrairTextoDoPDFAction, extrairDadosProcuracaoAction, generateHabilita
 import { listAdvogadosBanca } from '@/lib/server-db';
 import Link from 'next/link';
 
+function oathFromRegistration(adv: any, requestedUf: string) {
+  const oabs = adv?.oabs || {};
+  const uf = oabs[requestedUf] ? requestedUf : (oabs.SP ? "SP" : Object.keys(oabs)[0]);
+  const raw = String(uf ? oabs[uf] || "" : "").trim();
+  return { uf:uf || "",raw,label:raw ? "OAB/"+uf+" "+raw : "" };
+}
+
 export default function HabilitacaoPecaGenerator() {
   const partes = usePartesEditaveis();
 
@@ -64,6 +75,7 @@ export default function HabilitacaoPecaGenerator() {
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [carteiraCase, setCarteiraCase] = useState<DocumentCase | null>(null);
   const [banca, setBanca] = useState<any[]>([]);
   const [selectedLawyerId, setSelectedLawyerId] = useState('');
   const [selectedState, setSelectedState] = useState('');
@@ -89,6 +101,32 @@ export default function HabilitacaoPecaGenerator() {
   }, []);
 
   const selectedLawyer = banca.find(a => a.id === selectedLawyerId);
+
+  useEffect(() => {
+    if (!carteiraCase || !selectedLawyer) return;
+    const oab=oathFromRegistration(selectedLawyer,selectedState);
+    if (!oab.raw) return;
+    setExtractedData({
+      vara:carteiraCase.orgaoJulgador,comarca:carteiraCase.comarca,
+      numeroProcesso:carteiraCase.cnj,
+      cliente:{
+        nome:carteiraCase.cliente,cpf:carteiraCase.cpf,rg:carteiraCase.rg,endereco:carteiraCase.endereco,
+        email:carteiraCase.email,telefone:carteiraCase.telefone,
+        nacionalidade:carteiraCase.nacionalidade,estadoCivil:carteiraCase.estadoCivil,profissao:carteiraCase.profissao,
+      },
+      advogado:{
+        nome:selectedLawyer.nome.toUpperCase(),oab:oab.raw,nacionalidade:selectedLawyer.nacionalidade||"",
+        estadoCivil:selectedLawyer.estado_civil||"",genero:selectedLawyer.genero||"M",
+        endereco:selectedLawyer.endereco||"",email:selectedLawyer.email_profissional||selectedLawyer.email||"",cep:selectedLawyer.cep||"",
+      },
+      tipoAcao:carteiraCase.classeAcao,reuNome:carteiraCase.banco,reuCnpj:carteiraCase.cnpjBanco,
+      cidadeEmissao:carteiraCase.comarca,dataFormatada:new Date().toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"}),
+      selectedState:oab.uf,
+    });
+    setIncludeBankInfo(Boolean(carteiraCase.banco));
+    setIncludeProcessNumber(Boolean(carteiraCase.cnj));
+    setStep(2);
+  }, [carteiraCase,selectedLawyerId,selectedState,banca]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -204,6 +242,10 @@ export default function HabilitacaoPecaGenerator() {
     <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
+          setCarteiraCase(item);
+          partes.setCliente(clientAsParte(item));
+        }} />
         <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-sm bg-black flex items-center justify-center">
