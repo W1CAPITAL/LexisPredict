@@ -108,7 +108,7 @@ export async function uploadExperienceImageAction(base64:string,kind:'avatar'|'w
 }
 
 /** Quick theme-toggle persistence without altering legal acceptance/profile. */
-export async function updateExperienceAppearanceAction(patch:{mode?:'light'|'dark'|'system';theme?:string;primary?:string}){
+export async function updateExperienceAppearanceAction(patch:{mode?:'light'|'dark'|'system';theme?:string;primary?:string;textColor?:string;mutedTextColor?:string}){
  try{
   const {db,uid}=await currentActor();
   const {data,error}=await db.from('lexis_user_experience')
