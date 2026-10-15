@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { applySavedPreset, getSavedPresetId } from "@/lib/theme";
-import { loadUiPrefs, applyUiPrefsToDom, saveUiPrefs, UI_PREFS_DEFAULT } from "@/lib/ui-prefs";
+import { loadUiPrefs, applyUiPrefsToDom } from "@/lib/ui-prefs";
 
 /**
  * Aplica o tema salvo; nunca força claro, apaga a escolha ou impõe branco
