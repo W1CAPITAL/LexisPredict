@@ -79,7 +79,7 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
     ["classe da ação",selected.classeAcao],["comarca",selected.comarca],
   ] as Array<[string,string]>).filter(([,v])=>!v).map(([k])=>k) : [];
 
-  return <div className="mx-auto my-3 w-full max-w-6xl border-2 border-[#6f1d2b] bg-white p-4 text-[#291c21] shadow-[4px_4px_0px_#111] lg:p-5">
+  return <div className="mx-auto my-2 w-full max-w-6xl min-w-0 border border-[#6f1d2b]/50 bg-white px-3 py-2 text-[#291c21] shadow-sm sm:px-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#6f1d2b]"><BriefcaseBusiness size={16}/>Preencher a partir da carteira</p>
