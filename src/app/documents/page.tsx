@@ -241,7 +241,7 @@ export default function DocumentGenerator() {
             <div className="w-10 h-10 rounded-sm bg-black flex items-center justify-center">
               <Shield size={20} className="text-white" />
             </div>
-            <h1 className="font-black text-xl text-black uppercase tracking-tighter">Gerador de Procurações</h1>
+            <h1 className="font-black text-xl text-black uppercase tracking-tighter">Central de Documentos</h1>
           </div>
           <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Cloud Repository</Badge>
         </header>
@@ -255,6 +255,19 @@ export default function DocumentGenerator() {
               </p>
             </div>
 
+
+            <div className="mb-6 rounded-lg border-2 border-[#6f1d2b] bg-[#fffaf0] p-5">
+              <h3 className="font-black text-[#6f1d2b]">O que você precisa fazer?</h3>
+              <p className="mb-4 mt-1 text-xs">Atalhos para os formulários. Confira poderes, OAB, procuração original e ciência do cliente.</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <Link href="/documents/generator?tipo=substabelecimento-com-reserva" className="rounded border bg-white p-3 text-sm font-bold">Substabelecimento com reserva →</Link>
+                <Link href="/documents/generator?tipo=substabelecimento-sem-reserva" className="rounded border bg-white p-3 text-sm font-bold">Substabelecimento sem reserva →</Link>
+                <Link href="/documents/generator?tipo=procuracao" className="rounded border bg-white p-3 text-sm font-bold">Procuração →</Link>
+                <Link href="/documents/generator?tipo=peticao-generica" className="rounded border bg-white p-3 text-sm font-bold">Petição / juntada →</Link>
+                <Link href="/documents/generator?tipo=notificacao-extrajudicial" className="rounded border bg-white p-3 text-sm font-bold">Notificação →</Link>
+                <Link href="/documents/investigacao" className="rounded bg-[#6f1d2b] p-3 text-sm font-bold text-white">Investigar com God-Eye →</Link>
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <Link href="/documents/generator" className="text-left bg-[#fffaf0] border-2 border-[#6f1d2b] rounded-none shadow-[8px_8px_0px_#b89b5e] p-6 hover:-translate-y-0.5 transition-all group">
                 <div className="w-12 h-12 bg-[#6f1d2b] text-[#f7df9b] flex items-center justify-center mb-4">

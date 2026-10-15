@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,6 +160,19 @@ export default function LegalDocumentGeneratorPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tipo");
+    if (LEGAL_DOCUMENT_TEMPLATES.some(item => item.id === requested)) {
+      setKind(requested as LegalDocumentKind);
+      setWarnings([]);
+    }
+  }, []);
+  const chooseTemplate = (next: LegalDocumentKind) => {
+    setKind(next);
+    setWarnings([]);
+    setDraft("");
+  };
+
   const template = useMemo(
     () => LEGAL_DOCUMENT_TEMPLATES.find((x) => x.id === kind) || LEGAL_DOCUMENT_TEMPLATES[0],
     [kind]
@@ -300,7 +313,13 @@ export default function LegalDocumentGeneratorPage() {
                 <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-[#6f1d2b]">1. Tipo de documento</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-5">
-                <Select value={kind} onValueChange={(v) => { setKind(v as LegalDocumentKind); setWarnings([]); }}>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="h-12 whitespace-normal text-xs" onClick={() => chooseTemplate("substabelecimento-com-reserva")}>Com reserva</Button>
+                  <Button variant="outline" className="h-12 whitespace-normal text-xs" onClick={() => chooseTemplate("substabelecimento-sem-reserva")}>Sem reserva</Button>
+                  <Button variant="outline" className="h-12 whitespace-normal text-xs" onClick={() => chooseTemplate("procuracao")}>Procuração</Button>
+                  <Button variant="outline" className="h-12 whitespace-normal text-xs" onClick={() => chooseTemplate("peticao-generica")}>Petição livre</Button>
+                </div>
+                <Select value={kind} onValueChange={(v) => chooseTemplate(v as LegalDocumentKind)}>
                   <SelectTrigger className="h-12 rounded-none border-[#6f1d2b] bg-white font-bold">
                     <SelectValue />
                   </SelectTrigger>
@@ -374,7 +393,13 @@ export default function LegalDocumentGeneratorPage() {
                 </CardHeader>
                 <CardContent className="space-y-4 pt-5">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label="Advogado anterior / substabelecente" value={form.advogadoAnteriorNome} onChange={(v)=>set("advogadoAnteriorNome",v)} />
+                    {(kind === "substabelecimento-com-reserva" || kind === "substabelecimento-sem-reserva") && (
+                       <div className="col-span-full border-l-4 border-amber-500 bg-amber-50 p-3 text-xs leading-5">
+                         <b>Antes de assinar:</b> confira a procuração original, poderes recebidos, OAB dos advogados, número do processo e identidade da parte.
+                         {kind === "substabelecimento-sem-reserva" ? " Sem reserva: preserve prova de conhecimento prévio e inequívoco do cliente." : " Com reserva: o substabelecente continua com seus poderes."}
+                       </div>
+                     )}
+                     <Field label="Advogado anterior / substabelecente" value={form.advogadoAnteriorNome} onChange={(v)=>set("advogadoAnteriorNome",v)} />
                     <Field label="OAB anterior" value={form.oabAnterior} onChange={(v)=>set("oabAnterior",v)} />
                     <Field label="Novo advogado / substabelecido" value={form.advogadoNovoNome} onChange={(v)=>set("advogadoNovoNome",v)} />
                     <Field label="OAB novo" value={form.oabNovo} onChange={(v)=>set("oabNovo",v)} />
