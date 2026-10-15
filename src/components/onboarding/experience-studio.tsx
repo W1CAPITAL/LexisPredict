@@ -151,14 +151,33 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      </div>:null}
      {step===1?<div className="space-y-5">
       <div><p className={labelClass}>Tema visual</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-       {themes.map(([id,title])=><button key={id} type="button" onClick={()=>{
-          const theme=AUTHORITY_PRESETS.find(x=>x.id===id);
-          setPrefs(p=>({...p,theme:id,primary:theme?getPresetColors(theme,p.mode==='dark'?'dark':'light').primary:p.primary,
-            textColor:'',mutedTextColor:''}));
+       {themes.map(([id,title])=>{
+        const theme=AUTHORITY_PRESETS.find(x=>x.id===id);
+        if(!theme)return null;
+        const variant=(prefs.theme===id?prefs.mode:theme.preferredMode||prefs.mode)==='dark'?'dark':'light';
+        const palette=getPresetColors(theme,variant);
+        const selected=prefs.theme===id;
+        return <button key={id} type="button" aria-pressed={selected} onClick={()=>{
+          // Ao escolher um tema, aplicar sua paleta completa e o modo indicado
+          // pela própria paleta, sem conservar fundos customizados antigos.
+          const nextMode=theme.preferredMode||prefs.mode;
+          const nextPalette=getPresetColors(theme,nextMode==='dark'?'dark':'light');
+          setPrefs(p=>({...p,theme:id,mode:nextMode,primary:nextPalette.primary,
+            backgroundColor:'',cardColor:'',sidebarColor:'',textColor:'',mutedTextColor:''}));
         }}
-        className={`rounded-xl border p-3 text-left text-xs font-bold transition ${prefs.theme===id?'border-primary ring-2 ring-primary/20':'border-border'}`}>
-        <span className="mb-2 block h-8 rounded-lg" style={{background:id==='night-ops'||id==='sheetspredict-dark'?'linear-gradient(135deg,#0b1220,#334155)':'linear-gradient(135deg,#e2e8f0,#fff)'}}/>
-        {title}</button>)}
+        className={`rounded-xl border p-2.5 text-left text-xs font-bold transition-colors ${selected?'border-primary ring-2 ring-primary/30':'border-border hover:border-primary/50'}`}>
+         <span className="mb-2 flex h-11 items-center gap-2 overflow-hidden rounded-lg border p-2"
+          style={{background:`linear-gradient(120deg,${palette.background},${palette.bgSecondary})`,borderColor:palette.border}}>
+          <span className="h-7 w-2 rounded-sm" style={{background:palette.nav||'#102843'}}/>
+          <span className="flex flex-1 flex-col gap-1">
+           <span className="h-1.5 w-3/4 rounded-sm" style={{background:palette.foreground}}/>
+           <span className="h-1.5 w-1/2 rounded-sm" style={{background:palette.fontMuted}}/>
+          </span>
+          <span className="h-5 w-5 rounded-md" style={{background:palette.primary}}/>
+         </span>
+         <span className="text-card-foreground">{title}</span>
+        </button>;
+       })}
       </div></div>
       <div className="grid gap-4 sm:grid-cols-3">
        <label><span className={labelClass}>Modo</span><select className={selectClass} value={prefs.mode} onChange={e=>set('mode',e.target.value as ExperiencePreferences['mode'])}><option value="light">Claro</option><option value="dark">Escuro</option><option value="system">Automático pelo dispositivo</option></select></label>
@@ -174,6 +193,14 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
        </div>
        <input ref={imageRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e=>void upload(e.target.files?.[0],'wallpaper')}/>
        <input type="url" value={prefs.wallpaper} onChange={e=>set('wallpaper',e.target.value)} className={fieldClass+' mt-2'} placeholder="Ou cole uma URL HTTPS da imagem"/>
+       {prefs.wallpaper?(
+        <div className="mt-2 space-y-1 rounded-lg border border-border p-2">
+         <p className="text-xs font-semibold text-foreground">Prévia do plano de fundo selecionado</p>
+         <img src={prefs.wallpaper} alt="Prévia do plano de fundo" loading="lazy" className="h-28 w-full rounded-lg bg-muted object-cover"
+          onError={()=>setError('A imagem não pôde ser carregada. Confira a URL ou escolha outra imagem.')} />
+         <p className="text-xs text-muted-foreground">O papel de parede é aplicado atrás dos painéis e permanece salvo no perfil ao finalizar.</p>
+        </div>
+       ):null}
       </div>
      </div>:null}
      {step===2?<div className="grid gap-4 sm:grid-cols-2">
