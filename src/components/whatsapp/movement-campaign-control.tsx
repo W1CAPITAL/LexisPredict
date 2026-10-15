@@ -29,7 +29,7 @@ type Campaign = {
   id:string;campaign_kind?:CampaignKind;status:'running'|'paused'|'completed'|'cancelled';total:number;
   sent_count:number;failed_count:number;uncertain_count:number;
   pending_count?:number;review_count?:number;
-  next_send_at:string;created_at:string;
+  next_send_at:string;created_at:string;send_anytime?:boolean;
 };
 
 export function MovementCampaignControl() {
@@ -125,7 +125,7 @@ export function MovementCampaignControl() {
             <span className="min-w-0 max-w-[280px] whitespace-normal leading-tight" title={campaign.status}>
               {campaign.campaign_kind==='publication'?'Publicações · ':'Movimentos · '}
               {campaign.status==='running'
-                ?(inSendWindow?'Envio automático pelo servidor':'Programado para o próximo dia útil, 9h')
+                ?(campaign.send_anytime?'Envio sequencial automático 24h':inSendWindow?'Envio automático pelo servidor':'Programado para o próximo dia útil, 9h')
                 :campaign.status==='paused'?'Pausado'
                 :campaign.status==='completed'?'Concluído':'Cancelado'}:
               {' '}{campaign.sent_count}/{campaign.total}
@@ -134,7 +134,7 @@ export function MovementCampaignControl() {
               {campaign.uncertain_count>0?` · ${campaign.uncertain_count} para conferir`:''}
               {campaign.review_count?` · ${campaign.review_count} em conferência`:''}
             </span>
-            {campaign.status==='running'&&inSendWindow&&pending>0?<Loader2 size={12} className="animate-spin text-primary"/>:null}
+            {campaign.status==='running'&&(campaign.send_anytime||inSendWindow)&&pending>0?<Loader2 size={12} className="animate-spin text-primary"/>:null}
             {hasActive&&(
               <>
                 <Button size="icon" variant="ghost" className="h-7 w-7" disabled={loading} title={campaign.status==='running'?'Pausar':'Continuar'} onClick={()=>void change(campaign.status==='running'?'pause':'resume')}>
@@ -242,7 +242,9 @@ export function MovementCampaignControl() {
               <p className="text-[11px] text-muted-foreground">
                 {kind==='publication'
                   ? 'Publicações: até 25 mensagens por dia, intervalo mínimo de 3 minutos, só em horário comercial de dias úteis, no máximo uma por número a cada 24h. Esses controles não garantem ausência de bloqueio; a política do WhatsApp e os modelos aprovados quando exigidos continuam obrigatórios.'
-                  : 'Última movimentação: intervalo mínimo de 45 segundos, com limite de 120 mensagens confirmadas por empresa/dia, em dias úteis das 9h às 18h.'}
+                  : campaign?.send_anytime
+                    ? 'Última movimentação: automação autorizada 24h, com intervalo mínimo de 45 segundos, limite de 120 mensagens por dia e prioridade às novidades oficiais comprovadas.'
+                    : 'Última movimentação: intervalo mínimo de 45 segundos, com limite de 120 mensagens por dia, em dias úteis das 9h às 18h.'}
                 {' '}A fila fica gravada no Supabase e o envio continua pelo servidor.
                 O agendador processa a fila em segundo plano; resultados incertos pausam para conferência.
               </p>
