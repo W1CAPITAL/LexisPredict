@@ -69,7 +69,8 @@ export default function InvestigacaoDocumentalPage() {
         if(!x||typeof x!=="object")throw Error("Registro inválido");
         const found=x as Record<string,unknown>;const safe=novo();
         for(const key of Object.keys(safe) as Array<keyof Fonte>) if(typeof found[key]==="string")(safe as unknown as Record<string,string>)[key]=String(found[key]).slice(0,12000);
-        if(!safe.titulo||!safe.orgao||!safe.resumo||safe.cnj.replace(/\D/g,"").length!==20&&!!safe.cnj)throw Error("Registro "+(i+1)+" inválido");
+        if(!safe.titulo||!safe.orgao||!safe.resumo||(safe.cnj && safe.cnj.replace(/\D/g,"").length!==20))throw Error("Registro "+(i+1)+" inválido");
+        if(safe.url && !/^https?:\/\/\S+$/i.test(safe.url))throw Error("URL inválida no registro "+(i+1));
         if(!["pendente","revisada","divergente"].includes(safe.revisao))safe.revisao="pendente";
         return {...safe,id:String(i)+"-"+Date.now()};
       });
