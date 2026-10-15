@@ -17,6 +17,7 @@ export function ThemeBoot() {
       // usuários que ainda não configuraram sua experiência.
       if(localStorage.getItem(EXPERIENCE_KEY)){
         applyExperiencePrefs(loadExperiencePrefs());
+        applyUiPrefsToDom(loadUiPrefs());
         return;
       }
       const savedMode = localStorage.getItem("lexis_theme_mode") || "light";
