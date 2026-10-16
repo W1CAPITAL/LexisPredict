@@ -67,7 +67,7 @@ export async function POST(req:Request){
         last_seen:new Date(now).toISOString(),updated_at:new Date(now).toISOString(),
       }).eq('empresa_id',tenant);
       if(error)return result({ok:false,error:'Bridge state unavailable'},503);
-      if(!['qr','offline'].includes(state))return result({ok:true});
+      if(state==='ready')return result({ok:true});
       const {data:cmd}=await db.from('wa_local_bridges')
         .select('qr_refresh_requested_at,qr_refresh_handled_at').eq('empresa_id',tenant).maybeSingle();
       const requestedAt=Date.parse(String(cmd?.qr_refresh_requested_at||''));
