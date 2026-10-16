@@ -19,25 +19,29 @@ export async function actor(manager=false){
 export async function bridgeStatus(tenant:string,canSeeQr=false){
   const db=await getSupabaseAdmin();
   const {data,error}=await db.from('wa_local_bridges')
-    .select('state,qr_data_url,phone,last_seen,last_error,created_at').eq('empresa_id',tenant).maybeSingle();
+    .select('state,qr_data_url,qr_generated_at,qr_refresh_requested_at,qr_refresh_handled_at,phone,last_seen,last_error,created_at').eq('empresa_id',tenant).maybeSingle();
   if(error)throw new Error('Não foi possível consultar a ponte WhatsApp: '+error.message);
   const age=data?.last_seen?Date.now()-Date.parse(data.last_seen):Infinity;
   const online=!!data&&Number.isFinite(age)&&age>=0&&age<45000;
   const qrStored=data?.state==='qr'
     &&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(data.qr_data_url||''))
     &&String(data.qr_data_url||'').length<90000;
-  // A imagem pode ser mostrada para recuperar a interface, mas não pode ser
-  // apresentada como QR válido sem um heartbeat recente do worker.
-  // Show the last image for diagnostics even if the service is offline.
-  // qrFresh stays false, so the UI warns that the QR may be expired.
-  const qrRecent=!!qrStored;
+  // The QR issuance time is separate from the liveness heartbeat.
+  const qrIssuedAt=data?.qr_generated_at?Date.parse(data.qr_generated_at):NaN;
+  const qrAge=Number.isFinite(qrIssuedAt)?Date.now()-qrIssuedAt:Infinity;
+  const qrFresh=!!qrStored&&online&&qrAge>=0&&qrAge<55000;
+  const requestedAt=Date.parse(String(data?.qr_refresh_requested_at||''));
+  const handledAt=Date.parse(String(data?.qr_refresh_handled_at||''));
+  const qrRefreshPending=Number.isFinite(requestedAt)&&requestedAt>Date.now()-120000
+    &&(!Number.isFinite(handledAt)||requestedAt>handledAt);
   return {
     provisioned:!!data,online,connected:online&&data?.state==='ready',
     state:online?data?.state||'offline':'offline',
     connectionState:data?.state||'offline',
-    qr:canSeeQr&&qrRecent?String(data.qr_data_url):null,
-    qrFresh:online&&!!qrRecent,
-    qrStale:!!qrStored&&!online,
+    qr:canSeeQr&&qrFresh?String(data.qr_data_url):null,
+    qrFresh,qrStale:!!qrStored&&!qrFresh,
+    qrGeneratedAt:data?.qr_generated_at||null,
+    qrRefreshPending,
     phone:online?data?.phone||null:null,
     error:data?.last_error||null,
     lastSeen:data?.last_seen||null,
