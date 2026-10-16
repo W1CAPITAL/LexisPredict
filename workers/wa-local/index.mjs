@@ -200,7 +200,11 @@ async function connect(){
           .catch(e=>console.error('Não foi possível limpar a sessão antiga:',e.message));
         return;
       }
-      setStatus('offline');
+      const reason=Number.isFinite(Number(code))
+        ?'WhatsApp fechou a conexão: código '+code
+        :'WhatsApp encerrou a tentativa de pareamento.';
+      setStatus('offline',null,null,reason);
+      console.error('WA.Auto desconectado:',reason);
       reconnectAttempts++;
       const delay=Math.min(60000,5000*reconnectAttempts);
       reconnectTimer=setTimeout(()=>void connect().catch(e=>console.error('Reconexão:',e.message)),delay);
