@@ -34,7 +34,11 @@ let socket=null;
 let isReady=false;
 let status='connecting';
 let currentQr=null;
+let qrIssuedAt=null;
 let phone=null;
+let lastRefreshRequest='';
+let qrRestartBusy=false;
+let lastQrRestartAt=0;
 let reconnectTimer=null;
 let heartbeatBusy=false;
 let prepareBusy=false;
@@ -55,14 +59,18 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function heartbeat(){
   if(heartbeatBusy)return;
   heartbeatBusy=true;
-  try{await api({type:'status',state:status,qr:currentQr,phone});}
+  try {
+    const response=await api({type:'status',state:status,qr:currentQr,qrIssuedAt,phone});
+    if(response.refreshQrRequestedAt)void requestFreshQr(response.refreshQrRequestedAt);
+  }
   catch(e){console.error('Não foi possível atualizar o painel:',e.message);}
   finally{heartbeatBusy=false;}
 }
 function setStatus(next,qr=null,p=null,err=null){
   status=next;isReady=next==='ready';currentQr=qr;phone=p;
+  qrIssuedAt=next==='qr'?new Date().toISOString():null;
   console.log('WhatsApp:',next,err?String(err).slice(0,100):'');
-  void api({type:'status',state:next,qr,phone:p,error:err||null})
+  void api({type:'status',state:next,qr,qrIssuedAt,phone:p,error:err||null})
     .catch(e=>console.error('Status não sincronizado:',e.message));
 }
 function digits(jid){
@@ -117,10 +125,28 @@ async function poll(){
   }finally{pollingBusy=false;}
 }
 
+async function requestFreshQr(requestedAt){
+  const when=Date.parse(String(requestedAt||''));
+  if(!Number.isFinite(when)||!requestedAt||requestedAt===lastRefreshRequest||
+      isReady||qrRestartBusy||Date.now()-lastQrRestartAt<30000)return;
+  lastRefreshRequest=requestedAt;
+  qrRestartBusy=true;lastQrRestartAt=Date.now();
+  try{
+    await api({type:'qr_refresh_ack',requestedAt});
+    const previous=socket;
+    socket=null; // Suppress late QR and close callbacks from the retired socket.
+    try{previous?.end?.(new Error('QR refresh requested'));}catch{}
+    setStatus('connecting'); // Do NOT clear existing credential backup.
+    await connect();
+  }catch(error){
+    console.error('Falha ao renovar QR:',String(error?.message||error).slice(0,160));
+    if(!socket)setStatus('error',null,null,'Não foi possível renovar o QR.');
+  }finally{qrRestartBusy=false;}
+}
 async function connect(){
   clearTimeout(reconnectTimer);
   isReady=false;
-  status='connecting';currentQr=null;
+  status='connecting';currentQr=null;qrIssuedAt=null;
   await vault.restore();
   const {state,saveCreds}=await useMultiFileAuthState(join(folder,'session'));
   const keyWriter=state.keys.set.bind(state.keys);
@@ -156,8 +182,8 @@ async function connect(){
     if(socket!==sock)return;
     if(qr){
       void QRCode.toDataURL(qr,{margin:2,width:300,errorCorrectionLevel:'M'})
-        .then(img=>setStatus('qr',img))
-        .catch(()=>setStatus('error',null,null,'Não foi possível gerar QR'));
+        .then(img=>{if(socket===sock&&!isReady)setStatus('qr',img);})
+        .catch(()=>{if(socket===sock&&!isReady)setStatus('error',null,null,'Não foi possível gerar QR');});
     }
     if(connection==='open'){
       reconnectAttempts=0;
