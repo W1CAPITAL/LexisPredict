@@ -57,12 +57,33 @@ export async function POST(req:Request){
       const state=['offline','connecting','qr','ready','error'].includes(body.state)?body.state:'error';
       const qr=state==='qr'&&/^data:image\/png;base64,[a-zA-Z0-9+/=]+$/.test(String(body.qr||''))&&String(body.qr||'').length<90000
         ?String(body.qr):null;
+      const now=Date.now(),issued=Date.parse(String(body.qrIssuedAt||''));
+      const qrGeneratedAt=qr&&Number.isFinite(issued)&&issued<=now+5000&&issued>now-600000
+        ?new Date(issued).toISOString():null;
       const {error}=await db.from('wa_local_bridges').update({
-        state,qr_data_url:qr,phone:/^55\d{10,11}$/.test(String(body.phone||''))?String(body.phone):null,
+        state,qr_data_url:qr,qr_generated_at:qrGeneratedAt,
+        phone:/^55\d{10,11}$/.test(String(body.phone||''))?String(body.phone):null,
         last_error:body.error?String(body.error).slice(0,200):null,
-        last_seen:new Date().toISOString(),updated_at:new Date().toISOString(),
+        last_seen:new Date(now).toISOString(),updated_at:new Date(now).toISOString(),
       }).eq('empresa_id',tenant);
-      return result({ok:!error},error?503:200);
+      if(error)return result({ok:false,error:'Bridge state unavailable'},503);
+      if(state==='ready')return result({ok:true});
+      const {data:cmd}=await db.from('wa_local_bridges')
+        .select('qr_refresh_requested_at,qr_refresh_handled_at').eq('empresa_id',tenant).maybeSingle();
+      const requestedAt=Date.parse(String(cmd?.qr_refresh_requested_at||''));
+      const handledAt=Date.parse(String(cmd?.qr_refresh_handled_at||''));
+      const pending=Number.isFinite(requestedAt)&&requestedAt>now-120000
+        &&(!Number.isFinite(handledAt)||requestedAt>handledAt);
+      return result({ok:true,refreshQrRequestedAt:pending?cmd?.qr_refresh_requested_at:null});
+    }
+    case 'qr_refresh_ack':{
+      const requestedAt=String(body.requestedAt||'');
+      if(!Number.isFinite(Date.parse(requestedAt)))return result({ok:false,error:'Invalid request'},400);
+      const {data,error}=await db.from('wa_local_bridges')
+        .update({qr_refresh_handled_at:new Date().toISOString()})
+        .eq('empresa_id',tenant).eq('qr_refresh_requested_at',requestedAt)
+        .select('empresa_id').maybeSingle();
+      return result({ok:!error&&!!data},error?503:(!data?409:200));
     }
     case 'prepare':{
       const {data:state}=await db.from('wa_local_bridges').select('state,last_seen')
