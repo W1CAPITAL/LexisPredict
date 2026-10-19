@@ -223,7 +223,6 @@ export async function getSupervisaoSnapshotAction(
         c.ultimoRetorno || c.ultimo_retorno || (c as any).dados?.ultimoRetorno || ''
       ).trim();
       const temTextoRetorno = !!retorno && retorno !== '-' && retorno.toLowerCase() !== 'null' && retorno !== '0';
-      const retornoDate = temTextoRetorno ? parseUltimoAtendimento(retorno) : null;
       // Retorno no cadastro NÃO é prova de atendimento humano no período:
       // scanner e WhatsApp automático podem avançar a data de retorno.
       const diasTrabalho = humanWorkEvents(c)
@@ -264,12 +263,10 @@ export async function getSupervisaoSnapshotAction(
       if (vencidoAtual) op.vencidos++;
       if (isNov) op.novidades++;
       if (c.indicio_busca_apreensao) op.ba++;
-      if (temTextoRetorno) {
-        op.atendimentos++;
-        if (atendidoNoPeriodo) op.atendidosSemana++;
-      } else {
-        op.semRetorno++;
-      }
+      if (temTextoRetorno) op.atendimentos++;
+      else op.semRetorno++;
+      // Edição manual também conta como atividade da equipe, mesmo sem retorno ao cliente.
+      if (atendidoNoPeriodo) op.atendidosSemana++;
 
       // IDs legados e atuais do MESMO usuário se unem no mesmo grupo.
       const userKey = ownerKey;
