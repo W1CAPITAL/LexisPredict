@@ -80,20 +80,40 @@ export default function SupervisaoPage() {
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
   const allowed = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
 
-  const load = async () => {
-    setLoading(true);
-    const res = await getSupervisaoSnapshotAction(periodo);
-    if (res.success) {
-      setSnap(res.snapshot || null);
-      setError("");
-    } else {
-      setError(res.error || "Falha ao carregar.");
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await getSupervisaoSnapshotAction(periodo);
+      if (res.success) {
+        setSnap(res.snapshot || null);
+        setError("");
+      } else {
+        // Nunca esconder o erro: dados remanescentes podem estar desatualizados.
+        setError(res.error || "Não foi possível consultar o banco agora.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao atualizar a supervisão.");
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (allowed && !authLoading) load();
+    if (!allowed || authLoading) return;
+    void load();
+    // Reconsulta mesmo sem o usuário clicar; ao retornar de outra aba,
+    // o snapshot antigo é substituído por dados recém-consultados no Supabase.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, 180_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [allowed, authLoading, periodo]);
 
   const handleDownloadRelatorioEquipe = async () => {
@@ -175,10 +195,19 @@ export default function SupervisaoPage() {
               <ShieldCheck size={14} /> Supervisão
             </p>
             <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Supervisão</h1>
-            <p className="mt-2 text-sm font-medium text-[#617693]">Acompanhe a performance da sua equipe em tempo real.</p>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Indicadores consultados diretamente no Supabase, com atualização automática a cada 3 minutos.</p>
+            <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
+              {snap?.geradoEm
+                ? `Consulta: ${new Date(snap.geradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+                : "Consultando a carteira atual"}
+              {snap?.ultimaAlteracaoEm
+                ? ` · Última alteração no banco: ${new Date(snap.ultimaAlteracaoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+                : ""}
+              {loading && snap ? " · Atualizando…" : ""}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={load} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Atualizar
             </Button>
             <Button variant="outline" size="sm" onClick={handleDownloadRelatorioEquipe} disabled={!snap || pdfLoading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
@@ -190,6 +219,12 @@ export default function SupervisaoPage() {
 
         <ScrollArea className="flex-1">
           <div className="p-4 sm:p-8 space-y-8 max-w-[1500px] mx-auto w-full">
+            {error && snap ? (
+              <div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                Não foi possível renovar os dados: {error}. Os indicadores abaixo pertencem à última consulta bem-sucedida.
+                <button type="button" className="ml-2 underline font-bold" onClick={() => void load()}>Tentar novamente</button>
+              </div>
+            ) : null}
             {loading && !snap ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-4">
                 <Loader2 className="animate-spin text-primary" size={32} />
@@ -242,9 +277,9 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<ShieldAlert size={16} />} label="Vencidos" value={snap.vencidos} tone={snap.vencidos > 0 ? "danger" : "default"} />
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
-                  <KpiCard icon={<MessageSquare size={16} />} label="Atend. (geral)" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
-                  <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atend. mês" : periodo === "semana_passada" ? "Atend. sem. ant." : "Atend. semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
-                  <KpiCard icon={<Activity size={16} />} label="Editados app" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
+                  <KpiCard icon={<MessageSquare size={16} />} label="Com retorno no cadastro" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
+                  <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atividade humana/mês" : periodo === "semana_passada" ? "Atividade humana/sem. ant." : "Atividade humana/semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
+                  <KpiCard icon={<Activity size={16} />} label="Auditados semana" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
                   <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />
                 </div>
