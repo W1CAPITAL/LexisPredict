@@ -17,6 +17,7 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
   const [selected,setSelected] = useState<DocumentCase|null>(null);
   const [loading,setLoading] = useState(false);
   const [searching,setSearching] = useState(false);
+  const [initialTimedOut,setInitialTimedOut] = useState(false);
   const [error,setError] = useState("");
   const [opened,setOpened] = useState(true);
   const [manualMode,setManualMode] = useState(false);
@@ -49,17 +50,19 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
     if(!opened || term.trim()) return;
     let live=true;
     setSearching(true);
+    const timeout=window.setTimeout(()=>{if(live){setSearching(false);setInitialTimedOut(true);setError("Consulta demorada. Pesquise pelo nome ou CNJ, ou tente novamente.");}},8000);
     void searchDocumentCasesAction("").then(result=>{
-      if(live){setOptions(result.options);setSearching(false);if(!result.ok)setError(result.error||"Falha ao listar a carteira.");}
+      if(live){window.clearTimeout(timeout);setOptions(result.options);setSearching(false);setInitialTimedOut(false);if(!result.ok)setError(result.error||"Falha ao listar a carteira.");}
     }).catch(()=>{if(live){setSearching(false);setError("Erro ao carregar clientes.");}});
-    return ()=>{live=false;};
+    return ()=>{live=false;window.clearTimeout(timeout);};
   },[opened]);
   useEffect(()=>{
     if(term.trim().length<2){setSearching(false);return;}
     let live=true;
     const timer=window.setTimeout(()=>{
       setSearching(true);
-      void searchDocumentCasesAction(term).then(result=>{
+      const searchTerm=term;
+      void searchDocumentCasesAction(searchTerm).then(result=>{
         if(!live)return;
         setSearching(false);
         setOptions(result.options);
@@ -76,7 +79,7 @@ export function DocumentsCarteiraPicker({onSelected}: {onSelected:(value:Documen
     ["classe da ação",selected.classeAcao],["comarca",selected.comarca],
   ] as Array<[string,string]>).filter(([,v])=>!v).map(([k])=>k) : [];
 
-  return <div className="mx-auto my-3 w-full max-w-6xl border-2 border-[#6f1d2b] bg-white p-4 text-[#291c21] shadow-[4px_4px_0px_#111] lg:p-5">
+  return <div className="mx-auto my-2 w-full max-w-6xl min-w-0 border border-[#6f1d2b]/50 bg-white px-3 py-2 text-[#291c21] shadow-sm sm:px-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#6f1d2b]"><BriefcaseBusiness size={16}/>Preencher a partir da carteira</p>
