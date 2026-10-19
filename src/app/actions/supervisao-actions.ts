@@ -6,7 +6,7 @@
  */
 
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
-import { parseUltimoAtendimento, weekBounds, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
+import { parseUltimoAtendimento, humanWorkEvents, hojeBrasilYmd, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
 import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
 
@@ -40,6 +40,10 @@ export type SupervisaoUsuarioGrupo = {
 };
 
 export type SupervisaoSnapshot = {
+  /** Horário UTC em que a consulta foi executada */
+  geradoEm?: string;
+  /** Última alteração registrada na carteira consultada */
+  ultimaAlteracaoEm?: string;
   periodo?: string;
   periodoLabel?: string;
   total: number;
@@ -131,16 +135,24 @@ export async function getSupervisaoSnapshotAction(
 
     // Nomes dos usuários da empresa (created_by = auth_user_id)
     const nomeByAuth = new Map<string, string>();
+    const ownerCanonico = new Map<string, string>();
     try {
       const admin = await getSupabaseAdmin();
       const { data: users } = await admin
         .from('usuarios')
-        .select('auth_user_id, nome, email')
+        .select('id, auth_user_id, nome, email')
         .eq('empresa_id', ctx.empresa_id);
       for (const u of users || []) {
-        const id = String((u as any).auth_user_id || '').trim();
-        if (id) {
-          nomeByAuth.set(id, String((u as any).nome || (u as any).email || 'Usuário').toUpperCase());
+        const authId = String((u as any).auth_user_id || '').trim();
+        const perfilId = String((u as any).id || '').trim();
+        const canonico = authId || perfilId;
+        const nome = String((u as any).nome || (u as any).email || 'Usuário').toUpperCase();
+        // created_by tem registros legados com usuarios.id E registros com auth_user_id.
+        for (const key of [authId, perfilId]) {
+          if (key) {
+            nomeByAuth.set(key, nome);
+            ownerCanonico.set(key, canonico);
+          }
         }
       }
     } catch (e) {
@@ -148,6 +160,8 @@ export async function getSupervisaoSnapshotAction(
     }
 
     const now = new Date();
+    const hojeBR = parseUltimoAtendimento(hojeBrasilYmd(now)) || now;
+    let ultimaAlteracaoMs = 0;
     const periodoKey = (periodo || 'esta_semana') as PeriodoRelatorio;
     const semana = periodBounds(periodoKey, now);
     const periodoLabel = labelPeriodo(periodoKey, now);
@@ -171,7 +185,7 @@ export async function getSupervisaoSnapshotAction(
 
     const weekBuckets: { start: Date; end: Date; atendidos: number; label: string }[] = [];
     for (let w = 7; w >= 0; w--) {
-      const start = new Date(now);
+      const start = new Date(hojeBR);
       const dow = (start.getDay() + 6) % 7;
       start.setDate(start.getDate() - dow - w * 7);
       start.setHours(0, 0, 0, 0);
@@ -184,6 +198,8 @@ export async function getSupervisaoSnapshotAction(
     }
 
     for (const c of cases as any[]) {
+      const alteracaoMs = Date.parse(String(c.updated_at || c.created_at || ''));
+      if (Number.isFinite(alteracaoMs) && alteracaoMs > ultimaAlteracaoMs) ultimaAlteracaoMs = alteracaoMs;
       const encerrado = isCasoEncerrado(c);
       if (encerrado) encerrados++;
       else ativos++;
@@ -192,7 +208,11 @@ export async function getSupervisaoSnapshotAction(
       }
 
       const status = String(c.status || 'Sem Prazo');
-      if (/vencido|cr[ií]tico/i.test(status)) vencidos++;
+      const proximoRetorno = parseUltimoAtendimento(String(c.proximoPrazo || c.proximo_retorno || ''));
+      // Recalcula o vencimento na data atual; não confia em um rótulo congelado.
+      const vencidoAtual = !encerrado &&
+        (proximoRetorno ? proximoRetorno < hojeBR : /vencido|cr[ií]tico/i.test(status));
+      if (vencidoAtual) vencidos++;
       const isNov =
         !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao);
       if (isNov) novidades++;
@@ -202,29 +222,26 @@ export async function getSupervisaoSnapshotAction(
       const retorno = String(
         c.ultimoRetorno || c.ultimo_retorno || (c as any).dados?.ultimoRetorno || ''
       ).trim();
-      const temTextoRetorno =
-        !!retorno &&
-        retorno !== '-' &&
-        retorno.toLowerCase() !== 'null' &&
-        retorno !== '0';
+      const temTextoRetorno = !!retorno && retorno !== '-' && retorno.toLowerCase() !== 'null' && retorno !== '0';
       const retornoDate = temTextoRetorno ? parseUltimoAtendimento(retorno) : null;
-      // Taxa de retorno = processos COM retorno (texto ou data válida), não volume de eventos
-      if (temTextoRetorno) {
-        atendimentosTotais++;
-        if (retornoDate && retornoDate >= semana.start && retornoDate <= semana.end) {
-          atendidosSemana++;
-        }
-        if (retornoDate) {
-          for (const wk of weekBuckets) {
-            if (retornoDate >= wk.start && retornoDate <= wk.end) wk.atendidos++;
-          }
-        }
-      } else {
-        semRetorno++;
+      // Retorno no cadastro NÃO é prova de atendimento humano no período:
+      // scanner e WhatsApp automático podem avançar a data de retorno.
+      const diasTrabalho = humanWorkEvents(c)
+        .map((e) => parseUltimoAtendimento(e.date))
+        .filter((d): d is Date => !!d);
+      const atendidoNoPeriodo = diasTrabalho.some((d) => d >= semana.start && d <= semana.end);
+      if (temTextoRetorno) atendimentosTotais++;
+      else semRetorno++;
+      if (atendidoNoPeriodo) atendidosSemana++;
+      for (const wk of weekBuckets) {
+        if (diasTrabalho.some((d) => d >= wk.start && d <= wk.end)) wk.atendidos++;
       }
 
+      const ownerRef = String(c.created_by || c.auth_user_id || '').trim();
+      const ownerKey = ownerCanonico.get(ownerRef) || ownerRef || 'sem-usuario';
+      const ownerNome = nomeByAuth.get(ownerRef) || '';
       // KPI por assistente (campo livre)
-      const opNome = String(c.assistente || c.atendente || '').trim() || 'Sem responsável';
+      const opNome = ownerNome || String(c.assistente || c.atendente || '').trim() || 'Sem responsável identificado';
       let op = opMap.get(opNome);
       if (!op) {
         op = {
@@ -244,25 +261,22 @@ export async function getSupervisaoSnapshotAction(
       op.total++;
       if (encerrado) op.encerrados++;
       else op.ativos++;
-      if (/vencido|cr[ií]tico/i.test(status)) op.vencidos++;
+      if (vencidoAtual) op.vencidos++;
       if (isNov) op.novidades++;
       if (c.indicio_busca_apreensao) op.ba++;
       if (temTextoRetorno) {
         op.atendimentos++;
-        if (retornoDate && retornoDate >= semana.start && retornoDate <= semana.end) {
-          op.atendidosSemana++;
-        }
+        if (atendidoNoPeriodo) op.atendidosSemana++;
       } else {
         op.semRetorno++;
       }
 
-      // Agrupamento por USUÁRIO do sistema (created_by)
-      const authId = String(c.created_by || c.auth_user_id || '').trim();
-      const userKey = authId || 'sem-usuario';
+      // IDs legados e atuais do MESMO usuário se unem no mesmo grupo.
+      const userKey = ownerKey;
       const userNome =
-        (authId && nomeByAuth.get(authId)) ||
+        ownerNome ||
         String(c.assistente || c.atendente || '').trim() ||
-        (authId ? `Usuário ${authId.slice(0, 8)}` : 'Sem usuário atribuído');
+        (ownerRef ? `Usuário ${ownerRef.slice(0, 8)}` : 'Sem usuário atribuído');
 
       let ug = userMap.get(userKey);
       if (!ug) {
@@ -290,15 +304,12 @@ export async function getSupervisaoSnapshotAction(
       if (isBaixaTribunal(c)) {
         ug.baixasTribunal++;
       }
-      if (/vencido|cr[ií]tico/i.test(status)) ug.vencidos++;
+      if (vencidoAtual) ug.vencidos++;
       if (isNov) ug.novidades++;
       if (c.indicio_busca_apreensao) ug.ba++;
-      if (retornoDate) {
-        ug.atendimentos++;
-        if (retornoDate >= semana.start && retornoDate <= semana.end) ug.atendidosSemana++;
-      } else {
-        ug.semRetorno++;
-      }
+      if (temTextoRetorno) ug.atendimentos++;
+      else ug.semRetorno++;
+      if (atendidoNoPeriodo) ug.atendidosSemana++;
       ug.processos.push({
         id: String(c.id || c.protocolo || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()))),
         protocolo: String(c.protocolo || ''),
@@ -334,6 +345,8 @@ export async function getSupervisaoSnapshotAction(
       snapshot: {
         periodo: periodoKey,
         periodoLabel,
+        geradoEm: now.toISOString(),
+        ultimaAlteracaoEm: ultimaAlteracaoMs ? new Date(ultimaAlteracaoMs).toISOString() : undefined,
         total: cases.length,
         ativos,
         encerrados,
