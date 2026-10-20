@@ -18,6 +18,11 @@ type EncerramentosResumo={
  testesAdministrativos:number;testesSemReversao:number;testesRevertidos:number;
  porUsuario:Array<{userId:string;nome:string;processos:number;eventos:number;permanecemEncerrados:number}>;
 };
+type TrabalhoInternoResumo={
+ registros:number;processosDistintos:number;comContatoConfirmado:number;testes:number;testesRevertidos:number;
+ porCategoria:Array<{categoria:string;registros:number;processos:number}>;
+ porUsuario:Array<{userId:string;nome:string;registros:number;processos:number}>;
+};
 export default async function ReportPage({searchParams}:{searchParams:Promise<{periodo?:string;escopo?:string}>}){
  const params=await searchParams;
  const periodo:PeriodoRelatorio=params.periodo==="semana_passada"?"semana_passada":params.periodo==="mes"?"mes":"esta_semana";
@@ -31,12 +36,13 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30}),
-  db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo})
+  db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo})
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -52,6 +58,9 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const cr=closuresResult.status==="fulfilled"?closuresResult.value:null;
  const encerramentos:EncerramentosResumo|null=cr&&!cr.error&&cr.data&&typeof cr.data==="object"?
    cr.data as EncerramentosResumo:null;
+ const tr=trabalhoResult.status==="fulfilled"?trabalhoResult.value:null;
+ const trabalho:TrabalhoInternoResumo|null=tr&&!tr.error&&tr.data&&typeof tr.data==="object"?
+   tr.data as TrabalhoInternoResumo:null;
  const totals=[
   {title:"Processos atendidos",value:hist?.processos,help:"Distintos no período, empresa inteira"},
   {title:"Atendimentos registrados",value:hist?.eventos,help:"Eventos feitos por pessoas"},
@@ -143,6 +152,51 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           <p className="mt-3 text-xs text-muted-foreground">Os grupos podem se sobrepor aos encerramentos manuais. Não somar ao número atual de encerrados, nem considerar contato com o cliente sem evidência.</p>
         </div>
       </div>
+    </section>
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold">Investigações, auditorias e atividades internas</h2>
+          <p className="mt-1 max-w-4xl text-xs text-muted-foreground">Registros atribuídos a colaboradores no sistema, inclusive processos investigados, análises por planilha e trabalhos fora do CRM. São registros operacionais, não contatos comprovados com o cliente nem encerramentos judiciais.</p>
+        </div>
+        <Link href="/minhas-atividades" className="text-xs font-semibold text-primary underline">Registrar nova atividade</Link>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          {title:"Registros de trabalho interno",value:trabalho?.registros},
+          {title:"Processos distintos analisados",value:trabalho?.processosDistintos},
+          {title:"Testes internos em lote",value:trabalho?.testes},
+          {title:"Testes com reversão",value:trabalho?.testesRevertidos},
+        ].map(x=><div key={x.title} className="rounded-lg border border-border bg-background p-4">
+          <p className="text-xs font-semibold text-muted-foreground">{x.title}</p>
+          <p className="mt-2 text-2xl font-black tabular-nums">{fmt(x.value)}</p>
+        </div>)}
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div>
+          <h3 className="text-sm font-bold">Trabalho por colaborador</h3>
+          <div className="mt-2 space-y-2">
+            {trabalho?.porUsuario?.length?trabalho.porUsuario.map(x=><div key={x.userId||x.nome} className="rounded-lg border border-border bg-background px-3 py-2 text-xs">
+              <strong>{x.nome}</strong> — {fmt(x.processos)} processos distintos, {fmt(x.registros)} registros
+            </div>):<p className="mt-2 text-xs text-muted-foreground">Nenhuma atividade interna encontrada no período.</p>}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-sm font-bold">Tipos de trabalho registrados</h3>
+          <div className="mt-2 space-y-2">
+            {trabalho?.porCategoria?.length?trabalho.porCategoria.map(x=><div key={x.categoria} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-xs">
+              <span className="break-words">{({
+                auditoria_sistemica:"Auditoria e triagem sistêmica",triagem_replica_provas:"Análise de réplica e provas",
+                atendimento_por_perfil_davi:"Histórico de atendimentos atribuídos",auditoria_por_perfil_davi:"Auditorias por perfil",
+                historico_atendimento_id_davi:"Histórico de atendimentos revisado",edicao_por_nome_davi:"Edições por identificação",
+                entrega_projeto:"Projetos e sistemas",dossie_individual:"Dossiês individuais",
+              } as Record<string,string>)[x.categoria]||x.categoria.replaceAll("_"," ")}</span>
+              <span className="shrink-0 tabular-nums font-bold">{fmt(x.registros)}</span>
+            </div>):null}
+          </div>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">Contagem por data de registro da atividade, inclusive importações e conferências lançadas em lote. Um processo pode aparecer em diversas categorias; não some as categorias como se fossem processos únicos.</p>
     </section>
     <section className="grid gap-4 lg:grid-cols-2">
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
