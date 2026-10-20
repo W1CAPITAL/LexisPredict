@@ -51,8 +51,24 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
     const cases: any[] = [];
     for (const row of found.values()) {
       const dados = row.dados && typeof row.dados === "object" ? row.dados : {};
+      const atualSituacao=resolveSituacaoFromRow(row,dados);
+      const atualStatusManual=resolveStatusManualFromRow(row,dados,atualSituacao);
+      // A busca SQL retorna JSON legado completo. Exibir a versão tipada
+      // sem permitir que d.status_interno e d.situacao antigos reabram ou
+      // encerrem o processo visualmente por engano.
+      const dadosNormalizados={
+        ...dados,
+        situacao:atualSituacao,
+        status_interno:atualSituacao,
+        status:row.status??dados.status,
+        statusManual:atualStatusManual,
+        proximoPrazo:row.proximo_retorno??"",
+        proximo_retorno:row.proximo_retorno??null,
+        ultimoRetorno:row.ultimo_retorno??"",
+        ultimo_retorno:row.ultimo_retorno??null,
+      };
       const base = {
-        ...dados, // o JSON legado é fallback; colunas SQL atualizadas sempre prevalecem
+        ...dadosNormalizados,
         id: row.id,
         db_id: row.id,
         protocolo: row.protocolo_ref || dados.protocolo,
@@ -83,14 +99,14 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
           dados.TELEFONE ||
           "",
         status: row.status || dados.status,
-        situacao: resolveSituacaoFromRow(row,dados),
-        statusManual: resolveStatusManualFromRow(row,dados,resolveSituacaoFromRow(row,dados)),
+        situacao: atualSituacao,
+        statusManual: atualStatusManual,
         status_interno: row.status_interno || dados.status_interno,
         ultimoRetorno: row.ultimo_retorno ?? dados.ultimoRetorno ?? dados.ultimo_retorno ?? null,
         proximoPrazo: row.proximo_retorno ?? null,
         created_by: row.created_by,
         atendido_por: row.atendido_por || dados.atendido_por,
-        dados,
+        dados:dadosNormalizados,
       };
       try {
         const processed = processarCaso(base as any);
