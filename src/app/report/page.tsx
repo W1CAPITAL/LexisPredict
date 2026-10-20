@@ -92,11 +92,28 @@ export default function UnifiedReport() {
   const [financeResumo, setFinanceResumo] = useState<any>(null);
   const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [historicoAtendimentos,setHistoricoAtendimentos]=useState<import("@/lib/historico-atendimentos").AtendimentosHistorico|null>(null);
   const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasDaviConcluidas:number;tarefasDaviPeriodo:number;historicoAtendimentosDavi:number;historicoEdicoesDavi:number;encerramentosSistemicosDavi:number;processosComTrabalhoDavi:number;contatosDeclaradosPeriodo:number}|null>(null);
 
   const { profile, loading: authLoading } = useAuth();
 
   useEffect(()=>{setMounted(true);},[]);
+  useEffect(()=>{
+    if(!mounted||authLoading||!profile?.empresa_id)return;
+    let active=true;
+    const refresh=()=>{
+      void import("@/app/actions/atendimentos-historico-actions")
+       .then(m=>m.getAtendimentosHistoricoAction(periodo))
+       .then(r=>{if(active&&r.ok)setHistoricoAtendimentos(r.data);})
+       .catch(err=>console.warn("[report] atendimentos historico",err));
+    };
+    refresh();
+    const onFocus=()=>{if(!document.hidden)refresh();};
+    window.addEventListener("focus",onFocus);
+    window.addEventListener("lexis-carteira-updated",refresh);
+    const timer=window.setInterval(()=>{if(!document.hidden)refresh();},60_000);
+    return ()=>{active=false;window.removeEventListener("focus",onFocus);window.removeEventListener("lexis-carteira-updated",refresh);window.clearInterval(timer);};
+  },[mounted,authLoading,profile?.empresa_id,periodo]);
   useEffect(()=>{
     if(!mounted||authLoading||!profile?.empresa_id)return;
     let active=true;
@@ -180,14 +197,16 @@ export default function UnifiedReport() {
     const countNovoAndamento = u.countNovoAndamento;
     const countBA = u.countBA;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
-    const countAtendidosSemana =
-      periodo === "esta_semana"
-        ? u.countAtendidosSemana
-        : countAtendidosNoPeriodo(cases as any, periodo);
+    const countAtendidosSemana=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
+      ? historicoAtendimentos.processos
+      : (periodo==="esta_semana"?u.countAtendidosSemana:countAtendidosNoPeriodo(cases as any,periodo));
     const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countEditadosApp = countEditadosAppSemana(cases as any);
-    const serieAtendimentosSemana = buildAtendimentosPorDiaPeriodo(cases as any, periodo);
+    const serieBase=buildAtendimentosPorDiaPeriodo(cases as any,periodo);
+    const serieAtendimentosSemana=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
+      ? serieBase.map((x:any,i:number)=>({...x,atendimentos:historicoAtendimentos.dias[i]?.atendimentos||0,retornos:historicoAtendimentos.dias[i]?.atendimentos||0}))
+      : serieBase;
     const semanaLabel = labelPeriodo(periodo);
 
     const mediaDia =
@@ -301,7 +320,7 @@ export default function UnifiedReport() {
       top3Lawyers: lawyerRank.slice(0, 3),
       bottom3Lawyers: lawyerRank.length > 3 ? lawyerRank.slice(-3).reverse() : []
     };
-  }, [cases, profile, periodo]);
+  }, [cases, profile, periodo, historicoAtendimentos]);
 
   const buildResumoCarteira = () => {
     const topCrit = metrics.topCriticos.slice(0, 10).map((i) =>
@@ -426,10 +445,12 @@ export default function UnifiedReport() {
               { label: "Atendidos internamente (Davi)", value: String(analisesResumo?.atendidosInternamenteNoPeriodo ?? 0) },
               { label: "Processos analisados (Davi)", value: String(analisesResumo?.processosAnalisados ?? 0) },
               { label: "Tarefas manuais no período", value: String(analisesResumo?.tarefasConcluidasPeriodo ?? 0) },
+              { label: "Atendimentos registrados", value: String(historicoAtendimentos?.eventos ?? 0) },
             ],
             resumoExecutivo: [
               `Davi Alves Figueredo — ${analisesResumo?.processosAnalisados ?? 0} processos com análise interna, ${analisesResumo?.auditoriaDocumental ?? 0} registros de auditoria documental, ${analisesResumo?.triagemReplicaProvas ?? 0} triagens de réplica/provas, ${analisesResumo?.dossiesIndividuais ?? 0} dossiês individuais e ${analisesResumo?.investigacoesExternas ?? 0} referências de investigação externa. São atividades internas, sem comprovação automática de atendimento ao cliente.`,
               `Atividades registradas: ${analisesResumo?.tarefasDaviPeriodo ?? 0} tarefas concluídas por Davi no período e ${analisesResumo?.tarefasConcluidasPeriodo ?? 0} por toda a equipe. Há também ${analisesResumo?.encerramentosSistemicosDavi ?? 0} processos com operação em lote vinculada à conta de Davi, que não equivalem a contatos pessoais.`,
+              `Histórico de atendimentos no período: ${historicoAtendimentos?.processos ?? 0} processos únicos, ${historicoAtendimentos?.eventos ?? 0} eventos humanos. ${historicoAtendimentos?.tecnicoEventos ?? 0} eventos de conta técnica separados. Crédito pelo executor da ação, mesmo que o cliente esteja atribuído a outro responsável.`,
               ...metrics.recomendacoes,
             ],
             semana: {
@@ -604,6 +625,7 @@ export default function UnifiedReport() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
            <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
+          <KpiCard label="Registros de atendimento" value={historicoAtendimentos?.eventos ?? 0} tone="info" />
            <KpiCard label="Atendidos internamente · Davi" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
            <KpiCard label="Analisados na carteira · Davi" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
            <KpiCard label="Minhas tarefas concluídas" value={analisesResumo?.tarefasDaviPeriodo ?? 0} tone="ok" />
