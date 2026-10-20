@@ -51,6 +51,8 @@ import {
 import type { LegalCase } from "@/lib/case-logic";
 import { cn } from "@/lib/utils";
 import { computeOpsLinha } from "@/lib/ops-linha";
+import { statusEfetivo } from "@/lib/prazo-status";
+import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { openDjenPublicacaoAction } from "@/app/actions/open-djen-action";
 import { generateDossieProcessoPDFAction } from "@/app/actions/dossie-processo-actions";
 import { consultarOabAction, type OabResult } from "@/app/actions/oab-actions";
@@ -194,6 +196,8 @@ function djenCriticalLabel(c: LegalCase) {
 }
 
 function urgencyScore(c: LegalCase) {
+  // Silêncio histórico do tribunal não torna urgente um processo já encerrado.
+  if(isCasoEncerrado(c))return 0;
   let score = 0;
   if (/vencido|caso crítico/i.test(String(c.status))) score += 80;
   if (c.risco === "Crítico") score += 50;
@@ -704,7 +708,7 @@ export function ProcessosCommandCenter(props: Props) {
             <table className="min-w-[900px] w-full border-collapse text-left">
               <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-[#081427] text-[10px] uppercase tracking-[.08em] text-slate-500">
                 <tr>
-                  {["Número CNJ","Cliente","Tribunal","Última atualização","Último movimento","Dias","Situação","Risco","Responsável","Próximo retorno"].map((h) => (
+                  {["Número CNJ","Cliente","Tribunal","Última atualização","Último movimento","Dias sem movimentação","Situação","Risco","Responsável","Próximo retorno"].map((h) => (
                     <th key={h} className="border-b border-slate-200 dark:border-white/8 px-2 py-2.5 font-bold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -720,6 +724,7 @@ export function ProcessosCommandCenter(props: Props) {
                   const silence = caseSilenceDays(c);
                   const update = pick(c, "datajud_consultado_em", "evento_data", "djen_consultado_em");
                   const priority = riskLabel(c);
+                  const situacaoAtual=statusEfetivo(c);
                   return (
                     <tr key={id} onClick={() => { setSelectedId(id); setTab("overview"); }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
                       <td className="px-2 py-2 font-mono font-bold text-cyan-700 dark:text-cyan-300">{fmtCnj(c.protocolo)}</td>
@@ -727,11 +732,11 @@ export function ProcessosCommandCenter(props: Props) {
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{c.tribunal || "—"}</td>
                       <td className="px-2 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap"><span>{fmtDate(update)}</span><span className={cn("ml-1 rounded border px-1 py-0.5 text-[9px]",toneBadge(sourceFreshness(c).tone))}>{sourceFreshness(c).label}</span></td>
                       <td className="max-w-[170px] truncate px-2 py-2 text-sky-700 dark:text-sky-300" title={latestMovement(c)}>{latestMovement(c)}</td>
-                      <td className={cn("px-2 py-2 font-black tabular-nums", (silence || 0) >= 45 ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{silence ?? "—"}</td>
-                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[10px] font-bold", statusColor(String(c.status)))}>{c.status || "—"}</span></td>
+                      <td title="Dias desde a última movimentação conhecida no tribunal. Atendimento ou retorno marcado não zeram esse histórico." className={cn("px-2 py-2 font-black tabular-nums", !isCasoEncerrado(c)&&(silence||0)>=45 ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{silence ?? "—"}</td>
+                      <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[10px] font-bold", statusColor(String(situacaoAtual)))}>{situacaoAtual || "—"}</span></td>
                       <td className="px-2 py-2"><span className={cn("rounded-full border px-1.5 py-1 text-[10px] font-bold", statusColor(priority))}>{priority}</span></td>
                       <td className="max-w-[120px] truncate px-2 py-2 text-slate-700 dark:text-slate-300">{ownerName(c, props.ownerNameByAuth)}</td>
-                      <td className={cn("px-2 py-2 font-semibold whitespace-nowrap", c.status === "Vencido" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{fmtDate(c.proximoPrazo)}</td>
+                      <td className={cn("px-2 py-2 font-semibold whitespace-nowrap", situacaoAtual === "Vencido" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300")}>{fmtDate(c.proximoPrazo)}</td>
                     </tr>
                   );
                 })}
