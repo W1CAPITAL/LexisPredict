@@ -58,6 +58,7 @@ const core: NavItem[] = [
   { label: "Início", href: "/", icon: LayoutDashboard },
   { label: "Meus Processos", href: "/cases", icon: Briefcase },
   { label: "Processos da Empresa", href: "/processos", icon: FolderOpen, company: true },
+  { label: "Réplica e Provas", href: "/fases-provas", icon: FileText },
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
