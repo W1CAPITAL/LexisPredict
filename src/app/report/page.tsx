@@ -20,9 +20,11 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  if(!ctx.empresa_id||!ctx.auth_id)redirect("/login");
  const empresaId=String(ctx.empresa_id);
  const owner=(ctx.isSupervisor||ctx.isSuperAdmin||ctx.caseScope==="empresa")?null:ctx.auth_id;
- const [historyResult,snapshotResult]=await Promise.allSettled([
+ const db=await getSupabaseAdmin();
+ const [historyResult,snapshotResult,meritoResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
-  (async()=>{const db=await getSupabaseAdmin();return db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner});})(),
+  db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner})
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -31,6 +33,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
    total:Number(row.total||0),ativos:Number(row.ativos||0),encerrados:Number(row.encerrados||0),
    vencidos:Number(row.vencidos||0),novidades:Number(row.novidades||0),baixas:Number(row.baixas||0)
  }:null;
+ const mr=meritoResult.status==="fulfilled"?meritoResult.value:null;
+ const merito=mr&&!mr.error&&mr.data&&typeof mr.data==="object"?mr.data as Record<string,number>:null;
  const totals=[
   {title:"Processos atendidos",value:hist?.processos,help:"Distintos no período, empresa inteira"},
   {title:"Atendimentos registrados",value:hist?.eventos,help:"Eventos feitos por pessoas"},
@@ -97,6 +101,21 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           </div>):<p className="text-sm text-muted-foreground">Não há atendimentos pessoais confirmados para o período consultado.</p>}
         </div>
         {hist?.tecnicoEventos?<p className="mt-3 text-xs text-muted-foreground">{hist.tecnicoEventos} eventos de contas técnicas mantidos fora da contagem humana.</p>:null}
+      </div>
+    </section>
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-lg font-bold">Resultado de mérito registrado na carteira</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Classificações cadastradas, não sentenças definitivamente confirmadas. Resultados contraditórios ficam fora dos totais de procedência e improcedência.</p>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          ["Procedentes",merito?.procedentes],
+          ["Improcedentes",merito?.improcedentes],
+          ["Parcialmente procedentes",merito?.parciais],
+          ["Conferir divergências",merito?.divergentes],
+        ].map(([title,value])=><div key={String(title)} className="rounded-lg border border-border bg-background p-3">
+          <p className="text-xs font-semibold text-muted-foreground">{title}</p>
+          <p className="mt-1 text-2xl font-extrabold tabular-nums">{fmt(value as number|undefined)}</p>
+        </div>)}
       </div>
     </section>
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
