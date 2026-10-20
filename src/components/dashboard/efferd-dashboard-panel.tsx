@@ -5,7 +5,7 @@ import { LexisChartTooltip } from "@/components/charts/lexis-chart-tooltip";
 /**
  * Painel KPI Efferd — topo do dashboard, cards legíveis + gráficos.
  */
-import React, { useMemo } from "react";
+import React, { useMemo,useEffect,useState } from "react";
 import { LazyMotion, domAnimation, m } from "framer-motion";
 import {
   Area,
@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useAtendimentosHistorico } from "@/hooks/use-atendimentos-historico";
+import {fetchFastCarteira,type CarteiraSnapshot} from "@/lib/fast-carteira-client";
 import {
   buildAtendimentosPorDiaSemana,
   countAtendidosNestaSemana,
@@ -169,6 +170,22 @@ export function Dashboard({
   tribunalSemana,
 }: LexisDashboardProps) {
   const {profile}=useAuth();
+  const [empresaResumo,setEmpresaResumo]=useState<CarteiraSnapshot|null>(null);
+  const empresaId=String((profile as any)?.empresa_id||"");
+  useEffect(()=>{
+    if(!empresaId)return;
+    let alive=true;
+    const carregar=()=>{
+      void fetchFastCarteira("empresa",1,0).then(res=>{if(alive)setEmpresaResumo(res.summary);})
+       .catch(err=>console.warn("[efferd] resumo da empresa",err));
+    };
+    carregar();
+    const onFocus=()=>{if(!document.hidden)carregar();};
+    window.addEventListener("focus",onFocus);
+    window.addEventListener("lexis-carteira-updated",carregar);
+    const timer=window.setInterval(()=>{if(!document.hidden)carregar();},90_000);
+    return()=>{alive=false;window.clearInterval(timer);window.removeEventListener("focus",onFocus);window.removeEventListener("lexis-carteira-updated",carregar);};
+  },[empresaId]);
   const {data:historico,loading:historyLoading,error:historyError}=useAtendimentosHistorico(
     "esta_semana",String((profile as any)?.empresa_id||"")
   );
@@ -189,46 +206,42 @@ export function Dashboard({
   );
   const semanaLabel = useMemo(() => labelSemanaAtual(), []);
 
-  const bars = useMemo(
-    () => [
-      { name: "Carteira", v: totalProcessos },
-      { name: "Ativos", v: ativos ?? totalProcessos },
-      { name: "Novidades", v: novidades },
-      { name: "Vencidos", v: vencidos },
-      { name: "Baixas tribunal", v: baixas },
-      { name: "Enc. carteira", v: encerradosCarteira },
-      { name: "Hoje", v: hoje },
-    ],
-    [totalProcessos, ativos, novidades, vencidos, baixas, encerradosCarteira, hoje]
-  );
+  const bars=useMemo(()=>empresaResumo?[
+    {name:"Carteira",v:empresaResumo.total},
+    {name:"Ativos",v:empresaResumo.ativos},
+    {name:"Novidades",v:empresaResumo.novidades},
+    {name:"Vencidos",v:empresaResumo.vencidos},
+    {name:"Baixas tribunal",v:empresaResumo.baixas},
+    {name:"Enc. carteira",v:empresaResumo.encerrados},
+  ]:[],[empresaResumo]);
 
   const kpis: Kpi[] = [
     {
-      label: "Carteira",
-      value: totalProcessos,
+      label: "Carteira empresa",
+      value: empresaResumo?.total ?? "…",
       icon: <Briefcase size={16} />,
       tone: "info",
-      hint: "Total na empresa",
+      hint: "Total consultado no Supabase, empresa inteira",
     },
     {
       label: "Pendentes",
       value: pendentes,
       icon: <Activity size={16} />,
       tone: pendentes > 0 ? "warn" : "ok",
-      hint: "Andamentos + prazos do dia",
+      hint: "Andamentos e prazos do escopo de lista carregado",
     },
     {
       label: "Vencidos",
-      value: vencidos,
+      value: empresaResumo?.vencidos ?? "…",
       icon: <AlertTriangle size={16} />,
-      tone: vencidos > 0 ? "danger" : "ok",
+      tone: (empresaResumo?.vencidos||0)>0 ? "danger" : "ok",
       hint: "Prazo estourado",
     },
     {
       label: "Novidades CNJ",
-      value: novidades,
+      value: empresaResumo?.novidades ?? "…",
       icon: <TrendingUp size={16} />,
-      tone: novidades > 0 ? "warn" : "default",
+      tone: (empresaResumo?.novidades||0)>0 ? "warn" : "default",
       hint: "Movimento após retorno",
     },
     {
@@ -236,20 +249,20 @@ export function Dashboard({
       value: hoje,
       icon: <Clock size={16} />,
       tone: hoje > 0 ? "warn" : "default",
-      hint: "Retorno / prazo hoje",
+      hint: "Retornos e prazos na lista atualmente carregada",
     },
     {
       label: "Baixas tribunal",
-      value: baixas,
+      value: empresaResumo?.baixas ?? "…",
       icon: <Gavel size={16} />,
-      tone: baixas > 0 ? "ok" : "default",
+      tone: (empresaResumo?.baixas||0)>0 ? "ok" : "default",
       hint: "Telemetria tribunal (isBaixaTribunal). Diferente de Enc. carteira.",
     },
     {
       label: "Encerrados carteira",
-      value: encerradosCarteira,
+      value: empresaResumo?.encerrados ?? "…",
       icon: <CheckCircle2 size={16} />,
-      tone: encerradosCarteira > 0 ? "ok" : "default",
+      tone: (empresaResumo?.encerrados||0)>0 ? "ok" : "default",
       hint: "Marcados ENCERRADO/ARQUIVADO no gabinete",
     },
     {
