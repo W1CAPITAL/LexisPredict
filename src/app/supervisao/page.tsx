@@ -278,6 +278,8 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<FileSearch size={16} />} label="Atendidos internamente · Davi" value={snap.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0} tone="primary" hint="análises e auditorias; não são contatos por WhatsApp" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · Davi" value={snap.analisesInternas?.tarefasDaviPeriodo ?? 0} tone="ok" hint="atividades manuais no período" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · equipe" value={snap.analisesInternas?.tarefasConcluidasPeriodo ?? 0} tone="ok" hint="lançamentos manuais no período" />
                   <KpiCard icon={<FileSearch size={16} />} label="Processos analisados · Davi" value={snap.analisesInternas?.processosAnalisados ?? 0} tone="ok" hint="carteira com origem e data registradas" />
                                     <KpiCard icon={<MessageSquare size={16} />} label="Com retorno no cadastro" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
                   <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atividade humana/mês" : periodo === "semana_passada" ? "Atividade humana/sem. ant." : "Atividade humana/semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
