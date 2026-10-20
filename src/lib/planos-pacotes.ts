@@ -91,6 +91,7 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/crm",
     "/financas",
     "/report",
+    "/analises-internas",
     "/calculos",
     "/analytics",
     "/deals",
