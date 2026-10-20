@@ -260,10 +260,10 @@ export default function ProcessosEmpresaPage() {
   };
 
   const syncedUpdate=(protocolo:string,updated?:LegalCase|null)=>{
-    const key=String(protocolo||"").replace(/\\D/g,"");
+    const key=String(protocolo||"").replace(/\D/g,"");
     if(updated){
       setCases(current=>current.map(item=>{
-        const currentKey=String(item.protocolo||"").replace(/\\D/g,"");
+        const currentKey=String(item.protocolo||"").replace(/\D/g,"");
         if(currentKey!==key)return item;
         return {...item,...updated,id:item.id,db_id:(item as any).db_id,created_by:(item as any).created_by} as LegalCase;
       }));
