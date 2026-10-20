@@ -45,16 +45,23 @@ export function montarRelatorioEquipe(
         atendidosSemana: o.atendidosSemana, semRetorno: o.semRetorno,
         ba: o.ba, processos: [],
       }));
-  const pessoas: RelatorioEquipePessoa[] = grupos.map(u => ({
-    nome: u.nome || "Sem usuário identificado",
-    papel: "Carteira conforme titularidade cadastrada no Supabase.",
-    linha: linhaPessoa(u),
-    vencidos: u.vencidos,
-  }));
+  const a = snap.analisesInternas;
+  const pessoas: RelatorioEquipePessoa[] = grupos.map(u => {
+    const davi=/\bDAVI\b/i.test(u.nome);
+    return {
+      nome: u.nome || "Sem usuário identificado",
+      papel: davi
+        ? "Carteira processual, dossiês, auditoria documental, investigações, sistemas e automações."
+        : "Carteira conforme titularidade cadastrada no Supabase.",
+      linha: linhaPessoa(u)+(davi&&a?` · ${a.processosAnalisados} processos com análise interna atribuída (inclui auditoria sistêmica, sem contato presumido)`:""),
+      vencidos: u.vencidos,
+    };
+  });
   const maioresVencidos = [...pessoas].filter(p => p.vencidos > 0)
     .sort((a,b) => b.vencidos - a.vencidos).slice(0,3);
   const maiorCarteira = [...grupos].sort((a,b)=>b.total-a.total)[0];
   const leitura = [
+    ...(a ? [`Davi Alves Figueredo: ${a.processosAnalisados} processos da carteira com registro de trabalho analítico, ${a.auditoriaDocumental} anotações de auditoria documental, ${a.triagemReplicaProvas} triagens de réplica e provas, ${a.dossiesIndividuais} dossiês individuais, ${a.investigacoesExternas} levantamentos/investigações externas e ${a.projetos} entregas de projeto. São categorias sobrepostas e não são mensagens enviadas ou atendimento ao cliente.`] : []),
     `A base consultada contém ${snap.total} processos: ${snap.ativos} ativos e ${snap.encerrados} encerrados.`,
     `Foram identificados ${snap.vencidos} processos com retorno vencido. O vencimento é reavaliado pela data do retorno programado na consulta.`,
     `Existem ${snap.atendimentosTotais} processos com último retorno registrado. No período selecionado, ${snap.atendidosSemana} processos tiveram atividade humana registrada (contato ou edição); não é contagem de mensagens enviadas.`,
@@ -91,6 +98,8 @@ export function montarRelatorioEquipe(
       { valor: String(snap.novidades), rotulo: "novidades" },
       { valor: String(snap.atendimentosTotais), rotulo: "com retorno" },
       { valor: String(snap.atendidosSemana), rotulo: "atividade humana no período" },
+      { valor: String(a?.atendidosInternamenteNoPeriodo ?? 0), rotulo: "atendidos internamente (análise)" },
+      { valor: String(a?.processosAnalisados ?? 0), rotulo: "processos auditados/analisados" },
     ],
     pessoas, leitura, canais, esconde, recado, proxima, whatsapp: FATO_WHATSAPP,
   };
