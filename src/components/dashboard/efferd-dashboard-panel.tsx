@@ -266,6 +266,20 @@ export function Dashboard({
       hint: "Marcados ENCERRADO/ARQUIVADO no gabinete",
     },
     {
+      label: "Sem retorno há 30+ dias",
+      value: empresaResumo?.retornoDisponivel ? empresaResumo.semRetorno30 : "…",
+      icon: <AlertTriangle size={16}/>,
+      tone: (empresaResumo?.semRetorno30||0)>0 ? "warn" : "ok",
+      hint: "Ativos com último retorno há 30 dias ou mais, incluindo quem nunca teve retorno",
+    },
+    {
+      label: "Nunca teve retorno",
+      value: empresaResumo?.retornoDisponivel ? empresaResumo.semRetornoNunca : "…",
+      icon: <Clock size={16}/>,
+      tone: (empresaResumo?.semRetornoNunca||0)>0 ? "danger" : "ok",
+      hint: "Sem nenhuma data de atendimento registrada no CRM; processos ativos",
+    },
+    {
       label: "Atendidos sem.",
       value: atendidosSemana ?? "…",
       icon: <Clock size={16} />,
