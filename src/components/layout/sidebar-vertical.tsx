@@ -65,6 +65,7 @@ const core: NavItem[] = [
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
+  { label: "Minhas atividades", href: "/minhas-atividades", icon: ListTodo },
   { label: "CRM", href: "/crm", icon: Users },
   { label: "Configurações", href: "/settings", icon: Settings },
 ];
