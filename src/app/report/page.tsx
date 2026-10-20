@@ -423,8 +423,13 @@ export default function UnifiedReport() {
               { label: "Auditados semana", value: String(metrics.countAuditadosSemana ?? 0) },
               { label: "Tribunal (sem.)", value: String(metrics.countAuditadosTribunal ?? 0) },
               { label: "Editados app", value: String(metrics.countEditadosApp ?? 0) },
+              { label: "Atendidos internamente (Davi)", value: String(analisesResumo?.atendidosInternamenteNoPeriodo ?? 0) },
+              { label: "Processos analisados (Davi)", value: String(analisesResumo?.processosAnalisados ?? 0) },
             ],
-            resumoExecutivo: metrics.recomendacoes,
+            resumoExecutivo: [
+              `Davi Alves Figueredo — ${analisesResumo?.processosAnalisados ?? 0} processos com análise interna, ${analisesResumo?.auditoriaDocumental ?? 0} registros de auditoria documental, ${analisesResumo?.triagemReplicaProvas ?? 0} triagens de réplica/provas, ${analisesResumo?.dossiesIndividuais ?? 0} dossiês individuais e ${analisesResumo?.investigacoesExternas ?? 0} referências de investigação externa. São atividades internas, sem comprovação automática de atendimento ao cliente.`,
+              ...metrics.recomendacoes,
+            ],
             semana: {
               label: metrics.semanaLabel,
               series: (metrics.serieAtendimentosSemana || []).map((d: any) => ({
