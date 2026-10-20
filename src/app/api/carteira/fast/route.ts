@@ -13,8 +13,9 @@ type Snapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
   improcedentes:number; parciais:number; divergentesMerito:number; meritoDisponivel:boolean;
+  semRetorno30?:number; semRetornoNunca?:number; retornoDisponivel?:boolean;
 };
-const EMPTY: Snapshot = { total: 0, ativos: 0, encerrados: 0, vencidos: 0, baixas: 0, procedentes: 0, cumprimentos: 0, novidades: 0, improcedentes:0,parciais:0,divergentesMerito:0,meritoDisponivel:false };
+const EMPTY: Snapshot = { total: 0, ativos: 0, encerrados: 0, vencidos: 0, baixas: 0, procedentes: 0, cumprimentos: 0, novidades: 0, improcedentes:0,parciais:0,divergentesMerito:0,meritoDisponivel:false,semRetorno30:undefined,semRetornoNunca:undefined,retornoDisponivel:false };
 const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'Vary': 'Cookie', 'X-Content-Type-Options': 'nosniff' };
 const safeInt = (raw: string | null, fallback: number, max: number) =>
   Math.max(0, Math.min(max, Number.isFinite(Number(raw)) && raw !== null ? Math.trunc(Number(raw)) : fallback));
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const db = await getSupabaseAdmin();
 
     const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
-    const [listResult, countResult, meritoResult] = await Promise.all([
+    const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',
         onlyAtivos: false,
@@ -49,6 +50,9 @@ export async function GET(request: NextRequest) {
       }) : Promise.resolve({ data: null, error: null }),
       withSummary ? db.rpc('lexis_merito_snapshot',{
         p_empresa:empresaId,p_owner:ownerScope
+      }) : Promise.resolve({data:null,error:null}),
+      withSummary ? db.rpc('lexis_retorno_snapshot',{
+        p_empresa:empresaId,p_owner:ownerScope,p_dias:30
       }) : Promise.resolve({data:null,error:null}),
     ]);
     let snapshot: Snapshot = { ...EMPTY };
@@ -78,6 +82,14 @@ export async function GET(request: NextRequest) {
       snapshot.meritoDisponivel=true;
     } else if(withSummary){
       console.warn('[api/carteira/fast] mérito indisponível',meritoResult.error);
+    }
+    if(!retornoResult.error && retornoResult.data && typeof retornoResult.data==='object'){
+      const t=retornoResult.data as Record<string,unknown>;
+      snapshot.semRetorno30=Number(t.semRetornoLongo||0);
+      snapshot.semRetornoNunca=Number(t.nuncaRegistrado||0);
+      snapshot.retornoDisponivel=true;
+    } else if(withSummary){
+      console.warn('[api/carteira/fast] retorno longo indisponível',retornoResult.error);
     }
     return NextResponse.json({
       ok: true, cases: listResult, summary: snapshot,
