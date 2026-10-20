@@ -87,7 +87,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
         statusManual: resolveStatusManualFromRow(row,dados,resolveSituacaoFromRow(row,dados)),
         status_interno: row.status_interno || dados.status_interno,
         ultimoRetorno: row.ultimo_retorno ?? dados.ultimoRetorno ?? dados.ultimo_retorno ?? null,
-        proximoPrazo: row.proximo_retorno ?? ((row.updated_at && row.dados?.edited_at) ? null : dados.proximoPrazo ?? dados.proximo_retorno ?? null),
+        proximoPrazo: row.proximo_retorno ?? null,
         created_by: row.created_by,
         atendido_por: row.atendido_por || dados.atendido_por,
         dados,
