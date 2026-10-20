@@ -3,6 +3,7 @@ import {redirect} from "next/navigation";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
+import {ReportSync} from "@/components/report/report-sync";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -85,6 +86,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Dados do Supabase, sem depender da lista paginada. Atendimentos e encerramentos são atribuídos a quem registrou a ação, mesmo em processos de outros responsáveis. Os cartões da carteira mostram {somenteMinhaCarteira?"somente os processos atribuídos ao usuário logado":"todos os processos da empresa"}.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ReportSync/>
           <Link href="/minhas-atividades" className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold">Minhas atividades</Link>
           <Link href="/report/completo" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Relatório completo e PDFs</Link>
         </div>
