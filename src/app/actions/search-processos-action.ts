@@ -35,93 +35,17 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
 
     const empresaId = String(ctx.empresa_id);
     const dig = digitsOnly(q);
-    const found = new Map<string, any>();
-
-    // Correspondência exata no protocolo.
-    const exact = await admin
-      .from("processos")
-      .select("*")
-      .eq("empresa_id", empresaId)
-      .eq("protocolo_ref", q)
-      .limit(50);
-    for (const row of exact.data || []) found.set(String(row.id), row);
-
-    if (dig.length === 20) {
-      const fmt = normalizeCnjDisplay(dig);
-      const fmtRows = await admin
-        .from("processos")
-        .select("*")
-        .eq("empresa_id", empresaId)
-        .eq("protocolo_ref", fmt)
-        .limit(50);
-      for (const row of fmtRows.data || []) found.set(String(row.id), row);
-    }
-
-    // Busca ampla por protocolo.
-    const proto = await admin
-      .from("processos")
-      .select("*")
-      .eq("empresa_id", empresaId)
-      .ilike("protocolo_ref", `%${q}%`)
-      .limit(100);
-    for (const row of proto.data || []) found.set(String(row.id), row);
-
-    if (dig.length >= 8) {
-      const tail = dig.slice(-12);
-      const byTail = await admin
-        .from("processos")
-        .select("*")
-        .eq("empresa_id", empresaId)
-        .ilike("protocolo_ref", `%${tail.slice(0, 4)}%${tail.slice(-4)}%`)
-        .limit(200);
-
-      for (const row of byTail.data || []) {
-        const pDig = digitsOnly(row.protocolo_ref || row.dados?.protocolo || "");
-        if (
-          (pDig.length > 0 && pDig.includes(dig)) ||
-          (pDig.length > 0 && dig.includes(pDig)) ||
-          (tail && pDig.endsWith(tail))
-        ) {
-          found.set(String(row.id), row);
-        }
-      }
-    }
-
-    // Cliente/advogado: pesquisa tanto colunas relacionais quanto JSON.
-    // A versão anterior pesquisava apenas `dados->>cliente`, o que fazia
-    // alguns clientes existentes desaparecerem da busca.
-    const textColumns = [
-      "cliente", "advogado", "escritorio", "telefone",
-      "dados->>cliente", "dados->>CLIENTE",
-      "dados->>advogado", "dados->>ADVOGADO",
-      "dados->>escritorio", "dados->>ESCRITORIO",
-      "dados->>telefone", "dados->>TELEFONE",
-    ];
-    // Pesquisa direta no banco, sem depender das páginas carregadas na interface.
-    // Um telefone salvo como (11) 99999-9999 também corresponde a 11999999999.
-    const phonePattern = dig.length >= 8 && dig.length <= 15
-      ? dig.split("").join("%")
-      : null;
-    const requests = textColumns.flatMap((column) => {
-      const patterns = [`%${q}%`];
-      if (phonePattern && column.toLowerCase().includes("telefone")) {
-        patterns.push(`%${phonePattern}%`);
-      }
-      return patterns.map((pattern) =>
-        admin.from("processos").select("*")
-          .eq("empresa_id", empresaId)
-          .ilike(column, pattern)
-          .limit(400)
-      );
+    // Busca por CNJ, cliente, telefone ou advogado em UMA chamada ao Postgres,
+    // evitando 12-20 SELECTs e processamento repetido do JSON completo.
+    const {data:matches,error:searchError}=await admin.rpc("buscar_carteira_empresa_rapido",{
+      p_empresa:empresaId,p_query:q,p_limit:100
     });
-    const textResults = await Promise.all(requests);
-    for (const result of textResults) {
-      for (const row of result.data || []) found.set(String(row.id), row);
+    if(searchError) {
+      console.error("[searchCompanyProcessosAction] RPC",searchError);
+      return {ok:false,cases:[],error:"Falha ao consultar a carteira: "+searchError.message};
     }
-    // Não mascarar erro de banco como "nenhum processo encontrado".
-    if (found.size === 0 && textResults.every((result) => !!result.error)) {
-      return { ok: false, cases: [], error: "A pesquisa no banco falhou. Tente novamente." };
-    }
+    const found = new Map<string,any>();
+    for(const row of matches||[])found.set(String(row.id),row);
 
     const cases: any[] = [];
     for (const row of found.values()) {
