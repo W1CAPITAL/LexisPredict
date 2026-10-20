@@ -272,7 +272,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const protocolo = String(data.protocolo ?? data.PROTOCOLO ?? '').trim();
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
-  const situacao = (data.SITUACAO || data.situacao || data.STATUS || 'EM ANDAMENTO').toUpperCase();
+  const situacao = String(data.situacao || data.SITUACAO || data.status_interno || data.STATUS || 'EM ANDAMENTO').toUpperCase();
   
   const proximoPrazoRaw = sanitizeDateCell(
     data.proximoPrazo ?? data.proximo_retorno ?? data.PROXIMO_RETORNO ?? data.PROXIMO_PRAZO ?? data.proximo_prazo ?? ''
