@@ -92,10 +92,19 @@ export default function UnifiedReport() {
   const [financeResumo, setFinanceResumo] = useState<any>(null);
   const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number}|null>(null);
 
   const { profile, loading: authLoading } = useAuth();
 
   useEffect(()=>{setMounted(true);},[]);
+  useEffect(()=>{
+    if(!mounted||authLoading||!profile?.empresa_id)return;
+    let active=true;
+    void import("@/app/actions/analises-internas-actions").then(m=>m.getAnalisesInternasResumoAction(periodo))
+      .then(res=>{if(active&&res.success&&res.resumo)setAnalisesResumo(res.resumo);})
+      .catch(err=>console.warn("[report] analises internas",err));
+    return ()=>{active=false;};
+  },[mounted,authLoading,profile?.empresa_id,periodo]);
   useEffect(()=>{
     const empresaId=String(profile?.empresa_id||'');
     const userId=String(profile?.auth_user_id||'');
@@ -588,6 +597,8 @@ export default function UnifiedReport() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
            <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
+           <KpiCard label="Atendidos internamente · Davi" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
+           <KpiCard label="Analisados na carteira · Davi" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
            <KpiCard label="Auditados esta semana" value={metrics.countAuditadosSemana ?? 0} tone="info" />
            <KpiCard label="Tribunal (DataJud/DJEN)" value={metrics.countAuditadosTribunal ?? 0} />
            <KpiCard label="Editados no app" value={metrics.countEditadosApp ?? 0} />
@@ -603,6 +614,16 @@ export default function UnifiedReport() {
            <KpiCard label="B.A. real" value={metrics.baReal ?? 0} />
         </section>
 
+        <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-6 sm:p-8 break-inside-avoid">
+          <h2 className="text-xl font-black text-foreground">Trabalho analítico e auditoria — Davi Alves Figueredo</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {analisesResumo
+              ? `${analisesResumo.auditoriaDocumental} apontamentos de auditoria documental, ${analisesResumo.triagemReplicaProvas} triagens de réplica/provas, ${analisesResumo.dossiesIndividuais} dossiês individuais, ${analisesResumo.investigacoesExternas} referências de investigações externas e ${analisesResumo.projetos} entregas de projeto, incluindo sistemas e automações.`
+              : "Carregando o histórico de análises internas."}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Produtividade interna registrada no Supabase. Os números por categoria podem se sobrepor. Não correspondem a clientes contatados, mensagens entregues ou erros judiciais confirmados.</p>
+          <Link href="/analises-internas" className="mt-3 inline-flex text-sm font-semibold text-primary underline">Consultar processos e evidências registrados</Link>
+        </section>
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
            <div className="lexis-report-band bg-emerald-600 text-white p-5 flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3"><TrendingUpIcon size={14}/> Demonstrativo Financeiro — Honorários</h3>
