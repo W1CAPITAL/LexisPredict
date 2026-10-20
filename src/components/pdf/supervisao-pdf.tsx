@@ -144,6 +144,8 @@ export function SupervisaoPDF({
     { label: "Novidades", value: String(data.novidades) },
     { label: "Atend. geral", value: String(data.atendimentosTotais) },
     { label: "Atend. semana", value: String(data.atendidosSemana) },
+    { label: "Análise interna (Davi)", value: String(data.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0) },
+    { label: "Processos analisados", value: String(data.analisesInternas?.processosAnalisados ?? 0) },
   ];
   const cols = ["Responsável", "Total", "Ativos", "Vencidos", "Novid.", "Atend.", "Sem."];
 
@@ -176,6 +178,15 @@ export function SupervisaoPDF({
         </View>
 
         <View style={s.content}>
+          <Text style={s.h2}>Davi · dossiês, auditorias e investigações</Text>
+          <View style={s.box}>
+            <Text style={s.small}>
+              Davi Alves Figueredo: {data.analisesInternas?.auditoriaDocumental ?? 0} apontamentos de auditoria documental, {data.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {data.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais, {data.analisesInternas?.investigacoesExternas ?? 0} processos/inquéritos externos investigados em levantamento, e {data.analisesInternas?.projetos ?? 0} entregas de sistema ou projeto.
+            </Text>
+            <Text style={s.small}>
+              Atividades internas computadas à parte dos clientes contatados. As categorias se sobrepõem e nenhuma observação, isoladamente, comprova falha jurídica.
+            </Text>
+          </View>
           <Text style={s.h2}>Atendimentos · últimas 8 semanas</Text>
           <View style={s.box}>
             <Text style={s.small}>
