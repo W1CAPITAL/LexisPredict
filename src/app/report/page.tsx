@@ -203,12 +203,13 @@ export default function UnifiedReport() {
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
     const countEditadosApp=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
       ? (historicoAtendimentos.edicoes?.processos||0):0;
-    const serieBase=buildAtendimentosPorDiaPeriodo(cases as any,periodo);
-    const serieAtendimentosSemana=serieBase.map((x:any,i:number)=>{
-      const n=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
-        ? (historicoAtendimentos.dias[i]?.atendimentos||0):0;
-      return {...x,atendimentos:n,retornos:n};
-    });
+    const serieAtendimentosSemana=
+      historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
+        ? historicoAtendimentos.dias.map(d=>({
+            day:d.day,ymd:d.ymd,label:d.ymd.slice(8,10)+"/"+d.ymd.slice(5,7),
+            atendimentos:d.atendimentos,retornos:d.atendimentos,scans:0
+          }))
+        : [];
     const semanaLabel = labelPeriodo(periodo);
 
     const mediaDia =
@@ -814,13 +815,13 @@ export default function UnifiedReport() {
             {(metrics.serieAtendimentosSemana || []).map((d: any) => {
               const acima = metrics.mediaDia > 0 && d.atendimentos > metrics.mediaDia;
               return (
-                <div key={d.day} className={cn(
+                <div key={d.ymd||d.day} className={cn(
                   "min-w-[64px] rounded-xl border px-3 py-2 text-center transition-colors",
                   acima
                     ? "border-primary/50 bg-primary/10"
                     : "border-border bg-background/80"
                 )}>
-                  <p className="text-[9px] font-black uppercase text-muted-foreground">{d.day}</p>
+                  <p className="text-[9px] font-black uppercase text-muted-foreground">{periodo==="mes"?d.label:d.day}</p>
                   <p className={cn("text-lg font-black tabular-nums", acima ? "text-primary" : "text-foreground")}>{d.atendimentos}</p>
                 </div>
               );
