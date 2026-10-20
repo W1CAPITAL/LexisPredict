@@ -28,7 +28,7 @@ function sim(v: any) {
 }
 
 function isEncerradoStatus(s: string) {
-  return /encerrad|arquivad|extint|finaliz|im[oó]vel/i.test(s || '');
+  return /encerrad|arquivad|extint|finaliz/i.test(s || '');
 }
 
 function isVencido(s: string) {
@@ -60,8 +60,15 @@ function diasSemRetorno(raw: string | null): number | null {
   if (!raw) return null;
   const d = parseFlexDate(String(raw));
   if (!d) return null;
-  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
-  return diff >= 0 ? diff : 0;
+  // Dias de calendário de São Paulo, não diferença em horas ou horário do servidor.
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const parts = today.split('-').map(Number);
+  if (parts.length !== 3 || !parts.every(Number.isFinite)) return null;
+  const nowUTC = Date.UTC(parts[0], parts[1]-1, parts[2]);
+  const previousUTC = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.max(0, Math.floor((nowUTC-previousUTC)/86400000));
 }
 
 function isNestaSemana(raw: string | null, now: Date = new Date()): boolean {
@@ -89,10 +96,15 @@ export function normalizeCase(r: DossieCase) {
   const advogado = String(r.advogado || dados.advogado || '').trim();
   const escritorio = String(r.escritorio || dados.escritorio || '').trim();
   const assistente = String(r.assistente || dados.assistente || r.atendente || dados.atendente || '').trim();
-  const retorno = String(r.ultimoRetorno || r.ultimo_retorno || dados.ultimoRetorno || '').trim();
+  const retorno = String(r.ultimoRetorno || r.ultimo_retorno || dados.ultimoRetorno || dados.ultimo_retorno || '').trim();
   const proximo = String(r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || dados.proximoPrazo || '').trim();
 
   const dsr = diasSemRetorno(retorno || null);
+  const ativo = !isEncerradoStatus(status) && !isEncerradoStatus(String(r.status_interno || dados.status_interno || ''));
+  const retornoLongo = ativo && (dsr === null || dsr >= 30);
+  const situacaoRetorno = !ativo ? 'ENCERRADO — NÃO APLICÁVEL' :
+    dsr === null ? 'NUNCA REGISTRADO' :
+    dsr >= 30 ? `SEM RETORNO HÁ ${dsr} DIAS` : `EM DIA — ${dsr} DIAS`;
 
   return {
     assistente,
@@ -139,6 +151,8 @@ export function normalizeCase(r: DossieCase) {
     procedente: sim(evento === 'sentenca_procedente'),
     improcedente: sim(evento === 'sentenca_improcedente'),
     dias_sem_retorno: dsr == null ? '' : dsr,
+    sem_retorno_30d: sim(retornoLongo),
+    situacao_retorno: situacaoRetorno,
     atendido_semana: isNestaSemana(retorno || null),
   };
 }
@@ -170,6 +184,8 @@ function rowValues(n: ReturnType<typeof normalizeCase>): (string | number)[] {
     n.dias_sem_retorno,
     n.procedente,
     n.improcedente,
+    n.sem_retorno_30d,
+    n.situacao_retorno,
   ];
 }
 
@@ -352,6 +368,7 @@ export async function buildDossieXlsxBase64(
     atendidosSemana = 0,
     comRetorno = 0,
     semRetorno = 0,
+    semRetornoLongo = 0,
     criticos = 0;
 
   const statusMap = new Map<string, number>();
@@ -377,7 +394,8 @@ export async function buildDossieXlsxBase64(
     if (r.atendido_semana) atendidosSemana++;
     if (r.retorno) comRetorno++;
     else semRetorno++;
-    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || Number(r.dias_sem_retorno) > 30) criticos++;
+    if (r.sem_retorno_30d === 'SIM') semRetornoLongo++;
+    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.sem_retorno_30d === 'SIM') criticos++;
 
     statusMap.set(r.status || '—', (statusMap.get(r.status || '—') || 0) + 1);
     escMap.set(r.escritorio || 'Sem escritório', (escMap.get(r.escritorio || 'Sem escritório') || 0) + 1);
@@ -441,6 +459,7 @@ export async function buildDossieXlsxBase64(
     { values: [''], styleRow: 'normal' },
     { values: ['ATENDIMENTO'], styleRow: 'section' },
     { values: ['Casos com retorno registrado', comRetorno, '', '% com retorno', `${comRetornoPct}%`], styleRow: 'kpi' },
+    { values: ['Ativos sem retorno há 30+ dias ou nunca', semRetornoLongo, '', 'Nunca tiveram retorno', semRetorno], styleRow: semRetornoLongo>0?'warn':'ok' },
     { values: ['Atendidos na última semana', atendidosSemana, '', 'Casos sem retorno', semRetorno], styleRow: semRetorno > 0 ? 'warn' : 'zebra' },
     { values: [''], styleRow: 'normal' },
     { values: ['LEITURA ESTRATÉGICA'], styleRow: 'section' },
@@ -464,8 +483,8 @@ export async function buildDossieXlsxBase64(
     { values: ['NOVOS ANDAMENTOS', 'BAIXA TRIBUNAL', 'B.A.', 'CUMPRIMENTO', 'PROCEDENTE', 'IMPROCEDENTE'], styleRow: 'header' },
     { values: [and, encTrib, ba, cump, proc, impr], styleRow: 'kpi' },
     { values: [''], styleRow: 'normal' },
-    { values: ['ATENDIDOS (SEMANA)', 'COM RETORNO', 'SEM RETORNO', 'RISCOS', 'DJEN ATIVO', 'SEM CLIENTE'], styleRow: 'header' },
-    { values: [atendidosSemana, comRetorno, semRetorno, criticos, djen, semCliente], styleRow: 'kpi' },
+    { values: ['ATENDIDOS (SEMANA)', 'COM RETORNO', 'SEM RETORNO NUNCA', 'RISCOS', 'SEM RETORNO 30+ (ATIVOS)', 'SEM CLIENTE'], styleRow: 'header' },
+    { values: [atendidosSemana, comRetorno, semRetorno, criticos, semRetornoLongo, semCliente], styleRow: 'kpi' },
     { values: [''], styleRow: 'normal' },
     { values: ['ESCRITÓRIO', 'QTD', 'ADVOGADO', 'QTD', 'TRIBUNAL', 'QTD'], styleRow: 'header' },
     ...Array.from({ length: Math.max(escMap.size, advMap.size, tjMap.size, 1) }).map((_, i) => {
@@ -495,7 +514,7 @@ export async function buildDossieXlsxBase64(
       !r.cliente ||
       r.ba === 'SIM' ||
       r.novo_andamento === 'SIM' ||
-      (r.dias_sem_retorno !== '' && Number(r.dias_sem_retorno) > 30)
+      r.sem_retorno_30d === 'SIM'
   );
 
   const auditoriaRows: SheetRow[] = [
@@ -565,7 +584,7 @@ export async function buildDossieXlsxBase64(
     })),
   ];
 
-  const PROCESSOS_WIDTHS = [16, 18, 20, 24, 15, 22, 14, 14, 30, 16, 14, 42, 14, 14, 16, 18, 8, 8, 8, 8, 40, 14, 10, 8, 8];
+  const PROCESSOS_WIDTHS = [16, 18, 20, 24, 15, 22, 14, 14, 30, 16, 14, 42, 14, 14, 16, 18, 8, 8, 8, 8, 40, 14, 10, 8, 8, 16, 30];
   const MAPA_WIDTHS = [26, 12];
   const ANALYTICS_WIDTHS = [18, 14, 14, 14, 16, 16];
 
@@ -724,6 +743,8 @@ export async function buildProcessosProfissionalXlsxBase64(
     'Novo Andamento',
     'Produtos',
     'Observacoes',
+    'Sem Retorno 30d',
+    'Situacao Retorno',
   ];
   const VALOR_COL = 13; // 0-based -> coluna N
 
@@ -753,6 +774,8 @@ export async function buildProcessosProfissionalXlsxBase64(
         x.novo_andamento,
         x.produtos,
         x.observacoes,
+        x.sem_retorno_30d,
+        x.situacao_retorno,
       ],
       styleRow: (i % 2 === 0 ? 'zebra' : 'normal') as 'zebra' | 'normal',
     })),
@@ -770,7 +793,7 @@ export async function buildProcessosProfissionalXlsxBase64(
   const ba = list.filter((x) => x.ba === 'SIM').length;
   const cumprimento = list.filter((x) => x.cumprimento === 'SIM').length;
   const atendidosSemana = list.filter((x) => x.atendido_semana).length;
-  const semRetorno = list.filter((x) => String(x.dias_sem_retorno) !== '' && Number(x.dias_sem_retorno) > 7).length;
+  const semRetorno = list.filter((x) => x.sem_retorno_30d === 'SIM').length;
 
   const porStatus = new Map<string, number>();
   const porTribunal = new Map<string, number>();
