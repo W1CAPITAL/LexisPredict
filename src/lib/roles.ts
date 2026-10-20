@@ -201,6 +201,7 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/gerador-processos',
   '/report',
   '/analises-internas',
+  '/minhas-atividades',
   '/crm',
   '/veredito',
   '/chat',
