@@ -38,6 +38,8 @@ import {
 import Link from "next/link";
 import { fetchRepoNotes } from "@/app/actions/case-actions";
 import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
+import {fetchFastCarteira, type CarteiraSnapshot} from '@/lib/fast-carteira-client';
+import {useAtendimentosHistorico} from '@/hooks/use-atendimentos-historico';
 import {peekCarteiraCache,writeCarteiraCache} from '@/lib/session-carteira-cache';
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils"
@@ -92,28 +94,24 @@ export default function UnifiedReport() {
   const [financeResumo, setFinanceResumo] = useState<any>(null);
   const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [historicoAtendimentos,setHistoricoAtendimentos]=useState<import("@/lib/historico-atendimentos").AtendimentosHistorico|null>(null);
+  const [portfolioResumo,setPortfolioResumo]=useState<CarteiraSnapshot|null>(null);
   const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasDaviConcluidas:number;tarefasDaviPeriodo:number;historicoAtendimentosDavi:number;historicoEdicoesDavi:number;encerramentosSistemicosDavi:number;processosComTrabalhoDavi:number;contatosDeclaradosPeriodo:number}|null>(null);
 
   const { profile, loading: authLoading } = useAuth();
 
   useEffect(()=>{setMounted(true);},[]);
+  const {data:historicoAtendimentos,loading:historicoLoading,error:historicoError}=
+    useAtendimentosHistorico(periodo,String(profile?.empresa_id||""));
   useEffect(()=>{
-    if(!mounted||authLoading||!profile?.empresa_id)return;
+    const empresaId=String(profile?.empresa_id||"");
+    if(!mounted||authLoading||!empresaId)return;
     let active=true;
-    const refresh=()=>{
-      void import("@/app/actions/atendimentos-historico-actions")
-       .then(m=>m.getAtendimentosHistoricoAction(periodo))
-       .then(r=>{if(active&&r.ok)setHistoricoAtendimentos(r.data);})
-       .catch(err=>console.warn("[report] atendimentos historico",err));
-    };
-    refresh();
-    const onFocus=()=>{if(!document.hidden)refresh();};
-    window.addEventListener("focus",onFocus);
-    window.addEventListener("lexis-carteira-updated",refresh);
-    const timer=window.setInterval(()=>{if(!document.hidden)refresh();},60_000);
-    return ()=>{active=false;window.removeEventListener("focus",onFocus);window.removeEventListener("lexis-carteira-updated",refresh);window.clearInterval(timer);};
-  },[mounted,authLoading,profile?.empresa_id,periodo]);
+    const scope=checkIfSuperAdmin(profile)||checkIfSupervisor(profile)?"empresa":"mine";
+    void fetchFastCarteira(scope,1,0).then(res=>{
+      if(active)setPortfolioResumo(res.summary);
+    }).catch(err=>console.warn("[report] resumo rapido da carteira",err));
+    return()=>{active=false;};
+  },[mounted,authLoading,profile?.empresa_id,profile?.auth_user_id]);
   useEffect(()=>{
     if(!mounted||authLoading||!profile?.empresa_id)return;
     let active=true;
@@ -162,11 +160,11 @@ export default function UnifiedReport() {
       return ()=>{active=false;window.clearTimeout(extraTimer);};
     }
     void fetchCarteiraAllClient({
-      empresaId,userId,scope,firstPageSize:36,pageSize:220,maxRows:10000,
+      empresaId,userId,scope,firstPageSize:60,pageSize:250,maxRows:10000,
       shouldContinue:()=>active,
       onPage:(rows,page)=>{
         if(!active)return;
-        if(page===0||page%2===0)publish(rows);
+        if(page===0 && !cached?.cases?.length)publish(rows);
       },
     }).then(rows=>{
       if(!active)return;
@@ -197,16 +195,20 @@ export default function UnifiedReport() {
     const countNovoAndamento = u.countNovoAndamento;
     const countBA = u.countBA;
     const countCumprimento = ativos.filter(c => !!c.em_cumprimento_sentenca).length;
+    // Nunca mostrar quantidade provisoria baseada no último retorno dos 60
+    // primeiros processos: ou o histórico autenticado chegou, ou KPI fica pendente.
     const countAtendidosSemana=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
-      ? historicoAtendimentos.processos
-      : (periodo==="esta_semana"?u.countAtendidosSemana:countAtendidosNoPeriodo(cases as any,periodo));
+      ? historicoAtendimentos.processos : 0;
     const countAuditadosSemana = countAuditadosNestaSemana(cases as any);
     const countAuditadosTribunal = countAuditadosTribunalSemana(cases as any);
-    const countEditadosApp = countEditadosAppSemana(cases as any);
+    const countEditadosApp=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
+      ? (historicoAtendimentos.edicoes?.processos||0):0;
     const serieBase=buildAtendimentosPorDiaPeriodo(cases as any,periodo);
-    const serieAtendimentosSemana=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
-      ? serieBase.map((x:any,i:number)=>({...x,atendimentos:historicoAtendimentos.dias[i]?.atendimentos||0,retornos:historicoAtendimentos.dias[i]?.atendimentos||0}))
-      : serieBase;
+    const serieAtendimentosSemana=serieBase.map((x:any,i:number)=>{
+      const n=historicoAtendimentos?.atualizadoEm&&historicoAtendimentos.periodo===periodo
+        ? (historicoAtendimentos.dias[i]?.atendimentos||0):0;
+      return {...x,atendimentos:n,retornos:n};
+    });
     const semanaLabel = labelPeriodo(periodo);
 
     const mediaDia =
@@ -388,7 +390,6 @@ export default function UnifiedReport() {
   };
 
   const handleDownloadRelatorioEquipe = async () => {
-    if(!dataComplete)return;
     if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
     setPdfLoading(true);
     try {
@@ -505,7 +506,7 @@ export default function UnifiedReport() {
     }
   };
 
-  if (!mounted || loading || authLoading) {
+  if (!mounted || authLoading) {
     return (
       <div className="min-h-screen lexis-report-root flex flex-col items-center justify-center space-y-6">
         <Loader2 className="w-12 h-12 text-foreground animate-spin" />
@@ -624,7 +625,7 @@ export default function UnifiedReport() {
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
-           <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
+           <KpiCard label="Atendidos esta semana" value={historicoLoading||historicoAtendimentos?.periodo!==periodo?"…":metrics.countAtendidosSemana} tone="info" />
           <KpiCard label="Registros de atendimento" value={historicoAtendimentos?.eventos ?? 0} tone="info" />
            <KpiCard label="Atendidos internamente · Davi" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
            <KpiCard label="Analisados na carteira · Davi" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
@@ -727,7 +728,7 @@ export default function UnifiedReport() {
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Atendimentos no período</p>
-              <p className="text-3xl font-black tabular-nums text-foreground">{metrics.countAtendidosSemana ?? 0}
+              <p className="text-3xl font-black tabular-nums text-foreground">{historicoLoading||historicoAtendimentos?.periodo!==periodo?"…":metrics.countAtendidosSemana}
                 <span className="text-sm font-bold text-muted-foreground ml-2">casos · {metrics.semanaLabel}</span>
               </p>
             </div>
