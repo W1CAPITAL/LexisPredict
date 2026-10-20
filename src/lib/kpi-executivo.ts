@@ -9,26 +9,32 @@ function dadosOf(c: any): any {
   return c?.dados && typeof c.dados === 'object' ? c.dados : {};
 }
 
-export function flagProcedente(c: any): boolean {
-  const d = dadosOf(c);
-  if (c?.is_procedente || d.is_procedente) return true;
-  if (c?.evento_tipo === 'sentenca_procedente' || c?.evento_tipo === 'sentenca_parcial') return true;
-  try {
-    return isSentencaProcedente(c);
-  } catch {
-    return false;
-  }
-}
+export type CategoriaMeritoCadastrado = "procedente"|"improcedente"|"parcial"|"divergente"|"sem_indicador";
 
-export function flagImprocedente(c: any): boolean {
-  const d = dadosOf(c);
-  if (c?.is_improcedente || d.is_improcedente) return true;
-  if (c?.evento_tipo === 'sentenca_improcedente') return true;
-  try {
-    return isSentencaImprocedente(c);
-  } catch {
-    return false;
-  }
+/** Espelha o RPC lexis_merito_snapshot. Classificação do CRM, não decisão
+ * judicial validada. Não confunde procedência parcial e resultados opostos.
+ */
+export function categoriaMeritoCadastrado(c:any):CategoriaMeritoCadastrado{
+ if(!c)return "sem_indicador";
+ const d=dadosOf(c);
+ const evento=String(c.evento_tipo||d.evento_tipo||"").toLowerCase();
+ const merito=String(c.merito_resultado||d.merito_resultado||"").toLowerCase();
+ const proc=c.is_procedente===true||d.is_procedente===true
+   || evento==="sentenca_procedente"||merito==="procedente";
+ const imp=c.is_improcedente===true||d.is_improcedente===true
+   || d.sentenca_improcedente===true||evento==="sentenca_improcedente"||merito==="improcedente";
+ const partial=d.sentenca_parcial===true||evento==="sentenca_parcial"||merito==="parcial";
+ if((proc&&imp)||(partial&&imp))return "divergente";
+ if(partial)return "parcial";
+ if(imp)return "improcedente";
+ if(proc)return "procedente";
+ return "sem_indicador";
+}
+export function flagProcedente(c:any):boolean{
+ return categoriaMeritoCadastrado(c)==="procedente";
+}
+export function flagImprocedente(c:any):boolean{
+ return categoriaMeritoCadastrado(c)==="improcedente";
 }
 
 export function flagCumprimentoAtivo(c: any): boolean {
@@ -90,6 +96,8 @@ export type KpiExecutivo = {
   total: number;
   procedentes: number;
   improcedentes: number;
+  parciais: number;
+  divergentesMerito: number;
   cumprimentoAtivo: number;
   cumprimentoEncerrado: number;
   faltaInstaurar: number;
@@ -103,6 +111,8 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
   const list = cases || [];
   let procedentes = 0;
   let improcedentes = 0;
+  let parciais=0;
+  let divergentesMerito=0;
   let cumprimentoAtivo = 0;
   let cumprimentoEncerrado = 0;
   let faltaInstaurar = 0;
@@ -112,8 +122,11 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
   let encerradosCarteira = 0;
 
   for (const c of list) {
-    if (flagProcedente(c)) procedentes += 1;
-    if (flagImprocedente(c)) improcedentes += 1;
+    const merito=categoriaMeritoCadastrado(c);
+    if(merito==="procedente")procedentes++;
+    if(merito==="improcedente")improcedentes++;
+    if(merito==="parcial")parciais++;
+    if(merito==="divergente")divergentesMerito++;
     if (flagCumprimentoAtivo(c)) cumprimentoAtivo += 1;
     if (flagCumprimentoEncerrado(c)) cumprimentoEncerrado += 1;
     if (flagFaltaInstaurar(c)) faltaInstaurar += 1;
@@ -131,6 +144,8 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
     total: list.length,
     procedentes,
     improcedentes,
+    parciais,
+    divergentesMerito,
     cumprimentoAtivo,
     cumprimentoEncerrado,
     faltaInstaurar,
