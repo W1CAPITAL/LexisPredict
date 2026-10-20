@@ -13,7 +13,7 @@ import { ProcessosCommandCenter } from '@/components/processos/processos-command
  * Trilha separa atendimento de edição para preservar crédito operacional.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -163,6 +163,8 @@ export default function ProcessosEmpresaPage() {
   const scannerTotal = useDataJudScanStore((s) => s.total);
 
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const casesRef=useRef<LegalCase[]>([]);
+  useEffect(()=>{casesRef.current=cases;},[cases]);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState(0);
@@ -228,26 +230,20 @@ export default function ProcessosEmpresaPage() {
       const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
       // revalidada fica antes das demais, inclusive apos mudar de aba.
-      let nextLength=res.cases.length;
-      setCases((current)=>{
-        // Revalida primeira pagina sem apagar o restante ja aberto ou um
-        // atendimento acabado de salvar em pagina fora do primeiro lote.
-        const all=[...res.cases,...current,...((previous?.cases||[]) as LegalCase[])];
-        const seen=new Set<string>();
-        const merged=all.filter((item)=>{
-          const key=String(item.id||item.protocolo||"");
-          if(!key||seen.has(key))return false;
-          seen.add(key);return true;
-        });
-        nextLength=merged.length;
-        writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
-        return merged;
+      const all=[...res.cases,...casesRef.current,...((previous?.cases||[]) as LegalCase[])];
+      const seen=new Set<string>();
+      const merged=all.filter(item=>{
+        const key=String(item.id||item.protocolo||"");
+        if(!key||seen.has(key))return false;
+        seen.add(key);return true;
       });
-      setListOffset((prev)=>Math.max(prev,nextLength));
+      setCases(merged);
+      setListOffset(merged.length);
+      writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
       setTotalCount(res.totalCount);
       setAtivosCount(res.summary.ativos);
       setVencidosCount(res.summary.vencidos);
-      setHasServerMore(nextLength < res.totalCount);
+      setHasServerMore(merged.length < res.totalCount);
       if (!force) setOnlyAtivosList(false);
     } catch (error) {
       setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
