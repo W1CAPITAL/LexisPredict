@@ -8,7 +8,7 @@ type SearchResult = { term: string; cases: LegalCase[]; error: string };
 const EMPTY_CASES: LegalCase[] = [];
 
 /** Pesquisa o banco inteiro da empresa, nunca somente a pagina em cache. */
-export function useCompanyProcessSearch(value: string, enabled = true) {
+export function useCompanyProcessSearch(value: string, enabled = true, refreshKey = 0) {
   const term = value.trim();
   const active = enabled && term.length >= 2;
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -38,7 +38,7 @@ export function useCompanyProcessSearch(value: string, enabled = true) {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [term, active]);
+  }, [term, active, refreshKey]);
 
   const current = active && result?.term === term ? result : null;
   return {
