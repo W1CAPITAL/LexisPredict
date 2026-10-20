@@ -146,6 +146,8 @@ export function SupervisaoPDF({
     { label: "Atend. semana", value: String(data.atendidosSemana) },
     { label: "Análise interna (Davi)", value: String(data.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0) },
     { label: "Processos analisados", value: String(data.analisesInternas?.processosAnalisados ?? 0) },
+    { label: "Tarefas equipe", value: String(data.analisesInternas?.tarefasConcluidasPeriodo ?? 0) },
+    { label: "Tarefas Davi", value: String(data.analisesInternas?.tarefasDaviPeriodo ?? 0) },
   ];
   const cols = ["Responsável", "Total", "Ativos", "Vencidos", "Novid.", "Atend.", "Sem."];
 
@@ -186,6 +188,14 @@ export function SupervisaoPDF({
             <Text style={s.small}>
               Atividades internas computadas à parte dos clientes contatados. As categorias se sobrepõem e nenhuma observação, isoladamente, comprova falha jurídica.
             </Text>
+          </View>
+          <Text style={s.h2}>Atividades concluídas por responsável</Text>
+          <View style={s.box}>
+            {(data.analisesInternas?.tarefasPorPessoa || []).length
+              ? (data.analisesInternas?.tarefasPorPessoa || []).map((u,i)=>(
+                <Text key={i} style={s.small}>{u.nome}: {u.periodo} tarefas no período · {u.total} no histórico manual</Text>
+              ))
+              : <Text style={s.small}>Nenhuma tarefa manual registrada neste período.</Text>}
           </View>
           <Text style={s.h2}>Atendimentos · últimas 8 semanas</Text>
           <View style={s.box}>
