@@ -36,7 +36,7 @@ export async function fetchFastCarteira(
 }
 
 /** Cache de snapshot de listagem empresarial. Sempre particionado pelo login. */
-const FAST_KEY = 'lexis_fast_carteira_v1:';
+const FAST_KEY = 'lexis_fast_carteira_merito_v2:';
 const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
