@@ -157,6 +157,7 @@ function toLegalCase(item: any): LegalCase {
     status_executivo: item.status_executivo ?? dados.status_executivo,
     detalhes_execucao: item.detalhes_execucao ?? dados.detalhes_execucao,
     data_transito_julgado: item.data_transito_julgado,
+    djen_consultado_em: item.djen_consultado_em,
     djen_nova_comunicacao: item.djen_nova_comunicacao,
     djen_ultimo_resumo: item.djen_ultimo_resumo,
     djen_ultimo_link: item.djen_ultimo_link,
