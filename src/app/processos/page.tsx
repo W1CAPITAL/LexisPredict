@@ -734,7 +734,8 @@ export default function ProcessosEmpresaPage() {
             totalCount={totalCount || cases.length}
             ativosCount={ativosCount ?? 0}
             vencidosCount={vencidosCount ?? 0}
-            loading={loading || ativosCount===null || vencidosCount===null}
+            indicadoresLoading={ativosCount===null || vencidosCount===null}
+            loading={loading}
             searching={searching}
             query={q}
             onQueryChange={setQ}
