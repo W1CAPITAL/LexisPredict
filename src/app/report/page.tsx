@@ -92,7 +92,7 @@ export default function UnifiedReport() {
   const [financeResumo, setFinanceResumo] = useState<any>(null);
   const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number}|null>(null);
+  const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasDaviConcluidas:number;tarefasDaviPeriodo:number;historicoAtendimentosDavi:number;historicoEdicoesDavi:number;encerramentosSistemicosDavi:number;processosComTrabalhoDavi:number;contatosDeclaradosPeriodo:number}|null>(null);
 
   const { profile, loading: authLoading } = useAuth();
 
@@ -425,9 +425,11 @@ export default function UnifiedReport() {
               { label: "Editados app", value: String(metrics.countEditadosApp ?? 0) },
               { label: "Atendidos internamente (Davi)", value: String(analisesResumo?.atendidosInternamenteNoPeriodo ?? 0) },
               { label: "Processos analisados (Davi)", value: String(analisesResumo?.processosAnalisados ?? 0) },
+              { label: "Tarefas manuais no período", value: String(analisesResumo?.tarefasConcluidasPeriodo ?? 0) },
             ],
             resumoExecutivo: [
               `Davi Alves Figueredo — ${analisesResumo?.processosAnalisados ?? 0} processos com análise interna, ${analisesResumo?.auditoriaDocumental ?? 0} registros de auditoria documental, ${analisesResumo?.triagemReplicaProvas ?? 0} triagens de réplica/provas, ${analisesResumo?.dossiesIndividuais ?? 0} dossiês individuais e ${analisesResumo?.investigacoesExternas ?? 0} referências de investigação externa. São atividades internas, sem comprovação automática de atendimento ao cliente.`,
+              `Atividades registradas: ${analisesResumo?.tarefasDaviPeriodo ?? 0} tarefas concluídas por Davi no período e ${analisesResumo?.tarefasConcluidasPeriodo ?? 0} por toda a equipe. Há também ${analisesResumo?.encerramentosSistemicosDavi ?? 0} processos com operação em lote vinculada à conta de Davi, que não equivalem a contatos pessoais.`,
               ...metrics.recomendacoes,
             ],
             semana: {
@@ -604,6 +606,7 @@ export default function UnifiedReport() {
            <KpiCard label="Atendidos esta semana" value={metrics.countAtendidosSemana ?? 0} tone="info" />
            <KpiCard label="Atendidos internamente · Davi" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
            <KpiCard label="Analisados na carteira · Davi" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
+           <KpiCard label="Minhas tarefas concluídas" value={analisesResumo?.tarefasDaviPeriodo ?? 0} tone="ok" />
            <KpiCard label="Auditados esta semana" value={metrics.countAuditadosSemana ?? 0} tone="info" />
            <KpiCard label="Tribunal (DataJud/DJEN)" value={metrics.countAuditadosTribunal ?? 0} />
            <KpiCard label="Editados no app" value={metrics.countEditadosApp ?? 0} />
@@ -627,7 +630,10 @@ export default function UnifiedReport() {
               : "Carregando o histórico de análises internas."}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">Produtividade interna registrada no Supabase. Os números por categoria podem se sobrepor. Não correspondem a clientes contatados, mensagens entregues ou erros judiciais confirmados.</p>
-          <Link href="/analises-internas" className="mt-3 inline-flex text-sm font-semibold text-primary underline">Consultar processos e evidências registrados</Link>
+          <div className="mt-3 flex flex-wrap gap-5">
+            <Link href="/analises-internas" className="inline-flex text-sm font-semibold text-primary underline">Consultar evidências e processos</Link>
+            <Link href="/minhas-atividades" className="inline-flex text-sm font-semibold text-primary underline">Registrar tarefa concluída</Link>
+          </div>
         </section>
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
            <div className="lexis-report-band bg-emerald-600 text-white p-5 flex items-center justify-between">
