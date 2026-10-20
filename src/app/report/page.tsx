@@ -751,7 +751,10 @@ export default function UnifiedReport() {
               );
             })}
           </div>
-          <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Média de atendimentos por dia útil: {metrics.mediaDia}</p>
+          <p className="text-[10px] font-medium text-muted-foreground">
+            Fonte: histórico de atendimentos gravados no Supabase. Cada processo conta uma vez no total do período; se foi atendido em dias diferentes, aparece em cada dia correspondente. Contas técnicas ficam separadas.
+          </p>
+          <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Média de processos com atendimento por dia do período: {metrics.mediaDia}</p>
         </section>
 
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card overflow-hidden break-inside-avoid">
