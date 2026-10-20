@@ -516,6 +516,80 @@ export default function UnifiedReport() {
     );
   }
 
+  // Os números confiáveis são exibidos antes de baixar milhares de processos.
+  // Não calcular e apresentar métricas parciais como se fossem totais.
+  if (!dataComplete) {
+    const h=historicoAtendimentos?.periodo===periodo?historicoAtendimentos:null;
+    const cards=[
+      {label:"Processos atendidos",value:h?.processos??"…",desc:"Processos distintos no período"},
+      {label:"Registros de atendimento",value:h?.eventos??"…",desc:"Eventos humanos registrados"},
+      {label:"Processos editados",value:h?.edicoes?.processos??"…",desc:"Edições manuais registradas"},
+      {label:"Carteira no escopo",value:portfolioResumo?.total??"…",desc:"Total obtido direto do banco"},
+    ];
+    return <main className="min-h-screen lexis-report-root p-4 text-foreground sm:p-7">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <header className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">LexisPredict · Relatório operacional</p>
+              <h1 className="mt-1 text-2xl font-extrabold">Visão da equipe em tempo real</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Atendimentos, edições e produtividade obtidos do histórico do Supabase, independentemente do carregamento da carteira.</p>
+            </div>
+            <Link href="/processos" className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">Processos da empresa</Link>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {PERIODO_OPCOES.map(op=><button key={op.id} type="button" title={op.hint} onClick={()=>setPeriodo(op.id)}
+              className={cn("rounded-lg border px-4 py-2 text-xs font-bold",periodo===op.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background")}>{op.label}</button>)}
+          </div>
+        </header>
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Indicadores rápidos">
+          {cards.map(card=><div key={card.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <p className="text-xs font-semibold text-muted-foreground">{card.label}</p>
+            <p className="mt-2 text-3xl font-extrabold tabular-nums">{card.value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{card.desc}</p>
+          </div>)}
+        </section>
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="font-bold">Atendimentos por dia</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Cada processo conta uma vez em cada dia em que foi atendido.</p>
+            {h?.dias?.length?
+              <div className="mt-4 grid grid-cols-7 gap-2">
+                {h.dias.map(d=><div key={d.ymd} className="rounded-xl border border-border bg-background p-3 text-center">
+                  <p className="text-[10px] font-semibold text-muted-foreground">{d.day}</p>
+                  <p className="mt-1 text-xl font-black tabular-nums">{d.atendimentos}</p>
+                  <p className="mt-1 text-[9px] text-muted-foreground">{d.ymd.slice(8,10)}/{d.ymd.slice(5,7)}</p>
+                </div>)}
+              </div>:<p className="mt-4 text-sm text-muted-foreground">{historicoError||"Consultando registros…"}</p>}
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="font-bold">Quem realizou os atendimentos</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Crédito para quem trabalhou, mesmo em carteira de outro responsável.</p>
+            <div className="mt-4 space-y-2">
+              {h?.porUsuario?.length?h.porUsuario.map(u=><div key={u.userId} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+                <span className="text-sm font-semibold">{u.nome}</span><span className="text-sm tabular-nums"><b>{u.processos}</b> processos · {u.eventos} registros</span>
+              </div>):<p className="text-sm text-muted-foreground">Aguardando histórico de atendimento…</p>}
+            </div>
+          </div>
+        </section>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Detalhamento da carteira</p>
+              <p className="mt-1 text-xs text-muted-foreground">{loadError||`Preparando listas e informações processuais (${cases.length} registros recebidos). Os KPIs acima já vêm do histórico completo.`}</p>
+            </div>
+            <Button onClick={handleDownloadRelatorioEquipe} disabled={pdfLoading||!canExport} className="text-xs">
+              {pdfLoading?<Loader2 size={15} className="mr-2 animate-spin"/>:<FileDown size={15} className="mr-2"/>}
+              Relatório da equipe em PDF
+            </Button>
+          </div>
+          {loading&&!loadError?<div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary"/></div>:null}
+          {loadError?<p className="mt-2 text-xs text-destructive">O relatório detalhado não está completo. A contagem de atendimentos acima permanece baseada no histórico.</p>:null}
+        </div>
+      </div>
+    </main>;
+  }
+
   return (
     <div className="min-h-screen lexis-report-root font-sans text-foreground">
       {!dataComplete&&<div role="status" className="print:hidden border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
