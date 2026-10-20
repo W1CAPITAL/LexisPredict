@@ -26,6 +26,7 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
 
     const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
     const { processarCaso } = await import("@/lib/case-logic");
+    const {resolveSituacaoFromRow,resolveStatusManualFromRow}=await import("@/lib/resolve-situacao");
 
     const ctx = await getUserContext();
     if (!ctx?.empresa_id || !ctx?.auth_id) return { ok: false, cases: [], error: "sem sessão ou empresa" };
@@ -82,10 +83,11 @@ export async function searchCompanyProcessosAction(query: string): Promise<{
           dados.TELEFONE ||
           "",
         status: row.status || dados.status,
-        situacao: dados.situacao || row.status_interno || row.status,
-        statusManual: dados.statusManual,
-        ultimoRetorno: row.ultimo_retorno || dados.ultimoRetorno || dados.ultimo_retorno,
-        proximoPrazo: row.proximo_retorno || dados.proximoPrazo || dados.proximo_retorno,
+        situacao: resolveSituacaoFromRow(row,dados),
+        statusManual: resolveStatusManualFromRow(row,dados,resolveSituacaoFromRow(row,dados)),
+        status_interno: row.status_interno || dados.status_interno,
+        ultimoRetorno: row.ultimo_retorno ?? dados.ultimoRetorno ?? dados.ultimo_retorno ?? null,
+        proximoPrazo: row.proximo_retorno ?? ((row.updated_at && row.dados?.edited_at) ? null : dados.proximoPrazo ?? dados.proximo_retorno ?? null),
         created_by: row.created_by,
         atendido_por: row.atendido_por || dados.atendido_por,
         dados,
