@@ -9,6 +9,7 @@ import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/li
 import { parseUltimoAtendimento, humanWorkEvents, hojeBrasilYmd, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
 import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
+import { getHistoricoAtendimentosEmpresa,emptyHistorico,type AtendimentosHistorico } from '@/lib/historico-atendimentos';
 import { getResumoAnalisesDaEmpresa, EMPTY_ANALISES, type AnalisesResumo } from '@/lib/analises-internas';
 
 export type SupervisaoProcessoResumo = {
@@ -41,6 +42,7 @@ export type SupervisaoUsuarioGrupo = {
 };
 
 export type SupervisaoSnapshot = {
+  historicoAtendimentos:AtendimentosHistorico;
   analisesInternas: AnalisesResumo;
   /** Horário UTC em que a consulta foi executada */
   geradoEm?: string;
@@ -90,6 +92,7 @@ export type SupervisaoSnapshot = {
 
 function emptySnapshot(periodoLabel = "Esta semana"): SupervisaoSnapshot {
   return {
+    historicoAtendimentos:emptyHistorico(),
     analisesInternas: EMPTY_ANALISES,
     total: 0,
     ativos: 0,
@@ -169,6 +172,8 @@ export async function getSupervisaoSnapshotAction(
     const semana = periodBounds(periodoKey, now);
     const periodoLabel = labelPeriodo(periodoKey, now);
     const toYmd=(d:Date)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+    let historicoAtendimentos=emptyHistorico(periodoKey);
+    try {historicoAtendimentos=await getHistoricoAtendimentosEmpresa(ctx.empresa_id,periodoKey);}catch(e){console.warn('[supervisao] historico atendimento',e);}
     let analisesInternas:AnalisesResumo=EMPTY_ANALISES;
     try { analisesInternas=await getResumoAnalisesDaEmpresa(ctx.empresa_id,toYmd(semana.start),toYmd(semana.end)); }
     catch(e){console.warn('[supervisao] resumo de analises internas indisponivel',e);}
@@ -333,6 +338,15 @@ export async function getSupervisaoSnapshotAction(
       escMap.set(esc, (escMap.get(esc) || 0) + 1);
     }
 
+    // Crédito de atendimento pertence ao executor autenticado, não ao dono da carteira.
+    const atendimentoPorAuth=new Map(historicoAtendimentos.porUsuario.map(u=>[u.userId,u.processos]));
+    for (const ug of userMap.values()) {
+      ug.atendidosSemana=atendimentoPorAuth.get(ug.key)||0;
+    }
+    for (const op of opMap.values()) {
+      const user=historicoAtendimentos.porUsuario.find(u=>u.nome.toUpperCase()===op.nome.toUpperCase());
+      op.atendidosSemana=user?.processos||0;
+    }
     // Ordenar processos de cada usuário por cliente
     for (const ug of userMap.values()) {
       ug.processos.sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR'));
@@ -350,6 +364,7 @@ export async function getSupervisaoSnapshotAction(
         periodo: periodoKey,
         periodoLabel,
         analisesInternas,
+        historicoAtendimentos,
         geradoEm: now.toISOString(),
         ultimaAlteracaoEm: ultimaAlteracaoMs ? new Date(ultimaAlteracaoMs).toISOString() : undefined,
         total: cases.length,
@@ -361,7 +376,7 @@ export async function getSupervisaoSnapshotAction(
         ba,
         cumprimento,
         atendimentosTotais,
-        atendidosSemana,
+        atendidosSemana:historicoAtendimentos.atualizadoEm?historicoAtendimentos.processos:atendidosSemana,
       auditadosSemana: countAuditadosNestaSemana(cases as any),
       auditadosHoje: countAuditadosHoje(cases as any),
       auditadosTribunalSemana: countAuditadosTribunalSemana(cases as any),
@@ -374,7 +389,7 @@ export async function getSupervisaoSnapshotAction(
             : 0,
         taxaRetornoPeriodoPct: (() => {
           const base = Math.max(1, cases.filter((c: any) => !isCasoEncerrado(c)).length || cases.length);
-          return Math.min(100, Math.round((atendidosSemana / base) * 100));
+          return Math.min(100, Math.round(((historicoAtendimentos.atualizadoEm?historicoAtendimentos.processos:atendidosSemana) / base) * 100));
         })(),
         operadores: [...opMap.values()].sort((a, b) => b.total - a.total),
         porUsuario: [...userMap.values()].sort((a, b) => b.total - a.total),
