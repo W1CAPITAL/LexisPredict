@@ -66,6 +66,7 @@ type Props = {
   items: LegalCase[];
   totalCount: number;
   ativosCount: number;
+  encerradosCount:number;
   vencidosCount: number;
   indicadoresLoading?:boolean;
   loading?: boolean;
@@ -571,9 +572,10 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
           <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
           <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
+          <KpiCard icon={<ShieldCheck size={15}/>} label="Encerrados" value={props.indicadoresLoading ? "…" : props.encerradosCount} hint="estado atual no Supabase" />
           <KpiCard icon={<AlertTriangle size={15}/>} label="Vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="carteira inteira" kind="red" />
           <KpiCard icon={<ShieldAlert size={15}/>} label="Risco alto" value={props.loading ? "…" : highRiskCount} hint={`${updateCount} com novidade`} kind="red" />
         </div>
