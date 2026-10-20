@@ -60,7 +60,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { processOperationalCoverage, processSourceGapCount, processSourceMatrix, recommendedProcessActions } from "@/lib/processos-command-intelligence";
 import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
-import { isCasoEncerrado } from "@/lib/status-encerrado";
+
 
 type Props = {
   items: LegalCase[];
