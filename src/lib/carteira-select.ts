@@ -39,6 +39,7 @@ export const PROCESSOS_LIST_COLUMNS = [
   "datajud_consultado_em",
   "datajud_hash",
   "djen_nova_comunicacao",
+  "djen_consultado_em",
   "djen_ultimo_resumo",
   "djen_ultimo_link",
   "djen_ultima_data",
