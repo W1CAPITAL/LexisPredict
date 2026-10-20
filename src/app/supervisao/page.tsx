@@ -277,13 +277,18 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<ShieldAlert size={16} />} label="Vencidos" value={snap.vencidos} tone={snap.vencidos > 0 ? "danger" : "default"} />
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
-                  <KpiCard icon={<MessageSquare size={16} />} label="Com retorno no cadastro" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
+                  <KpiCard icon={<FileSearch size={16} />} label="Atendidos internamente · Davi" value={snap.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0} tone="primary" hint="análises e auditorias; não são contatos por WhatsApp" />
+                  <KpiCard icon={<FileSearch size={16} />} label="Processos analisados · Davi" value={snap.analisesInternas?.processosAnalisados ?? 0} tone="ok" hint="carteira com origem e data registradas" />
+                                    <KpiCard icon={<MessageSquare size={16} />} label="Com retorno no cadastro" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
                   <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atividade humana/mês" : periodo === "semana_passada" ? "Atividade humana/sem. ant." : "Atividade humana/semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
                   <KpiCard icon={<Activity size={16} />} label="Auditados semana" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
                   <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />
                 </div>
 
+                <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
+                  <strong>Produção analítica de Davi:</strong> {snap.analisesInternas?.auditoriaDocumental ?? 0} apontamentos documentais, {snap.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {snap.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais e {snap.analisesInternas?.investigacoesExternas ?? 0} referências de investigação externa. São registros de trabalho interno, não contatos comprovados.
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KpiCard
                     icon={<TrendingUp size={16} />}
