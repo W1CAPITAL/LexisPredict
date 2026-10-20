@@ -83,6 +83,7 @@ function buildNavItems(opts: {
     { label: "Parados", href: "/processos-parados", icon: PauseCircle },
     { label: "Meus processos", href: "/cases", icon: Briefcase },
     { label: "Empresa", href: "/processos", icon: FolderOpen },
+    { label: "Réplica e provas", href: "/fases-provas", icon: FileText },
     { label: "Importar", href: "/import", icon: Upload },
     { label: "Cadastro", href: "/tools/automacao", icon: ClipboardList },
   ];
