@@ -751,6 +751,15 @@ export default function UnifiedReport() {
               );
             })}
           </div>
+          {historicoAtendimentos?.porUsuario?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {historicoAtendimentos.porUsuario.map(p=>(
+                <div key={p.userId} className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold">
+                  {p.nome}: <strong>{p.processos}</strong> processos · {p.eventos} registros
+                </div>
+              ))}
+            </div>
+          ) : null}
           <p className="text-[10px] font-medium text-muted-foreground">
             Fonte: histórico de atendimentos gravados no Supabase. Cada processo conta uma vez no total do período; se foi atendido em dias diferentes, aparece em cada dia correspondente. Contas técnicas ficam separadas.
           </p>
