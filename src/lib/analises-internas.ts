@@ -35,7 +35,7 @@ export async function getResumoAnalisesDaEmpresa(
     const {data,error}=await admin.from("registros_trabalho_analitico")
       .select("processo_id,protocolo_ref,categoria,data_atividade,responsavel_nome")
       .eq("empresa_id",empresaId)
-      .order("created_at",{ascending:true})
+      .order("id",{ascending:true})
       .range(from,from+699);
     if(error)throw error;
     rows.push(...((data||[]) as Row[]));
