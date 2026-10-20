@@ -820,7 +820,7 @@ export async function buildProcessosProfissionalXlsxBase64(
     { values: ['Busca e Apreensao (BA)', ba], styleRow: 'warn' },
     { values: ['Cumprimento de sentenca', cumprimento], styleRow: 'info' },
     { values: ['Atendidos esta semana', atendidosSemana], styleRow: 'ok' },
-    { values: ['Sem retorno > 7 dias', semRetorno], styleRow: 'alert' },
+    { values: ['Sem retorno 30+ dias (somente ativos, inclui nunca registrado)', semRetorno], styleRow: 'alert' },
     { values: ['Soma total (R$)', `=SUM(Processos!N2:N${lastDataRow})`], styleRow: 'total' },
   ];
 
@@ -868,7 +868,7 @@ export async function buildProcessosProfissionalXlsxBase64(
     { values: ['Quantidade exportada', n], styleRow: 'kpi' },
   ];
 
-  const PROC_WIDTHS = [22, 18, 14, 18, 22, 20, 20, 16, 40, 16, 14, 14, 12, 14, 8, 14, 10, 12, 20, 40];
+  const PROC_WIDTHS = [22, 18, 14, 18, 22, 20, 20, 16, 40, 16, 14, 14, 12, 14, 8, 14, 10, 12, 20, 40, 17, 32];
   const RES_WIDTHS = [46, 16, 16];
   const KPI_WIDTHS = [30, 14, 14];
 
