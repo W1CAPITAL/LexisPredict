@@ -168,6 +168,7 @@ export default function ProcessosEmpresaPage() {
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState<number|null>(null);
+  const [encerradosCount,setEncerradosCount] = useState<number|null>(null);
   const [vencidosCount, setVencidosCount] = useState<number|null>(null);
   const [indicadoresAtualizadosEm,setIndicadoresAtualizadosEm]=useState<string>("");
   const [indicadoresErro,setIndicadoresErro]=useState<string>("");
@@ -279,6 +280,7 @@ export default function ProcessosEmpresaPage() {
       if(sequence!==indicadoresRequestSeq.current)return;
       setTotalCount(Number(json.indicadores.total)||0);
       setAtivosCount(Number(json.indicadores.ativos)||0);
+      setEncerradosCount(Number(json.indicadores.encerrados)||0);
       setVencidosCount(Number(json.indicadores.vencidos)||0);
       setIndicadoresAtualizadosEm(String(json.consultadoEm||new Date().toISOString()));
       setIndicadoresErro("");
@@ -312,6 +314,7 @@ export default function ProcessosEmpresaPage() {
       const nowClosed=isCasoEncerrado(updated);
       if(wasClosed!==nowClosed){
         setAtivosCount(n=>n===null?n:Math.max(0,n+(nowClosed?-1:1)));
+        setEncerradosCount(n=>n===null?n:Math.max(0,n+(nowClosed?1:-1)));
         const wasOverdue=previous.status==="Vencido"||previous.status==="Caso Crítico";
         const nowOverdue=updated.status==="Vencido"||updated.status==="Caso Crítico";
         setVencidosCount(n=>n===null?n:Math.max(0,n+(nowClosed?0:Number(nowOverdue))-(wasClosed?0:Number(wasOverdue))));
@@ -740,8 +743,9 @@ export default function ProcessosEmpresaPage() {
             items={filtered}
             totalCount={totalCount || cases.length}
             ativosCount={ativosCount ?? 0}
+            encerradosCount={encerradosCount ?? 0}
             vencidosCount={vencidosCount ?? 0}
-            indicadoresLoading={ativosCount===null || vencidosCount===null}
+            indicadoresLoading={ativosCount===null || vencidosCount===null || encerradosCount===null}
             loading={loading}
             searching={searching}
             query={q}
