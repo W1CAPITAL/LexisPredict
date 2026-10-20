@@ -27,6 +27,8 @@ const primary = [
   ["Tarefas", "/tarefas", ListTodo],
   ["Meus processos", "/cases", Briefcase],
   ["Empresa", "/processos", FolderOpen],
+  ["Atividades", "/minhas-atividades", ListTodo],
+  ["Réplica e Provas", "/fases-provas", FileText],
   ["WhatsApp", "/whatsapp", MessageCircle],
   ["Agenda", "/agenda", CalendarDays],
   ["Dossiê", "/report", BarChart3],
@@ -35,6 +37,10 @@ const primary = [
 ] as const;
 
 const more = [
+  ["Minhas atividades", "/minhas-atividades", ListTodo],
+  ["Análises internas", "/analises-internas", FileText],
+  ["Réplica e provas", "/fases-provas", FileText],
+  ["Relatórios", "/report", BarChart3],
   ["Parados", "/processos-parados", PauseCircle],
   ["Encerrados", "/encerrados-revisao", ShieldAlert],
   ["Procedentes", "/cumprimentos-procedentes", Scale],
