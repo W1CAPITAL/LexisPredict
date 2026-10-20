@@ -48,12 +48,13 @@ export function montarRelatorioEquipe(
   const a = snap.analisesInternas;
   const pessoas: RelatorioEquipePessoa[] = grupos.map(u => {
     const davi=/\bDAVI\b/i.test(u.nome);
+    const tarefas=(a?.tarefasPorPessoa||[]).find(x=>x.nome.toUpperCase()===u.nome.toUpperCase());
     return {
       nome: u.nome || "Sem usuário identificado",
       papel: davi
         ? "Carteira processual, dossiês, auditoria documental, investigações, sistemas e automações."
         : "Carteira conforme titularidade cadastrada no Supabase.",
-      linha: linhaPessoa(u)+(davi&&a?` · ${a.processosAnalisados} processos com análise interna atribuída (inclui auditoria sistêmica, sem contato presumido)`:""),
+      linha: linhaPessoa(u)+(tarefas?` · ${tarefas.periodo} tarefas concluídas no período`:"")+(davi&&a?` · ${a.processosAnalisados} processos com análise interna atribuída (inclui auditoria sistêmica, sem contato presumido)`:""),
       vencidos: u.vencidos,
     };
   });
@@ -61,6 +62,7 @@ export function montarRelatorioEquipe(
     .sort((a,b) => b.vencidos - a.vencidos).slice(0,3);
   const maiorCarteira = [...grupos].sort((a,b)=>b.total-a.total)[0];
   const leitura = [
+    ...(a ? [`A equipe registrou ${a.tarefasConcluidasPeriodo} tarefas concluídas manualmente neste período; Davi realizou ${a.tarefasDaviPeriodo}. Tarefas de sistema, análises e contatos são classificados separadamente.`] : []),
     ...(a ? [`Davi Alves Figueredo: ${a.processosAnalisados} processos da carteira com registro de trabalho analítico, ${a.auditoriaDocumental} anotações de auditoria documental, ${a.triagemReplicaProvas} triagens de réplica e provas, ${a.dossiesIndividuais} dossiês individuais, ${a.investigacoesExternas} levantamentos/investigações externas e ${a.projetos} entregas de projeto. São categorias sobrepostas e não são mensagens enviadas ou atendimento ao cliente.`] : []),
     `A base consultada contém ${snap.total} processos: ${snap.ativos} ativos e ${snap.encerrados} encerrados.`,
     `Foram identificados ${snap.vencidos} processos com retorno vencido. O vencimento é reavaliado pela data do retorno programado na consulta.`,
@@ -100,6 +102,8 @@ export function montarRelatorioEquipe(
       { valor: String(snap.atendidosSemana), rotulo: "atividade humana no período" },
       { valor: String(a?.atendidosInternamenteNoPeriodo ?? 0), rotulo: "atendidos internamente (análise)" },
       { valor: String(a?.processosAnalisados ?? 0), rotulo: "processos auditados/analisados" },
+      { valor: String(a?.tarefasConcluidasPeriodo ?? 0), rotulo: "tarefas concluídas equipe" },
+      { valor: String(a?.tarefasDaviPeriodo ?? 0), rotulo: "tarefas concluídas Davi" },
     ],
     pessoas, leitura, canais, esconde, recado, proxima, whatsapp: FATO_WHATSAPP,
   };
