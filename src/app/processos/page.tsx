@@ -167,8 +167,11 @@ export default function ProcessosEmpresaPage() {
   useEffect(()=>{casesRef.current=cases;},[cases]);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [ativosCount, setAtivosCount] = useState(0);
-  const [vencidosCount, setVencidosCount] = useState(0);
+  const [ativosCount, setAtivosCount] = useState<number|null>(null);
+  const [vencidosCount, setVencidosCount] = useState<number|null>(null);
+  const [indicadoresAtualizadosEm,setIndicadoresAtualizadosEm]=useState<string>("");
+  const [indicadoresErro,setIndicadoresErro]=useState<string>("");
+  const indicadoresRequestSeq=useRef(0);
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState<number|null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
@@ -218,10 +221,8 @@ export default function ProcessosEmpresaPage() {
     } else if(!force || !casesRef.current.length) {
       setLoading(true);
     }
-    if (first?.data) {
+    if (!force && first?.data) {
       setTotalCount(first.data.totalCount);
-      setAtivosCount(first.data.summary.ativos);
-      setVencidosCount(first.data.summary.vencidos);
       setHasServerMore((previous?.cases?.length || first.data.cases.length) < first.data.totalCount);
     }
     // Voltar para a rota nao pode disparar a mesma consulta se o snapshot ainda e recente.
@@ -241,8 +242,8 @@ export default function ProcessosEmpresaPage() {
       setListOffset(merged.length);
       writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
       setTotalCount(res.totalCount);
-      setAtivosCount(res.summary.ativos);
-      setVencidosCount(res.summary.vencidos);
+      // Totais de ativos/vencidos vêm exclusivamente de /api/carteira/indicadores,
+      // nunca de resposta paginada ou cache em sessão.
       setHasServerMore(merged.length < res.totalCount);
       if (!force) setOnlyAtivosList(false);
     } catch (error) {
@@ -259,8 +260,59 @@ export default function ProcessosEmpresaPage() {
     }
   };
 
-  const syncedUpdate=(protocolo:string,updated?:LegalCase|null)=>{
+  const refreshIndicadores=async()=>{
+    if(!empresaId||!authUserId)return;
+    const sequence=++indicadoresRequestSeq.current;
+    try{
+      const response=await fetch("/api/carteira/indicadores?scope=empresa",{
+        method:"GET",cache:"no-store",credentials:"same-origin",
+        headers:{Accept:"application/json"},
+      });
+      if(!response.ok)throw new Error("Não foi possível atualizar os totais da carteira");
+      const json=await response.json();
+      if(!json?.ok||!json?.indicadores)throw new Error(json?.error||"Resumo indisponível");
+      // Um pedido antigo nunca substitui o resumo mais novo.
+      if(sequence!==indicadoresRequestSeq.current)return;
+      setTotalCount(Number(json.indicadores.total)||0);
+      setAtivosCount(Number(json.indicadores.ativos)||0);
+      setVencidosCount(Number(json.indicadores.vencidos)||0);
+      setIndicadoresAtualizadosEm(String(json.consultadoEm||new Date().toISOString()));
+      setIndicadoresErro("");
+    }catch(error){
+      if(sequence===indicadoresRequestSeq.current){
+        setIndicadoresErro(error instanceof Error?error.message:"Erro ao consultar indicadores");
+      }
+    }
+  };
+
+  useEffect(()=>{
+    if(!empresaId||!authUserId)return;
+    void refreshIndicadores();
+    const changed=()=>{void refreshIndicadores();};
+    const focused=()=>{if(!document.hidden)void refreshIndicadores();};
+    window.addEventListener("lexis-carteira-updated",changed);
+    window.addEventListener("focus",focused);
+    const interval=window.setInterval(()=>{if(!document.hidden)void refreshIndicadores();},20_000);
+    return()=>{
+      indicadoresRequestSeq.current++;
+      window.removeEventListener("lexis-carteira-updated",changed);
+      window.removeEventListener("focus",focused);
+      window.clearInterval(interval);
+    };
+  },[empresaId,authUserId]);
+
+  const syncedUpdate=(protocolo:string,updated?:LegalCase|null,previous?:LegalCase|null)=>{
     const key=String(protocolo||"").replace(/\D/g,"");
+    if(updated&&previous){
+      const wasClosed=isCasoEncerrado(previous);
+      const nowClosed=isCasoEncerrado(updated);
+      if(wasClosed!==nowClosed){
+        setAtivosCount(n=>n===null?n:Math.max(0,n+(nowClosed?-1:1)));
+        const wasOverdue=previous.status==="Vencido"||previous.status==="Caso Crítico";
+        const nowOverdue=updated.status==="Vencido"||updated.status==="Caso Crítico";
+        setVencidosCount(n=>n===null?n:Math.max(0,n+(nowClosed?0:Number(nowOverdue))-(wasClosed?0:Number(wasOverdue))));
+      }
+    }
     if(updated){
       setCases(current=>current.map(item=>{
         const currentKey=String(item.protocolo||"").replace(/\D/g,"");
@@ -378,7 +430,7 @@ export default function ProcessosEmpresaPage() {
         });
         setEditOpen(false);
         setEditing(null);
-        syncedUpdate(editing.protocolo,res.case || updated);
+        syncedUpdate(editing.protocolo,res.case || updated,editing);
         toast({
           title: "Processo salvo",
           description: editing.cliente || editing.protocolo,
@@ -426,7 +478,7 @@ export default function ProcessosEmpresaPage() {
       if (res.success) {
         setAttendingOpen(false);
         setAttending(null);
-        syncedUpdate(attending.protocolo,res.case || attending);
+        syncedUpdate(attending.protocolo,res.case || attending,attending);
         toast({
           title: "Atendimento registrado",
           description: res.message,
@@ -466,7 +518,7 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("encerramento", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
         });
-        syncedUpdate(c.protocolo,res.case || updated);
+        syncedUpdate(c.protocolo,res.case || updated,c);
         toast({ title: "Processo encerrado", description: c.cliente });
       } else {
         toast({ title: "Falha ao encerrar", description: res.message, variant: "destructive" });
@@ -500,7 +552,7 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("edicao", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-reabrir", acao: "reabrir" },
         });
-        syncedUpdate(c.protocolo,res.case || updated);
+        syncedUpdate(c.protocolo,res.case || updated,c);
         toast({ title: "Processo reaberto", description: c.cliente || c.protocolo });
       } else {
         toast({
@@ -672,15 +724,17 @@ export default function ProcessosEmpresaPage() {
             <p className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
               Carteira de toda a empresa: <strong>{totalCount.toLocaleString('pt-BR')}</strong> processos de todos os responsáveis ·
               {' '}{cases.length.toLocaleString('pt-BR')} carregados nesta aba. A busca consulta também os demais registros.
+              {indicadoresAtualizadosEm?<span className="ml-2">· Indicadores consultados em {new Date(indicadoresAtualizadosEm).toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>:null}
+              {indicadoresErro?<span className="ml-2 text-red-600">· {indicadoresErro}</span>:null}
               {atendidosSemanaSrv!==null ? <> · <strong>{atendidosSemanaSrv}</strong> processos com atendimento humano registrado na semana (todos os responsáveis)</> : null}
             </p>
           )}
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}
-            ativosCount={ativosCount || ativos.length}
-            vencidosCount={vencidosCount || vencidos.length}
-            loading={loading}
+            ativosCount={ativosCount ?? 0}
+            vencidosCount={vencidosCount ?? 0}
+            loading={loading || ativosCount===null || vencidosCount===null}
             searching={searching}
             query={q}
             onQueryChange={setQ}
