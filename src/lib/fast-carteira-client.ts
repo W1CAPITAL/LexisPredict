@@ -4,6 +4,7 @@ import {seedCarteiraPageClientCache} from '@/lib/carteira-fetch-client';
 export type CarteiraSnapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
+  improcedentes?:number;parciais?:number;divergentesMerito?:number;meritoDisponivel?:boolean;
 };
 export type FastCarteiraResponse = {
   ok: true; cases: LegalCase[]; summary: CarteiraSnapshot;
