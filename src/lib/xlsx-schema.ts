@@ -158,6 +158,8 @@ export const EXPORT_HEADERS = [
   'Dias_Sem_Retorno',
   'Procedente',
   'Improcedente',
+  'Sem_Retorno_30d',
+  'Situacao_Retorno',
 ] as const;
 
 /** Códigos TT do CNJ → Tribunal */
