@@ -93,6 +93,7 @@ function buildNavItems(opts: {
     { label: "Busca/apreensão", href: "/busca-apreensao", icon: Gavel },
     { label: "Predatória", href: "/investigacao-predatoria", icon: ShieldAlert },
     { label: "Dossiê", href: "/report", icon: BarChart3 },
+    { label: "Análises de Davi", href: "/analises-internas", icon: ClipboardList },
     { label: "OCR", href: "/tools/ocr", icon: FileText },
     { label: "CRM", href: "/crm", icon: Kanban },
     { label: "Follow-ups", href: "/crm/followups", icon: ListTodo },
