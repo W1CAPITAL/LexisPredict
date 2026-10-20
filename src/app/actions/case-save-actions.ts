@@ -9,6 +9,7 @@ import { applyFilaListaToObs } from '@/lib/fila-listas';
 import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
 import { canAccessExistingCase } from '@/lib/case-edit-access';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { resolveSituacaoFromRow } from '@/lib/resolve-situacao';
 import { resolveProcessoCliente } from '@/lib/processo-cliente';
 
 function iso(v: unknown): string | null {
@@ -450,10 +451,16 @@ export async function registrarAtendimentoCompletoAction(input: {
     const hoje = hojeBrasilYmd();
     const now = new Date().toISOString();
     const operationId = crypto.randomUUID();
-    const wasClosed = isCasoEncerrado(existing);
+    // Colunas status e status_interno são canônicas. Uma situação encerrada
+    // apenas no JSON legado não pode impedir um atendimento em caso reaberto.
+    const wasClosed = isCasoEncerrado({
+      status: existing.status,
+      situacao: resolveSituacaoFromRow(existing,existing.dados),
+      status_interno: existing.status_interno,
+    });
     // Atendimento de processo encerrado NÃO é uma ação de reabertura.
     // A reabertura só ocorre pela ação explícita 'Reabrir'.
-    const wantsClosed = String(input.situacao || existing.dados?.situacao || existing.status_interno || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO';
+    const wantsClosed = String(input.situacao || resolveSituacaoFromRow(existing,existing.dados) || 'EM ANDAMENTO').toUpperCase() === 'ENCERRADO';
     const situacao = (wasClosed || wantsClosed) ? 'ENCERRADO' : 'EM ANDAMENTO';
     const originalStatus = String(existing.status || '').trim();
     const preservedClosedStatus = wasClosed && isCasoEncerrado({ status: originalStatus })
