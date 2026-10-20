@@ -5,6 +5,7 @@ export type CarteiraSnapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
   improcedentes?:number;parciais?:number;divergentesMerito?:number;meritoDisponivel?:boolean;
+  semRetorno30?:number;semRetornoNunca?:number;retornoDisponivel?:boolean;
 };
 export type FastCarteiraResponse = {
   ok: true; cases: LegalCase[]; summary: CarteiraSnapshot;
@@ -36,7 +37,7 @@ export async function fetchFastCarteira(
 }
 
 /** Cache de snapshot de listagem empresarial. Sempre particionado pelo login. */
-const FAST_KEY = 'lexis_fast_carteira_merito_v2:';
+const FAST_KEY = 'lexis_fast_carteira_retorno_v3:';
 const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
