@@ -21,10 +21,11 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const empresaId=String(ctx.empresa_id);
  const owner=(ctx.isSupervisor||ctx.isSuperAdmin||ctx.caseScope==="empresa")?null:ctx.auth_id;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
-  db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner})
+  db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30})
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -35,6 +36,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  }:null;
  const mr=meritoResult.status==="fulfilled"?meritoResult.value:null;
  const merito=mr&&!mr.error&&mr.data&&typeof mr.data==="object"?mr.data as Record<string,number>:null;
+ const rr=retornoResult.status==="fulfilled"?retornoResult.value:null;
+ const retorno=rr&&!rr.error&&rr.data&&typeof rr.data==="object"?rr.data as Record<string,number>:null;
  const totals=[
   {title:"Processos atendidos",value:hist?.processos,help:"Distintos no período, empresa inteira"},
   {title:"Atendimentos registrados",value:hist?.eventos,help:"Eventos feitos por pessoas"},
@@ -102,6 +105,23 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         </div>
         {hist?.tecnicoEventos?<p className="mt-3 text-xs text-muted-foreground">{hist.tecnicoEventos} eventos de contas técnicas mantidos fora da contagem humana.</p>:null}
       </div>
+    </section>
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-lg font-bold">Retornos dos processos ativos</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        O alerta de 30 dias inclui atendimentos antigos e nunca registrados. Não é o mesmo que “Sem retorno”, que considera apenas a data vazia.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {[
+          ["Sem retorno há 30 dias ou mais",retorno?.semRetornoLongo],
+          ["Nunca tiveram retorno registrado",retorno?.nuncaRegistrado],
+          ["Último retorno antigo (30+ dias)",retorno?.antigos],
+        ].map(([title,value])=><div key={String(title)} className="rounded-xl border border-border bg-background p-4">
+          <p className="text-xs font-semibold text-muted-foreground">{title}</p>
+          <p className="mt-1 text-3xl font-extrabold tabular-nums">{fmt(value as number|undefined)}</p>
+        </div>)}
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">Os números são da carteira {owner?"do usuário":"inteira da empresa"} no momento da consulta e não incluem processos encerrados.</p>
     </section>
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <h2 className="text-lg font-bold">Resultado de mérito registrado na carteira</h2>
