@@ -9,6 +9,7 @@ import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/li
 import { parseUltimoAtendimento, humanWorkEvents, hojeBrasilYmd, periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, countEditadosAppSemana } from '@/lib/processos-auditados';
 import { isCasoEncerrado, isBaixaTribunal } from '@/lib/status-encerrado';
+import { getResumoAnalisesDaEmpresa, EMPTY_ANALISES, type AnalisesResumo } from '@/lib/analises-internas';
 
 export type SupervisaoProcessoResumo = {
   id: string;
@@ -40,6 +41,7 @@ export type SupervisaoUsuarioGrupo = {
 };
 
 export type SupervisaoSnapshot = {
+  analisesInternas: AnalisesResumo;
   /** Horário UTC em que a consulta foi executada */
   geradoEm?: string;
   /** Última alteração registrada na carteira consultada */
@@ -88,6 +90,7 @@ export type SupervisaoSnapshot = {
 
 function emptySnapshot(periodoLabel = "Esta semana"): SupervisaoSnapshot {
   return {
+    analisesInternas: EMPTY_ANALISES,
     total: 0,
     ativos: 0,
     encerrados: 0,
@@ -165,6 +168,10 @@ export async function getSupervisaoSnapshotAction(
     const periodoKey = (periodo || 'esta_semana') as PeriodoRelatorio;
     const semana = periodBounds(periodoKey, now);
     const periodoLabel = labelPeriodo(periodoKey, now);
+    const toYmd=(d:Date)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+    let analisesInternas:AnalisesResumo=EMPTY_ANALISES;
+    try { analisesInternas=await getResumoAnalisesDaEmpresa(ctx.empresa_id,toYmd(semana.start),toYmd(semana.end)); }
+    catch(e){console.warn('[supervisao] resumo de analises internas indisponivel',e);}
 
     let ativos = 0,
       encerrados = 0,
@@ -342,6 +349,7 @@ export async function getSupervisaoSnapshotAction(
       snapshot: {
         periodo: periodoKey,
         periodoLabel,
+        analisesInternas,
         geradoEm: now.toISOString(),
         ultimaAlteracaoEm: ultimaAlteracaoMs ? new Date(ultimaAlteracaoMs).toISOString() : undefined,
         total: cases.length,
