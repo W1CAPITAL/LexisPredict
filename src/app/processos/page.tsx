@@ -169,7 +169,7 @@ export default function ProcessosEmpresaPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [ativosCount, setAtivosCount] = useState(0);
   const [vencidosCount, setVencidosCount] = useState(0);
-  const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState(0);
+  const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState<number|null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -215,7 +215,7 @@ export default function ProcessosEmpresaPage() {
       setCases(first.data.cases);
       setListOffset(first.data.cases.length);
       setLoading(false);
-    } else {
+    } else if(!force || !casesRef.current.length) {
       setLoading(true);
     }
     if (first?.data) {
@@ -283,6 +283,26 @@ export default function ProcessosEmpresaPage() {
     window.addEventListener("focus",refresh);
     return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);};
   },[empresaId,authUserId,editOpen,attendingOpen]);
+
+  useEffect(()=>{
+    if(!empresaId||!authUserId)return;
+    let active=true;
+    const atualizar=()=>{
+      void import("@/app/actions/atendimentos-historico-actions").then(m=>m.getAtendimentosHistoricoAction("esta_semana"))
+        .then(r=>{
+          if(!active||!r.ok)return;
+          setAtendidosSemanaSrv(r.data.processos);
+          setTopAtendentesSrv(r.data.porUsuario.map(u=>({
+            userId:u.userId,userNome:u.nome,dia:0,semana:u.processos,mes:0
+          })));
+        }).catch(err=>console.warn("[processos] KPI historico",err));
+    };
+    atualizar();
+    window.addEventListener("lexis-carteira-updated",atualizar);
+    window.addEventListener("focus",atualizar);
+    const interval=window.setInterval(()=>{if(!document.hidden)atualizar();},60_000);
+    return()=>{active=false;window.removeEventListener("lexis-carteira-updated",atualizar);window.removeEventListener("focus",atualizar);window.clearInterval(interval);};
+  },[empresaId,authUserId]);
 
   // Em outros perfis o contexto pode chegar apos a montagem do componente.
   useEffect(() => {
@@ -652,6 +672,7 @@ export default function ProcessosEmpresaPage() {
             <p className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
               Carteira de toda a empresa: <strong>{totalCount.toLocaleString('pt-BR')}</strong> processos de todos os responsáveis ·
               {' '}{cases.length.toLocaleString('pt-BR')} carregados nesta aba. A busca consulta também os demais registros.
+              {atendidosSemanaSrv!==null ? <> · <strong>{atendidosSemanaSrv}</strong> processos com atendimento humano registrado na semana (todos os responsáveis)</> : null}
             </p>
           )}
           <ProcessosCommandCenter
