@@ -32,6 +32,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useAtendimentosHistorico } from "@/hooks/use-atendimentos-historico";
 import {
   buildAtendimentosPorDiaSemana,
   countAtendidosNestaSemana,
@@ -166,25 +168,19 @@ export function Dashboard({
   editadosHoje,
   tribunalSemana,
 }: LexisDashboardProps) {
-  const series = useMemo(() => {
-    if (cases && cases.length > 0) {
-      return buildAtendimentosPorDiaSemana(cases);
-    }
-    // fallback sem carteira
-    const days = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-    return days.map((d) => ({
-      day: d,
-      scans: 0,
-      retornos: 0,
-      atendimentos: 0,
-      baixas: 0,
-    }));
-  }, [cases]);
-
-  const atendidosSemana = useMemo(
-    () => countAtendidosNestaSemana(cases || []),
-    [cases]
+  const {profile}=useAuth();
+  const {data:historico,loading:historyLoading,error:historyError}=useAtendimentosHistorico(
+    "esta_semana",String((profile as any)?.empresa_id||"")
   );
+  // Só o log histórico do Supabase decide atendimento; o array de casos pode
+  // estar parcial e ultimo_retorno pode ter sido modificado pelo scanner.
+  const series=useMemo(()=>{
+    const entries=historico?.dias||[];
+    return entries.map(d=>({
+      day:d.day,atendimentos:d.atendimentos,retornos:d.atendimentos,scans:0
+    }));
+  },[historico]);
+  const atendidosSemana=historico?.atualizadoEm?historico.processos:null;
   const editadosSemanaN = useMemo(
     () => (editadosSemana != null ? editadosSemana : countEditadosAppSemana(cases || [])),
     [cases, editadosSemana]
@@ -264,10 +260,10 @@ export function Dashboard({
     },
     {
       label: "Atendidos sem.",
-      value: atendidosSemana,
+      value: atendidosSemana ?? "…",
       icon: <Clock size={16} />,
-      tone: atendidosSemana > 0 ? "violet" : "default",
-      hint: "Atendimento humano (ultimo retorno) · " + semanaLabel,
+      tone: (atendidosSemana||0)>0 ? "violet" : "default",
+      hint: (historyError ? "Não foi possível atualizar: "+historyError : historyLoading && !historico ? "Buscando histórico real..." : "Processos distintos com atendimento registrado") + " · " + semanaLabel,
     },
     {
       label: "Edicoes app",
@@ -332,7 +328,7 @@ export function Dashboard({
               Últimos atendimentos na semana
             </p>
             <p className="text-[9px] text-muted-foreground mb-3">
-              {semanaLabel} · {atendidosSemana} caso(s) com retorno nesta semana (carteira completa da empresa)
+              {semanaLabel} · {atendidosSemana===null?"Carregando":atendidosSemana} processo(s) com atendimento registrado (empresa inteira, inclusive casos de outros responsáveis)
             </p>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
