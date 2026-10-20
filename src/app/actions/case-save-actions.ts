@@ -2,7 +2,7 @@
 
 import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
-import { LegalCase, processarCaso, formatDateToISO } from '@/lib/case-logic';
+import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
@@ -152,6 +152,12 @@ async function persistToDatabase(
     mergedDados.proximoPrazo = '';
     mergedDados.proximo_retorno = null;
   }
+  // Uma ação persistida não pode deixar uma segunda situação contraditória
+  // no JSON legado, que também é lido em pesquisas e dossiês.
+  mergedDados.situacao=processed.situacao;
+  mergedDados.status_interno=processed.situacao;
+  mergedDados.status=processed.status;
+  mergedDados.statusManual=processed.statusManual;
   payload.dados = mergedDados;
   // Both UI edits and explicit appointments are human work; column KPI needs
   // the same stamped dates as the JSON blob, scoped to the authenticated editor.
@@ -303,6 +309,21 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     if ((caseData as any).proximoPrazo !== undefined || (caseData as any).proximo_retorno !== undefined) {
       processed.proximoPrazo = dateOrNull((caseData as any).proximoPrazo ?? (caseData as any).proximo_retorno);
       processed.proximo_retorno = processed.proximoPrazo;
+    }
+    // Mantém encerramento e próximo retorno coerentes com os campos SQL.
+    // Uma marca antiga Automatico/Vencido não sobrepõe o encerramento.
+    if (isCasoEncerrado({situacao:processed.situacao,status:processed.status,statusManual:processed.statusManual})){
+      if (processed.situacao === 'ENCERRADO' || processed.status === 'Encerrado') {
+        processed.situacao='ENCERRADO';
+        processed.status='Encerrado';
+        processed.statusManual='Encerrado';
+        processed.proximoPrazo='';
+        processed.proximo_retorno=null;
+      }
+    } else if (processed.statusManual !== 'Caso Crítico') {
+      const next=processed.proximo_retorno || processed.proximoPrazo || null;
+      processed.status=calcularStatus(next,processed.situacao);
+      processed.statusManual='Automatico';
     }
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
