@@ -204,9 +204,11 @@ export default function ProcessosEmpresaPage() {
   const [onlyAtivosList, setOnlyAtivosList] = useState(false);
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
+  const listRequestSeq=useRef(0);
 
   const load = async (force = false) => {
     if (!empresaId || !authUserId) return;
+    const seq=++listRequestSeq.current;
     setCarteiraError('');
     const previous = peekCarteiraCache(empresaId, 'empresa', authUserId, 'processos-empresa');
     const first = peekFastCarteiraCache('empresa', 60, 0, empresaId, authUserId);
@@ -229,6 +231,7 @@ export default function ProcessosEmpresaPage() {
     if (!force && first?.data && first.ageMs < 5 * 60_000 && previous?.cases?.length) return;
     try {
       const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
+      if(seq!==listRequestSeq.current)return; // resposta antiga não pode repor lista obsoleta
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
       // revalidada fica antes das demais, inclusive apos mudar de aba.
       const all=[...res.cases,...casesRef.current,...((previous?.cases||[]) as LegalCase[])];
@@ -247,6 +250,7 @@ export default function ProcessosEmpresaPage() {
       setHasServerMore(merged.length < res.totalCount);
       if (!force) setOnlyAtivosList(false);
     } catch (error) {
+      if(seq!==listRequestSeq.current)return;
       setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
       if (!previous?.cases?.length && !first?.data) {
         toast({
@@ -256,7 +260,7 @@ export default function ProcessosEmpresaPage() {
         });
       }
     } finally {
-      setLoading(false);
+      if(seq===listRequestSeq.current)setLoading(false);
     }
   };
 
@@ -314,11 +318,14 @@ export default function ProcessosEmpresaPage() {
       }
     }
     if(updated){
-      setCases(current=>current.map(item=>{
+      // Atualiza também a ref síncrona: a requisição em seguida não pode
+      // restaurar um estado anterior que ainda não foi renderizado pelo React.
+      casesRef.current=casesRef.current.map(item=>{
         const currentKey=String(item.protocolo||"").replace(/\D/g,"");
         if(currentKey!==key)return item;
         return {...item,...updated,id:item.id,db_id:(item as any).db_id,created_by:(item as any).created_by} as LegalCase;
-      }));
+      });
+      setCases(casesRef.current);
     }
     invalidateFastCarteiraCache();
     invalidateCarteiraCache();
