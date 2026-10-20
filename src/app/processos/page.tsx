@@ -173,9 +173,10 @@ export default function ProcessosEmpresaPage() {
   const [loading, setLoading] = useState(true);
   const [carteiraError, setCarteiraError] = useState('');
   const [q, setQ] = useState("");
-  const qDebounced = useDebouncedValue(q, 300);
+  const qDebounced = useDebouncedValue(q, 190);
+  const [searchRefreshKey,setSearchRefreshKey]=useState(0);
   const { active: hasSearch, cases: searchHits, searching, error: searchError } =
-    useCompanyProcessSearch(qDebounced, Boolean(empresaId && authUserId));
+    useCompanyProcessSearch(qDebounced, Boolean(empresaId && authUserId),searchRefreshKey);
   const [statusFilter, setStatusFilter] = useState("");
   const [baOnly, setBaOnly] = useState(false);
   const [silencioOnly, setSilencioOnly] = useState(false);
@@ -204,11 +205,11 @@ export default function ProcessosEmpresaPage() {
     setCarteiraError('');
     const previous = peekCarteiraCache(empresaId, 'empresa', authUserId, 'processos-empresa');
     const first = peekFastCarteiraCache('empresa', 60, 0, empresaId, authUserId);
-    if (previous?.cases?.length) {
+    if (!force && previous?.cases?.length) {
       setCases(previous.cases as LegalCase[]);
       setListOffset(previous.cases.length);
       setLoading(false);
-    } else if (first?.data) {
+    } else if (!force && first?.data) {
       setCases(first.data.cases);
       setListOffset(first.data.cases.length);
       setLoading(false);
@@ -227,22 +228,27 @@ export default function ProcessosEmpresaPage() {
       const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
       // revalidada fica antes das demais, inclusive apos mudar de aba.
-      const all = [...res.cases, ...((previous?.cases || []) as LegalCase[])];
-      const seen = new Set<string>();
-      const merged = all.filter((c) => {
-        const key = String(c.id || c.protocolo || '');
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
+      let nextLength=res.cases.length;
+      setCases((current)=>{
+        // Revalida primeira pagina sem apagar o restante ja aberto ou um
+        // atendimento acabado de salvar em pagina fora do primeiro lote.
+        const all=[...res.cases,...current,...((previous?.cases||[]) as LegalCase[])];
+        const seen=new Set<string>();
+        const merged=all.filter((item)=>{
+          const key=String(item.id||item.protocolo||"");
+          if(!key||seen.has(key))return false;
+          seen.add(key);return true;
+        });
+        nextLength=merged.length;
+        writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
+        return merged;
       });
-      setCases(merged);
-      setListOffset(merged.length);
+      setListOffset((prev)=>Math.max(prev,nextLength));
       setTotalCount(res.totalCount);
       setAtivosCount(res.summary.ativos);
       setVencidosCount(res.summary.vencidos);
-      setHasServerMore(merged.length < res.totalCount);
-      setOnlyAtivosList(false);
-      writeCarteiraCache(merged, empresaId, 'empresa', authUserId, 'processos-empresa');
+      setHasServerMore(nextLength < res.totalCount);
+      if (!force) setOnlyAtivosList(false);
     } catch (error) {
       setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
       if (!previous?.cases?.length && !first?.data) {
@@ -256,6 +262,31 @@ export default function ProcessosEmpresaPage() {
       setLoading(false);
     }
   };
+
+  const syncedUpdate=(protocolo:string,updated?:LegalCase|null)=>{
+    const key=String(protocolo||"").replace(/\\D/g,"");
+    if(updated){
+      setCases(current=>current.map(item=>{
+        const currentKey=String(item.protocolo||"").replace(/\\D/g,"");
+        if(currentKey!==key)return item;
+        return {...item,...updated,id:item.id,db_id:(item as any).db_id,created_by:(item as any).created_by} as LegalCase;
+      }));
+    }
+    invalidateFastCarteiraCache();
+    invalidateCarteiraCache();
+    setSearchRefreshKey(x=>x+1);
+    window.dispatchEvent(new Event("lexis-carteira-updated"));
+    // Sincronizacao real em segundo plano, sem bloquear o status na tela.
+    void load(true);
+  };
+
+  useEffect(()=>{
+    if(!empresaId||!authUserId)return;
+    const refresh=()=>{if(!document.hidden&&!editOpen&&!attendingOpen)void load(true);};
+    const timer=window.setInterval(refresh,90_000);
+    window.addEventListener("focus",refresh);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);};
+  },[empresaId,authUserId,editOpen,attendingOpen]);
 
   // Em outros perfis o contexto pode chegar apos a montagem do componente.
   useEffect(() => {
@@ -331,9 +362,7 @@ export default function ProcessosEmpresaPage() {
         });
         setEditOpen(false);
         setEditing(null);
-        invalidateFastCarteiraCache();
-        invalidateCarteiraCache();
-        await load(true);
+        syncedUpdate(editing.protocolo,res.case || updated);
         toast({
           title: "Processo salvo",
           description: editing.cliente || editing.protocolo,
@@ -381,9 +410,7 @@ export default function ProcessosEmpresaPage() {
       if (res.success) {
         setAttendingOpen(false);
         setAttending(null);
-        invalidateFastCarteiraCache();
-        invalidateCarteiraCache();
-        await load(true);
+        syncedUpdate(attending.protocolo,res.case || attending);
         toast({
           title: "Atendimento registrado",
           description: res.message,
@@ -423,9 +450,7 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("encerramento", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-da-empresa" },
         });
-        invalidateFastCarteiraCache();
-        invalidateCarteiraCache();
-        await load(true);
+        syncedUpdate(c.protocolo,res.case || updated);
         toast({ title: "Processo encerrado", description: c.cliente });
       } else {
         toast({ title: "Falha ao encerrar", description: res.message, variant: "destructive" });
@@ -459,9 +484,7 @@ export default function ProcessosEmpresaPage() {
         await registrarAuditoriaEventAction("edicao", [c.protocolo], {
           detalhes: { perfil: profile?.cargo, via: "processos-reabrir", acao: "reabrir" },
         });
-        invalidateFastCarteiraCache();
-        invalidateCarteiraCache();
-        await load(true);
+        syncedUpdate(c.protocolo,res.case || updated);
         toast({ title: "Processo reaberto", description: c.cliente || c.protocolo });
       } else {
         toast({
