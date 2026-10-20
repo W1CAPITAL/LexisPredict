@@ -422,29 +422,41 @@ export default function Dashboard() {
                 </Link>
               )}
 
-{/* CONTADORES DE MÉRITO — obrigatório (Lote 4) */}
-              <section className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="merit-counters" aria-label="Mérito e audiências">
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 flex items-center justify-between shadow-sm">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">Procedentes</p>
-                    <p className="text-3xl font-black tabular-nums text-emerald-700">{loading ? "..." : portfolioSummary?.procedentes ?? metrics.countProcedente}</p>
+{/* O resumo de mérito é calculado sobre todo o escopo autorizado no Supabase.
+    A lista inicial é parcial. Nunca substituir resultado por zero local. */}
+              <section className="space-y-2" data-testid="merit-counters" aria-label="Indicadores de mérito cadastrados">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 p-4 flex items-center justify-between shadow-sm">
+                    <div><p className="text-[10px] font-black uppercase tracking-wide text-emerald-700/80">Procedentes</p>
+                      <p className="mt-1 text-3xl font-black tabular-nums text-emerald-700">{portfolioSummary?.meritoDisponivel?portfolioSummary.procedentes:"…"}</p>
+                    </div><Scale className="text-emerald-600/40 shrink-0" size={24}/>
                   </div>
-                  <Scale className="text-emerald-600/40" size={28} />
-                </div>
-                <div className="rounded-2xl border border-red-200 bg-red-50/80 dark:bg-red-950/30 p-5 flex items-center justify-between shadow-sm">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-red-700/80">Improcedentes</p>
-                    <p className="text-3xl font-black tabular-nums text-red-700">{loading ? "..." : metrics.countImprocedente}</p>
+                  <div className="rounded-2xl border border-red-200 bg-red-50/80 dark:bg-red-950/30 p-4 flex items-center justify-between shadow-sm">
+                    <div><p className="text-[10px] font-black uppercase tracking-wide text-red-700/80">Improcedentes</p>
+                      <p className="mt-1 text-3xl font-black tabular-nums text-red-700">{portfolioSummary?.meritoDisponivel?portfolioSummary.improcedentes:"…"}</p>
+                    </div><Gavel className="text-red-600/40 shrink-0" size={24}/>
                   </div>
-                  <Gavel className="text-red-600/40" size={28} />
-                </div>
-                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-5 flex items-center justify-between shadow-sm">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/80">Audiências · Cumprimento</p>
-                    <p className="text-3xl font-black tabular-nums text-blue-700">{loading ? "..." : `${metrics.countAudiencia} · ${portfolioSummary?.cumprimentos ?? metrics.countCumprimento}`}</p>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 p-4 flex items-center justify-between shadow-sm">
+                    <div><p className="text-[10px] font-black uppercase tracking-wide text-amber-800">Parcialmente procedentes</p>
+                      <p className="mt-1 text-3xl font-black tabular-nums text-amber-700">{portfolioSummary?.meritoDisponivel?portfolioSummary.parciais:"…"}</p>
+                    </div><Scale className="text-amber-600/40 shrink-0" size={24}/>
                   </div>
-                  <Activity className="text-blue-600/40" size={28} />
+                  <div className="rounded-2xl border border-orange-200 bg-orange-50/80 dark:bg-orange-950/30 p-4 flex items-center justify-between shadow-sm">
+                    <div><p className="text-[10px] font-black uppercase tracking-wide text-orange-800">Conferir divergências</p>
+                      <p className="mt-1 text-3xl font-black tabular-nums text-orange-700">{portfolioSummary?.meritoDisponivel?portfolioSummary.divergentesMerito:"…"}</p>
+                    </div><AlertCircle className="text-orange-600/40 shrink-0" size={24}/>
+                  </div>
+                  <div className="col-span-2 lg:col-span-1 rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-4 flex items-center justify-between shadow-sm">
+                    <div><p className="text-[10px] font-black uppercase tracking-wide text-blue-700/80">Audiências* · Cumprimento</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-blue-700">{portfolioSummary?`${metrics.countAudiencia}* · ${portfolioSummary.cumprimentos}`:"…"}</p>
+                    </div><Activity className="text-blue-600/40 shrink-0" size={24}/>
+                  </div>
                 </div>
+                <p className="px-1 text-[10px] text-muted-foreground">
+                  Mérito: indicadores registrados no CRM em toda a carteira do seu escopo, sem duplicar casos conflitantes.
+                  Não significam trânsito em julgado, vitória definitiva ou conferência individual dos autos.
+                  *Audiências ainda refletem apenas os processos carregados na tela.
+                </p>
               </section>
 {/* G2 — KPIs Revisional & Jurídico */}
               <RevisionalJuridicoKpis />
