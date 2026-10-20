@@ -69,7 +69,7 @@ export function RelatorioEquipePDF({ data }: { data: RelatorioEquipeData }) {
 
           <View style={s.wa}>
             <Text style={s.waT}>{data.whatsapp}</Text>
-            <Text style={s.waS}>Isso vale mais do que gráfico. É o canal que mais vira reclamação quando estoura.</Text>
+            <Text style={s.waS}>Confirme os envios na origem antes de considerar uma demanda resolvida.</Text>
           </View>
 
           <Text style={s.h}>Como a casa está dividida</Text>
