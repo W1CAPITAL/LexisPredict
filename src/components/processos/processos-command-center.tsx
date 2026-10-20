@@ -65,6 +65,7 @@ type Props = {
   totalCount: number;
   ativosCount: number;
   vencidosCount: number;
+  indicadoresLoading?:boolean;
   loading?: boolean;
   searching?: boolean;
   query: string;
@@ -567,9 +568,9 @@ export function ProcessosCommandCenter(props: Props) {
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.loading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
-          <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.loading ? "…" : props.ativosCount} hint="carteira inteira" />
-          <KpiCard icon={<AlertTriangle size={15}/>} label="Vencidos" value={props.loading ? "…" : props.vencidosCount} hint="carteira inteira" kind="red" />
+          <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
+          <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
+          <KpiCard icon={<AlertTriangle size={15}/>} label="Vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="carteira inteira" kind="red" />
           <KpiCard icon={<ShieldAlert size={15}/>} label="Risco alto" value={props.loading ? "…" : highRiskCount} hint={`${updateCount} com novidade`} kind="red" />
         </div>
         <button type="button" onClick={() => setMetricsOpen(!metricsOpen)}
