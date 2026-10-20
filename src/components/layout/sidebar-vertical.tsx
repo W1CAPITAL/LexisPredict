@@ -137,10 +137,10 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/cases", "/processos", "/whatsapp", "/dossies"]
-        .map((href) => mainItems.find((item) => item.href === href))
+      ["/", "/tarefas", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies"]
+        .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
-    [mainItems],
+    [mainItems,extraItems],
   );
 
   useEffect(()=>{
@@ -164,7 +164,10 @@ export function SidebarVertical() {
       "/whatsapp": "Converse e acompanhe mensagens.",
       "/dossies": "Peça um dossiê por chat com PDF, planilha, processo, mensagens ou contexto.",
       "/agenda": "Veja prazos e compromissos.",
-      "/report": "Gere relatórios quando precisar.",
+      "/report": "KPIs atualizados e PDF executivo da equipe.",
+      "/minhas-atividades": "Registre atividades feitas por você e veja sua produtividade.",
+      "/analises-internas": "Auditorias, dossiês e investigações por CNJ.",
+      "/fases-provas": "Localize réplicas, provas e documentos.",
       "/settings": "Conta, equipe e preferências.",
       "/processos": "Visão completa da carteira da empresa.",
       "/crm": "Clientes, negócios e acompanhamento comercial.",
@@ -188,6 +191,11 @@ export function SidebarVertical() {
     const preferred = [
       "/tarefas",
       "/cases",
+      "/processos",
+      "/minhas-atividades",
+      "/analises-internas",
+      "/fases-provas",
+      "/supervisao",
       "/whatsapp",
       "/dossies",
       "/agenda",
@@ -227,6 +235,7 @@ export function SidebarVertical() {
         icon: ListTodo,
         hrefs: [
           "/tarefas",
+          "/minhas-atividades",
           "/agenda",
           "/processos-parados",
           "/encerrados-revisao",
@@ -242,6 +251,8 @@ export function SidebarVertical() {
         hrefs: [
           "/cases",
           "/processos",
+          "/fases-provas",
+          "/analises-internas",
           "/gerador-processos",
           "/documents",
           "/dossies",
