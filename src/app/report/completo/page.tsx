@@ -106,7 +106,7 @@ export default function UnifiedReport() {
     const empresaId=String(profile?.empresa_id||"");
     if(!mounted||authLoading||!empresaId)return;
     let active=true;
-    const scope=checkIfSuperAdmin(profile)||checkIfSupervisor(profile)?"empresa":"mine";
+    const scope="empresa" as const; // Relatório de equipe sempre compara a carteira da empresa
     void fetchFastCarteira(scope,1,0).then(res=>{
       if(active)setPortfolioResumo(res.summary);
     }).catch(err=>console.warn("[report] resumo rapido da carteira",err));
@@ -125,7 +125,7 @@ export default function UnifiedReport() {
     const userId=String(profile?.auth_user_id||'');
     if(!mounted||authLoading||!empresaId||!userId)return;
     let active=true;
-    const scope=checkIfSuperAdmin(profile)||checkIfSupervisor(profile)?'empresa':'mine';
+    const scope='empresa' as const; // PDFs e visão consolidada: mesmo escopo do /report
     setLoadError('');
     const cached=peekCarteiraCache(empresaId,scope,userId,'report');
     if(cached?.cases?.length){
@@ -525,7 +525,7 @@ export default function UnifiedReport() {
       {label:"Processos atendidos",value:h?.processos??"…",desc:"Processos distintos no período"},
       {label:"Registros de atendimento",value:h?.eventos??"…",desc:"Eventos humanos registrados"},
       {label:"Processos editados",value:h?.edicoes?.processos??"…",desc:"Edições manuais registradas"},
-      {label:"Carteira no escopo",value:portfolioResumo?.total??"…",desc:"Total obtido direto do banco"},
+      {label:"Carteira da empresa",value:portfolioResumo?.total??"…",desc:"Empresa inteira, obtido direto do Supabase"},
     ];
     return <main className="min-h-screen lexis-report-root p-4 text-foreground sm:p-7">
       <div className="mx-auto max-w-7xl space-y-5">
