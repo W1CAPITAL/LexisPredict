@@ -40,6 +40,7 @@ const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
 const inFlightPages = new Map<string, Promise<FastCarteiraResponse>>();
+let invalidationGeneration=0;
 function keyFor(scope: 'mine' | 'empresa', limit: number, offset: number, empresaId: string, userId: string) {
   return FAST_KEY + [empresaId, userId, scope, limit, offset].join(':');
 }
@@ -77,7 +78,9 @@ export function rememberFastCarteira(
   }
 }
 export function invalidateFastCarteiraCache() {
+  invalidationGeneration++;
   fastMemory.clear();
+  inFlightPages.clear();
   if (typeof window === 'undefined') return;
   try {
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
@@ -98,13 +101,17 @@ export async function fetchFastCarteiraCached(
   const key = keyFor(scope, limit, offset, empresaId, userId);
   const running = inFlightPages.get(key);
   if (running) return running;
+  const startedGeneration=invalidationGeneration;
   const request = fetchFastCarteira(scope, limit, offset, AbortSignal.timeout(25_000))
     .then((next) => {
-      rememberFastCarteira(scope,limit,offset,empresaId,userId,next);
-      seedCarteiraPageClientCache({empresaId,userId,scope,limit,offset},next.cases);
+      // Uma resposta antiga não pode repor o cache depois de um salvamento.
+      if(startedGeneration===invalidationGeneration) {
+        rememberFastCarteira(scope,limit,offset,empresaId,userId,next);
+        seedCarteiraPageClientCache({empresaId,userId,scope,limit,offset},next.cases);
+      }
       return next;
     })
-    .finally(() => inFlightPages.delete(key));
+    .finally(() => {if(inFlightPages.get(key)===request)inFlightPages.delete(key);});
   inFlightPages.set(key, request);
   return request;
 }
