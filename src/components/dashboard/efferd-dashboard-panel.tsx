@@ -181,14 +181,8 @@ export function Dashboard({
     }));
   },[historico]);
   const atendidosSemana=historico?.atualizadoEm?historico.processos:null;
-  const editadosSemanaN = useMemo(
-    () => (editadosSemana != null ? editadosSemana : countEditadosAppSemana(cases || [])),
-    [cases, editadosSemana]
-  );
-  const editadosHojeN = useMemo(
-    () => (editadosHoje != null ? editadosHoje : countEditadosAppHoje(cases || [])),
-    [cases, editadosHoje]
-  );
+  const editadosSemanaN=historico?.edicoes?.processos??null;
+  const editadosHojeN=historico?.edicoes?.hoje??null;
   const tribunalSemanaN = useMemo(
     () => (tribunalSemana != null ? tribunalSemana : countAuditadosTribunalSemana(cases || [])),
     [cases, tribunalSemana]
@@ -267,16 +261,16 @@ export function Dashboard({
     },
     {
       label: "Edicoes app",
-      value: editadosSemanaN,
+      value: editadosSemanaN ?? "…",
       icon: <Pencil size={16} />,
       tone: "violet",
-      hint: "Edicao no app (nao e atendimento) · " + semanaLabel,
+      hint: "Processos editados no app, por evento humano autenticado · "+semanaLabel,
     },
     {
       label: "Editados hoje",
-      value: editadosHojeN,
+      value: editadosHojeN ?? "…",
       icon: <Pencil size={16} />,
-      tone: editadosHojeN > 0 ? "info" : "default",
+      tone: (editadosHojeN||0)>0 ? "info" : "default",
       hint: "Edições de hoje (Brasília)",
     },
     {
