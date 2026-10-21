@@ -8,9 +8,14 @@ import {EXPERIENCE_TERMS,EXPERIENCE_TERMS_VERSION} from '@/lib/experience-terms'
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {AUTHORITY_PRESETS,getPresetColors} from '@/lib/theme';
 
-type ExperienceRecord={display_name?:string;display_role?:string;phone?:string;preferences?:unknown;onboarding_version?:number;terms_version?:string;welcome_opt_in?:boolean};
+type ExperienceRecord={
+ display_name?:string;display_role?:string;phone?:string;preferences?:unknown;onboarding_version?:number;
+ terms_version?:string;terms_accepted_at?:string;signature_name?:string;
+ welcome_opt_in?:boolean;welcome_status?:string;
+};
 type StudioProps={
  wizard:boolean;
+ initialStep?:0|1|2|3;
  record?:ExperienceRecord|null;
  user?:{nome?:string|null;cargo?:string|null;avatar_url?:string|null}|null;
  onDone?:()=>void;
@@ -33,8 +38,8 @@ const fieldClass='w-full min-h-11 rounded-xl border border-border bg-card px-3 p
 const stageNames=['Seu perfil','Aparência','Navegação e componentes','Responsabilidade e licença'];
 const TITLE='Sua experiência LexisPredict';
 
-export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps){
- const [step,setStep]=useState(0);
+export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClose}:StudioProps){
+ const [step,setStep]=useState(initialStep);
  const [prefs,setPrefs]=useState<ExperiencePreferences>(()=>cleanExperiencePrefs(record?.preferences||{}));
  const [wallpaperDraft,setWallpaperDraft]=useState(()=>cleanExperiencePrefs(record?.preferences||{}).wallpaper);
  const [name,setName]=useState(record?.display_name||user?.nome||'');
@@ -247,7 +252,7 @@ export function ExperienceStudio({wizard,record,user,onDone,onClose}:StudioProps
      <div className="flex gap-2">
       {step>0?<button type="button" onClick={()=>{setStep(x=>x-1);setError('')}} disabled={busy} className="rounded-xl border px-3 py-2 text-xs font-semibold"><ArrowLeft className="mr-1 inline h-4 w-4"/>Voltar</button>:null}
       {step<3?<button type="button" onClick={next} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">Continuar<ArrowRight className="ml-2 inline h-4 w-4"/></button>:
-       <button type="button" onClick={()=>void save()} disabled={busy||uploading} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">{busy?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<ShieldCheck className="mr-1 inline h-4 w-4"/>}{wizard?'Salvar, assinar e não perguntar novamente':'Salvar personalização'}</button>}
+       <button type="button" onClick={()=>void save()} disabled={busy||uploading} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">{busy?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<ShieldCheck className="mr-1 inline h-4 w-4"/>}{wizard?'Salvar, assinar e não perguntar novamente':step===0?'Salvar perfil e celular':step===3?'Salvar e confirmar':'Salvar personalização'}</button>}
      </div>
     </footer>
    </section>
@@ -290,21 +295,86 @@ export function ExperienceGate(){
  return <ExperienceStudio wizard record={d||null} user={data.user} onDone={()=>setDone(true)}/>;
 }
 
+/** A mesma tela do primeiro acesso permanece acessível nas Configurações. */
 export function ExperienceSettingsPanel(){
  const [opened,setOpened]=useState(false);
+ const [startStep,setStartStep]=useState<0|1|2|3>(0);
  const [data,setData]=useState<Awaited<ReturnType<typeof getExperienceAction>>|null>(null);
- useEffect(()=>{getExperienceAction().then(setData).catch(()=>{})},[]);
- if(!data?.ok)return null;
- return <section className="mb-5 rounded-2xl border border-primary/25 bg-card p-4">
-   <div className="flex flex-wrap items-center justify-between gap-3">
-    <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Novo · Meu visual</p>
-     <h3 className="text-lg font-bold">Estúdio de personalização</h3>
-     <p className="text-xs text-muted-foreground">Temas, wallpaper, fonte, contrastes, sidebar, dashboard, cards e notificações. Sincronizado com sua conta.</p>
-    </div>
-    <button onClick={()=>setOpened(true)} type="button" className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">Personalizar experiência</button>
+ const [loading,setLoading]=useState(true);
+ const load=()=>{
+  setLoading(true);
+  getExperienceAction().then(setData).catch(()=>setData({ok:false,error:'Não foi possível carregar seu perfil.'}))
+   .finally(()=>setLoading(false));
+ };
+ useEffect(()=>{load()},[]);
+ const open=(step:0|1|2|3)=>{setStartStep(step);setOpened(true)};
+ if(loading)return <section className="rounded-2xl border border-border bg-card p-5" aria-busy="true">
+  <p className="text-sm text-muted-foreground">Carregando perfil, telefone e consentimentos…</p>
+ </section>;
+ if(!data?.ok)return <section className="rounded-2xl border border-red-300/50 bg-card p-5">
+  <h3 className="font-bold">Não foi possível consultar seu perfil</h3>
+  <p className="mt-1 text-sm text-muted-foreground">{data?.error||'Verifique sua conexão.'}</p>
+  <button type="button" className="mt-3 rounded-lg border px-3 py-2 text-sm font-semibold" onClick={load}>Tentar novamente</button>
+ </section>;
+ const record=data.profile;
+ const acceptedCurrent=record?.terms_version===EXPERIENCE_TERMS_VERSION&&!!record?.terms_accepted_at;
+ const hasAccepted=!!record?.terms_version&&!!record?.terms_accepted_at;
+ const date=record?.terms_accepted_at?new Date(record.terms_accepted_at):null;
+ const signedAt=date&&!Number.isNaN(date.getTime())?
+   date.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}):null;
+ const displayName=record?.display_name||data.user?.nome||'Não informado';
+ const displayRole=record?.display_role||data.user?.cargo||'Não informado';
+ return <section className="space-y-5" aria-label="Perfil, telefone e termos do LexisPredict">
+  <div>
+   <p className="text-xs font-bold uppercase tracking-wider text-primary">Sua conta · LexisPredict</p>
+   <h2 className="mt-1 text-xl font-extrabold">Perfil, celular e termos</h2>
+   <p className="mt-1 text-sm text-muted-foreground">Consulte o que foi informado no primeiro acesso e altere suas preferências quando precisar. Os dados ficam vinculados à sua própria conta.</p>
+  </div>
+  <div className="grid gap-4 md:grid-cols-2">
+   <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="mb-3 flex items-center gap-2"><UserCircle className="h-5 w-5 text-primary"/><h3 className="font-bold">Meus dados</h3></div>
+    <dl className="space-y-3 text-sm">
+     <div><dt className="text-xs text-muted-foreground">Nome do perfil</dt><dd className="font-semibold">{displayName}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Cargo exibido</dt><dd className="font-semibold">{displayRole}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Celular / WhatsApp com DDD</dt>
+      <dd className="font-semibold">{record?.phone||'Ainda não cadastrado'}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Mensagem de boas-vindas</dt>
+      <dd className="font-semibold">{record?.welcome_opt_in?'Autorizada por você':'Não autorizada'}</dd></div>
+    </dl>
+    <button type="button" onClick={()=>open(0)} className="mt-4 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">
+     Editar perfil e celular
+    </button>
    </div>
-   {opened?<ExperienceStudio wizard={false} record={data.profile||null} user={data.user}
-     onClose={()=>{applyExperiencePrefs(cleanExperiencePrefs(data.profile?.preferences));setOpened(false)}}
-     onDone={()=>{setOpened(false);getExperienceAction().then(setData)}}/>:null}
-  </section>
+   <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="mb-3 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/><h3 className="font-bold">Termos e consentimentos</h3></div>
+    <p className="text-sm font-semibold">
+     {acceptedCurrent?'Termos atuais aceitos':hasAccepted?'Nova versão disponível para análise':'Aceite ainda não registrado'}
+    </p>
+    <dl className="mt-3 space-y-3 text-sm">
+     <div><dt className="text-xs text-muted-foreground">Versão vigente</dt><dd className="break-all font-semibold">{EXPERIENCE_TERMS_VERSION}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Versão aceita</dt><dd className="break-all">{record?.terms_version||'Nenhuma'}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Aceite registrado em</dt><dd>{signedAt||'Não registrado'}</dd></div>
+     <div><dt className="text-xs text-muted-foreground">Assinatura eletrônica simples</dt><dd>{record?.signature_name||'Não registrada'}</dd></div>
+    </dl>
+    <p className="mt-3 text-xs text-muted-foreground">Consultar os termos não gera uma nova assinatura. O aceite fica registrado no servidor e não é substituído ao trocar celular ou tema.</p>
+    <button type="button" onClick={()=>open(3)} className="mt-4 rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-bold text-primary">
+     {acceptedCurrent?'Consultar termos e aceite':'Ler e aceitar os termos'}
+    </button>
+   </div>
+  </div>
+  <div className="rounded-2xl border border-border bg-card p-5">
+   <div className="flex flex-wrap items-center justify-between gap-3">
+    <div><h3 className="font-bold">Personalização da experiência</h3>
+     <p className="mt-1 text-sm text-muted-foreground">Temas, cores, fontes, imagem de fundo, sidebar, atalhos, cards e notificações. É o mesmo guia de personalização do primeiro acesso.</p>
+    </div>
+    <div className="flex flex-wrap gap-2">
+     <button type="button" onClick={()=>open(1)} className="rounded-xl border px-4 py-2.5 text-sm font-bold">Aparência</button>
+     <button type="button" onClick={()=>open(2)} className="rounded-xl border px-4 py-2.5 text-sm font-bold">Menu e componentes</button>
+    </div>
+   </div>
+  </div>
+  {opened?<ExperienceStudio wizard={false} initialStep={startStep} record={record||null} user={data.user}
+    onClose={()=>{applyExperiencePrefs(cleanExperiencePrefs(record?.preferences));setOpened(false)}}
+    onDone={()=>{setOpened(false);load()}}/>:null}
+ </section>;
 }
