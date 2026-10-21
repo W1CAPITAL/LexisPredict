@@ -9,7 +9,7 @@ import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
  * Acessível somente a Supervisor / Superadmin.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
@@ -76,14 +76,17 @@ export default function SupervisaoPage() {
   const [error, setError] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
   const [procLimitByUser, setProcLimitByUser] = useState<Record<string, number>>({});
+  const requestSeq=useRef(0);
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
   const allowed = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
 
   const load = async (silent = false) => {
+    const seq=++requestSeq.current;
     if (!silent) setLoading(true);
     try {
       const res = await getSupervisaoSnapshotAction(periodo);
+      if(seq!==requestSeq.current)return; // filtros/requisições antigas não sobrescrevem o período novo
       if (res.success) {
         setSnap(res.snapshot || null);
         setError("");
@@ -92,9 +95,9 @@ export default function SupervisaoPage() {
         setError(res.error || "Não foi possível consultar o banco agora.");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao atualizar a supervisão.");
+      if(seq===requestSeq.current)setError(e instanceof Error ? e.message : "Falha ao atualizar a supervisão.");
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent&&seq===requestSeq.current) setLoading(false);
     }
   };
 
@@ -105,14 +108,17 @@ export default function SupervisaoPage() {
     // o snapshot antigo é substituído por dados recém-consultados no Supabase.
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load(true);
-    }, 180_000);
+    }, 60_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") void load(true);
     };
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("lexis-carteira-updated",onVisible);
     return () => {
+      requestSeq.current++;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("lexis-carteira-updated",onVisible);
     };
   }, [allowed, authLoading, periodo]);
 
@@ -195,7 +201,7 @@ export default function SupervisaoPage() {
               <ShieldCheck size={14} /> Supervisão
             </p>
             <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Supervisão</h1>
-            <p className="mt-2 text-sm font-medium text-[#617693]">Indicadores consultados diretamente no Supabase, com atualização automática a cada 3 minutos.</p>
+            <p className="mt-2 text-sm font-medium text-[#617693]">Indicadores consolidados no Supabase, com atualização automática a cada minuto. Carteira atual separada dos resultados do período.</p>
             <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
               {snap?.geradoEm
                 ? `Consulta: ${new Date(snap.geradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
@@ -254,7 +260,12 @@ export default function SupervisaoPage() {
               <button
                 key={op.id}
                 type="button"
-                onClick={() => setPeriodo(op.id)}
+                onClick={() => {
+                  if(op.id===periodo)return;
+                  requestSeq.current++;
+                  setSnap(null);
+                  setPeriodo(op.id);
+                }}
                 title={op.hint}
                 className={cn(
                   "h-8 px-3 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-colors",
@@ -272,46 +283,48 @@ export default function SupervisaoPage() {
           </div>
 <KpiCard icon={<Briefcase size={16} />} label="Processos" value={snap.total} tone="primary" />
                   <KpiCard icon={<Activity size={16} />} label="Ativos" value={snap.ativos} />
-                  <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados carteira" value={snap.encerrados} tone="ok" hint="Status ENCERRADO/ARQUIVADO no gabinete" />
-                  <KpiCard icon={<Gavel size={16} />} label="Baixas tribunal" value={(snap as any).baixasTribunal ?? 0} tone="ok" hint="DataJud/DJEN · trânsito/baixa" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Encerrados carteira" value={snap.encerrados} tone="ok" hint="Situação atual · todos os períodos" />
+                  <KpiCard icon={<Gavel size={16} />} label="Baixas sinalizadas" value={snap.baixasTribunal ?? 0} tone="ok" hint="Marcador DataJud; não equivale a vitória definitiva" />
                   <KpiCard icon={<ShieldAlert size={16} />} label="Vencidos" value={snap.vencidos} tone={snap.vencidos > 0 ? "danger" : "default"} />
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
-                  <KpiCard icon={<FileSearch size={16} />} label="Atendidos internamente · Davi" value={snap.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0} tone="primary" hint="análises e auditorias; não são contatos por WhatsApp" />
+                  <KpiCard icon={<FileSearch size={16} />} label="Processos com trabalho interno" value={snap.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0} tone="primary" hint="Registrados no período · equipe; não é contato com cliente" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · Davi" value={snap.analisesInternas?.tarefasDaviPeriodo ?? 0} tone="ok" hint="atividades manuais no período" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · equipe" value={snap.analisesInternas?.tarefasConcluidasPeriodo ?? 0} tone="ok" hint="lançamentos manuais no período" />
-                  <KpiCard icon={<FileSearch size={16} />} label="Processos analisados · Davi" value={snap.analisesInternas?.processosAnalisados ?? 0} tone="ok" hint="carteira com origem e data registradas" />
-                                    <KpiCard icon={<MessageSquare size={16} />} label="Com retorno no cadastro" value={snap.atendimentosTotais} tone="ok" hint="todos os retornos registrados" />
+                  <KpiCard icon={<FileSearch size={16} />} label="Processos analisados · empresa" value={snap.analisesInternas?.processosAnalisados ?? 0} tone="ok" hint="Histórico acumulado de análises cadastradas" />
+                                    <KpiCard icon={<MessageSquare size={16} />} label="Com data de retorno" value={snap.atendimentosTotais} tone="ok" hint="Data no CRM; não comprova contato humano" />
                   <KpiCard icon={<CalendarClock size={16} />} label={periodo === "mes" ? "Atividade humana/mês" : periodo === "semana_passada" ? "Atividade humana/sem. ant." : "Atividade humana/semana"} value={snap.atendidosSemana} tone="primary" hint={snap?.periodoLabel || labelPeriodo(periodo)} />
-                  <KpiCard icon={<Activity size={16} />} label="Auditados semana" value={snap.auditadosSemana ?? 0} tone="primary" hint="qualquer salvamento no app" />
-                  <KpiCard icon={<FileSearch size={16} />} label="Tribunal (sem.)" value={snap.auditadosTribunalSemana ?? 0} hint="só DataJud/DJEN" />
-                  <KpiCard icon={<CheckCircle2 size={16} />} label="Editados app" value={snap.editadosAppSemana ?? 0} hint="salvar processo no app" />
+                  <KpiCard icon={<Activity size={16} />} label="Lançamentos de auditoria" value={snap.auditadosSemana ?? 0} tone="primary" hint="No período · exclui importações em lote" />
+                  <KpiCard icon={<FileSearch size={16} />} label="DataJud/DJEN registrados" value={snap.auditadosTribunalSemana ?? 0} hint="Última consulta datada no período · inclui cargas em lote" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Processos editados" value={snap.editadosAppSemana ?? 0} hint="CNJs distintos com edição manual auditada no período" />
+                  <KpiCard icon={<FileSearch size={16}/>} label="Importações de auditoria" value={snap.auditoriasImportadasPeriodo ?? 0} hint="Lançamentos importados no período; separados das novas análises" />
+                  <KpiCard icon={<CheckCircle2 size={16}/>} label="Ações de edição" value={snap.edicoesEventosPeriodo ?? 0} hint="Eventos manuais auditados; um processo pode aparecer mais de uma vez" />
                 </div>
 
                 <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
-                  <strong>Produção analítica de Davi:</strong> {snap.analisesInternas?.auditoriaDocumental ?? 0} apontamentos documentais, {snap.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {snap.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais e {snap.analisesInternas?.investigacoesExternas ?? 0} referências de investigação externa. São registros de trabalho interno, não contatos comprovados.
+                  <strong>Produção analítica cadastrada na empresa (histórico acumulado):</strong> {snap.analisesInternas?.auditoriaDocumental ?? 0} apontamentos documentais, {snap.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {snap.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais e {snap.analisesInternas?.investigacoesExternas ?? 0} referências de investigação externa. São registros de trabalho interno, não contatos comprovados.
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KpiCard
                     icon={<TrendingUp size={16} />}
-                    label="Taxa retorno"
+                    label="Cadastro com retorno"
                     value={`${snap.taxaRetornoPct ?? (snap.total > 0 ? Math.min(100, Math.round(((snap.total - (snap.semRetorno || 0)) / snap.total) * 100)) : 0)}%`}
                     tone="ok"
-                    hint={`Com retorno: ${(snap.total || 0) - (snap.semRetorno || 0)} de ${snap.total || 0} · nunca contata: ${snap.semRetorno || 0}`}
+                    hint={`Com retorno: ${(snap.total || 0) - (snap.semRetorno || 0)} de ${snap.total || 0} · sem data: ${snap.semRetorno || 0}`}
                   />
                   <KpiCard
                     icon={<TrendingUp size={16} />}
-                    label="Retorno no período"
+                    label="Cobertura de ativos no período"
                     value={`${snap.taxaRetornoPeriodoPct ?? 0}%`}
                     tone="primary"
-                    hint={`${snap.atendidosSemana || 0} atend. no período / ativos (cobertura)`}
+                    hint={`${snap.atendidosAtivosPeriodo || 0} ativos atendidos / ${snap.ativos || 0} ativos na carteira`}
                   />
                   <KpiCard
                     icon={<Clock size={16} />}
-                    label="Sem retorno"
+                    label="Sem data de retorno"
                     value={snap.semRetorno}
                     tone={snap.semRetorno > 0 ? "danger" : "default"}
-                    hint="nunca registrado contato"
+                    hint="Data de último retorno ausente; não comprova falta de contato"
                   />
                   <KpiCard
                     icon={<Gavel size={16} />}
@@ -409,8 +422,8 @@ export default function SupervisaoPage() {
                           <th className="px-4 py-3 text-right">Ativos</th>
                           <th className="px-4 py-3 text-right">Vencidos</th>
                           <th className="px-4 py-3 text-right">Novidades</th>
-                          <th className="px-4 py-3 text-right">Atend. geral</th>
-                          <th className="px-4 py-3 text-right">Atend. semana</th>
+                          <th className="px-4 py-3 text-right">Com data retorno</th>
+                          <th className="px-4 py-3 text-right">{periodo==="mes"?"Atend. mês":periodo==="semana_passada"?"Atend. sem. anterior":"Atend. semana"}</th>
                           <th className="px-6 py-3 text-right">Sem retorno</th>
                         </tr>
                       </thead>
@@ -466,7 +479,7 @@ export default function SupervisaoPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-[12px] font-black uppercase tracking-tight truncate">{ug.nome}</p>
                               <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                {ug.total} processos · {ug.ativos} ativos · {ug.atendidosSemana} atend. semana
+                                {ug.total} processos · {ug.ativos} ativos · {ug.atendidosSemana} atendimentos no período
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-[9px] font-black uppercase">
