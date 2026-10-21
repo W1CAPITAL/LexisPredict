@@ -671,7 +671,7 @@ export default function SettingsPage() {
                 { id: "Seguranca", label: "Segurança e limites", icon: <ShieldCheck size={14} />, keywords: "seguranca rls tenant cargo limite rate auth" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
-                { id: "Experiencia", label: "Perfil, celular e termos", icon: <UserCircle size={14} />, keywords: "personalizacao personalidade perfil experiencia boas vindas nome cargo celular telefone whatsapp consentimento termos assinatura aceite lgpd visual" },
+                { id: "Experiencia", label: "Perfil, celular e termos", icon: <User size={14} />, keywords: "personalizacao personalidade perfil experiencia boas vindas nome cargo celular telefone whatsapp consentimento termos assinatura aceite lgpd visual" },
                 { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
                 { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
                 { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
