@@ -39,7 +39,7 @@ const stageNames=['Seu perfil','Aparência','Navegação e componentes','Respons
 const TITLE='Sua experiência LexisPredict';
 
 export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClose}:StudioProps){
- const [step,setStep]=useState(initialStep);
+ const [step,setStep]=useState<number>(initialStep);
  const [prefs,setPrefs]=useState<ExperiencePreferences>(()=>cleanExperiencePrefs(record?.preferences||{}));
  const [wallpaperDraft,setWallpaperDraft]=useState(()=>cleanExperiencePrefs(record?.preferences||{}).wallpaper);
  const [name,setName]=useState(record?.display_name||user?.nome||'');
