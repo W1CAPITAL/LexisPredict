@@ -142,9 +142,9 @@ export function SupervisaoPDF({
     { label: "Vencidos", value: String(data.vencidos) },
     { label: "B.A.", value: String(data.ba) },
     { label: "Novidades", value: String(data.novidades) },
-    { label: "Atend. geral", value: String(data.atendimentosTotais) },
-    { label: "Atend. semana", value: String(data.atendidosSemana) },
-    { label: "Análise interna (Davi)", value: String(data.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0) },
+    { label: "Com data retorno", value: String(data.atendimentosTotais) },
+    { label: "Atendidos período", value: String(data.atendidosSemana) },
+    { label: "Trabalho interno período", value: String(data.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0) },
     { label: "Processos analisados", value: String(data.analisesInternas?.processosAnalisados ?? 0) },
     { label: "Tarefas equipe", value: String(data.analisesInternas?.tarefasConcluidasPeriodo ?? 0) },
     { label: "Tarefas Davi", value: String(data.analisesInternas?.tarefasDaviPeriodo ?? 0) },
@@ -180,10 +180,10 @@ export function SupervisaoPDF({
         </View>
 
         <View style={s.content}>
-          <Text style={s.h2}>Davi · dossiês, auditorias e investigações</Text>
+          <Text style={s.h2}>Análises cadastradas na empresa · histórico</Text>
           <View style={s.box}>
             <Text style={s.small}>
-              Davi Alves Figueredo: {data.analisesInternas?.auditoriaDocumental ?? 0} apontamentos de auditoria documental, {data.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {data.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais, {data.analisesInternas?.investigacoesExternas ?? 0} processos/inquéritos externos investigados em levantamento, e {data.analisesInternas?.projetos ?? 0} entregas de sistema ou projeto.
+              Na empresa constam {data.analisesInternas?.auditoriaDocumental ?? 0} apontamentos de auditoria documental, {data.analisesInternas?.triagemReplicaProvas ?? 0} triagens de réplica/provas, {data.analisesInternas?.dossiesIndividuais ?? 0} dossiês individuais, {data.analisesInternas?.investigacoesExternas ?? 0} processos/inquéritos externos investigados em levantamento, e {data.analisesInternas?.projetos ?? 0} entregas de sistema ou projeto.
             </Text>
             <Text style={s.small}>
               Atividades internas computadas à parte dos clientes contatados. As categorias se sobrepõem e nenhuma observação, isoladamente, comprova falha jurídica.
