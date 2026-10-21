@@ -54,7 +54,7 @@ export function montarRelatorioEquipe(
       papel: davi
         ? "Carteira processual, dossiês, auditoria documental, investigações, sistemas e automações."
         : "Carteira conforme titularidade cadastrada no Supabase.",
-      linha: linhaPessoa(u)+(tarefas?` · ${tarefas.periodo} tarefas concluídas no período`:"")+(davi&&a?` · ${a.processosAnalisados} processos com análise interna atribuída (inclui auditoria sistêmica, sem contato presumido)`:""),
+      linha: linhaPessoa(u)+(tarefas?` · ${tarefas.periodo} tarefas concluídas no período`:"")+(davi&&a?` · ${a.processosAnalisados} processos com análise interna registrada na empresa (inclui auditoria sistêmica, sem contato presumido)`:""),
       vencidos: u.vencidos,
     };
   });
@@ -63,11 +63,11 @@ export function montarRelatorioEquipe(
   const maiorCarteira = [...grupos].sort((a,b)=>b.total-a.total)[0];
   const leitura = [
     ...(a ? [`A equipe registrou ${a.tarefasConcluidasPeriodo} tarefas concluídas manualmente neste período; Davi realizou ${a.tarefasDaviPeriodo}. Tarefas de sistema, análises e contatos são classificados separadamente.`] : []),
-    ...(a ? [`Davi Alves Figueredo: ${a.processosAnalisados} processos da carteira com registro de trabalho analítico, ${a.auditoriaDocumental} anotações de auditoria documental, ${a.triagemReplicaProvas} triagens de réplica e provas, ${a.dossiesIndividuais} dossiês individuais, ${a.investigacoesExternas} levantamentos/investigações externas e ${a.projetos} entregas de projeto. São categorias sobrepostas e não são mensagens enviadas ou atendimento ao cliente.`] : []),
+    ...(a ? [`Produção analítica cadastrada na empresa: ${a.processosAnalisados} processos com registro de análise, ${a.auditoriaDocumental} anotações documentais, ${a.triagemReplicaProvas} triagens de réplica e provas, ${a.dossiesIndividuais} dossiês, ${a.investigacoesExternas} levantamentos externos e ${a.projetos} entregas de projeto. Esses registros não identificam individualmente o executor por categoria nem equivalem a contato com cliente.`] : []),
     `A base consultada contém ${snap.total} processos: ${snap.ativos} ativos e ${snap.encerrados} encerrados.`,
-    `Foram identificados ${snap.vencidos} processos com retorno vencido. O vencimento é reavaliado pela data do retorno programado na consulta.`,
-    `Existem ${snap.atendimentosTotais} processos com último retorno registrado. No período selecionado, ${snap.atendidosSemana} processos tiveram atividade humana registrada (contato ou edição); não é contagem de mensagens enviadas.`,
-    `O banco sinaliza ${snap.novidades} casos com novidade e ${snap.baixasTribunal} baixas de tribunal. Confirmar o detalhe no processo antes de informar o cliente.`,
+    `Foram identificados ${snap.vencidos} processos ativos com status operacional Vencido ou Caso Crítico. Datas antigas isoladas não entram nesse KPI; devem ser revisadas como inconsistências separadas.`,
+    `Existem ${snap.atendimentosTotais} processos com data de último retorno cadastrada. No período selecionado, ${snap.atendidosSemana} processos tiveram registro de atendimento ou encerramento associado a usuário humano; não é prova de contato por WhatsApp nem contagem de edições.`,
+    `O banco sinaliza ${snap.novidades} processos com novidade e ${snap.baixasTribunal} registros com indicador DataJud de encerramento/baixa. O indicador não comprova trânsito em julgado em cada processo.`,
     maiorCarteira
       ? `Maior carteira atribuída nesta consulta: ${maiorCarteira.nome}, com ${maiorCarteira.total} processos. Identificadores legados são reunidos quando correspondem ao mesmo usuário.`
       : "Não foi possível associar processos a usuários neste corte.",
@@ -78,7 +78,7 @@ export function montarRelatorioEquipe(
   ];
   const esconde = [
     `Processos sem último retorno registrado: ${snap.semRetorno}.`,
-    `Auditorias/edições na semana: ${snap.auditadosSemana}; verificações de tribunal sinalizadas: ${snap.auditadosTribunalSemana}; edições no app: ${snap.editadosAppSemana}.`,
+    `No período: ${snap.auditadosSemana} lançamentos novos de auditoria (excluídas ${snap.auditoriasImportadasPeriodo||0} importações), ${snap.auditadosTribunalSemana} processos com data de última consulta DataJud/DJEN no período (inclusive cargas), ${snap.editadosAppSemana} CNJs distintos editados (${snap.edicoesEventosPeriodo||0} registros de edição).`,
     "As contagens retratam o estado do banco no momento da consulta, não uma planilha estática.",
   ];
   const proxima = [
