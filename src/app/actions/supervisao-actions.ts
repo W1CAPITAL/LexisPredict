@@ -220,10 +220,11 @@ export async function getSupervisaoSnapshotAction(
       }
 
       const status = String(c.status || 'Sem Prazo');
-      const proximoRetorno = parseUltimoAtendimento(String(c.proximoPrazo || c.proximo_retorno || ''));
-      // Recalcula o vencimento na data atual; não confia em um rótulo congelado.
-      const vencidoAtual = !encerrado &&
-        (proximoRetorno ? proximoRetorno < hojeBR : /vencido|cr[ií]tico/i.test(status));
+      // Regra canônica de /processos, /report e RPC lexis_portfolio_snapshot:
+      // Vencido é o status explicitamente registrado, não qualquer data antiga.
+      // Prazos antigos com status 'No Prazo', 'Atenção' ou 'É Hoje' são
+      // acompanhamentos separados; não somar como vencidos no KPI.
+      const vencidoAtual = !encerrado && (status === 'Vencido' || status === 'Caso Crítico');
       if (vencidoAtual) vencidos++;
       const isNov =
         !!(c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao);
