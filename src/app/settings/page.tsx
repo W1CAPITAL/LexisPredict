@@ -157,7 +157,7 @@ export default function SettingsPage() {
     const id = window.setTimeout(() => setSettingsBoot(false), 180);
     try {
       const section = new URLSearchParams(window.location.search).get("section");
-      if (section) setActiveTab(section === "Personalizacao" || section === "Hardware" ? "Conta" : section);
+      if (section) setActiveTab(["Personalizacao","Hardware","Perfil","Termos","Consentimentos","Celular"].includes(section) ? "Experiencia" : section);
     } catch {
       /* query preference is best effort */
     }
@@ -662,7 +662,6 @@ export default function SettingsPage() {
         </header>
 
         <div className="flex-1">
-          <div className="mx-auto w-full max-w-[1500px] px-4 pt-4 sm:px-6"><ExperienceSettingsPanel/></div>
           <div className="mx-auto grid w-full max-w-[1500px] items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[250px_minmax(0,1fr)]">
             {/* navegação horizontal em chips */}
             <nav data-lexis-settings-tabs aria-label="Seções das configurações" className="-mx-4 flex max-w-[calc(100vw-2rem)] gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:max-w-none lg:px-0 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[#dfe7f2] lg:bg-white lg:p-2">
@@ -672,6 +671,7 @@ export default function SettingsPage() {
                 { id: "Seguranca", label: "Segurança e limites", icon: <ShieldCheck size={14} />, keywords: "seguranca rls tenant cargo limite rate auth" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
+                { id: "Experiencia", label: "Perfil, celular e termos", icon: <UserCircle size={14} />, keywords: "personalizacao personalidade perfil experiencia boas vindas nome cargo celular telefone whatsapp consentimento termos assinatura aceite lgpd visual" },
                 { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
                 { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
                 { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
@@ -720,6 +720,10 @@ export default function SettingsPage() {
 
               {activeTab === 'Seguranca' && (
                 <SecurityLimitsPanel />
+              )}
+
+              {activeTab === 'Experiencia' && (
+                <ExperienceSettingsPanel />
               )}
 
                             {activeTab === 'Conta' && (
