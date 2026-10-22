@@ -75,7 +75,7 @@ export const MOTORS: MotorDef[] = [
     id: 'local_llm',
     label: 'Lexis Local LLM · Qwen3 0.6B',
     short: 'LLM local',
-    desc: 'Qwen3-0.6B ONNX local no navegador. Pesos baixados na primeira execução; sem API de inferência.'
+    desc: 'Qwen3-0.6B ONNX local no navegador. Pesos baixados na primeira execução; sem API de inferência.',
     scope: 'browser',
   },
   {
