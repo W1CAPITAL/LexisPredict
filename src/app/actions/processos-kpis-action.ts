@@ -1,6 +1,7 @@
 "use server";
 
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
+import {isCasoVencido} from "@/lib/vencimentos";
 
 export type ProcessosEmpresaKpis = {
   ok: boolean;
@@ -16,6 +17,8 @@ function rowAsCase(row: any) {
   const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
   return {
     status: row?.status ?? d.status ?? null,
+    proximo_retorno:row?.proximo_retorno ?? null,
+    ultimo_retorno:row?.ultimo_retorno ?? null,
     situacao: d.situacao ?? row?.status_interno ?? null,
     statusManual: d.statusManual ?? null,
     status_interno: row?.status_interno ?? d.status_interno ?? null,
@@ -76,7 +79,7 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
       let query = admin
         .from("processos")
         .select(
-          "status, status_interno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
+          "status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
         )
         .eq("empresa_id", empresaId)
         .range(offset, offset + pageSize - 1);
@@ -101,8 +104,7 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
           encerradosCarteira++;
         } else {
           ativos++;
-          const st = String(c.status || "").trim();
-          if (st === "Vencido" || st === "Caso Crítico") vencidos++;
+          if (isCasoVencido(c)) vencidos++;
         }
         if (isBaixaTribunal(c)) baixasTribunal++;
       }
