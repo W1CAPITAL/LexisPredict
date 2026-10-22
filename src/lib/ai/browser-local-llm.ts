@@ -18,6 +18,7 @@ export async function generateBrowserLocalLLM(
   prompt: string,
   history: Array<{ role: string; content: string }> = [],
   onProgress?: (progress: BrowserLocalProgress) => void,
+  options: { requireWebGpu?: boolean; maxTokens?: number; timeoutMs?: number } = {},
 ): Promise<Reply> {
   if (typeof window === 'undefined' || typeof Worker === 'undefined') {
     throw new Error('Seu navegador não suporta Web Workers para inferência local.');
@@ -55,10 +56,10 @@ export async function generateBrowserLocalLLM(
       cleanup();
       worker?.terminate(); worker = null;
       reject(new Error('O modelo local excedeu o tempo de carregamento. Tente novamente em um navegador com WebGPU ou mais memória.'));
-    }, 8 * 60_000);
+    }, Math.max(15_000, Math.min(8 * 60_000, options.timeoutMs ?? (8 * 60_000))));
     active = { id, cancel: () => { cleanup(); reject(new Error('Geração local cancelada.')); } };
     current.addEventListener('message', receive);
     current.addEventListener('error', onError);
-    current.postMessage({ requestId: id, prompt, history, maxTokens: 200 });
+    current.postMessage({ requestId: id, prompt, history, maxTokens: Math.max(16, Math.min(320, options.maxTokens ?? 200)), requireWebGpu: !!options.requireWebGpu });
   });
 }
