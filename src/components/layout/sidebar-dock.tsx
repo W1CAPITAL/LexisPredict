@@ -25,6 +25,7 @@ import {loadExperiencePrefs} from '@/lib/experience-prefs';
 const primary = [
   ["Painel", "/", LayoutDashboard],
   ["Tarefas", "/tarefas", ListTodo],
+  ["Vencidos", "/vencidos", ShieldAlert],
   ["Meus processos", "/cases", Briefcase],
   ["Empresa", "/processos", FolderOpen],
   ["Atividades", "/minhas-atividades", ListTodo],
@@ -42,6 +43,7 @@ const more = [
   ["Réplica e provas", "/fases-provas", FileText],
   ["Relatórios", "/report", BarChart3],
   ["Parados", "/processos-parados", PauseCircle],
+  ["Vencidos", "/vencidos", ShieldAlert],
   ["Encerrados", "/encerrados-revisao", ShieldAlert],
   ["Procedentes", "/cumprimentos-procedentes", Scale],
   ["Busca e apreensão", "/busca-apreensao", Gavel],
