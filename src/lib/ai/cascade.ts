@@ -137,6 +137,8 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
       kind: 'openai',
     },
   ];
+  // Nenhuma credencial externa ativa chamadas por si só. Ativação administrativa explícita.
+  if (process.env.LEXIS_EXTERNAL_AI_ENABLED !== '1') return [];
   let list = engines.filter((e) => {
     return e.id !== 'omniroute' && !!e.key;
   });
@@ -218,6 +220,12 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     if (preferred === 'minicpm' || preferred === 'minicpm-v') {
       throw new Error('MINICPM_UNAVAILABLE_OR_NOT_CONFIGURED');
     }
+  }
+
+  // Sem habilitação expressa, nunca encaminhar dados processuais a IA terceirizada.
+  // Colibri/MiniCPM próprios são tentados acima; o browser executa Qwen/Gemma à parte.
+  if (process.env.LEXIS_EXTERNAL_AI_ENABLED !== '1') {
+    throw new Error('LOCAL_LLM_UNAVAILABLE: configure motor próprio no servidor ou use Qwen3/Gemma no navegador. APIs externas desabilitadas.');
   }
 
   // Respostas simples: fallback leve e limitado para o modo automático.
