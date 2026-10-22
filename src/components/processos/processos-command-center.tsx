@@ -416,6 +416,9 @@ export function ProcessosCommandCenter(props: Props) {
 
   // O painel não carrega o histórico de milhares de processos: apenas o CNJ
   // selecionado quando o usuário abre Mov. Resultados ficam em cache da aba.
+  const selectedMeritoPendente = (selected as any)?.dados?.merito_pendencia_20261022 as
+    | { motivo?: string; origem?: string; trecho?: string; acao?: string; nivel_confirmacao?: string }
+    | undefined;
   const selectedCnj=cnjDigits(selected?.protocolo);
   const selectedDbId=String(selected?.db_id||selected?.id||'');
   const historyCache=React.useRef(new Map<string,MovementResponse>());
@@ -944,6 +947,31 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="Último retorno" value={fmtDate(selected.ultimoRetorno)}/>
                     <Info label="Responsável" value={ownerName(selected, props.ownerNameByAuth)}/>
                   </Panel>
+                  {selectedMeritoPendente?.motivo ? (
+                    <Panel title="Motivo da pendência de mérito · conferência 22/10/2026">
+                      <div className="rounded-lg border border-amber-400/25 bg-amber-500/8 p-2">
+                        <p className="text-[11px] font-bold text-amber-800 dark:text-amber-200">
+                          {selectedMeritoPendente.motivo}
+                        </p>
+                        <p className="mt-1 text-[10px] leading-relaxed text-slate-600 dark:text-slate-300">
+                          Fonte: {selectedMeritoPendente.origem || "Histórico registrado"}.
+                        </p>
+                        {selectedMeritoPendente.trecho ? (
+                          <p className="mt-2 break-words text-[10px] leading-relaxed text-slate-700 dark:text-slate-200">
+                            Trecho cadastrado: {selectedMeritoPendente.trecho}
+                          </p>
+                        ) : null}
+                        {selectedMeritoPendente.acao ? (
+                          <p className="mt-2 text-[10px] font-semibold text-slate-800 dark:text-slate-200">
+                            Próxima verificação: {selectedMeritoPendente.acao}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 text-[9px] text-amber-800 dark:text-amber-300">
+                          Indício não confirmado em sentença/acórdão. Encerramento no CRM não é mérito judicial.
+                        </p>
+                      </div>
+                    </Panel>
+                  ) : null}
                   <Panel title="Alertas críticos" tone="red">
                     {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Prazo/retorno vencido"/> : null}
                     {(selectedSilence || 0) >= 45 ? <AlertLine icon={<FileClock size={12}/>} text={`Sem movimentação há ${selectedSilence} dias`}/> : null}
