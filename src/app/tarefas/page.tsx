@@ -56,6 +56,7 @@ import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
+import {isCasoVencido} from '@/lib/vencimentos'
 import { scoreGroupPriority } from '@/lib/case-priority';
 import { CaseBadges } from '@/components/cases/case-badges';
 import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
@@ -168,7 +169,7 @@ export default function TarefasPage() {
   const remoteSearch = useCompanyProcessSearch(searchDebounced, Boolean(empresaId && authUserId));
   const taskCases = remoteSearch.active ? remoteSearch.cases : cases;
   // filtros persistidos entre abas
-  const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
+  const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'vencido' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -250,13 +251,21 @@ export default function TarefasPage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('lexis_tarefas_filters_v1');
-      if (!raw) return;
+      if (!raw) {
+        const q=new URLSearchParams(window.location.search);
+        if(q.get("filtro")==="vencido")setFilaFiltro("vencido");
+        if(q.get("search"))setSearch(q.get("search")||"");
+        return;
+      }
       const f = JSON.parse(raw);
       if (f.search != null) setSearch(String(f.search));
       if (f.officeFilter) setOfficeFilter(String(f.officeFilter));
       if (f.lawyerFilter) setLawyerFilter(String(f.lawyerFilter));
       if (f.filaFiltro) setFilaFiltro(f.filaFiltro);
       if (f.sortPrazo) setSortPrazo(f.sortPrazo);
+      const q=new URLSearchParams(window.location.search);
+      if(q.get("filtro")==="vencido")setFilaFiltro("vencido");
+      if(q.get("search"))setSearch(q.get("search")||"");
     } catch { /* ignore */ }
   }, []);
 
@@ -696,6 +705,7 @@ const handleSaveAttendance = async () => {
             return isAtendidoHoje(c.proximoPrazo || c.proximo_retorno || c.PROXIMO_RETORNO);
           });
         }
+        if (filaFiltro === 'vencido') return g.cases.some((c)=>isCasoVencido(c));
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
@@ -788,7 +798,7 @@ const handleSaveAttendance = async () => {
     if (remoteSearch.active) {
       return { focus: sortedAll, backlog: [], completed: [], totalPendingCount: pending.length };
     }
-    const cap = filaFiltro === 'hoje' || soMeusHoje ? pending.length : dailyMeta;
+    const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje ? pending.length : dailyMeta;
     return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
   }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
 
@@ -859,6 +869,8 @@ const handleSaveAttendance = async () => {
             <p className="mt-2 text-sm font-medium text-[#617693]">Organize e acompanhe a execução das atividades da sua equipe.</p>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/vencidos" className="inline-flex h-10 items-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">Central de vencidos</Link>
+            <Button type="button" variant={filaFiltro==="vencido"?"default":"outline"} size="sm" onClick={()=>setFilaFiltro(filaFiltro==="vencido"?"all":"vencido")} className="h-10 rounded-xl">Ver vencidos nesta fila</Button>
             <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Recarregar carteira
             </Button>
@@ -941,6 +953,7 @@ const handleSaveAttendance = async () => {
                    <SelectTrigger className="h-12 w-full md:w-[260px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
                    <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
                       <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
+                      <SelectItem value="vencido" className="font-black uppercase text-[10px]">Vencidos</SelectItem>
                       <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
                       <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
                       <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
@@ -960,6 +973,7 @@ const handleSaveAttendance = async () => {
           <div className="flex flex-wrap gap-2">
             {([
               { id: 'all', label: 'Fila prioritária' },
+              { id: 'vencido', label: 'Vencidos' },
               { id: 'tratamento', label: 'Críticos em tratamento' },
               { id: 'blacklist', label: 'Blacklist' },
               { id: 'novidade', label: 'Novidades' },
