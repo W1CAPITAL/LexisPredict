@@ -61,7 +61,7 @@ import { useToast } from "@/hooks/use-toast";
 import { processOperationalCoverage, processSourceGapCount, processSourceMatrix, recommendedProcessActions } from "@/lib/processos-command-intelligence";
 import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
 import { fetchProcessosMovementsAction } from "@/app/actions/processos-movements-action";
-import { cnjDigits, formatCnj, mergeProcessTimelineEntries, type ProcessTimelineEntry } from "@/lib/processos-timeline";
+import { buildProcessTimeline, cnjDigits, formatCnj, mergeProcessTimelineEntries, type ProcessTimelineEntry } from "@/lib/processos-timeline";
 
 
 type Props = {
@@ -292,6 +292,24 @@ function fmtTimelineDate(raw:string){
   return fmtDate(raw, /[T ]\d{2}:\d{2}/.test(raw));
 }
 
+/** Resumo rápido que já está na carteira. NÃO equivale a consultar o tribunal. */
+function savedMovementPreview(c:LegalCase):ProcessTimelineEntry[]{
+  const cnj=cnjDigits(c.protocolo);
+  if(!cnj)return [];
+  const lastDataJud=c.datajud_ultimo_movimento&&c.datajud_ultimo_nome
+    ? [{nome:c.datajud_ultimo_nome,dataHora:c.datajud_ultimo_movimento,complemento:c.evento_resumo||''}]
+    : [];
+  const lastDjen=c.djen_ultima_data&&c.djen_ultimo_resumo
+    ? [{data_disponibilizacao:c.djen_ultima_data,texto:c.djen_ultimo_resumo,tipoComunicacao:'Publicação'}]
+    : [];
+  return buildProcessTimeline(cnj,[{cnj,movimentos:lastDataJud,comunicacoes:lastDjen}],{
+    ultimoRetorno:c.ultimoRetorno,
+    observacao:c.observacao,
+    dataDistribuicao:c.dataDistribuicao,
+    classe:c.classe_acao,
+  });
+}
+
 type MovementResponse=Awaited<ReturnType<typeof fetchProcessosMovementsAction>>;
 type MovementView={
   cnj:string; data:MovementResponse|null; loading:boolean; loadingMore:boolean; error:string;
@@ -401,7 +419,6 @@ export function ProcessosCommandCenter(props: Props) {
   const selectedCnj=cnjDigits(selected?.protocolo);
   const selectedDbId=String(selected?.db_id||selected?.id||'');
   const historyCache=React.useRef(new Map<string,MovementResponse>());
-  const [historyVersion,setHistoryVersion]=React.useState(0);
   const [onlyCumprimento,setOnlyCumprimento]=React.useState(false);
   const [history,setHistory]=React.useState<MovementView>({
     cnj:'',data:null,loading:false,loadingMore:false,error:''
@@ -409,32 +426,40 @@ export function ProcessosCommandCenter(props: Props) {
 
   React.useEffect(()=>{
     if(tab!=='movements'||!selectedCnj)return;
-    const cached=historyCache.current.get(selectedCnj);
-    if(cached){
-      setHistory({cnj:selectedCnj,data:cached,loading:false,loadingMore:false,error:''});
-      return;
-    }
-    let cancelled=false;
-    setHistory({cnj:selectedCnj,data:null,loading:true,loadingMore:false,error:''});
-    void fetchProcessosMovementsAction(selectedDbId,selectedCnj).then(result=>{
-      if(cancelled)return;
-      if(result.success)historyCache.current.set(selectedCnj,result);
-      setHistory({cnj:selectedCnj,data:result,loading:false,loadingMore:false,error:result.success?'':result.message});
-    }).catch((error:unknown)=>{
-      if(!cancelled)setHistory({cnj:selectedCnj,data:null,loading:false,loadingMore:false,error:String(error)});
-    });
-    return ()=>{cancelled=true};
-  },[tab,selectedCnj,selectedDbId,historyVersion]);
+    // Abrir Mov. mostra os últimos registros SALVOS até a pessoa pedir consulta.
+    const cached=historyCache.current.get(selectedCnj)||null;
+    setHistory({cnj:selectedCnj,data:cached,loading:false,loadingMore:false,error:''});
+  },[tab,selectedCnj]);
+  React.useEffect(()=>setOnlyCumprimento(false),[selectedCnj]);
 
   const activeHistory=history.cnj===selectedCnj?history:null;
-  const historyEntries:ProcessTimelineEntry[]=activeHistory?.data?.entries||[];
+  const officialConsulted=!!activeHistory?.data?.success;
+  const savedPreview=React.useMemo(()=>selected?savedMovementPreview(selected):[],[selected]);
+  const historyEntries:ProcessTimelineEntry[]=officialConsulted
+    ? (activeHistory?.data?.entries||[]) : savedPreview;
   const timeline=onlyCumprimento?historyEntries.filter(item=>item.phase==='cumprimento'):historyEntries;
   const cumprimentoCount=historyEntries.filter(item=>item.phase==='cumprimento').length;
+  const lastOfficialConsultation=officialConsulted&&activeHistory?.data&&'consultadoEm' in activeHistory.data
+    ? String(activeHistory.data.consultadoEm||'') : '';
 
-  function refreshMovementHistory(){
-    if(!selectedCnj)return;
-    historyCache.current.delete(selectedCnj);
-    setHistoryVersion(version=>version+1);
+  /** Botão explícito que faz novos requests; nunca limita a dados do Supabase. */
+  async function consultAllMovementHistory(){
+    if(!selectedCnj||activeHistory?.loading)return;
+    const cnj=selectedCnj;
+    const previous=historyCache.current.get(cnj)||null;
+    setHistory({cnj,data:previous,loading:true,loadingMore:false,error:''});
+    try{
+      const result=await fetchProcessosMovementsAction(selectedDbId,cnj,1,true);
+      if(result.success)historyCache.current.set(cnj,result);
+      setHistory(current=>current.cnj===cnj
+        ? {cnj,data:result.success?result:previous,loading:false,loadingMore:false,
+           error:result.success?'':result.message}
+        : current);
+    }catch(error:unknown){
+      setHistory(current=>current.cnj===cnj
+        ? {...current,loading:false,error:'Consulta externa falhou: '+String(error)}
+        : current);
+    }
   }
 
   async function loadMoreMovementHistory(){
@@ -971,18 +996,25 @@ export function ProcessosCommandCenter(props: Props) {
               ) : null}
 
               {tab === "movements" ? (
-                <Panel title="Histórico completo · DataJud + DJEN">
+                <Panel title={officialConsulted?"Histórico consultado · DataJud + DJEN":"Resumo salvo · consulta disponível"}>
+                  <button type="button"
+                    disabled={!selectedCnj||!!activeHistory?.loading}
+                    onClick={()=>void consultAllMovementHistory()}
+                    className="mb-2 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+                    {activeHistory?.loading?<Loader2 size={14} className="animate-spin"/>:<RefreshCcw size={14}/>}
+                    {activeHistory?.loading?'Consultando DataJud e DJEN…':'Consultar todos os movimentos'}
+                  </button>
+                  <p className="mb-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">
+                    {officialConsulted
+                      ? `Consulta realizada em ${fmtTimelineDate(lastOfficialConsultation)} · ${historyEntries.length} registros carregados. Atualize pelo botão para conferir novidades.`
+                      : 'Exibindo somente os registros salvos na carteira. Use o botão acima para consultar o tribunal e carregar o histórico devolvido pelas fontes oficiais.'}
+                  </p>
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                    <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
                       {activeHistory?.loading
-                        ? 'Consultando movimentações do tribunal…'
-                        : `${historyEntries.length} registros · ${cumprimentoCount} de cumprimento/execução`}
+                        ? 'Consultando fontes oficiais sem utilizar o cache recente…'
+                        : `${historyEntries.length} ${officialConsulted?'registros consultados':'registros salvos'} · ${cumprimentoCount} de cumprimento/execução`}
                     </p>
-                    <button type="button" aria-label="Atualizar movimentos" disabled={!!activeHistory?.loading}
-                      onClick={refreshMovementHistory}
-                      className="rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-800 disabled:opacity-40 dark:text-blue-200">
-                      <RefreshCcw size={11} className="mr-1 inline"/>Atualizar
-                    </button>
                   </div>
                   <div className="mb-2 flex flex-wrap gap-1">
                     <button type="button" onClick={()=>setOnlyCumprimento(false)}
@@ -1012,7 +1044,9 @@ export function ProcessosCommandCenter(props: Props) {
                   ):null}
                   {!activeHistory?.loading && !timeline.length ? (
                     <p className="py-2 text-[11px] text-slate-500">
-                      {onlyCumprimento?'Não há atos identificados como cumprimento nas fontes consultadas.':activeHistory?.data?.message||'Sem movimentos retornados. Verifique a consulta no portal do tribunal.'}
+                      {onlyCumprimento?'Nenhum ato de cumprimento identificado nos dados exibidos.':officialConsulted
+                        ? activeHistory?.data?.message||'Fontes não retornaram movimentações.'
+                        : 'Nenhuma movimentação no resumo salvo. Clique em “Consultar todos os movimentos” para pesquisar as fontes.'}
                     </p>
                   ):null}
                   <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
@@ -1048,8 +1082,9 @@ export function ProcessosCommandCenter(props: Props) {
                     </button>
                   ):null}
                   <p className="mt-2 text-[9px] leading-relaxed text-slate-500">
-                    DataJud: todos os movimentos devolvidos na consulta; DJEN: publicações paginadas, com opção de carregar mais.
-                    Atendimentos são registros internos separados. Cumprimentos com outro número aparecem apenas quando há vínculo explícito no cadastro.
+                    Consulta manual: DataJud e DJEN são consultados novamente a cada clique, sem reutilizar o cache recente.
+                    DataJud exibe os movimentos devolvidos; DJEN tem paginação. Atendimentos são registros internos.
+                    Cumprimentos com outro CNJ são incluídos apenas com vínculo explícito no cadastro.
                   </p>
                 </Panel>
               ) : null}
