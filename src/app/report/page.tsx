@@ -39,14 +39,15 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30}),
   db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo})
+  db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner})
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -59,6 +60,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const merito=mr&&!mr.error&&mr.data&&typeof mr.data==="object"?mr.data as Record<string,number>:null;
  // Movimentações TPU: não equivalem a confirmação de trânsito ou resultado do recurso.
  const meritoOficial=(merito as any)?.oficial as Record<string,number>|undefined;
+ const dr=desfechosResult.status==="fulfilled"?desfechosResult.value:null;
+ const desfechos=dr&&!dr.error&&dr.data&&typeof dr.data==="object"?dr.data as Record<string,number>:null;
  const rr=retornoResult.status==="fulfilled"?retornoResult.value:null;
  const retorno=rr&&!rr.error&&rr.data&&typeof rr.data==="object"?rr.data as Record<string,number>:null;
  const cr=closuresResult.status==="fulfilled"?closuresResult.value:null;
@@ -130,7 +133,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       semRetorno30={retorno?.semRetornoLongo??null}
       naoLocalizados={meritoOficial?.nao_localizados??null}
       meritoPendente={meritoOficial?.nao_determinados??null}
-      encerradosEmCumprimento={meritoOficial?.encerrados_cumprimento??null}
+      encerradosEmCumprimento={null}
       improcedentesOficiais={meritoOficial?.improcedentes??null}
       procedentesOficiais={meritoOficial?.procedentes??null}
       parciaisOficiais={meritoOficial?.parciais??null}
@@ -185,9 +188,21 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           <p className="mt-1 text-muted-foreground">Os casos com resultado divergente, não localizado ou indeterminado receberam o motivo registrado, sua origem, trecho do histórico e verificação necessária. São indícios, não decisões judiciais definitivas.</p>
           <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold text-primary underline">Ver aba “Pendências de mérito — 799” por processo e advogado</a>
         </div>
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-          <strong>{fmt(meritoOficial.encerrados_cumprimento)} encerrados no CRM sinalizados com cumprimento ativo.</strong> Conferir a fase antes de encerrar o cumprimento ou contá-lo como satisfeito. Não houve alteração automática do estado dos processos por esta auditoria.
-        </p>
+        {desfechos ? <div className="space-y-2">
+          <p className="text-xs font-bold text-foreground">Outros desfechos contabilizados — sem presumir recebimento</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["Outras saídas formais",desfechos.outros_formais],
+              ["Cumprimento encerrado indicado",desfechos.cumprimentos_encerrados_indicados],
+              ["Relatos de recebimento",desfechos.recebimento_relatado],
+              ["Sem comprovante no registro",desfechos.sem_comprovacao_recebimento],
+            ].map(([title,value])=><div key={String(title)} className="rounded-lg border border-border bg-background p-3">
+              <p className="text-xs text-muted-foreground">{title}</p>
+              <p className="mt-1 text-xl font-extrabold tabular-nums">{fmt(value as number)}</p>
+            </div>)}
+          </div>
+          <p className="text-xs text-muted-foreground">Também há {fmt(desfechos.falta_retorno_mencionada)} registros com falta de retorno mencionada. As modalidades de cumprimento e recebimento são recortes separados, não parcelas adicionais dos encerrados. Encerramento da fase e recebimento efetivo dependem de confirmação documental; não haver comprovante não significa ausência de pagamento.</p>
+        </div> : null}
       </div>:<p className="mt-3 text-sm text-muted-foreground">Sem resumo oficial disponível na consulta. Os números não são estimados.</p>}
     </section>
     <section aria-labelledby="kpi-title" className="space-y-3">
