@@ -57,6 +57,22 @@ export function meritoExclusivo(c: Partial<LegalCase> & Record<string, any>): {
   is_parcial: boolean;
   evento_tipo: string | undefined;
 } {
+  const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  const datajud = d.merito_datajud_20261022?.resultado as string | undefined;
+  if (d.merito_fonte === 'datajud_tpu_2026-10-22' && datajud) {
+    if (datajud === 'procedente') {
+      return { is_procedente: true, is_improcedente: false, is_parcial: false, evento_tipo: 'sentenca_procedente' };
+    }
+    if (datajud === 'parcial') {
+      return { is_procedente: false, is_improcedente: false, is_parcial: true, evento_tipo: 'sentenca_parcial' };
+    }
+    if (datajud === 'improcedente') {
+      return { is_procedente: false, is_improcedente: true, is_parcial: false, evento_tipo: 'sentenca_improcedente' };
+    }
+    if (datajud === 'sem_merito') {
+      return { is_procedente: false, is_improcedente: false, is_parcial: false, evento_tipo: undefined };
+    }
+  }
   const text = classifyMeritoFromText(blob(c));
   let is_parcial = !!text.isParcial || c.evento_tipo === "sentenca_parcial";
   let is_procedente = !!text.isProcedente || c.evento_tipo === "sentenca_procedente" || c.is_procedente === true;
