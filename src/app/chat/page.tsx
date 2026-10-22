@@ -93,14 +93,14 @@ export default function AssistentePage() {
     {
       role: "assistant",
       content:
-        "Assistente Lexis. Escolha Colibri (servidor), LLM local no navegador ou cascata online. Saudações funcionam sem créditos; anexos e tarefas complexas precisam de um motor compatível.",
+        "Assistente Lexis. Por padrão uso Qwen3 0.6B local no navegador, com agentes e skills. APIs externas só quando habilitadas explicitamente. Saudações funcionam sem créditos; anexos e tarefas complexas precisam de um motor compatível.",
     },
   ]);
   const [input, setInput] = useState("");
   const [activeInstructions, setActiveInstructions] = useState<string[]>(["conciso", "cliente"]);
   const [loading, setLoading] = useState(false);
   const [localProgress, setLocalProgress] = useState<string | null>(null);
-  const [model, setModel] = useState<MotorId>("omni");
+  const [model, setModel] = useState<MotorId>("local_llm");
   const [baClaude, setBaClaude] = useState(false);
   const [pendingImage, setPendingImage] = useState<{
     mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -185,13 +185,14 @@ export default function AssistentePage() {
         return;
       }
 
-      const tryBrowserLocal = async (reason: string) => {
-        if (img) throw new Error("O LLM local Qwen 0.5B não interpreta imagens. Use um motor com visão conectado.");
+      const tryBrowserLocal = async (reason: string, localModel: 'qwen3' | 'gemma3' = 'qwen3') => {
+        if (img) throw new Error("Os modelos locais de texto não interpretam imagens. Use um motor com visão conectado.");
         setLocalProgress(reason);
         const local = await generateBrowserLocalLLM(
           (displayText || text) + (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
           history,
           (p) => setLocalProgress(p.status === "progress" ? `Baixando LLM local: ${p.progress ?? 0}%` : p.message || (p.status === "generating" ? "LLM local gerando resposta..." : "Preparando LLM local...")),
+          localModel,
         );
         return {
           resposta: local.text, thinking: null, sucesso: true,
@@ -203,8 +204,21 @@ export default function AssistentePage() {
       let res: {
         resposta: string; thinking?: string | null; engineUtilizada?: string; engine?: string; sucesso?: boolean;
       };
-      if (model === "local_llm") {
-        res = await tryBrowserLocal("Iniciando Qwen local no navegador...");
+      if (model === "local_llm" || model === "local_gemma") {
+        res = await tryBrowserLocal("Iniciando modelo local no navegador...", model === 'local_gemma' ? 'gemma3' : 'qwen3');
+      } else if (model === 'local_lfm') {
+        if (img) throw new Error('LFM2.5-350M é um modelo de texto; imagem exige modelo de visão.');
+        const response = await fetch('http://127.0.0.1:11434/api/chat', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model:'lfm2.5:350m',stream:false,messages:[
+            {role:'system',content:'Você é o LexisPredict. Português do Brasil, respostas fundamentadas e sem inventar dados processuais.'},
+            ...history, {role:'user',content:(displayText || text)+(pdf?.text?'\n\n'+pdf.text.slice(0,2800):'')}
+          ]})
+        });
+        if(!response.ok)throw new Error('Ollama local não respondeu ('+response.status+'). Instale lfm2.5:350m e configure acesso do navegador ao Ollama.');
+        const data=await response.json();
+        if(!data?.message?.content)throw new Error('Ollama retornou resposta vazia.');
+        res={resposta:String(data.message.content),sucesso:true,engineUtilizada:'LOCAL_OLLAMA:lfm2.5:350m'};
       } else {
         res = await perguntarChatbotIndependente(text || "Analise o material anexado.", history, model, {
           baClaudeDjen: baClaude,
