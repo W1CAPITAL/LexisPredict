@@ -190,6 +190,7 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/processos',
   '/fases-provas',
   '/tarefas',
+  '/vencidos',
   '/agenda',
   '/whatsapp',
   '/dossies',
