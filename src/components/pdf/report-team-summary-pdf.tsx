@@ -83,7 +83,7 @@ export function ReportTeamSummaryPdf({data,overview,scope}:{data:EquipeRelatorio
     <Kpi title="Processos na carteira" value={overview.total}/>
     <Kpi title="Processos ativos" value={overview.ativos}/>
     <Kpi title="Processos encerrados no CRM" value={overview.encerrados}/>
-    <Kpi title="Retornos vencidos" value={overview.vencidos}/>
+    <Kpi title="Marcados vencidos no CRM" value={overview.vencidos}/>
     <Kpi title="Atendidos no período" value={overview.atendidos}/>
     <Kpi title="Eventos registrados" value={overview.eventos}/>
    </View>
