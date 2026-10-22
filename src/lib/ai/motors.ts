@@ -36,6 +36,7 @@ export type MotorDef = {
 
 /** Preferência salva no localStorage */
 const PREF_KEY = 'lexis_preferred_motor';
+const LOCAL_FIRST_MIGRATION_KEY = 'lexis_local_first_migrated_v1';
 const BA_CLAUDE_DJEN_KEY = 'lexis_ba_claude_djen';
 
 export const MOTORS: MotorDef[] = [
@@ -205,6 +206,14 @@ export function loadPreferredMotor(): MotorId {
   if (typeof window === 'undefined') return 'local_llm';
   try {
     const raw = localStorage.getItem(PREF_KEY);
+    // One-time migration of legacy cloud-first auto; later explicit choices are preserved.
+    if (!localStorage.getItem(LOCAL_FIRST_MIGRATION_KEY)) {
+      localStorage.setItem(LOCAL_FIRST_MIGRATION_KEY, '1');
+      if (!raw || raw === 'omni' || raw === 'auto') {
+        localStorage.setItem(PREF_KEY, 'local_llm');
+        return 'local_llm';
+      }
+    }
     if (!raw) return 'local_llm';
     return resolveMotorId(raw);
   } catch {
