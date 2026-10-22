@@ -18,6 +18,7 @@ export async function generateBrowserLocalLLM(
   prompt: string,
   history: Array<{ role: string; content: string }> = [],
   onProgress?: (progress: BrowserLocalProgress) => void,
+  selectedModel: 'qwen3' | 'gemma3' = 'qwen3',
 ): Promise<Reply> {
   if (typeof window === 'undefined' || typeof Worker === 'undefined') {
     throw new Error('Seu navegador não suporta Web Workers para inferência local.');
@@ -39,7 +40,7 @@ export async function generateBrowserLocalLLM(
       onProgress?.(p);
       if (p.status === 'complete') {
         cleanup();
-        resolve({ text: p.text || '', model: p.model || 'Qwen2.5-0.5B-Instruct', engine: 'LOCAL_BROWSER' });
+        resolve({ text: p.text || '', model: p.model || 'onnx-community/Qwen3-0.6B-ONNX', engine: 'LOCAL_BROWSER' });
       } else if (p.status === 'error') {
         cleanup();
         reject(new Error(p.error || 'Falha no modelo local'));
@@ -59,6 +60,6 @@ export async function generateBrowserLocalLLM(
     active = { id, cancel: () => { cleanup(); reject(new Error('Geração local cancelada.')); } };
     current.addEventListener('message', receive);
     current.addEventListener('error', onError);
-    current.postMessage({ requestId: id, prompt, history, maxTokens: 200 });
+    current.postMessage({ requestId: id, prompt, history, selectedModel, maxTokens: 350 });
   });
 }
