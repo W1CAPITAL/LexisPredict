@@ -781,7 +781,11 @@ export default function ProcessosEmpresaPage() {
             onSilencioOnlyChange={setSilencioOnly}
             sortOps={sortOps}
             onSortOpsChange={setSortOps}
-            onRefresh={() => void load(true)}
+            onRefresh={() => void load(true).then(()=>{
+              // Atualização explícita no painel propaga um aviso às outras abas.
+              try{localStorage.setItem("lexis_carteira_invalidation_v1",String(Date.now()));}catch{}
+              window.dispatchEvent(new Event("lexis-carteira-updated"));
+            })}
             hasMore={hasServerMore && !hasSearch}
             loadingMore={loadingMore}
             onLoadMore={loadMoreFromServer}
