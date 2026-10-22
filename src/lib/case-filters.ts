@@ -7,7 +7,7 @@ import { isCasoEncerrado } from './status-encerrado';
 import { diasAtePrazo, statusEfetivo } from './prazo-status';
 import { sortCasesByPriority } from './case-priority';
 import { compareOps } from './ops-linha';
-import {isCasoVencido} from './vencimentos';
+import {isVencidoAcionavelCRM} from './vencimentos';
 
 export type SortPrazoMode =
   | 'prioridade' // BA > baixa tribunal > novidade > cumprimento > prazo
@@ -94,7 +94,7 @@ export function filterCases(
     if (quick === 'active') return !isCasoEncerrado(c);
     if (quick === 'closed') return isCasoEncerrado(c);
     if (quick === 'hoje' || quick === 'today') return st === 'É Hoje';
-    if (quick === 'vencido') return isCasoVencido(c);
+    if (quick === 'vencido') return isVencidoAcionavelCRM(c);
     if (quick === 'atencao') return st === 'Atenção';
     if (quick === 'sem_prazo') return st === 'Sem Prazo';
     return true;
