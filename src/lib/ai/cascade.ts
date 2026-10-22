@@ -178,6 +178,48 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
   }
   const errors: string[] = [];
 
+  // Optional first-party Ollama runtime for server-side jobs (own host only).
+  // The browser Qwen/Gemma path does not require this server.
+  const ownLocalBase=(process.env.LEXIS_LOCAL_LLM_BASE_URL||'').trim().replace(/\\/+$/,'');
+  if(ownLocalBase && !opts.images?.length &&
+      ['auto','local_llm','local_gemma','local_lfm'].includes(preferred)){
+    const localStart=Date.now();
+    const localModel=preferred==='local_lfm'
+      ? (process.env.LEXIS_LOCAL_LFM_MODEL||'LiquidAI/lfm2.5-350m')
+      : preferred==='local_gemma'
+        ? (process.env.LEXIS_LOCAL_GEMMA_MODEL||'gemma3:270m')
+        : (process.env.LEXIS_LOCAL_MODEL||'qwen3:0.6b');
+    try{
+      const response=await fetch(ownLocalBase+'/api/chat',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          ...(process.env.LEXIS_LOCAL_LLM_API_KEY?{Authorization:'Bearer '+process.env.LEXIS_LOCAL_LLM_API_KEY}:{})
+        },
+        body:JSON.stringify({
+          model:localModel,
+          stream:false,
+          messages:[
+            ...(system?[{role:'system',content:system}]:[]),
+            ...history,
+            {role:'user',content:String(user)}
+          ],
+          options:{temperature:opts.temperature??0.35,num_predict:Math.min(opts.max_tokens??1024,2048)}
+        }),
+        signal:AbortSignal.timeout(60000),
+        cache:'no-store'
+      });
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const body=await response.json();
+      const localText=String(body?.message?.content||body?.response||'').trim();
+      if(isLowQualityAiText(localText))throw new Error('Local model returned no useful response');
+      return {text:localText,engineId:'ollama-local',model:String(body?.model||localModel),latencyMs:Date.now()-localStart};
+    }catch(error:any){
+      errors.push('ollama-local: '+String(error?.message||error).slice(0,120));
+      if(preferred!=='auto')throw new Error('LOCAL_LLM_UNAVAILABLE');
+    }
+  }
+
   // Colibri: servidor próprio configurado por COLIBRI_BASE_URL, nunca instanciado na Vercel.
   // Em caso de falha, a seleção automática continua com os demais provedores.
   if ((preferred === 'auto' || preferred === 'colibri') && !opts.images?.length) {
