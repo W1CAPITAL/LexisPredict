@@ -5,7 +5,7 @@ import {AlertTriangle,CalendarClock,CheckCircle2,ChevronRight,Clock3,Filter,Sear
 import {classificarVencimento} from "@/lib/vencimentos";
 
 export type VencidoRow={
- id:number;cliente:string;protocolo_ref:string;created_by:string|null;status:string|null;status_interno:string|null;
+ id:number;cliente:string;protocolo_ref:string;created_by:string|null;status:string|null;status_interno:string|null;statusManual?:string|null;
  proximo_retorno:string|null;proximo_prazo:string|null;ultimo_retorno:string|null;
  escritorio:string|null;advogado:string|null;datajud_ultimo_nome:string|null;ultima_movimentacao:string|null;
  tem_atualizacao_pos_retorno:boolean|null;
