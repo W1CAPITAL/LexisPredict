@@ -197,6 +197,33 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     }
   }
 
+  // Pesquisa DataJud oficial sob pedido de verificação processual, com
+  // orçamento curto de servidor. Não presumir que o índice corresponde aos
+  // autos completos ou que ausência de movimentos comprova ausência de atos.
+  if(cnj && /consult|pesquis|investig|dossi[eê]|atualiz|movimenta|senten[cç]a|tr[aâ]nsito/i.test(pergunta)){
+    try{
+      const {fetchDataJud}=await import('@/lib/datajud');
+      const result=await fetchDataJud(cnj,1,{fast:true,cloudBudget:true});
+      const movimentos=Array.isArray(result.movimentos)?result.movimentos:[];
+      if(!result.error && movimentos.length){
+        const byDate=[...movimentos].sort((a:any,b:any)=>
+          String(b.dataHora||b.data||'').localeCompare(String(a.dataHora||a.data||'')));
+        userContent+='\n\n--- CONSULTA DATAJUD (fonte CNJ, índice público, pode ter atraso) ---\n'+
+          'CNJ '+cnj+' | consulta '+new Date().toISOString()+
+          '\n'+byDate.slice(0,12).map((m:any,i:number)=>{
+            const d=String(m.dataHora||m.data||'').slice(0,40);
+            const descricao=String(m.nome||m.descricao||m.complementosTabelados?.map((v:any)=>v.descricao).join('; ')||'Movimento sem descrição').slice(0,350);
+            return '['+(i+1)+'] '+d+' | '+descricao;
+          }).join('\n')+'\n--- FIM DATAJUD ---';
+      }else{
+        userContent+='\n\nDATAJUD: '+String(result.error?result.message||'Consulta indisponível':'Sem movimentos retornados pelo índice').slice(0,230)+
+          '. Não presumir que não existe andamento no tribunal.';
+      }
+    }catch{
+      userContent+='\n\nDATAJUD: falha na consulta pública agora; usar contexto interno apenas com ressalva de data.';
+    }
+  }
+
   // Pesquisa externa é opcional e só ocorre quando o usuário pede expressamente
   // consulta a uma URL pública jurídica, com chave Spider no servidor.
   if (!simple) {
