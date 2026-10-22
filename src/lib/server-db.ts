@@ -421,7 +421,12 @@ export async function searchKnowledgeChunksSystem(keywords: string[], empresaId:
 }
 
 function mapProcessoRow(item: any): LegalCase {
-  const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {};
+  // A carteira paginada carrega apenas fragmentos auditáveis de mérito.
+  // O detalhe completo mantém item.dados e não perde os outros campos.
+  const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {
+    ...(item.merito_pendencia_json ? { merito_pendencia_20261022: item.merito_pendencia_json } : {}),
+    ...(item.merito_datajud_json ? { merito_datajud_20261022: item.merito_datajud_json } : {}),
+  };
   const situacao = resolveSituacaoFromRow(item, dados);
   const statusManual = resolveStatusManualFromRow(item, dados, situacao);
   return processarCaso({
