@@ -178,6 +178,7 @@ export default function TarefasPage() {
   const [somenteMeta, setSomenteMeta] = useState(true);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
+  const [backlogVisible,setBacklogVisible] = useState(24);
   
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
@@ -1099,7 +1100,8 @@ const handleSaveAttendance = async () => {
             <div className="space-y-4 pt-10 border-t border-border/30">
                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
                {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {taskData.backlog.map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+               {showBacklog&&taskData.backlog.length>backlogVisible?<Button type="button" variant="outline" onClick={()=>setBacklogVisible(v=>v+24)}>Mostrar mais 24 do backlog ({taskData.backlog.length-backlogVisible} restantes)</Button>:null}
             </div>
           )}
         </div>
