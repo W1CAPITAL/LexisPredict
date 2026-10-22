@@ -41,6 +41,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { recalibrateCasesAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction, registrarAuditoriaEventAction } from '@/app/actions/case-actions';
@@ -1188,6 +1189,11 @@ function CasesContent() {
             <p className="mt-2 text-sm font-medium text-[#617693]">Acompanhe e gerencie sua carteira de processos.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href="/vencidos" className="inline-flex h-10 items-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">Vencidos · Ver fila completa</Link>
+            <button type="button" onClick={()=>setQuickFilter(quickFilter==="vencido"?"all":"vencido")} aria-pressed={quickFilter==="vencido"}
+              className={"h-10 rounded-xl border px-4 text-xs font-bold "+(quickFilter==="vencido"?"border-rose-500 bg-rose-600 text-white":"border-border bg-background hover:border-rose-400")}>
+              {quickFilter==="vencido"?"Mostrar todos":"Filtrar vencidos"}
+            </button>
             {canExport ? (
               <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={exporting} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
                 {exporting ? <Loader2 size={15} className="mr-2 animate-spin" /> : <FileDown size={15} className="mr-2" />}
