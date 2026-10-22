@@ -44,13 +44,13 @@ export function responderRelatorioPergunta(raw:string,f:IndicadoresRelatorio):st
  }
  if(/(prioridade|primeiro|urgente|atencao|risco|pendente|vencid|atrasad|acompanh|cobrar)/.test(q)){
   const parts=[
-   f.vencidos!=null&&f.vencidos>0?num(f.vencidos)+" retornos estão vencidos":null,
+   f.vencidos!=null&&f.vencidos>0?num(f.vencidos)+" processos estão marcados como vencidos no CRM":null,
    f.semRetorno30!=null&&f.semRetorno30>0?num(f.semRetorno30)+" processos ativos estão sem retorno recente (30 dias ou mais, incluindo nunca registrados)":null,
    f.encerradosEmCumprimento!=null&&f.encerradosEmCumprimento>0?num(f.encerradosEmCumprimento)+" processos encerrados no CRM têm sinal de cumprimento a conferir":null,
    f.meritoPendente!=null&&f.meritoPendente>0?num(f.meritoPendente)+" resultados judiciais continuam a esclarecer":null,
   ].filter(Boolean);
   return (parts.length?"As pendências que merecem conferência são: "+parts.join("; ")+".":"Os indicadores disponíveis não apontam quantidades positivas de pendências nesta consulta; isso não substitui a revisão dos processos.")+
-   " Comece pelos retornos vencidos e confira os casos com prazo ou cumprimento ativo. Os números não indicam, por si só, erro do advogado ou perda judicial.";
+   " Confira primeiro os status vencidos do CRM, depois os retornos atrasados em tela própria e os casos com cumprimento ativo. Status vencido não indica, por si só, erro do advogado ou perda judicial.";
  }
  if(/(atend|contat|whats|email|equipe|compar|colaborador|responsav)/.test(q)){
    const items=f.equipe.filter(x=>x.atendimentos.eventos>0).map(x=>x.nome+": "+num(x.atendimentos.processos)+" processos atendidos e "+num(x.atendimentos.eventos)+" registros.");
@@ -71,7 +71,7 @@ export function responderRelatorioPergunta(raw:string,f:IndicadoresRelatorio):st
   }).join(" ")+" As verificações em lote não são contabilizadas como trabalho manual individual.";
  }
  if(/(quant|total|carteira|ativo|novidade|panorama|resumo|geral)/.test(q)){
-  return "Panorama da carteira: "+num(f.total)+" processos, dos quais "+num(f.ativos)+" ativos e "+num(f.encerrados)+" encerrados no CRM. "+num(f.vencidos)+" retornos vencidos e "+num(f.novidades)+" com novidades. No período "+f.periodo+", foram identificados "+num(f.atendidos)+" processos atendidos e "+num(f.eventos)+" eventos de atendimento. Números atuais da carteira e eventos no período são medidas distintas.";
+  return "Panorama da carteira: "+num(f.total)+" processos, dos quais "+num(f.ativos)+" ativos e "+num(f.encerrados)+" encerrados no CRM. "+num(f.vencidos)+" marcados vencidos no CRM e "+num(f.novidades)+" com novidades. No período "+f.periodo+", foram identificados "+num(f.atendidos)+" processos atendidos e "+num(f.eventos)+" eventos de atendimento. Números atuais da carteira e eventos no período são medidas distintas.";
  }
- return "Posso explicar os dados já conferidos nesta página: "+num(f.total)+" processos na carteira, "+num(f.vencidos)+" retornos vencidos e "+num(f.atendidos)+" processos atendidos no período. Para aprofundar, pergunte sobre Davi, Kris, Adriana, atendimentos, atividades, dossiês, encerramentos ou prioridades. Não consigo concluir uma investigação individual apenas com estes indicadores agregados.";
+ return "Posso explicar os dados já conferidos nesta página: "+num(f.total)+" processos na carteira, "+num(f.vencidos)+" marcados vencidos no CRM e +num(f.atendidos)+" processos atendidos no período. Para aprofundar, pergunte sobre Davi, Kris, Adriana, atendimentos, atividades, dossiês, encerramentos ou prioridades. Não consigo concluir uma investigação individual apenas com estes indicadores agregados.";
 }
