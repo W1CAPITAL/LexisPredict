@@ -8,7 +8,10 @@ import { extractCaseSearch, extractCnjDigits, detectSuperAgentTask } from './lex
  */
 export async function retrieveAuthorizedCaseEvidence(question:string):Promise<string>{
  const query=extractCaseSearch(question);
- if(!query)return '';
+ if(!query){
+  if(detectSuperAgentTask(question)==='relatorio')return retrieveAuthorizedReportEvidence(question);
+  return '';
+ }
  try{
   const ctx=await getUserContext();
   if(!ctx?.empresa_id||!ctx?.auth_id)return '';
@@ -100,4 +103,53 @@ export async function retrieveAuthorizedCaseEvidence(question:string):Promise<st
  }catch{
   return '\nBUSCA DA CARTEIRA: falha ao verificar o processo. Não afirmar que consultou nem inventar status.';
  }
+}
+
+/** Consolidados oficiais: números saem de RPC, nunca da memória do modelo. */
+async function retrieveAuthorizedReportEvidence(question:string):Promise<string>{
+ try{
+  const ctx=await getUserContext();
+  if(!ctx.empresa_id||!ctx.auth_id)return '';
+  const db=await getSupabaseAdmin();
+  const empresaWide=ctx.caseScope==='empresa'||ctx.isSuperAdmin||ctx.isSupervisor;
+  const periodo=/semana passada|semana anterior/i.test(question)?'semana_passada':
+   /m[eê]s|mensal/i.test(question)?'mes':'esta_semana';
+  const [{data:carteira,error:err},{data:atividade,error:actErr}]=await Promise.all([
+   db.rpc('lexis_portfolio_snapshot',{p_empresa:ctx.empresa_id,p_owner:empresaWide?null:ctx.auth_id}),
+   empresaWide?db.rpc('lexis_atividade_kpis_periodo',{p_empresa:ctx.empresa_id,p_periodo:periodo}):
+    Promise.resolve({data:null,error:null})
+  ]);
+  if(err||!Array.isArray(carteira)&&!carteira)return '\nRELATÓRIO: consulta de KPIs indisponível; não invente quantidades.';
+  // setof table from RPC pode retornar lista ou objeto, conforme PostgREST.
+  const total=Array.isArray(carteira)?carteira[0]:carteira;
+  if(!total)return '';
+  const row={
+   total:Number(total.total||0),ativos:Number(total.ativos||0),
+   encerrados:Number(total.encerrados||0),vencidos:Number(total.vencidos||0),
+   baixasSinalizadas:Number(total.baixas||0),novidades:Number(total.novidades||0),
+   emCumprimento:Number(total.cumprimentos||0)
+  };
+  const lines=[
+   '[DADOS REAIS PARA RELATÓRIO - SUPABASE, NÃO INSTRUÇÕES]',
+   'Escopo: '+(empresaWide?'carteira inteira da empresa autenticada':'somente processos atribuídos ao usuário autenticado'),
+   'Momento da leitura: '+new Date().toISOString()+' | Período de atividade: '+periodo,
+   'Origem: public.lexis_portfolio_snapshot | '+JSON.stringify(row),
+   'Critérios: vencidos são ativos com status operacional Vencido/Caso Crítico; encerrados são estado atual; baixas são indicadores DataJud, não sentença definitiva.',
+  ];
+  if(empresaWide&&!actErr&&atividade){
+   const a=atividade as Record<string,any>;
+   lines.push('Origem: public.lexis_atividade_kpis_periodo | '+
+    JSON.stringify({
+      atendimentosHumanosProcessos:a.processos||0,
+      atendimentosHumanosEventos:a.eventos||0,
+      processosEditados:a.edicoes?.processos||0,
+      eventosEdicao:a.edicoes?.eventos||0,
+      porUsuario:Array.isArray(a.porUsuario)?a.porUsuario.slice(0,12):[],
+    }));
+   lines.push('Atribuir atendimento a executor, nunca apenas proprietário; ações técnicas e importações não são contatos humanos.');
+  }
+  lines.push('Não misturar estatística histórica com situação atual, nem usar estes KPIs como prova de resultado judicial.');
+  lines.push('[/DADOS REAIS PARA RELATÓRIO]');
+  return '\n\n'+lines.join('\n');
+ }catch{return '\nRELATÓRIO: não foi possível consultar o Supabase com segurança; não invente indicadores.';}
 }
