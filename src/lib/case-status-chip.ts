@@ -41,9 +41,13 @@ export function getStatusChip(c: LegalCase | null | undefined): StatusChip {
   if (cls) {
     const fase = statusEncerradoNoApp && ((c as any).em_cumprimento_sentenca || d.em_cumprimento_sentenca)
       ? 'Encerrado no CRM com cumprimento sinalizado: revisar situação. ' : '';
-    const hint = fase + (d.merito_datajud_20261022?.julgamento_g2_sem_teor
+    const pendencia = d.merito_pendencia_20261022?.motivo as string | undefined;
+    const baseHint = d.merito_datajud_20261022?.julgamento_g2_sem_teor
       ? 'Julgamento no 2º grau: resultado recursal a conferir'
-      : 'Movimentação DataJud; trânsito e recurso a conferir');
+      : 'Movimentação DataJud; trânsito e recurso a conferir';
+    const hint = fase + (pendencia
+      ? `Indício para revisão: ${pendencia}. ${baseHint}`
+      : baseHint);
     return { label: statusEncerradoNoApp ? `Encerrado · ${cls.label}` : cls.label, tone: cls.tone, hint };
   }
   if (statusEncerradoNoApp) {
