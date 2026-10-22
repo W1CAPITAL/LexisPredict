@@ -94,6 +94,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         </div>
         <div className="flex flex-wrap gap-2">
           <ReportSync/>
+          <a href={`/api/report/pdf?periodo=${encodeURIComponent(periodo)}&escopo=${somenteMinhaCarteira?"meus":"empresa"}`} className="inline-flex items-center rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-sm font-bold text-primary hover:bg-indigo-500/15">Baixar PDF da equipe e resumo</a>
           <Link href="/minhas-atividades" className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold">Minhas atividades</Link>
           <Link href="/report/completo" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Relatório completo e PDFs</Link>
         </div>
