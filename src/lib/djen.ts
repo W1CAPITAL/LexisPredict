@@ -390,6 +390,8 @@ export async function fetchDjenComunicacoes(
     cloudBudget?: boolean;
     /** Página de 50 publicações; usado na cronologia completa sob demanda. */
     pagina?: number;
+    /** Ação manual pede nova consulta, sem usar o cache dos últimos 90s. */
+    forceRefresh?: boolean;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -403,6 +405,7 @@ export async function fetchDjenComunicacoes(
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const pagina = Math.max(1, Math.min(200, Number(opts?.pagina)||1));
   const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '') + (opts?.cloudBudget ? ':cloud' : '') + ':p' + pagina;
+  if (opts?.forceRefresh) return fetchDjenComunicacoesUncached(protocolo, opts);
   return perfCached(cacheKey, () => fetchDjenComunicacoesUncached(protocolo, opts), 90_000);
 }
 
