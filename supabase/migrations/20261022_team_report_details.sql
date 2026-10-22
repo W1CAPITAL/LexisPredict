@@ -78,10 +78,10 @@ WITH periodo AS (
  FROM trabalho GROUP BY responsavel_auth_user_id
 ), tarefa_ranking AS (
  SELECT t.*, row_number() OVER(
- PARTITION BY t.responsavel_auth_user_id
- ORDER BY CASE WHEN t.categoria='atendimento' THEN 1 ELSE 0 END,
- t.data_realizacao DESC,t.created_at DESC,t.id
- ) AS rn
+ PARTITION BY t.responsavel_auth_user_id,CASE WHEN t.categoria='atendimento' THEN 1 ELSE 0 END
+ ORDER BY t.data_realizacao DESC,t.created_at DESC,t.id
+ ) AS rn,
+ CASE WHEN t.categoria='atendimento' THEN 1 ELSE 0 END AS grupo
  FROM tarefas t
 ), entregas_ranking AS (
  SELECT x.*,row_number() OVER(
@@ -121,13 +121,13 @@ WITH periodo AS (
    SELECT jsonb_agg(jsonb_build_object('categoria',v.categoria,'titulo',left(v.titulo,170),'data',v.data_realizacao,
     'detalhe',CASE WHEN v.categoria='atendimento' THEN '' ELSE left(coalesce(v.descricao,''),290) END,
     'protocolo',v.protocolo_ref,
-    'contatoConfirmado',v.contato_cliente_confirmado) ORDER BY v.rn)
-   FROM tarefa_ranking v WHERE v.responsavel_auth_user_id=m.auth_user_id AND v.rn<=7
+    'contatoConfirmado',v.contato_cliente_confirmado) ORDER BY v.grupo,v.rn)
+   FROM tarefa_ranking v WHERE v.responsavel_auth_user_id=m.auth_user_id AND v.rn<=4
  ),'[]'::jsonb) AS tarefas_recentes,
  coalesce((
    SELECT jsonb_agg(jsonb_build_object('categoria',v.categoria,'titulo',left(coalesce(nullif(v.origem,''),v.categoria),155),
       'data',v.data_atividade,'detalhe',left(coalesce(v.descricao,''),300),'conferencia',v.nivel_conferencia) ORDER BY v.rn)
-   FROM entregas_ranking v WHERE v.responsavel_auth_user_id=m.auth_user_id AND v.rn<=8
+   FROM entregas_ranking v WHERE v.responsavel_auth_user_id=m.auth_user_id AND v.rn<=24
  ),'[]'::jsonb) AS entregas_recentes
  FROM membros m
  LEFT JOIN carteira c ON c.auth_user_id=m.auth_user_id
