@@ -20,6 +20,7 @@ export const PROCESSOS_LIST_COLUMNS = [
   // Somente fragmentos judiciais de revisão; nunca baixar o JSON inteiro na lista.
   "merito_pendencia_json:dados->merito_pendencia_20261022",
   "merito_datajud_json:dados->merito_datajud_20261022",
+  "merito_fonte_json:dados->>merito_fonte",
   "cliente_json:dados->>cliente",
   "cliente_upper:dados->>CLIENTE",
   "cliente_title:dados->>Cliente",
