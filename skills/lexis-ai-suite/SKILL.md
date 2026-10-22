@@ -1,7 +1,7 @@
 ---
 name: lexis-ai-suite
 description: Orquestra pesquisa jurídica com fontes, escrita de dossiês, respostas de WhatsApp, revisão de segurança e ferramentas opcionais de IA local da W1CAPITAL.
-version: "1.0.0"
+version: "1.1.0"
 ---
 
 # Lexis AI Suite (W1CAPITAL)
@@ -39,6 +39,16 @@ Não usar benchmarks e listas de repositórios como prova de que modelos foram t
 - train-llm-from-scratch: conteúdo educacional, sem retreinamento de modelos em produção.
 - public-apis/awesome: diretórios de descoberta de provedores, nunca integradores executáveis automáticos.
 - awesome-claude-code-subagents: referência para especialização de tarefas, não execução automática de subagentes terceiros.
+
+## Superagente unificado (chat, processos, relatórios e clientes)
+- Núcleo de roteamento: `src/lib/ai/lexis-superagent.ts`. Cada pedido escolhe investigação, análise, dossiê, relatório ou atendimento; evita chamar "geral" para questões de processo.
+- Evidência de carteira: `src/lib/ai/lexis-superagent-evidence.ts` exige sessão, empresa e escopo de visibilidade. Procura por CNJ, nome parcial e campos autorizados; nomes ambíguos nunca selecionam processo ao acaso. Contexto inclui datas da última leitura e *não contém telefone/CPF/e-mail*.
+- Consulta oficial opcional: `src/ai/flows/chat-ai-flow.ts` consulta DJEN quando há CNJ e DataJud quando o pedido exigir conferência, com tempo limitado. Ausência de retorno da API NÃO demonstra ausência de movimentação.
+- Escrita: processo específico → fato verificável → significado para o cliente → ação operacional. Dossiês: fonte→fato, cronologia, contraditório, responsabilidade documentada, riscos e próximos passos; sem estatísticas fabricadas.
+- Modo incisivo/agressivo: **somente quando pedido expressamente** e para análise interna. Tom firme e factual, sem atribuir ilícitos a pessoas por hipótese ou atacar clientes.
+- Respostas a clientes: rascunhos revisáveis; nunca forneça telefone de terceiros ou mande clientes "procurarem o processo"; se a identificação falhar, apenas saudação e aviso de conferência. Não afirmar que o advogado foi acionado se não existe registro.
+- O chat nunca dispara automaticamente WhatsApp, e-mail, fechamento, pagamento ou gravação de atendimento.
+- Para uso em chat autenticado usar o fluxo atual; integração técnica Sheetspredict sem cookie **não tem acesso** à carteira por este helper. Não ampliar a integração para dados pessoais de empresas W1/W2 sem autorização separada.
 
 ## Dependências do material anexado
 O arquivo PredictLM v3.8 (W2) foi consultado apenas como inspiração arquitetural:
