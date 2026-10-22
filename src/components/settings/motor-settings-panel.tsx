@@ -10,7 +10,7 @@ import { MOTORS, MotorId, loadPreferredMotor, savePreferredMotor } from "@/lib/a
 import { cn } from "@/lib/utils";
 
 export function MotorSettingsPanel() {
-  const [iaModel, setIaModel] = useState<MotorId>("omni");
+  const [iaModel, setIaModel] = useState<MotorId>("local_llm");
 
   useEffect(() => {
     setIaModel(loadPreferredMotor());
@@ -25,8 +25,8 @@ export function MotorSettingsPanel() {
       </CardHeader>
       <CardContent>
         <p className="text-xs text-muted-foreground mb-4">
-          Usado no Assistente IA, Sugerir Resposta (Tarefas/Processos) e rascunhos. Cascata automática
-          se o motor escolhido falhar por quota.
+          A preferência padrão é Qwen3 0.6B no navegador, sem enviar perguntas para provedores externos.
+          As APIs de IA ficam opcionais e exigem ativação no ambiente do servidor.
         </p>
         <RadioGroup
           value={iaModel}

@@ -137,6 +137,8 @@ export function buildEngineList(preferred?: string): CascadeEngine[] {
       kind: 'openai',
     },
   ];
+  // Nenhuma credencial externa ativa chamadas por si só. Ativação administrativa explícita.
+  if (process.env.LEXIS_EXTERNAL_AI_ENABLED !== '1') return [];
   let list = engines.filter((e) => {
     return e.id !== 'omniroute' && !!e.key;
   });
@@ -175,6 +177,48 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     preferred = 'auto';
   }
   const errors: string[] = [];
+
+  // Optional first-party Ollama runtime for server-side jobs (own host only).
+  // The browser Qwen/Gemma path does not require this server.
+  const ownLocalBase=(process.env.LEXIS_LOCAL_LLM_BASE_URL||'').trim().replace(/\/+$/,'');
+  if(ownLocalBase && !opts.images?.length &&
+      ['auto','local_llm','local_gemma','local_lfm'].includes(preferred)){
+    const localStart=Date.now();
+    const localModel=preferred==='local_lfm'
+      ? (process.env.LEXIS_LOCAL_LFM_MODEL||'LiquidAI/lfm2.5-350m')
+      : preferred==='local_gemma'
+        ? (process.env.LEXIS_LOCAL_GEMMA_MODEL||'gemma3:270m')
+        : (process.env.LEXIS_LOCAL_MODEL||'qwen3:0.6b');
+    try{
+      const response=await fetch(ownLocalBase+'/api/chat',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          ...(process.env.LEXIS_LOCAL_LLM_API_KEY?{Authorization:'Bearer '+process.env.LEXIS_LOCAL_LLM_API_KEY}:{})
+        },
+        body:JSON.stringify({
+          model:localModel,
+          stream:false,
+          messages:[
+            ...(system?[{role:'system',content:system}]:[]),
+            ...history,
+            {role:'user',content:String(user)}
+          ],
+          options:{temperature:opts.temperature??0.35,num_predict:Math.min(opts.max_tokens??1024,2048)}
+        }),
+        signal:AbortSignal.timeout(60000),
+        cache:'no-store'
+      });
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const body=await response.json();
+      const localText=String(body?.message?.content||body?.response||'').trim();
+      if(isLowQualityAiText(localText))throw new Error('Local model returned no useful response');
+      return {text:localText,engineId:'ollama-local',model:String(body?.model||localModel),latencyMs:Date.now()-localStart};
+    }catch(error:any){
+      errors.push('ollama-local: '+String(error?.message||error).slice(0,120));
+      if(preferred!=='auto')throw new Error('LOCAL_LLM_UNAVAILABLE');
+    }
+  }
 
   // Colibri: servidor próprio configurado por COLIBRI_BASE_URL, nunca instanciado na Vercel.
   // Em caso de falha, a seleção automática continua com os demais provedores.
@@ -218,6 +262,12 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
     if (preferred === 'minicpm' || preferred === 'minicpm-v') {
       throw new Error('MINICPM_UNAVAILABLE_OR_NOT_CONFIGURED');
     }
+  }
+
+  // Sem habilitação expressa, nunca encaminhar dados processuais a IA terceirizada.
+  // Colibri/MiniCPM próprios são tentados acima; o browser executa Qwen/Gemma à parte.
+  if (process.env.LEXIS_EXTERNAL_AI_ENABLED !== '1') {
+    throw new Error('LOCAL_LLM_UNAVAILABLE: configure motor próprio no servidor ou use Qwen3/Gemma no navegador. APIs externas desabilitadas.');
   }
 
   // Respostas simples: fallback leve e limitado para o modo automático.

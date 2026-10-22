@@ -12,6 +12,8 @@ export type MotorId =
   | 'colibri'
   | 'minicpm'
   | 'local_llm'
+  | 'local_gemma'
+  | 'local_lfm'
   | 'local_only'
   | 'claude'
   | 'xai'
@@ -34,6 +36,7 @@ export type MotorDef = {
 
 /** Preferência salva no localStorage */
 const PREF_KEY = 'lexis_preferred_motor';
+const LOCAL_FIRST_MIGRATION_KEY = 'lexis_local_first_migrated_v1';
 const BA_CLAUDE_DJEN_KEY = 'lexis_ba_claude_djen';
 
 export const MOTORS: MotorDef[] = [
@@ -70,9 +73,23 @@ export const MOTORS: MotorDef[] = [
   },
   {
     id: 'local_llm',
-    label: 'Lexis Local LLM · Qwen 0.5B',
+    label: 'Lexis Local LLM · Qwen3 0.6B',
     short: 'LLM local',
-    desc: 'Modelo real 4-bit que roda no navegador (WebGPU/CPU). Baixa pesos na primeira utilização; não precisa de token.',
+    desc: 'Qwen3-0.6B ONNX local no navegador. Pesos baixados na primeira execução; sem API de inferência.',
+    scope: 'browser',
+  },
+  {
+    id: 'local_gemma',
+    label: 'Gemma 3 270M · navegador',
+    short: 'Gemma local',
+    desc: 'Modelo Gemma 3 270M ONNX no navegador, indicado para respostas curtas e classificação.',
+    scope: 'browser',
+  },
+  {
+    id: 'local_lfm',
+    label: 'LFM2.5 350M · Ollama local',
+    short: 'LFM local',
+    desc: 'Usa LFM2.5 350M instalado no Ollama do próprio computador (porta 11434). Requer Ollama e CORS local.',
     scope: 'browser',
   },
   {
@@ -163,8 +180,10 @@ export function getMotor(id?: string | null): MotorDef {
 
 /** Mapeia ids legados; local fica local; resto pode manter id para preferência de ordem na cascata */
 export function resolveMotorId(id?: string | null): MotorId {
-  const s = String(id || 'omni').toLowerCase().trim();
-  if (s === 'local_llm' || s === 'browser_llm' || s === 'qwen-local') return 'local_llm';
+  const s = String(id || 'local_llm').toLowerCase().trim();
+  if (s === 'local_llm' || s === 'browser_llm' || s === 'qwen-local' || s === 'qwen3') return 'local_llm';
+  if (s === 'local_gemma' || s === 'gemma-local') return 'local_gemma';
+  if (s === 'local_lfm' || s === 'lfm-local') return 'local_lfm';
   if (s === 'local_only' || s === 'local' || s === 'lexis') return 'local_only';
   if (s === 'omni' || s === 'auto') return 'omni';
   if (s.includes('minimax')) return 'minimax';
@@ -184,13 +203,21 @@ export function resolveMotorId(id?: string | null): MotorId {
 }
 
 export function loadPreferredMotor(): MotorId {
-  if (typeof window === 'undefined') return 'omni';
+  if (typeof window === 'undefined') return 'local_llm';
   try {
     const raw = localStorage.getItem(PREF_KEY);
-    if (!raw) return 'omni';
+    // One-time migration of legacy cloud-first auto; later explicit choices are preserved.
+    if (!localStorage.getItem(LOCAL_FIRST_MIGRATION_KEY)) {
+      localStorage.setItem(LOCAL_FIRST_MIGRATION_KEY, '1');
+      if (!raw || raw === 'omni' || raw === 'auto') {
+        localStorage.setItem(PREF_KEY, 'local_llm');
+        return 'local_llm';
+      }
+    }
+    if (!raw) return 'local_llm';
     return resolveMotorId(raw);
   } catch {
-    return 'omni';
+    return 'local_llm';
   }
 }
 
