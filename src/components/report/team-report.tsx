@@ -55,12 +55,19 @@ function ActivityList({items}:{items:EquipeAtividade[]}){
 }
 function DeliveryList({items}:{items:EquipeEntrega[]}){
  if(!items.length)return <p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">Não há dossiês, investigações ou entregas de projeto descritos nesta fonte durante o período escolhido. Verifique os atendimentos e demais atividades acima.</p>;
- return <div className="space-y-2">{items.map((x,i)=><article key={x.titulo+i} className="rounded-xl border border-border/70 bg-background/70 p-4">
+ const render=(x:EquipeEntrega,i:number)=><article key={x.titulo+i} className="rounded-xl border border-border/70 bg-background/70 p-4">
   <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground"><span className="rounded-full bg-indigo-500/10 px-2 py-0.5 font-bold text-indigo-700 dark:text-indigo-300">{nomeCategoria(x.categoria)}</span><span>{d(x.data)}</span></div>
   <p className="mt-2 text-sm font-bold">{x.titulo}</p>
   {x.detalhe?<p className="mt-1 text-xs leading-relaxed text-muted-foreground">{x.detalhe}</p>:null}
   {x.conferencia?<p className="mt-1 text-[11px] text-muted-foreground">Tipo de registro: {nomeCategoria(x.conferencia)}</p>:null}
- </article>)}</div>;
+ </article>;
+ return <div className="space-y-2">
+  {items.slice(0,6).map(render)}
+  {items.length>6?<details className="group rounded-xl border border-border/70 p-3">
+   <summary className="cursor-pointer text-sm font-bold text-primary">Ver outras {n(items.length-6)} entregas registradas</summary>
+   <div className="mt-3 space-y-2">{items.slice(6).map((x,i)=>render(x,i+6))}</div>
+  </details>:null}
+ </div>;
 }
 function resumoPessoa(x:EquipeMembro){
  const parts:string[]=[];
@@ -133,7 +140,7 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
       </div>
      </div>
      <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FolderKanban className="h-5 w-5 text-violet-500"/> Entregas e trabalhos descritos</h4><p className="mb-4 text-xs text-muted-foreground">Dossiês, investigações, projetos e triagens com identificação própria. Exibe até oito exemplos distintos do período; a contagem completa está acima.</p><DeliveryList items={current.trabalho.entregasRecentes||[]}/></section>
+      <section className="rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FolderKanban className="h-5 w-5 text-violet-500"/> Entregas e trabalhos descritos</h4><p className="mb-4 text-xs text-muted-foreground">Dossiês, investigações, projetos e triagens com identificação própria. Mostra entregas distintas registradas no período, sem repetir cada linha de um levantamento em lote.</p><DeliveryList items={current.trabalho.entregasRecentes||[]}/></section>
       <section className="rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FileClock className="h-5 w-5 text-indigo-500"/> Histórico das atividades cadastradas</h4><p className="mb-4 text-xs text-muted-foreground">Descrições recentes salvas em “Minhas atividades”; são registros próprios, não ações presumidas. A lista é uma amostra.</p><ActivityList items={current.atividades.recentes||[]}/></section>
      </div>
      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
