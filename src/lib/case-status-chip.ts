@@ -19,6 +19,34 @@ function dados(c: LegalCase): any {
 export function getStatusChip(c: LegalCase | null | undefined): StatusChip {
   if (!c) return { label: '—', tone: 'muted' };
   const d = dados(c);
+  const resultadoDatajud = d.merito_datajud_20261022?.resultado as string | undefined;
+  const statusEncerradoNoApp = String(c.status || '').trim().toUpperCase() === 'ENCERRADO';
+  // Mérito judicial, fase de cumprimento e baixa administrativa não são sinônimos.
+  // Primeiro usamos o resultado explícito e auditado; não inferimos improcedência de is_procedente=false.
+  const rotulosDatajud: Record<string, { label: string; tone: StatusChip['tone'] }> = {
+    procedente: { label: 'Procedente', tone: 'ok' },
+    parcial: { label: 'Parcialmente procedente', tone: 'ok' },
+    improcedente: { label: 'Improcedente', tone: 'muted' },
+    sem_merito: { label: 'Extinto sem mérito', tone: 'warn' },
+    acordo_homologado: { label: 'Acordo homologado', tone: 'info' },
+    indeferimento_inicial: { label: 'Inicial indeferida', tone: 'warn' },
+    cancelamento_distribuicao: { label: 'Distribuição cancelada', tone: 'warn' },
+    desistencia: { label: 'Desistência', tone: 'info' },
+    abandono: { label: 'Abandono da causa', tone: 'warn' },
+    conflito_resultados: { label: 'Mérito divergente', tone: 'danger' },
+    nao_determinado: { label: 'Mérito a conferir', tone: 'muted' },
+    nao_localizado: { label: 'Não localizado no DataJud', tone: 'muted' },
+  };
+  const cls = resultadoDatajud ? rotulosDatajud[resultadoDatajud] : undefined;
+  if (cls) {
+    const hint = d.merito_datajud_20261022?.julgamento_g2_sem_teor
+      ? 'Julgamento no 2º grau: resultado recursal a conferir'
+      : 'Movimentação DataJud; trânsito e recurso a conferir';
+    return { label: statusEncerradoNoApp ? `Encerrado · ${cls.label}` : cls.label, tone: cls.tone, hint };
+  }
+  if (statusEncerradoNoApp) {
+    return { label: 'Encerrado · mérito a conferir', tone: 'dark' };
+  }
 
   if ((c as any).indicio_busca_apreensao || d.indicio_busca_apreensao) {
     return { label: 'Busca e apreensão', tone: 'danger' };
