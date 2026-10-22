@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const res = await chatAIFlow({
       pergunta: body.pergunta || body.message || body.prompt || '',
       historico: body.historico || body.history,
-      preferred: body.preferred || body.preferredModel || body.model || 'claude',
+      preferred: body.preferred || body.preferredModel || body.model || 'auto',
       preferredModel: body.preferredModel || body.model,
       tribunalContext: body.tribunalContext,
       baClaudeDjen: !!body.baClaudeDjen,
