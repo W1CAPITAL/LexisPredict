@@ -44,7 +44,8 @@ export async function GET(request:Request){
   // PDF produzido no servidor: o computador do usuário não processa gráficos nem fontes de um PDF pesado.
   const {renderToBuffer}=await import("@react-pdf/renderer");
   const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope});
-  const buffer=await renderToBuffer(doc);
+  // O componente retorna <Document>, embora os props do componente não sejam DocumentProps.
+  const buffer=await renderToBuffer(doc as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>);
   const name="LexisPredict-Relatorio-Equipe-"+periodo+".pdf";
   return new Response(new Uint8Array(buffer),{
    status:200,headers:{
