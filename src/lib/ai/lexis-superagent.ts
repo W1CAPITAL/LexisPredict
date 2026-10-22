@@ -7,7 +7,7 @@ export type SuperAgentTask='atendimento'|'dossie'|'investigacao'|'relatorio'|'an
 
 export function detectSuperAgentTask(raw:string):SuperAgentTask{
  const text=String(raw||'').toLocaleLowerCase('pt-BR');
- if(/(?:responder|resposta|atender|mensagem|retorno|whatsapp|cliente respondeu|falar com o cliente|enviar ao cliente)/i.test(text))
+ if(/(?:respond[aeiou]|responder|resposta\s+(?:ao|para)|mensagem\s+(?:ao|para)|whatsapp|cliente respondeu|falar com o cliente|enviar ao cliente|atender\s+(?:o|a|ao)\s+cliente)/i.test(text))
   return 'atendimento';
  if(/dossi[eê]|dossier|linha do tempo.*(caso|processo)|cronologia.*(prova|erro)/i.test(text))
   return 'dossie';
@@ -15,6 +15,7 @@ export function detectSuperAgentTask(raw:string):SuperAgentTask{
   return 'investigacao';
  if(/relat[oó]rio|indicador|kpis?\b|produtividade|estat[ií]sticas|consolid[aá]d/i.test(text))
   return 'relatorio';
+ if(/retorno\s+(?:ao|para)\s+(?:o\s+)?cliente|atendimento\s+(?:de|do|da)\s+[\p{L}]/iu.test(text))return 'atendimento';
  if(/processo|cnj|datajud|djen|tribunal|senten[cç]a|improced[eê]n|proced[eê]n|tr[aâ]nsito em julgado|cumprimento|recurso|movimenta[cç][aã]o/i.test(text))
   return 'analise-processual';
  return 'geral';
