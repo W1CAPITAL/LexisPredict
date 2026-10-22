@@ -36,13 +36,28 @@ export function extractCnjDigits(raw:string):string|null{
 export function extractCaseSearch(raw:string):string|null{
  const cnj=extractCnjDigits(raw);
  if(cnj)return cnj;
- // Nome somente quando a tarefa se refere claramente ao processo/cliente.
- const m=String(raw||'').match(/\b(?:processo|caso|cliente|atendimento)\s+(?:d[ao]s?\s+|de\s+)([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3})/iu);
+ // Busca apenas quando a tarefa liga explicitamente um nome a um processo.
+ const text=String(raw||'').trim().slice(0,500);
+ const m=text.match(/\b(?:processo|caso|cliente|atendimento|atualiza[cç][aã]o|andamento|movimenta[cç][aã]o)\s+(?:d[ao]s?\s+|de\s+)?([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,4})/iu);
  if(!m)return null;
- const stop=new Set(['um','uma','todos','todas','algum','alguma','empresa','cliente','banco','hoje','ontem','amanha','atual','exemplo','qualquer']);
- const terms=m[1].trim().split(/\s+/).filter(Boolean);
- if(!terms.length||stop.has(terms[0].toLocaleLowerCase('pt-BR')))return null;
- return terms.slice(0,3).join(' ').slice(0,95);
+ const stop=new Set([
+  'um','uma','todos','todas','algum','alguma','empresa','banco','cliente',
+  'hoje','ontem','amanha','atual','exemplo','qualquer','quero','saber','tem',
+  'está','esta','este','esse','essa','qual','quando','onde','porque','por',
+  'pode','precisa','ja','já','foi','teve','recebeu','receber','encerrou',
+  'encerrado','andamento','movimento','processo','com','para','sobre','no','na',
+  'agora','em','precisamos','preciso','mostrar','mostre','faça','faca'
+ ]);
+ const tokens=m[1].trim().split(/\s+/).filter(Boolean);
+ const name:string[]=[];
+ for(const token of tokens){
+  if(stop.has(token.toLocaleLowerCase('pt-BR')))break;
+  name.push(token);
+ }
+ if(!name.length)return null;
+ // "processo de empresa"/ "caso do banco" não é identidade de pessoa.
+ if(stop.has(name[0].toLocaleLowerCase('pt-BR')))return null;
+ return name.slice(0,4).join(' ').slice(0,95);
 }
 
 export function superAgentInstructions(prompt:string):string{
