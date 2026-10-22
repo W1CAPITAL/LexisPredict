@@ -3,6 +3,7 @@ import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {hojeBrasilISO} from "@/lib/prazo-status";
 import {Sidebar} from "@/components/layout/sidebar";
 import {VencidosPanel,type VencidoRow,type Owner} from "@/components/vencidos/vencidos-panel";
+import {VencidosLiveSync} from "@/components/vencidos/vencidos-live-sync";
 import Link from "next/link";
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -44,6 +45,7 @@ export default async function VencidosPage(){
      <Link href="/cases" className="hover:text-primary">Meus processos</Link><span>/</span>
      <Link href="/processos" className="hover:text-primary">Empresa</Link><span>/</span>
      <span className="text-foreground">Vencidos</span>
+     <div className="ml-auto"><VencidosLiveSync/></div>
     </nav>
     {failed?<p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm">{failed}</p>:null}
     <VencidosPanel data={rows} owners={owners} hoje={today} limitReached={reached||!!failed}/>
