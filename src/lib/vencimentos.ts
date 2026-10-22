@@ -1,33 +1,44 @@
 import {isCasoEncerrado} from "@/lib/status-encerrado";
-import {diasAtePrazo} from "@/lib/prazo-status";
+import {diasAtePrazo,normalizarDataPrazo} from "@/lib/prazo-status";
 
-/** Fonte compartilhada pelos filtros /cases, /processos, /tarefas e /vencidos.
- * Retorno é compromisso operacional; proximoPrazo é data cadastrada (não
- * necessariamente prazo judicial). Encerrados ficam fora da fila.
+/** Uma única regra operacional para todas as listas de vencidos.
+ *
+ * proximo_retorno é o agendamento atual e tem precedência sobre o alias
+ * proximoPrazo mapeado das listas. proximo_prazo é um campo legado distinto:
+ * pode conter uma data antiga de 2026 mesmo depois do último atendimento.
+ * Nunca usar o campo legado para concluir que um atendimento está vencido
+ * ou que ocorreu perda de prazo judicial.
  */
-export type CaseVencimento = {
+export type CaseVencimento={
  status?:string|null;statusManual?:string|null;status_interno?:string|null;
  situacao?:string|null;proximoPrazo?:string|null;proximoRetorno?:string|null;
  ultimoRetorno?:string|null;proximo_prazo?:string|null;proximo_retorno?:string|null;
  ultimo_retorno?:string|null;dados?:unknown;
 };
-const date=(s:unknown)=>typeof s==="string"&&s.length?String(s):null;
+function asDate(s:unknown):string|null{
+ return typeof s==="string"?normalizarDataPrazo(s):null;
+}
 export function classificarVencimento(c:CaseVencimento,hoje?:string){
- if(isCasoEncerrado(c)) return {vencido:false,retorno:false,prazo:false,revisar:false,dias:null as number|null};
- const retorno=date(c.proximo_retorno)||date(c.proximoRetorno);
- const ultimo=date(c.ultimo_retorno)||date(c.ultimoRetorno);
- const prazo=date(c.proximo_prazo)||date(c.proximoPrazo);
- const dr=diasAtePrazo(retorno,hoje),dp=diasAtePrazo(prazo,hoje);
- // Contato posterior ao vencimento não quita automaticamente prazo judicial;
- // só sinaliza que é necessário revisar a data operacional.
- const retornoAtrasado=dr!==null&&dr<0&&(!ultimo||ultimo<retorno!);
- const prazoPassou=dp!==null&&dp<0;
- const revisar=!!(prazoPassou&&ultimo&&prazo&&ultimo>prazo);
- const marcado=/^(vencido|caso cr[ií]tico)$/i.test(String(c.statusManual||c.status||"").trim());
+ const empty={vencido:false,retorno:false,prazo:false,revisar:false,
+  historico:false,inconsistencia:false,marcado:false,excluido:true,dias:null as number|null};
+ if(isCasoEncerrado(c))return empty;
+ const retorno=asDate(c.proximo_retorno)||asDate(c.proximoRetorno)||asDate(c.proximoPrazo);
+ const ultimo=asDate(c.ultimo_retorno)||asDate(c.ultimoRetorno);
+ const historicoPrazo=asDate(c.proximo_prazo);
+ const dr=diasAtePrazo(retorno,hoje);
+ const dp=diasAtePrazo(historicoPrazo,hoje);
+ const vencido=dr!==null&&dr<0&&(!ultimo||!!retorno&&ultimo<retorno);
+ // Status anterior não prova atraso: é somente um alerta de qualidade cadastral.
+ const marcado=/^(vencido|caso cr[ií]tico)$/i.test(String(c.status||c.statusManual||"").trim());
+ const inconsistencia=marcado!==vencido;
+ const historico=dp!==null&&dp<0&&!vencido&&(
+  !retorno||(diasAtePrazo(retorno,hoje)??-1)>=0
+ );
  return {
-  vencido:retornoAtrasado||prazoPassou||marcado,
-  retorno:retornoAtrasado,prazo:prazoPassou,revisar,
-  dias:Math.min(...[dr,dp].filter((d):d is number=>d!==null&&d<0),0)||0
+  vencido,retorno:vencido,
+  // Flag histórica separada da fila; o antigo campo nunca define vencimento.
+  prazo:historico,revisar:inconsistencia,historico,inconsistencia,
+  marcado,excluido:false,dias:dr
  };
 }
 export function isCasoVencido(c:CaseVencimento,hoje?:string){
