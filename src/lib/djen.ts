@@ -388,6 +388,10 @@ export async function fetchDjenComunicacoes(
     dataFim?: string;
     /** Short no-retry call for serverless cloud micro-batches. */
     cloudBudget?: boolean;
+    /** Página de 50 publicações; usado na cronologia completa sob demanda. */
+    pagina?: number;
+    /** Página de 50 publicações; usado na cronologia completa sob demanda. */
+    pagina?: number;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -399,7 +403,8 @@ export async function fetchDjenComunicacoes(
   const dataInicioEarly =
     opts?.dataInicio ||
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '') + (opts?.cloudBudget ? ':cloud' : '');
+  const pagina = Math.max(1, Math.min(200, Number(opts?.pagina)||1));
+  const cacheKey = PerfKeys.djen(digits, dataInicioEarly, dataFim) + ':' + (opts?.siglaTribunal || '') + (opts?.cloudBudget ? ':cloud' : '') + ':p' + pagina;
   return perfCached(cacheKey, () => fetchDjenComunicacoesUncached(protocolo, opts), 90_000);
 }
 
@@ -435,7 +440,7 @@ async function fetchDjenComunicacoesUncached(
         numeroProcesso: cnj,
         dataDisponibilizacaoInicio: dataInicio,
         dataDisponibilizacaoFim: dataFim,
-        pagina: '1',
+        pagina: String(Math.max(1, Math.min(200, Number(opts?.pagina)||1))),
         itensPorPagina: '50',
       });
 
