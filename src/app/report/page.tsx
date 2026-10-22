@@ -54,6 +54,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  }:null;
  const mr=meritoResult.status==="fulfilled"?meritoResult.value:null;
  const merito=mr&&!mr.error&&mr.data&&typeof mr.data==="object"?mr.data as Record<string,number>:null;
+ // Movimentações TPU: não equivalem a confirmação de trânsito ou resultado do recurso.
+ const meritoOficial=(merito as any)?.oficial as Record<string,number>|undefined;
  const rr=retornoResult.status==="fulfilled"?retornoResult.value:null;
  const retorno=rr&&!rr.error&&rr.data&&typeof rr.data==="object"?rr.data as Record<string,number>:null;
  const cr=closuresResult.status==="fulfilled"?closuresResult.value:null;
@@ -108,6 +110,47 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           className={`rounded-full border px-4 py-2 text-xs font-bold ${periodo===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:bg-muted"}`}>{x.name}</Link>)}
       </nav>
     </header>
+    <section aria-labelledby="merito-oficial-title" className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-primary">Auditoria judicial · CNJ / DataJud</p>
+          <h2 id="merito-oficial-title" className="mt-1 text-xl font-extrabold">Resultado dos processos encerrados</h2>
+          <p className="mt-1 max-w-4xl text-xs text-muted-foreground">Movimentos oficiais identificados no DataJud (TPU). O tipo de sentença registrado não confirma trânsito em julgado nem eventual reforma por recurso. Encerrado no CRM é situação administrativa, não julgamento.</p>
+        </div>
+        <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary underline">Consultar processo, advogado e movimento na planilha</a>
+      </div>
+      {meritoOficial?<div className="mt-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {[
+            ["Encerrados no CRM",meritoOficial.encerrados],
+            ["Improcedência identificada",meritoOficial.improcedentes],
+            ["Procedência parcial identificada",meritoOficial.parciais],
+            ["Procedência identificada",meritoOficial.procedentes],
+            ["Resultados divergentes",meritoOficial.divergentes],
+          ].map(([title,value])=><div key={String(title)} className="rounded-xl border border-border bg-background p-3">
+            <p className="text-xs font-medium text-muted-foreground">{title}</p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums">{fmt(value as number)}</p>
+          </div>)}
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+          {[
+            ["Sem mérito",meritoOficial.sem_merito],
+            ["Acordos",meritoOficial.acordos],
+            ["Iniciais indeferidas",meritoOficial.indeferimentos],
+            ["Distribuição cancelada",meritoOficial.cancelamentos],
+            ["Desistência",meritoOficial.desistencias],
+            ["Abandono",meritoOficial.abandonos],
+            ["A esclarecer",meritoOficial.nao_determinados],
+            ["Não localizados",meritoOficial.nao_localizados],
+          ].map(([title,value])=><div key={String(title)} className="rounded-lg border border-border bg-background p-3">
+            <p className="text-xs text-muted-foreground">{title}</p><p className="font-bold tabular-nums">{fmt(value as number)}</p>
+          </div>)}
+        </div>
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          <strong>{fmt(meritoOficial.encerrados_cumprimento)} encerrados no CRM sinalizados com cumprimento ativo.</strong> Conferir a fase antes de encerrar o cumprimento ou contá-lo como satisfeito. Não houve alteração automática do estado dos processos por esta auditoria.
+        </p>
+      </div>:<p className="mt-3 text-sm text-muted-foreground">Sem resumo oficial disponível na consulta. Os números não são estimados.</p>}
+    </section>
     <section aria-labelledby="kpi-title" className="space-y-3">
       <h2 id="kpi-title" className="text-lg font-bold">Atendimentos e produtividade da empresa</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
