@@ -210,15 +210,15 @@ export default function AssistentePage() {
         if (img) throw new Error('LFM2.5-350M é um modelo de texto; imagem exige modelo de visão.');
         const response = await fetch('http://127.0.0.1:11434/api/chat', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({model:'lfm2.5:350m',stream:false,messages:[
+          body:JSON.stringify({model:'LiquidAI/lfm2.5-350m',stream:false,messages:[
             {role:'system',content:'Você é o LexisPredict. Português do Brasil, respostas fundamentadas e sem inventar dados processuais.'},
             ...history, {role:'user',content:(displayText || text)+(pdf?.text?'\n\n'+pdf.text.slice(0,2800):'')}
           ]})
         });
-        if(!response.ok)throw new Error('Ollama local não respondeu ('+response.status+'). Instale lfm2.5:350m e configure acesso do navegador ao Ollama.');
+        if(!response.ok)throw new Error('Ollama local não respondeu ('+response.status+'). Instale LiquidAI/lfm2.5-350m e configure acesso do navegador ao Ollama.');
         const data=await response.json();
         if(!data?.message?.content)throw new Error('Ollama retornou resposta vazia.');
-        res={resposta:String(data.message.content),sucesso:true,engineUtilizada:'LOCAL_OLLAMA:lfm2.5:350m'};
+        res={resposta:String(data.message.content),sucesso:true,engineUtilizada:'LOCAL_OLLAMA:LiquidAI/lfm2.5-350m'};
       } else {
         res = await perguntarChatbotIndependente(text || "Analise o material anexado.", history, model, {
           baClaudeDjen: baClaude,
