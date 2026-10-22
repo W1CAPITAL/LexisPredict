@@ -185,10 +185,18 @@ export default function ProcessosEmpresaPage() {
   const { active: hasSearch, cases: searchHits, searching, error: searchError } =
     useCompanyProcessSearch(qDebounced, Boolean(empresaId && authUserId),searchRefreshKey);
   const [statusFilter, setStatusFilter] = useState("");
+  const [directProcess,setDirectProcess] = useState("");
+  const [directEdit,setDirectEdit] = useState(false);
   useEffect(()=>{
     const qp=new URLSearchParams(window.location.search);
-    if(qp.get("search"))setQ(qp.get("search")||"");
-    if(qp.get("filter")==="vencido")setStatusFilter("vencido");
+    const target=qp.get("processo")||qp.get("search")||"";
+    if(target){
+      setQ(target);
+      setDirectProcess(target);
+      setDirectEdit(qp.get("editar")==="1");
+      setStatusFilter(""); // filtros persistidos não podem ocultar o CNJ pedido
+      setBaOnly(false);
+    } else if(qp.get("filter")==="vencido")setStatusFilter("vencido");
   },[]);
   const [baOnly, setBaOnly] = useState(false);
   const [silencioOnly, setSilencioOnly] = useState(false);
@@ -388,9 +396,10 @@ export default function ProcessosEmpresaPage() {
       if (!raw) return;
       const f = JSON.parse(raw);
       const params=new URLSearchParams(window.location.search);
-      if(!params.has("search") && f.q != null)setQ(String(f.q));
-      if(!params.has("filter") && f.statusFilter != null)setStatusFilter(String(f.statusFilter));
-      if (typeof f.baOnly === 'boolean') setBaOnly(f.baOnly);
+      const deepLink=Boolean(params.get("processo")||params.get("search"));
+      if(!deepLink && f.q != null)setQ(String(f.q));
+      if(!deepLink && !params.has("filter") && f.statusFilter != null)setStatusFilter(String(f.statusFilter));
+      if(!deepLink && typeof f.baOnly === 'boolean')setBaOnly(f.baOnly);
     } catch { /* ignore */ }
   }, []);
 
@@ -789,6 +798,8 @@ export default function ProcessosEmpresaPage() {
                   : "Atualizar DataJud"
             }
             canManageItem={canManageItem}
+            initialProcesso={directProcess}
+            autoEditProcesso={directEdit}
             onEdit={(item) => {
               if (!canManageItem(item)) return;
               setEditing(item);
