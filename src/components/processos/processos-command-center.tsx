@@ -289,7 +289,7 @@ function KpiCard({ label, value, hint, kind = "blue", icon }: {
 
 function fmtTimelineDate(raw:string){
   if(!raw)return 'Data não informada';
-  return fmtDate(raw, /[T ]\\d{2}:\\d{2}/.test(raw));
+  return fmtDate(raw, /[T ]\d{2}:\d{2}/.test(raw));
 }
 
 type MovementResponse=Awaited<ReturnType<typeof fetchProcessosMovementsAction>>;
