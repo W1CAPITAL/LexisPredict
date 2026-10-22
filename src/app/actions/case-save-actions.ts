@@ -521,7 +521,39 @@ export async function registrarAtendimentoCompletoAction(input: {
     if (existing.updated_at) write = write.eq('updated_at', existing.updated_at);
     let saved = await write.select('id, ultimo_retorno, proximo_retorno').maybeSingle();
     if (saved.error) return { success: false, message: `Não foi possível salvar o atendimento: ${saved.error.message}` };
-    if (!saved.data) return { success: false, message: 'O processo mudou durante a edição. Atualize e registre novamente.' };
+    // Scanner/worker pode alterar updated_at enquanto a pessoa preenche
+    // a ficha. Releia uma vez para preservar as movimentações recentes e
+    // repetir somente os campos de atendimento, sem sobrescrever o processo.
+    if (!saved.data && existing.updated_at) {
+      const fresh=await loadProcessoRow(ctx.empresa_id, protocolo);
+      if (!fresh || fresh.id !== existing.id)
+        return {success:false,message:'O cadastro foi substituído durante o registro. Reabra o processo.'};
+      const changedClosure=isCasoEncerrado({
+        status:fresh.status,status_interno:fresh.status_interno,
+        situacao:resolveSituacaoFromRow(fresh,fresh.dados),
+      });
+      if(changedClosure!==wasClosed)
+        return {success:false,message:'A situação do processo mudou durante o atendimento. Confira se foi encerrado antes de continuar.'};
+      if(fresh.dados?.atendimento_event_id && fresh.dados.atendimento_event_id!==previousDados?.atendimento_event_id)
+        return {success:false,message:'Outro atendimento foi registrado enquanto este formulário estava aberto. Confira o histórico antes de salvar novamente.'};
+      const attendanceFields=[
+        'protocolo','situacao','statusManual','status','ultimoRetorno','ultimo_retorno',
+        'proximoPrazo','proximo_retorno','observacao','observacoes','atendido_por',
+        'atendido_em','atendido_por_nome','atendimento_event_id','alert_ack_at',
+        'edited_by','edited_by_name','edited_at','filaLista','atendimento_sync',
+        'tem_atualizacao_pos_retorno','djen_nova_comunicacao','tem_novo_andamento'
+      ] as const;
+      const delta=Object.fromEntries(attendanceFields.map(k=>[k,(dados as any)[k]]));
+      const refreshedPatch={...patch,dados:{...(fresh.dados&&typeof fresh.dados==='object'?fresh.dados:{}),...delta}};
+      if(fresh.datajud_encerrado_tribunal !== undefined)
+        refreshedPatch.datajud_encerrado_tribunal=fresh.datajud_encerrado_tribunal;
+      let retry=admin.from('processos').update(refreshedPatch)
+        .eq('empresa_id',ctx.empresa_id).eq('id',fresh.id);
+      if(fresh.updated_at)retry=retry.eq('updated_at',fresh.updated_at);
+      saved=await retry.select('id, ultimo_retorno, proximo_retorno').maybeSingle();
+      if(saved.error)return {success:false,message:`Falha ao registrar após atualização simultânea: ${saved.error.message}`};
+    }
+    if (!saved.data) return { success: false, message: 'O cadastro mudou novamente durante o atendimento. Nenhum registro foi confirmado; abra o processo e tente de novo.' };
 
     try {
       await logAuditoriaSistema({
