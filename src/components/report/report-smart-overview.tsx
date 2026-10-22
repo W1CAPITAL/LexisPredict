@@ -63,7 +63,7 @@ export function ReportSmartOverview(props: Props) {
     {title:"Processos na carteira",count:props.total,hint:"Total atual no sistema",icon:FileCheck2,accent:"bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"},
     {title:"Em andamento",count:props.ativos,hint:"Processos ativos, independentemente do período",icon:CheckCircle2,accent:"bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"},
     {title:"Atendidos no período",count:props.atendidos,hint:"Processos diferentes com atendimento registrado",icon:Users,accent:"bg-violet-500/10 text-violet-600 dark:text-violet-300"},
-    {title:"Retornos vencidos",count:props.vencidos,hint:"Demandam conferência e priorização",icon:AlertTriangle,accent:"bg-orange-500/10 text-orange-600 dark:text-orange-300"},
+    {title:"Vencidos no CRM",count:props.vencidos,hint:"Status cadastrado; retornos atrasados por data são outra métrica",icon:AlertTriangle,accent:"bg-orange-500/10 text-orange-600 dark:text-orange-300"},
   ];
   const questions = ["O que Davi realizou?", "Compare os atendimentos de Davi, Kris e Adriana", "Quais dossiês e projetos foram registrados?", "Quais atividades precisam de conferência?"];
   const facts = {
@@ -72,7 +72,7 @@ export function ReportSmartOverview(props: Props) {
     carteira_total: props.total,
     processos_ativos: props.ativos,
     encerrados_crm: props.encerrados,
-    processos_com_retorno_vencido: props.vencidos,
+    processos_marcados_vencidos_no_crm: props.vencidos,
     novidades: props.novidades,
     processos_atendidos_no_periodo: props.atendidos,
     eventos_de_atendimento: props.eventos,
