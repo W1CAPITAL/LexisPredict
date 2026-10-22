@@ -34,6 +34,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import {isCasoVencido} from "@/lib/vencimentos";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 // Scanner panel mounts on demand through the app's ClientChrome.
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
@@ -184,6 +185,11 @@ export default function ProcessosEmpresaPage() {
   const { active: hasSearch, cases: searchHits, searching, error: searchError } =
     useCompanyProcessSearch(qDebounced, Boolean(empresaId && authUserId),searchRefreshKey);
   const [statusFilter, setStatusFilter] = useState("");
+  useEffect(()=>{
+    const qp=new URLSearchParams(window.location.search);
+    if(qp.get("search"))setQ(qp.get("search")||"");
+    if(qp.get("filter")==="vencido")setStatusFilter("vencido");
+  },[]);
   const [baOnly, setBaOnly] = useState(false);
   const [silencioOnly, setSilencioOnly] = useState(false);
   const [sortOps, setSortOps] = useState(true);
@@ -643,7 +649,8 @@ export default function ProcessosEmpresaPage() {
   // busca por nome não funcionava e podia mostrar processos incorretos.
   const base = hasSearch ? searchHits : cases;
     let list = base.filter((c) => {
-      if (statusFilter && c.status !== statusFilter) return false;
+      if (statusFilter==="vencido"&&!isCasoVencido(c)) return false;
+      if (statusFilter && statusFilter!=="vencido" && c.status !== statusFilter) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
       if (silencioOnly) {
         const d = computeOpsLinha(c).diasTribunal;
@@ -739,6 +746,11 @@ export default function ProcessosEmpresaPage() {
               {atendidosSemanaSrv!==null ? <> · <strong>{atendidosSemanaSrv}</strong> processos com atendimento humano registrado na semana (todos os responsáveis)</> : null}
             </p>
           )}
+          <div className="flex flex-wrap gap-2 px-5 pb-3 pt-2">
+            <button type="button" onClick={()=>setStatusFilter(statusFilter==="vencido"?"":"vencido")} aria-pressed={statusFilter==="vencido"} className={"rounded-xl border px-4 py-2 text-xs font-bold "+(statusFilter==="vencido"?"border-rose-500 bg-rose-600 text-white":"border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-200")}>{statusFilter==="vencido"?"Remover filtro de vencidos":"Filtrar vencidos"}</button>
+            <Link href="/vencidos" className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:text-primary">Central de vencidos · carteira inteira</Link>
+            {statusFilter==="vencido"?<span className="self-center text-[11px] text-muted-foreground">A lista desta aba pode estar parcialmente carregada; a central consulta todos os vencidos diretamente.</span>:null}
+          </div>
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}
