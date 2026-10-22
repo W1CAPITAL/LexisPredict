@@ -541,6 +541,11 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
 
   const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
+    const nota=attendanceForm.observacao.trim();
+    if(nota.length<8){
+      toast({title:"Descreva o atendimento",description:"Registre o que foi conversado ou a tentativa de contato. Não é permitido confirmar um atendimento sem descrição.",variant:"destructive"});
+      return;
+    }
     setIsSavingAttendance(true);
     // One process per click by default; bulk changes must be opt-in and bounded
     // so many sequential server actions cannot time out the browser/session.
