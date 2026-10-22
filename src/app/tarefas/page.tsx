@@ -56,7 +56,7 @@ import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
-import {isCasoVencido} from '@/lib/vencimentos'
+import {isVencidoAcionavelCRM} from '@/lib/vencimentos'
 import { scoreGroupPriority } from '@/lib/case-priority';
 import { CaseBadges } from '@/components/cases/case-badges';
 import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
@@ -720,7 +720,7 @@ const handleSaveAttendance = async () => {
             return isAtendidoHoje(c.proximoPrazo || c.proximo_retorno || c.PROXIMO_RETORNO);
           });
         }
-        if (filaFiltro === 'vencido') return g.cases.some((c)=>isCasoVencido(c));
+        if (filaFiltro === 'vencido') return g.cases.some((c)=>isVencidoAcionavelCRM(c));
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));
