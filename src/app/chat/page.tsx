@@ -5,6 +5,8 @@
  */
 
 import { PromptLibraryPanel } from "@/components/ai/prompt-library";
+import { getSuperAgentCaseContextAction } from "@/app/actions/superagente-evidence-actions";
+import { detectSuperAgentTask } from "@/lib/ai/lexis-superagent";
 import { AiInstructionsPanel, buildInstructionsPrefix } from "@/components/ai/ai-instructions";
 import { Typewriter } from "@/components/ui/typewriter";
 
@@ -93,11 +95,11 @@ export default function AssistentePage() {
     {
       role: "assistant",
       content:
-        "Assistente Lexis. Escolha Colibri (servidor), LLM local no navegador ou cascata online. Saudações funcionam sem créditos; anexos e tarefas complexas precisam de um motor compatível.",
+        "Lexis Superagente: investigação, dossiês, atendimento e relatórios a partir de evidências. Informe um CNJ ou o nome do cliente — o sistema procura o processo autorizado. Escolha seu motor: local no navegador, Colibri ou cascata configurada. Nenhuma mensagem é enviada automaticamente.",
     },
   ]);
   const [input, setInput] = useState("");
-  const [activeInstructions, setActiveInstructions] = useState<string[]>(["conciso", "cliente"]);
+  const [activeInstructions, setActiveInstructions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [localProgress, setLocalProgress] = useState<string | null>(null);
   const [model, setModel] = useState<MotorId>("omni");
@@ -188,8 +190,19 @@ export default function AssistentePage() {
       const tryBrowserLocal = async (reason: string) => {
         if (img) throw new Error("O LLM local Qwen 0.5B não interpreta imagens. Use um motor com visão conectado.");
         setLocalProgress(reason);
+        const task=detectSuperAgentTask(displayText||text);
+        const caseContext=task!=='geral'?await getSuperAgentCaseContextAction(displayText||text):'';
+        if(task==='atendimento'&&/identidade\/processo ambíguo|nenhum processo identificável/.test(caseContext)){
+          return {
+            resposta:'Bom dia! Vou conferir as informações do seu processo e retorno por aqui assim que tiver uma atualização segura.',
+            thinking:null,sucesso:true,engineUtilizada:'SUPERAGENTE_REGRA_SEGURA',engine:'SUPERAGENTE_REGRA_SEGURA'
+          };
+        }
+        const localGuidance=task==='geral'?'':`REGRAS LEXIS SUPERAGENTE: português natural, específico, sem inventar prazos ou atos. Separe fato de hipótese. Cliente: não pedir CNJ nem telefone, responder por aqui. Dossiê: cronologia, prova, risco e ação. Modo incisivo só quando pedido expressamente; sem insultos. Nunca alegar que enviou mensagens.\n`;
+        const localContext=caseContext?caseContext.slice(0,3100):'';
         const local = await generateBrowserLocalLLM(
-          (displayText || text) + (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
+          localGuidance+(displayText || text)+ (localContext?'\n\n'+localContext:'')+
+            (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
           history,
           (p) => setLocalProgress(p.status === "progress" ? `Baixando LLM local: ${p.progress ?? 0}%` : p.message || (p.status === "generating" ? "LLM local gerando resposta..." : "Preparando LLM local...")),
         );
@@ -261,9 +274,9 @@ export default function AssistentePage() {
           <div className="flex items-center gap-2">
             <Bot className="text-primary" size={20} />
             <div>
-              <h1 className="text-sm font-black uppercase tracking-widest">Assistente IA</h1>
+              <h1 className="text-sm font-black uppercase tracking-widest">Lexis Superagente</h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                Colibri · Cascata de IA · PDF · Vision · Análise assistida
+                Processos · Investigação · Dossiês · Resposta ao cliente · Modelo local ou configurado
               </p>
             </div>
           </div>
@@ -361,7 +374,7 @@ export default function AssistentePage() {
               <PromptLibraryPanel onInsert={(t) => setInput((prev) => (prev ? prev + "\n" + t : t))} />
               <AiInstructionsPanel value={activeInstructions} onChange={setActiveInstructions} />
               <p className="text-[10px] text-muted-foreground ml-auto hidden sm:block">
-                <Typewriter texts={["Resuma o processo…", "Explique o DJEN…", "Rascunho WhatsApp…"]} baseText="Ex.: " delay={1.2} />
+                <Typewriter texts={["Investigue o processo pelo CNJ…", "Dossiê com evidências…", "Responda ao cliente por nome…"]} baseText="Ex.: " delay={1.2} />
               </p>
             </div>
 <div className="max-w-3xl mx-auto flex gap-2">
