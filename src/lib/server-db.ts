@@ -426,6 +426,7 @@ function mapProcessoRow(item: any): LegalCase {
   const dados = (item.dados && typeof item.dados === 'object') ? item.dados : {
     ...(item.merito_pendencia_json ? { merito_pendencia_20261022: item.merito_pendencia_json } : {}),
     ...(item.merito_datajud_json ? { merito_datajud_20261022: item.merito_datajud_json } : {}),
+    ...(item.merito_fonte_json ? { merito_fonte: item.merito_fonte_json } : {}),
   };
   const situacao = resolveSituacaoFromRow(item, dados);
   const statusManual = resolveStatusManualFromRow(item, dados, situacao);
