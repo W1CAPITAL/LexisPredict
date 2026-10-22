@@ -15,7 +15,7 @@ import {
 const MAX_PAGE=200;
 const DJEN_PER_PAGE=50;
 
-export async function fetchProcessosMovementsAction(recordId:string, requestedCnj:string, requestedPage=1){
+export async function fetchProcessosMovementsAction(recordId:string, requestedCnj:string, requestedPage=1, forceRefresh=false){
   const main=cnjDigits(requestedCnj);
   const page=Number(requestedPage);
   if(!main||!Number.isInteger(page)||page<1||page>MAX_PAGE){
@@ -68,8 +68,8 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
     const sourceResults=await Promise.all(cnjs.map(async cnj=>{
       // Para páginas adicionais do DJEN, não repetir toda a consulta DataJud.
       const [djResult,djenResult]=await Promise.allSettled([
-        page===1?fetchDataJud(cnj,1,{fast:true,cloudBudget:true}):Promise.resolve(null),
-        fetchDjenComunicacoes(cnj,{dataInicio:'2020-01-01',cloudBudget:true,pagina:page})
+        page===1?fetchDataJud(cnj,1,{fast:true,cloudBudget:true,forceRefresh}):Promise.resolve(null),
+        fetchDjenComunicacoes(cnj,{dataInicio:'2000-01-01',cloudBudget:true,pagina:page,forceRefresh})
       ]);
       const source:ProcessTimelineSource={cnj,linked:cnj!==main,movimentos:[],comunicacoes:[]};
       if(page===1){
@@ -107,6 +107,9 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
 
     return {
       success:true,entries,page,totalDjen,relatedCnjs,hasMore,
+      consultadoEm:new Date().toISOString(),
+      datajudMovements:sources.reduce((sum,source)=>sum+(source.movimentos?.length||0),0),
+      djenPublications:sources.reduce((sum,source)=>sum+(source.comunicacoes?.length||0),0),
       warnings,
       message:entries.length
         ? 'Movimentações carregadas das fontes oficiais, em ordem cronológica.'
