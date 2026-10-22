@@ -586,6 +586,9 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
       }
       if(confirmed.size){
         setCases(prev=>prev.map(c=>confirmed.get(c.protocolo)||c));
+        // Quando o caso veio da busca remota, atualize também o resultado
+        // remoto em vez de manter o cartão com datas antigas.
+        setSearchRefreshKey(k=>k+1);
         window.dispatchEvent(new Event("lexis-carteira-updated"));
       }
       if (!failures.length && confirmed.size) { setIsAttendanceOpen(false); setActiveGroup(null); }
