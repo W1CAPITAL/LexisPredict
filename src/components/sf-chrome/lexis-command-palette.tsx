@@ -39,7 +39,7 @@ const ITEMS: Item[] = [
   { label: "Dossiê / Relatório", href: "/report", icon: BarChart3, keywords: "report" },
   { label: "Agenda", href: "/agenda", icon: CalendarDays, keywords: "prazos" },
   { label: "Documentos", href: "/documents", icon: FileText, keywords: "procuracao" },
-  { label: "Assistente", href: "/chat", icon: Bot, keywords: "ia chatbot" },
+  { label: "Superagente", href: "/chat", icon: Bot, keywords: "ia chatbot investigacao dossie atendimento relatorio predictlm" },
   { label: "Importar", href: "/import", icon: Upload, keywords: "csv planilha" },
   { label: "Configurações", href: "/settings", icon: Settings, keywords: "senha tema" },
 ];
