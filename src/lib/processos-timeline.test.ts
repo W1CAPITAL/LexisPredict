@@ -21,6 +21,16 @@ describe('/processos · Mov. cronologia completa',()=>{
     expect(entries.at(-1)?.label).toBe('Movimento nº 0');
   });
 
+  it('classifica petições e despachos posteriores ao início do cumprimento no mesmo CNJ',()=>{
+    const entries=buildProcessTimeline(principal,[{cnj:principal,movimentos:[
+      {nome:'Sentença',dataHora:'2026-05-01'},
+      {nome:'Início de cumprimento de sentença',dataHora:'2026-06-01'},
+      {nome:'Petição juntada',dataHora:'2026-07-01'},
+      {nome:'Despacho',dataHora:'2026-08-01'}
+    ]}]);
+    expect(entries.map(e=>e.phase)).toEqual(['cumprimento','cumprimento','cumprimento','conhecimento']);
+  });
+
   it('inclui a fase executiva de outro CNJ somente com vínculo explícito',()=>{
     const links=linkedCumprimentoCnjs({
       cnj_cumprimento:cumprimento,
