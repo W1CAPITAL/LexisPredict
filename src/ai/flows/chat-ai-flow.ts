@@ -16,6 +16,8 @@ import { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
 import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 import { bpmnSkillContext } from '@/lib/bpmn-skill';
 import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
+import { superAgentInstructions, detectSuperAgentTask } from '@/lib/ai/lexis-superagent';
+import { retrieveAuthorizedCaseEvidence } from '@/lib/ai/lexis-superagent-evidence';
 import { retrieveNeedleEvidence, retrieveCuratedLexisEvidence, formatKnowledgeEvidence } from '@/lib/ai/needle-rag';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
@@ -133,7 +135,8 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
       sucesso: true,
     };
   }
-  const simple = isSimplePrompt(pergunta, hasImg || hasPdf);
+  const detectedTask = detectSuperAgentTask(pergunta);
+  const simple = detectedTask === 'geral' && isSimplePrompt(pergunta, hasImg || hasPdf);
   const preferred = normalizeAssistantMotorChoice(input.preferred || input.preferredModel);
   const cognitivePlan = buildCognitivePlan({
     text: pergunta || (hasPdf ? 'ler documento' : 'analisar imagem'),
@@ -153,9 +156,18 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     userContent += `\n\n--- PDF${input.pdfName ? ` (${input.pdfName})` : ''} ---\n${String(input.pdfText).slice(0, 32000)}\n--- FIM ---`;
   }
 
-  // Se citou CNJ e ainda nao ha contexto tribunal: puxa DJEN automaticamente.
+  // O Superagente pesquisa primeiro a carteira autenticada: CNJ ou nome.
+  // Sem identidade segura, nunca usa dados de outro processo.
+  const caseEvidence = !simple ? await retrieveAuthorizedCaseEvidence(pergunta) : '';
+  if(caseEvidence)userContent+='\n\n'+caseEvidence;
+  // Se já localizou um CNJ inequívoco na carteira, usa-o também na consulta
+  // DJEN, sem pedir número ao cliente. Contexto de integração sem cookie nunca
+  // pode acessar dados da carteira (o helper exige sessão autorizada).
   let tribunalCtx = input.tribunalContext || '';
-  const cnj = extractCnjFromText(pergunta + ' ' + (input.pdfText || '').slice(0, 500));
+  const fromCarteira = caseEvidence.includes('[EVIDÊNCIAS INTERNAS AUTORIZADAS')
+    ? caseEvidence.match(/\bCNJ:\s*([0-9.\-]{20,28})/)?.[1] : undefined;
+  const cnj = extractCnjFromText(pergunta + ' ' + (input.pdfText || '').slice(0, 500))
+    || (fromCarteira ? fromCarteira.replace(/\D/g,'') : null);
 
   if (cnj && !String(tribunalCtx).trim()) {
     try {
@@ -214,7 +226,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const bpmnSystem = bpmnHint ? `\n\n${bpmnHint}` : '';
   const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
-  const skillSystem = lexisAgentGuidance(pergunta);
+  const skillSystem = lexisAgentGuidance(pergunta)+ '\n\n'+superAgentInstructions(pergunta);
   // Internal curated knowledge is available without tokens.
   // Needle is a separate optional RAG source for safe, generic questions only:
   // never send PDFs, images, case IDs, or personal data to an external index.
@@ -241,7 +253,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     let gate = runQualityGate({
       text: parsed.answer,
       requireEvidence: cognitivePlan.intent === 'legal-research' && Boolean(tribunalCtx),
-      evidenceCount: tribunalCtx ? 1 : 0,
+      evidenceCount: Number(Boolean(tribunalCtx))+Number(Boolean(caseEvidence.includes('[EVIDÊNCIAS INTERNAS AUTORIZADAS'))),
     });
     let engine = `${r.engineId}:${r.model}`;
     let latency = r.latencyMs;
