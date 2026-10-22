@@ -86,9 +86,11 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
         fetchDjenComunicacoes(cnj,{dataInicio:'2000-01-01',cloudBudget:true,pagina:page,forceRefresh})
       ]);
       const source:ProcessTimelineSource={cnj,linked:cnj!==main,movimentos:[],comunicacoes:[]};
+      let officialSuccess=false;
       if(page===1){
         if(djResult.status==='fulfilled'&&djResult.value&&!djResult.value.error){
           if(cnjDigits(djResult.value.numeroProcesso)===cnj){
+            officialSuccess=true;
             source.movimentos=Array.isArray(djResult.value.movimentos)?djResult.value.movimentos:[];
             source.classe=String(djResult.value.classe||'');
           }else warnings.push('DataJud retornou número divergente para '+formatCnj(cnj)+'; dados descartados.');
@@ -100,16 +102,24 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
       let count=0;
       if(djenResult.status==='fulfilled'&&djenResult.value?.success){
         const djen=djenResult.value;
+        officialSuccess=true;
         source.comunicacoes=djen.items||[];
         count=Number(djen.count)||source.comunicacoes.length;
       }else{
         warnings.push('DJEN indisponível para '+formatCnj(cnj)+': '+
           (djenResult.status==='rejected'?String(djenResult.reason):String(djenResult.value?.error||'sem resposta')));
       }
-      return {source,count};
+      return {source,count,officialSuccess};
     }));
 
     const sources=sourceResults.map(x=>x.source);
+    // Não rotular o cadastro como consulta oficial se ambas as fontes falharam.
+    if(!sourceResults.some(x=>x.officialSuccess)){
+      return {
+        success:false,entries:[],page,totalDjen:0,relatedCnjs,hasMore:false,warnings,
+        message:'A consulta aos tribunais falhou; exibindo somente o resumo salvo. Clique novamente para tentar ou confira o processo no site do tribunal.'
+      };
+    }
     const totalDjen=sourceResults.reduce((sum,x)=>sum+x.count,0);
     const hasMore=sourceResults.some(x=>page*DJEN_PER_PAGE<x.count);
     const entries=buildProcessTimeline(main,sources,page===1?{
