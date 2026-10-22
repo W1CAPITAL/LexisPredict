@@ -1,13 +1,16 @@
 /* Browser-only model. Does not send user prompts to a hosted inference endpoint.
  * Pinned Transformers.js v3 and quantized Qwen 0.5B ONNX, downloaded/cached on first use.
  */
-const MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
+const MODELS = Object.freeze({ qwen3: 'onnx-community/Qwen3-0.6B-ONNX', gemma3: 'onnx-community/gemma-3-270m-it-ONNX' });
+let loadedModelId = null;
 let generator = null;
 let loading = null;
 function emit(requestId, status, extra = {}) {
   self.postMessage({ requestId, status, ...extra });
 }
-async function initialize(requestId) {
+async function initialize(requestId, selectedModel = 'qwen3') {
+  const modelId = MODELS[selectedModel] || MODELS.qwen3;
+  if (loadedModelId !== modelId) { generator = null; loading = null; }
   if (generator) return generator;
   if (loading) return loading;
   loading = (async () => {
@@ -16,7 +19,7 @@ async function initialize(requestId) {
     // local network prevents model downloads. The URL is pinned to a public
     // tokenizer configuration, never sends the user's prompt.
     try {
-      const probe = await fetch('https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/config.json', {
+      const probe = await fetch('https://huggingface.co/' + modelId + '/resolve/main/config.json', {
         cache: 'force-cache', signal: AbortSignal.timeout(12000),
       });
       if (!probe.ok) throw new Error('Hugging Face respondeu HTTP ' + probe.status);
@@ -47,15 +50,17 @@ async function initialize(requestId) {
     if(!gpuReady && memory && memory<=4){
       emit(requestId,'loading',{message:'Memória limitada detectada. Tentando Qwen 0.5B compactado na CPU; outras abas abertas podem reduzir a velocidade.'});
     }
-    const opts={dtype:'q4',device:gpuReady?'webgpu':'wasm',progress_callback};
+    const opts={dtype:selectedModel === 'gemma3' ? 'fp32' : (gpuReady ? 'q4f16' : 'q4'),device:gpuReady?'webgpu':'wasm',progress_callback};
     try{
-      generator=await lib.pipeline('text-generation',MODEL,opts);
+      generator=await lib.pipeline('text-generation',modelId,opts);
+      loadedModelId = modelId;
     }catch(primaryError){
       emit(requestId,'loading',{message:'Ajustando compatibilidade do modelo para CPU/WASM...'});
       try{
-        generator=await lib.pipeline('text-generation',MODEL,{
-          ...opts,device:'wasm',dtype:'q8',numThreads:Math.max(1,Math.min(4,cores-1)),
+        generator=await lib.pipeline('text-generation',modelId,{
+          ...opts,device:'wasm',dtype:selectedModel === 'gemma3' ? 'fp32' : 'q4',numThreads:Math.max(1,Math.min(4,cores-1)),
         });
+        loadedModelId = modelId;
       }catch(fallbackError){
         const detail=String(fallbackError?.message||primaryError);
         throw new Error(/fetch|network|load/i.test(detail)
@@ -70,7 +75,7 @@ async function initialize(requestId) {
 }
 let running = false;
 self.onmessage = async event => {
-  const { requestId, prompt, history, maxTokens } = event.data || {};
+  const { requestId, prompt, history, maxTokens, selectedModel = 'qwen3' } = event.data || {};
   if (!requestId || typeof prompt !== 'string') return;
   if (running) {
     emit(requestId, 'error', { error: 'O modelo local já está respondendo. Aguarde.' });
@@ -78,7 +83,7 @@ self.onmessage = async event => {
   }
   running = true;
   try {
-    const model = await initialize(requestId);
+    const model = await initialize(requestId, selectedModel);
     emit(requestId, 'generating', { message: 'Gerando resposta sem enviar sua pergunta a uma API externa...' });
     const recent = Array.isArray(history) ? history.filter(x => x?.role === 'user' || x?.role === 'assistant').slice(-6) : [];
     const messages = [
@@ -95,7 +100,7 @@ self.onmessage = async event => {
     let text = typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw.at(-1)?.content || '') : '';
     text = text.replace(/<\|im_end\|>|<\|eot_id\|>/g, '').trim();
     if (!text) throw new Error('Modelo local retornou resposta vazia.');
-    emit(requestId, 'complete', { text, model: MODEL, device: self.navigator?.gpu ? 'webgpu/wasm' : 'wasm' });
+    emit(requestId, 'complete', { text, model: loadedModelId || MODELS.qwen3, device: self.navigator?.gpu ? 'webgpu/wasm' : 'wasm' });
   } catch (error) {
     emit(requestId, 'error', { error: String(error?.message || error).slice(0, 300) });
   } finally {
