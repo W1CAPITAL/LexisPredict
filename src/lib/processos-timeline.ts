@@ -72,12 +72,21 @@ export function buildProcessTimeline(
     const cnj=cnjDigits(source.cnj);
     if(!cnj)continue;
     const linked=!!source.linked || cnj!==base;
-    for(const item of source.movimentos||[]){
-      const m=normalizeDataJudMovimento(item);
+    // No mesmo CNJ, atos posteriores à abertura da fase executiva continuam
+    // sendo do cumprimento, mesmo que intitulados apenas "Petição" ou "Despacho".
+    const normalized=(source.movimentos||[]).map(normalizeDataJudMovimento);
+    const phaseStart=normalized
+      .filter(m=>phaseFor(clean(m.nome)+' '+clean(m.complemento),false)==='cumprimento')
+      .map(m=>eventMillis(movementDate(m)))
+      .filter(ts=>ts>0)
+      .sort((a,b)=>a-b)[0]||0;
+    for(const item of normalized){
+      const m=item;
       const date=movementDate(m);
       const label=clean(m.nome||'Movimentação processual');
       const detail=clean(m.complemento||m.descricao||'');
-      add({cnj,date,label,detail,source:'DataJud',phase:phaseFor(label+' '+detail+' '+(source.classe||''),linked)});
+      const inCumprimento=linked || (phaseStart>0 && eventMillis(date)>=phaseStart);
+      add({cnj,date,label,detail,source:'DataJud',phase:phaseFor(label+' '+detail+' '+(source.classe||''),inCumprimento)});
     }
     for(const item of source.comunicacoes||[]){
       if(!item||typeof item!=='object')continue;
