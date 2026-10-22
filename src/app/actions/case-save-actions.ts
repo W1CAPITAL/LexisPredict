@@ -534,7 +534,7 @@ export async function registrarAtendimentoCompletoAction(input: {
       });
       if(changedClosure!==wasClosed)
         return {success:false,message:'A situação do processo mudou durante o atendimento. Confira se foi encerrado antes de continuar.'};
-      if(fresh.dados?.atendimento_event_id && fresh.dados.atendimento_event_id!==previousDados?.atendimento_event_id)
+      if(fresh.dados?.atendimento_event_id && fresh.dados.atendimento_event_id!==(previousDados as any)?.atendimento_event_id)
         return {success:false,message:'Outro atendimento foi registrado enquanto este formulário estava aberto. Confira o histórico antes de salvar novamente.'};
       const attendanceFields=[
         'protocolo','situacao','statusManual','status','ultimoRetorno','ultimo_retorno',
