@@ -544,7 +544,7 @@ export async function registrarAtendimentoCompletoAction(input: {
         'tem_atualizacao_pos_retorno','djen_nova_comunicacao','tem_novo_andamento'
       ] as const;
       const delta=Object.fromEntries(attendanceFields.map(k=>[k,(dados as any)[k]]));
-      const refreshedPatch={...patch,dados:{...(fresh.dados&&typeof fresh.dados==='object'?fresh.dados:{}),...delta}};
+      const refreshedPatch:Record<string,any>={...patch,dados:{...(fresh.dados&&typeof fresh.dados==='object'?fresh.dados:{}),...delta}};
       if(fresh.datajud_encerrado_tribunal !== undefined)
         refreshedPatch.datajud_encerrado_tribunal=fresh.datajud_encerrado_tribunal;
       let retry=admin.from('processos').update(refreshedPatch)
