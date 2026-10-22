@@ -37,7 +37,8 @@ function pessoaDescricao(x:PessoaResumo){
 }
 export function responderRelatorioPergunta(raw:string,f:IndicadoresRelatorio):string {
  const q=norm(raw.trim());
- const who=f.equipe.find(x=>norm(x.nome).split(/\s+/).some((part,i)=>i===0&&part.length>2&&new RegExp("(^|\\W)"+part+"(\\W|$)").test(q)));
+ const terms=new Set(q.split(/[^a-z0-9]+/).filter(Boolean));
+ const who=f.equipe.find(x=>{const first=norm(x.nome).split(/[^a-z0-9]+/).filter(Boolean)[0];return !!first&&first.length>2&&terms.has(first);});
  if(who && /(fez|fazer|trabalho|atividade|entreg|produtiv|atend|edit|encerr|dossie|investig|audit|projet|sistema|resum|quant)/.test(q)){
    return pessoaDescricao(who)+" As fontes de atendimento, tarefas e auditoria podem referir-se aos mesmos processos; não devem ser somadas.";
  }
