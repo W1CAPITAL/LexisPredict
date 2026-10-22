@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { AlertTriangle, ArrowRight, BarChart3, BrainCircuit, CheckCircle2, ChevronRight, CircleHelp, FileCheck2, Loader2, MessageSquareText, ShieldCheck, Sparkles, Square, Users } from "lucide-react";
 import { generateBrowserLocalLLM, stopBrowserLocalLLM } from "@/lib/ai/browser-local-llm";
+import {responderRelatorioPergunta, type IndicadoresRelatorio} from "@/lib/report/report-instant-answer";
 
 type Day = { ymd: string; atendimentos: number };
 type MemberBrief = {nome:string;atendimentos:{processos:number;eventos:number};edicoes:{processos:number;eventos:number};encerramentos:{processos:number;eventos:number};atividades:number;trabalho:number;verificacoesLote:number;categorias:Array<{categoria:string;registros:number}>;entregas:string[]};
@@ -57,6 +58,7 @@ export function ReportSmartOverview(props: Props) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastQuestion, setLastQuestion] = useState("");
+  const [answerSource, setAnswerSource] = useState<"instant"|"llm">("instant");
   const activePct = props.total && props.ativos != null ? Math.max(0,Math.min(100,Math.round(100*props.ativos/props.total))) : null;
   const closedPct = activePct == null ? null : 100-activePct;
   const maxDaily = Math.max(1,...props.dias.map(d=>d.atendimentos || 0));
@@ -88,35 +90,51 @@ export function ReportSmartOverview(props: Props) {
     equipe: (props.equipe||[]).map(p=>({nome:p.nome,atendimentos:p.atendimentos,edicoes:p.edicoes,encerramentos:p.encerramentos,atividades:p.atividades,trabalho:p.trabalho,verificacoesLote:p.verificacoesLote,categorias:p.categorias,entregas:p.entregas})),
     atendimentos_por_dia: props.dias
   };
-  async function ask(event?: FormEvent<HTMLFormElement>, suggested?: string) {
+  const instantFacts:IndicadoresRelatorio={
+    periodo:props.periodLabel,total:props.total,ativos:props.ativos,encerrados:props.encerrados,
+    vencidos:props.vencidos,novidades:props.novidades,atendidos:props.atendidos,eventos:props.eventos,
+    semRetorno30:props.semRetorno30,naoLocalizados:props.naoLocalizados,meritoPendente:props.meritoPendente,
+    encerradosEmCumprimento:props.encerradosEmCumprimento,improcedentesOficiais:props.improcedentesOficiais,
+    procedentesOficiais:props.procedentesOficiais,parciaisOficiais:props.parciaisOficiais,
+    semMeritoOficial:props.semMeritoOficial,equipe:props.equipe||[],
+  };
+  function ask(event?: FormEvent<HTMLFormElement>, suggested?: string){
     event?.preventDefault();
-    const input = (suggested || question).trim().slice(0,260);
-    if (!input || busy) return;
-    setQuestion(input);setLastQuestion(input);setBusy(true);setError("");setAnswer("");
-    setProgress("Preparando o LLM local…");
-    try {
-      const prompt = [
-        "Você é um analista de gestão jurídica do LexisPredict. Responda em português brasileiro simples, de maneira objetiva e humana, em até 150 palavras.",
-        "Use SOMENTE os números do JSON. Nada de inventar processos, culpados, causa de perda, sentença, prazos ou probabilidades.",
-        "Diferencie encerramento administrativo de julgamento de mérito. Se o dado estiver nulo, diga que não está disponível.",
-        "Os dados de carteira são atuais, mas atendimentos e trabalhos são do período escolhido. Não some categorias que podem se sobrepor. Para perguntas por pessoa, preserve exatamente a autoria atribuída.",
-        "Atividades individuais, registros de auditoria e eventos de atendimento usam fontes separadas. Verificações em lote não são tarefas manuais unitárias nem contatos. Nunca diga que ausência de registro prova ausência de trabalho.",
-        "Forneça uma observação útil e, quando couber, uma ação prática de conferência. Não afirme ter conferido autos individualmente.",
-        "Dados reais agregados: " + JSON.stringify(facts),
-        "Pergunta: " + input
-      ].join("\n");
-      const response = await generateBrowserLocalLLM(prompt,[], p => {
-        setProgress(p.status === "progress" ? "Preparando modelo local: " + (p.progress ?? 0) + "%" : p.message || "Gerando análise local…");
-      });
-      if (!response.text.trim()) throw new Error("O motor local não retornou uma análise.");
-      setAnswer(response.text.replace(/<\s*thinking\s*>[\s\S]*?<\s*\/\s*thinking\s*>/gi,"").replace(/<\s*\/?\s*(answer|thinking)\s*>/gi,"").trim());
-      setProgress("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível executar o LLM local.");
-      setProgress("");
-    } finally { setBusy(false); }
+    const input=(suggested||question).trim().slice(0,260);
+    if(!input)return;
+    // Resposta sempre imediata e fundamentada no snapshot. Nenhuma inferência pesada inicia automaticamente.
+    const text=responderRelatorioPergunta(input,instantFacts);
+    setQuestion(input);setLastQuestion(input);setError("");setProgress("");
+    setAnswer(text);setAnswerSource("instant");
   }
-  const canAsk=question.trim().length>0 && !busy;
+  async function enhanceWithLocal(){
+    if(!answer||!lastQuestion||busy)return;
+    const base=answer;
+    setBusy(true);setError("");setProgress("Verificando GPU antes de iniciar o Qwen opcional…");
+    try{
+      // A pergunta vai primeiro. O worker limita o prompt; nunca envie o JSON inteiro seguido da pergunta.
+      const smallPrompt=[
+        "PERGUNTA: "+lastQuestion.slice(0,220),
+        "TAREFA: reescreva em português claro e fiel o resumo abaixo, sem acrescentar fatos, atos, causas, nomes ou números. Máximo 90 palavras.",
+        "RESUMO CONFERIDO: "+base.slice(0,1250),
+      ].join("\n");
+      const response=await generateBrowserLocalLLM(smallPrompt,[],p=>{
+        setProgress(p.status==="progress"
+          ?"Download do modelo: "+(p.progress??0)+"% (ainda não é a resposta)"
+          : p.status==="generating"?"Modelo gerando texto na GPU…"
+          : p.message||"Preparando modelo opcional…");
+      },{requireWebGpu:true,maxTokens:96,timeoutMs:45000});
+      const result=response.text.replace(/<\s*thinking\s*>[\s\S]*?<\s*\/\s*thinking\s*>/gi,"")
+        .replace(/<\s*\/?\s*(thinking|answer)\s*>/gi,"").trim();
+      if(!result)throw new Error("O modelo não retornou texto.");
+      // A análise instantânea permanece visível mesmo que a geração experimental falhe.
+      setAnswer(result);setAnswerSource("llm");setProgress("");
+    }catch(e){
+      setError("O refinamento por Qwen não concluiu: "+(e instanceof Error?e.message:"falha do modelo")+". A resposta conferida continua disponível acima.");
+      setProgress("");
+    }finally{setBusy(false);}
+  }
+  const canAsk=question.trim().length>0;
   return <div className="space-y-5">
     <div className="relative overflow-hidden rounded-[1.75rem] border border-indigo-200/60 bg-gradient-to-br from-indigo-50 via-violet-50 to-rose-50 p-5 shadow-sm dark:border-indigo-400/20 dark:from-indigo-950/60 dark:via-violet-950/30 dark:to-slate-950 sm:p-7">
       <div className="pointer-events-none absolute -right-14 -top-24 h-72 w-72 rounded-full bg-violet-400/10 blur-3xl" />
@@ -191,7 +209,7 @@ export function ReportSmartOverview(props: Props) {
     <section className="overflow-hidden rounded-[1.5rem] border border-indigo-300/40 bg-card shadow-sm dark:border-violet-400/20" aria-labelledby="report-llm-heading">
       <div className="flex items-center gap-3 border-b border-border/70 bg-gradient-to-r from-indigo-500/5 via-violet-500/5 to-transparent px-5 py-5 sm:px-6">
         <span className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-300"><BrainCircuit className="h-6 w-6"/></span>
-        <div className="min-w-0"><h3 id="report-llm-heading" className="text-lg font-extrabold">Pergunte ao relatório</h3><p className="text-xs text-muted-foreground">LLM Qwen 0.5B local no navegador · sem API paga · resposta baseada nos indicadores</p></div>
+        <div className="min-w-0"><h3 id="report-llm-heading" className="text-lg font-extrabold">Pergunte ao relatório</h3><p className="text-xs text-muted-foreground">Análise instantânea dos dados · Qwen local opcional (somente WebGPU)</p></div>
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         <div className="flex flex-wrap gap-2">
@@ -200,17 +218,22 @@ export function ReportSmartOverview(props: Props) {
         <form onSubmit={ask} className="flex flex-col gap-2 sm:flex-row">
           <label htmlFor="report-intelligence-question" className="sr-only">Sua pergunta sobre o relatório</label>
           <input id="report-intelligence-question" maxLength={260} value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ex.: O que cada colaborador realizou neste mês?" className="min-h-12 w-full min-w-0 flex-1 rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/>
-          <button type="submit" disabled={!canAsk} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50">{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<MessageSquareText className="h-4 w-4"/>}{busy?"Analisando…":"Analisar"}<ArrowRight className="h-4 w-4"/></button>
-          {busy?<button type="button" onClick={()=>stopBrowserLocalLLM()} className="inline-flex min-h-12 items-center justify-center gap-1 rounded-xl border border-border px-3 text-xs"><Square className="h-3 w-3"/> Parar</button>:null}
+          <button type="submit" disabled={!canAsk} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"><MessageSquareText className="h-4 w-4"/> Responder agora<ArrowRight className="h-4 w-4"/></button>
         </form>
         {busy?<p role="status" className="text-xs text-muted-foreground">{progress}</p>:null}
-        {error?<div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-foreground"><strong>LLM local indisponível.</strong> {error} Os indicadores acima continuam disponíveis normalmente.</div>:null}
+        {error?<div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-foreground"><strong>Resposta instantânea preservada.</strong> {error}</div>:null}
         {answer?<div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/60 p-5 dark:border-indigo-400/20 dark:bg-indigo-400/5">
-          <p className="mb-2 flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300"><Sparkles className="h-4 w-4"/> Análise local · {lastQuestion}</p>
+          <p className="mb-2 flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300"><Sparkles className="h-4 w-4"/> {answerSource==="instant"?"Análise dos dados":"Texto refinado pelo Qwen"} · {lastQuestion}</p>
           <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{answer}</p>
-          <p className="mt-4 text-xs text-muted-foreground">Texto gerado por um modelo pequeno. Confira as conclusões nos números e evidências do relatório.</p>
+          <p className="mt-4 text-xs text-muted-foreground">{answerSource==="instant"?"Resposta calculada diretamente dos registros, sem modelo pesado.":"Texto reformulado por modelo pequeno. Confira os números nos indicadores."}</p>
         </div>:null}
-        <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 h-4 w-4 shrink-0"/> A primeira utilização baixa o modelo para o navegador e pode exigir memória e WebGPU. Apenas os indicadores agregados acima são enviados ao motor local; nenhuma mensagem é enviada a clientes e nenhum processo é alterado.</p>
+        {answer?<div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={()=>void enhanceWithLocal()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-indigo-300/60 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-500/5 disabled:opacity-50 dark:text-indigo-200">
+            {busy?<Loader2 className="h-4 w-4 animate-spin"/>:<BrainCircuit className="h-4 w-4"/>} Melhorar texto com Qwen (opcional)
+          </button>
+          {busy?<button type="button" onClick={()=>{stopBrowserLocalLLM();setBusy(false);setProgress("");}} className="inline-flex items-center gap-1 rounded-xl border border-border px-3 py-2 text-xs"><Square className="h-3 w-3"/> Parar modelo</button>:null}
+        </div>:null}
+        <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 h-4 w-4 shrink-0"/> O relatório responde imediatamente, mesmo sem LLM. O Qwen é opcional e só inicia por escolha sua, com GPU compatível e limite de tempo; não há fallback automático para CPU. Nenhuma mensagem é enviada a clientes.</p>
       </div>
     </section>
   </div>;
