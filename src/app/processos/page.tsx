@@ -321,8 +321,8 @@ export default function ProcessosEmpresaPage() {
       if(wasClosed!==nowClosed){
         setAtivosCount(n=>n===null?n:Math.max(0,n+(nowClosed?-1:1)));
         setEncerradosCount(n=>n===null?n:Math.max(0,n+(nowClosed?1:-1)));
-        const wasOverdue=previous.status==="Vencido"||previous.status==="Caso Crítico";
-        const nowOverdue=updated.status==="Vencido"||updated.status==="Caso Crítico";
+        const wasOverdue=isCasoVencido(previous);
+        const nowOverdue=isCasoVencido(updated);
         setVencidosCount(n=>n===null?n:Math.max(0,n+(nowClosed?0:Number(nowOverdue))-(wasClosed?0:Number(wasOverdue))));
       }
     }
@@ -387,8 +387,9 @@ export default function ProcessosEmpresaPage() {
       const raw = localStorage.getItem('lexis_processos_filters_v1');
       if (!raw) return;
       const f = JSON.parse(raw);
-      if (f.q != null) setQ(String(f.q));
-      if (f.statusFilter != null) setStatusFilter(String(f.statusFilter));
+      const params=new URLSearchParams(window.location.search);
+      if(!params.has("search") && f.q != null)setQ(String(f.q));
+      if(!params.has("filter") && f.statusFilter != null)setStatusFilter(String(f.statusFilter));
       if (typeof f.baOnly === 'boolean') setBaOnly(f.baOnly);
     } catch { /* ignore */ }
   }, []);
@@ -628,7 +629,7 @@ export default function ProcessosEmpresaPage() {
   const editadosApp = useMemo(() => countEditadosAppSemana(cases), [cases]);
   const auditadosHoje = useMemo(() => countAuditadosHoje(cases), [cases]);
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
-  const vencidos = useMemo(() => ativos.filter((c) => c.status === "Vencido" || c.status === "Caso Crítico"), [ativos]);
+  const vencidos = useMemo(() => ativos.filter((c) => isCasoVencido(c)), [ativos]);
 
   // Ranking da EMPRESA vem do servidor (não do array cases, que pode ser parcial/pessoal)
   const topAtendentes = topAtendentesSrv;
@@ -650,7 +651,8 @@ export default function ProcessosEmpresaPage() {
   const base = hasSearch ? searchHits : cases;
     let list = base.filter((c) => {
       if (statusFilter==="vencido"&&!isCasoVencido(c)) return false;
-      if (statusFilter && statusFilter!=="vencido" && c.status !== statusFilter) return false;
+      if (statusFilter && statusFilter!=="vencido" && statusFilter!=="Vencido" && c.status !== statusFilter) return false;
+      if (statusFilter==="Vencido" && !isCasoVencido(c)) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
       if (silencioOnly) {
         const d = computeOpsLinha(c).diasTribunal;
