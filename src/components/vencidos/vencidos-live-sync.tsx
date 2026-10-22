@@ -12,6 +12,7 @@ export function VencidosLiveSync(){
  const [refreshing,startTransition]=useTransition();
  const [last,setLast]=useState("");
  const refreshedAt=useRef(0);
+ const initialized=useRef(false);
  const request=()=>{
   if(document.hidden||Date.now()-refreshedAt.current<2500)return;
   refreshedAt.current=Date.now();
@@ -25,7 +26,7 @@ export function VencidosLiveSync(){
   const onFocus=()=>{if(Date.now()-refreshedAt.current>45000)updated();};
   const onVisible=()=>{if(!document.hidden&&Date.now()-refreshedAt.current>45000)updated();};
   // Revalidar no primeiro acesso também evita mostrar payload prefetched desatualizado.
-  updated();
+  if(!initialized.current){initialized.current=true;updated();}
   window.addEventListener("lexis-carteira-updated",updated);
   window.addEventListener("storage",onStorage);
   window.addEventListener("focus",onFocus);
