@@ -759,7 +759,7 @@ export default function ProcessosEmpresaPage() {
           )}
           <div className="flex flex-wrap gap-2 px-5 pb-3 pt-2">
             <button type="button" onClick={()=>setStatusFilter(statusFilter==="vencido"?"":"vencido")} aria-pressed={statusFilter==="vencido"} className={"rounded-xl border px-4 py-2 text-xs font-bold "+(statusFilter==="vencido"?"border-rose-500 bg-rose-600 text-white":"border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-200")}>{statusFilter==="vencido"?"Remover filtro de vencidos":"Filtrar vencidos"}</button>
-            <Link href="/vencidos" className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:text-primary">Central de vencidos · carteira inteira</Link>
+            <Link href="/vencidos" prefetch={false} className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:text-primary">Central de vencidos · carteira inteira</Link>
             {statusFilter==="vencido"?<span className="self-center text-[11px] text-muted-foreground">A lista desta aba pode estar parcialmente carregada; a central consulta todos os vencidos diretamente.</span>:null}
           </div>
           <ProcessosCommandCenter
