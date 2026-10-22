@@ -8,9 +8,6 @@ export const STATUS_ENCERRADOS = [
   'ENCERRADO',
   'ARQUIVADO',
   'EXTINTO',
-  'SUSPENSO',
-  'IMOVEL',
-  'IMÓVEL',
   'BAIXA DEFINITIVA',
   'ARQUIVAMENTO',
 ];
@@ -31,9 +28,7 @@ function hasStrongEncerrado(s: string): boolean {
   if (/\bENCERRAD[OA]\b/.test(u) || u.includes('ENCERRADO') || u.includes('ENCERRADA')) return true;
   if (u.includes('ARQUIVADO') || u.includes('ARQUIVAMENTO')) return true;
   if (u.includes('EXTINTO') || u.includes('EXTINÇÃO') || u.includes('EXTINCAO')) return true;
-  if (u.includes('SUSPENSO')) return true;
   if (u.includes('BAIXA DEFINITIVA')) return true;
-  if (u.includes('IMOVEL') || u.includes('IMÓVEL')) return true;
   if (u.includes('FINALIZADO') || u.includes('FINALIZADA')) return true;
   return false;
 }
@@ -141,6 +136,14 @@ export function isBaixaTribunal(c: any): boolean {
 export function isCandidatoAutoEncerrarTribunal(c: any): boolean {
   if (!c) return false;
   const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  // Improcedência, procedência, suspensão e julgamento sem trânsito não bastam para a baixa.
+  // Evitar encerrar enquanto há cumprimento ou medida executiva pendente.
+  if (isCasoEncerrado(c)) return false;
+  if (
+    c.em_cumprimento_sentenca || c.cumprimento_pendente_necessario ||
+    dados.em_cumprimento_sentenca || dados.cumprimento_pendente_necessario ||
+    dados.cumprimento_ativo
+  ) return false;
 
   // Já auto-encerrado pelo scanner → não reprocessar
   if (c.via_scan_auto_encerrar || dados.via_scan_auto_encerrar) return false;
