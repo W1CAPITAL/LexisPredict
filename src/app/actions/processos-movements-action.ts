@@ -9,13 +9,27 @@ import { fetchDataJud } from '@/lib/datajud';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 import {
   buildProcessTimeline, cnjDigits, formatCnj, linkedCumprimentoCnjs,
-  type ProcessTimelineSource
+  type ProcessTimelineSource, type ProcessTimelineEntry
 } from '@/lib/processos-timeline';
+
+export type ProcessMovementsResult = {
+  success:boolean;
+  entries:ProcessTimelineEntry[];
+  message:string;
+  hasMore:boolean;
+  page:number;
+  totalDjen:number;
+  relatedCnjs:string[];
+  warnings:string[];
+  consultadoEm?:string;
+  datajudMovements?:number;
+  djenPublications?:number;
+};
 
 const MAX_PAGE=200;
 const DJEN_PER_PAGE=50;
 
-export async function fetchProcessosMovementsAction(recordId:string, requestedCnj:string, requestedPage=1, forceRefresh=false){
+export async function fetchProcessosMovementsAction(recordId:string, requestedCnj:string, requestedPage=1, forceRefresh=false):Promise<ProcessMovementsResult>{
   const main=cnjDigits(requestedCnj);
   const page=Number(requestedPage);
   if(!main||!Number.isInteger(page)||page<1||page>MAX_PAGE){
