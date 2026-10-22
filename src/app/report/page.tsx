@@ -125,6 +125,10 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       naoLocalizados={meritoOficial?.nao_localizados??null}
       meritoPendente={meritoOficial?.nao_determinados??null}
       encerradosEmCumprimento={meritoOficial?.encerrados_cumprimento??null}
+      improcedentesOficiais={meritoOficial?.improcedentes??null}
+      procedentesOficiais={meritoOficial?.procedentes??null}
+      parciaisOficiais={meritoOficial?.parciais??null}
+      semMeritoOficial={meritoOficial?.sem_merito??null}
       dias={hist?.dias?.map(d=>({ymd:d.ymd,atendimentos:d.atendimentos}))??[]}
     />
     <details className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
