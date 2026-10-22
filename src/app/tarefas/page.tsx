@@ -303,16 +303,15 @@ export default function TarefasPage() {
           scope: taskCaseScope,
           onPage: (partial, page) => {
             if(!active())return;
-            // Entrega incremental: cada lote fica reaproveitavel ao trocar de aba.
-            if (page === 0 || page % 2 === 0) {
-              writeCarteiraCache(partial, empresaId, taskCaseScope, authUserId, 'tarefas', false);
-            }
+            // Mostra primeira página imediatamente. Os lotes intermediários
+            // ficam só em memória de rede: atualizar React a cada 500 casos
+            // fazia ordenar e montar toda a fila repetidamente, travando a UI.
             if (page === 0) {
+              writeCarteiraCache(partial, empresaId, taskCaseScope, authUserId, 'tarefas', false);
               setCases(partial);
               setLoading(false);
-            } else if (page % 2 === 0) {
-              startTransition(() => setCases(partial));
             }
+            // O snapshot final completo chega pelo onShow da rede.
           },
           onError: (error) => {if(active())setCarteiraError(error instanceof Error ? error.message : 'Falha parcial no Supabase');},
         }),
@@ -1092,13 +1091,6 @@ const handleSaveAttendance = async () => {
                 >
                   Ver mais ({taskData.focus.length - listVisible} restantes)
                 </Button>
-                <button
-                  type="button"
-                  className="text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground"
-                  onClick={() => setListVisible(taskData.focus.length)}
-                >
-                  Ver todos ({taskData.focus.length})
-                </button>
               </div>
             )}
           </div>
