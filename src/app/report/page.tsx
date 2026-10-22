@@ -4,6 +4,7 @@ import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
 import {ReportSync} from "@/components/report/report-sync";
+import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -84,8 +85,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">LexisPredict · Relatórios</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Resumo da equipe</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Dados do Supabase, sem depender da lista paginada. Atendimentos e encerramentos são atribuídos a quem registrou a ação, mesmo em processos de outros responsáveis. Os cartões da carteira mostram {somenteMinhaCarteira?"somente os processos atribuídos ao usuário logado":"todos os processos da empresa"}.</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Relatórios claros e inteligentes</h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Veja os indicadores principais primeiro, peça uma análise ao LLM local e aprofunde os dados somente quando quiser. Atendimentos são creditados a quem realizou a ação; a carteira pode ser filtrada separadamente.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ReportSync/>
@@ -110,6 +111,28 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           className={`rounded-full border px-4 py-2 text-xs font-bold ${periodo===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:bg-muted"}`}>{x.name}</Link>)}
       </nav>
     </header>
+    <ReportSmartOverview
+      periodLabel={choices.find(x=>x.id===periodo)?.name||"Esta semana"}
+      scopeLabel={somenteMinhaCarteira?"Minha carteira":"Empresa inteira"}
+      total={snapshot?.total??null}
+      ativos={snapshot?.ativos??null}
+      encerrados={snapshot?.encerrados??null}
+      vencidos={snapshot?.vencidos??null}
+      novidades={snapshot?.novidades??null}
+      atendidos={hist?.processos??null}
+      eventos={hist?.eventos??null}
+      semRetorno30={retorno?.semRetornoLongo??null}
+      naoLocalizados={meritoOficial?.nao_localizados??null}
+      meritoPendente={meritoOficial?.nao_determinados??null}
+      encerradosEmCumprimento={meritoOficial?.encerrados_cumprimento??null}
+      dias={hist?.dias?.map(d=>({ymd:d.ymd,atendimentos:d.atendimentos}))??[]}
+    />
+    <details className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-2 text-left marker:hidden">
+        <div><h2 className="text-lg font-extrabold">Ver relatório completo e informações técnicas</h2><p className="mt-1 text-sm text-muted-foreground">Mérito judicial, produtividade por colaborador, encerramentos, auditorias e evolução da carteira — sem perder nenhum detalhe.</p></div>
+        <span className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-primary group-open:bg-primary group-open:text-primary-foreground">Abrir / fechar</span>
+      </summary>
+      <div className="mt-5 space-y-6">
     <section aria-labelledby="merito-oficial-title" className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -322,6 +345,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       <Link href="/analises-internas" className="inline-flex rounded-xl border border-border px-5 py-3 text-sm font-bold">Ver análises e auditorias</Link>
     </div>
     <p className="pb-4 text-xs text-muted-foreground">O histórico diferencia processos distintos, registros repetidos, edições e operações de contas técnicas. Os números refletem a consulta mais recente e podem crescer ao longo do dia.</p>
+      </div>
+    </details>
    </div>
  </main>;
 }
