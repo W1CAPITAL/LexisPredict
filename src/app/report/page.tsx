@@ -5,6 +5,7 @@ import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
 import {ReportSync} from "@/components/report/report-sync";
 import {ReportSmartOverview} from "@/components/report/report-smart-overview";
+import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -27,7 +28,7 @@ type TrabalhoInternoResumo={
 };
 export default async function ReportPage({searchParams}:{searchParams:Promise<{periodo?:string;escopo?:string}>}){
  const params=await searchParams;
- const periodo:PeriodoRelatorio=params.periodo==="semana_passada"?"semana_passada":params.periodo==="mes"?"mes":"esta_semana";
+ const periodo:PeriodoRelatorio=params.periodo==="semana_passada"?"semana_passada":params.periodo==="esta_semana"?"esta_semana":"mes";
  const ctx=await getUserContext();
  if(!ctx.empresa_id||!ctx.auth_id)redirect("/login");
  const empresaId=String(ctx.empresa_id);
@@ -38,13 +39,14 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30}),
   db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo})
+  db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo})
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -65,6 +67,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const tr=trabalhoResult.status==="fulfilled"?trabalhoResult.value:null;
  const trabalho:TrabalhoInternoResumo|null=tr&&!tr.error&&tr.data&&typeof tr.data==="object"?
    tr.data as TrabalhoInternoResumo:null;
+ const er=teamResult.status==="fulfilled"?teamResult.value:null;
+ const teamReport:EquipeRelatorio|null=er&&!er.error&&er.data&&typeof er.data==="object"&&Array.isArray((er.data as any).pessoas)?er.data as EquipeRelatorio:null;
  const totals=[
   {title:"Processos atendidos",value:hist?.processos,help:"Distintos no período, empresa inteira"},
   {title:"Atendimentos registrados",value:hist?.eventos,help:"Eventos feitos por pessoas"},
@@ -85,8 +89,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">LexisPredict · Relatórios</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Relatórios claros e inteligentes</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Veja os indicadores principais primeiro, peça uma análise ao LLM local e aprofunde os dados somente quando quiser. Atendimentos são creditados a quem realizou a ação; a carteira pode ser filtrada separadamente.</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Relatório da equipe</h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Veja o trabalho de cada colaborador, seus atendimentos, edições, encerramentos, dossiês, investigações e atividades efetivamente registradas. Consulte também os indicadores gerais e pergunte ao LLM local.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ReportSync/>
@@ -111,8 +115,9 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           className={`rounded-full border px-4 py-2 text-xs font-bold ${periodo===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:bg-muted"}`}>{x.name}</Link>)}
       </nav>
     </header>
+    <TeamReport data={teamReport}/>
     <ReportSmartOverview
-      periodLabel={choices.find(x=>x.id===periodo)?.name||"Esta semana"}
+      periodLabel={choices.find(x=>x.id===periodo)?.name||"Mês atual"}
       scopeLabel={somenteMinhaCarteira?"Minha carteira":"Empresa inteira"}
       total={snapshot?.total??null}
       ativos={snapshot?.ativos??null}
@@ -130,6 +135,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       parciaisOficiais={meritoOficial?.parciais??null}
       semMeritoOficial={meritoOficial?.sem_merito??null}
       dias={hist?.dias?.map(d=>({ymd:d.ymd,atendimentos:d.atendimentos}))??[]}
+      equipe={teamReport?.pessoas?.map(p=>({nome:p.nome,atendimentos:p.atendimentos,edicoes:p.edicoes,encerramentos:p.encerramentos,atividades:p.atividades.registros,trabalho:p.trabalho.registros,verificacoesLote:p.trabalho.verificacoesLote,categorias:p.trabalho.categorias.slice(0,6),entregas:p.trabalho.entregasRecentes.slice(0,5).map(e=>e.titulo)}))??[]}
     />
     <details className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-2 text-left marker:hidden">
