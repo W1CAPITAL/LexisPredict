@@ -3,12 +3,21 @@
  */
 const MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
 let generator = null;
+let generatorDevice = null;
 let loading = null;
 function emit(requestId, status, extra = {}) {
   self.postMessage({ requestId, status, ...extra });
 }
-async function initialize(requestId) {
-  if (generator) return generator;
+async function initialize(requestId, requireWebGpu = false) {
+  if (generator) {
+    if(requireWebGpu && generatorDevice !== 'webgpu') throw new Error('Este modelo já foi inicializado em CPU. Reabra a aba e use uma GPU compatível para evitar sobrecarga.');
+    return generator;
+  }
+  if(requireWebGpu){
+    let adapter = null;
+    try { adapter=await self.navigator?.gpu?.requestAdapter?.({powerPreference:'low-power'}); } catch {}
+    if(!adapter) throw new Error('LLM intensivo desativado neste navegador: WebGPU não disponível. A análise instantânea permanece ativa sem consumir RAM adicional.');
+  }
   if (loading) return loading;
   loading = (async () => {
     emit(requestId, 'loading', { message: 'Carregando o motor local no navegador...' });
@@ -50,12 +59,15 @@ async function initialize(requestId) {
     const opts={dtype:'q4',device:gpuReady?'webgpu':'wasm',progress_callback};
     try{
       generator=await lib.pipeline('text-generation',MODEL,opts);
+      generatorDevice=opts.device;
     }catch(primaryError){
+      if(requireWebGpu) throw new Error('Não foi possível iniciar o modelo na GPU. Não haverá fallback para CPU neste relatório: '+String(primaryError?.message||primaryError).slice(0,150));
       emit(requestId,'loading',{message:'Ajustando compatibilidade do modelo para CPU/WASM...'});
       try{
         generator=await lib.pipeline('text-generation',MODEL,{
-          ...opts,device:'wasm',dtype:'q8',numThreads:Math.max(1,Math.min(4,cores-1)),
+          ...opts,device:'wasm',dtype:'q8',numThreads:1,
         });
+        generatorDevice='wasm';
       }catch(fallbackError){
         const detail=String(fallbackError?.message||primaryError);
         throw new Error(/fetch|network|load/i.test(detail)
@@ -70,7 +82,7 @@ async function initialize(requestId) {
 }
 let running = false;
 self.onmessage = async event => {
-  const { requestId, prompt, history, maxTokens } = event.data || {};
+  const { requestId, prompt, history, maxTokens, requireWebGpu } = event.data || {};
   if (!requestId || typeof prompt !== 'string') return;
   if (running) {
     emit(requestId, 'error', { error: 'O modelo local já está respondendo. Aguarde.' });
@@ -78,7 +90,7 @@ self.onmessage = async event => {
   }
   running = true;
   try {
-    const model = await initialize(requestId);
+    const model = await initialize(requestId, !!requireWebGpu);
     emit(requestId, 'generating', { message: 'Gerando resposta sem enviar sua pergunta a uma API externa...' });
     const recent = Array.isArray(history) ? history.filter(x => x?.role === 'user' || x?.role === 'assistant').slice(-6) : [];
     const messages = [
