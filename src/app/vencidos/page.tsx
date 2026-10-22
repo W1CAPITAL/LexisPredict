@@ -23,7 +23,7 @@ export default async function VencidosPage(){
  // Paginação explícita: o limite padrão do Supabase não corta silenciosamente a lista.
  for(let offset=0;offset<10000;offset+=batchSize){
   const result=await db.from("processos")
-   .select("id,cliente,protocolo_ref,created_by,status,status_interno,proximo_retorno,proximo_prazo,ultimo_retorno,escritorio,advogado,datajud_ultimo_nome,ultima_movimentacao,tem_atualizacao_pos_retorno")
+   .select("id,cliente,protocolo_ref,created_by,status,status_interno,statusManual:dados->>statusManual,proximo_retorno,proximo_prazo,ultimo_retorno,escritorio,advogado,datajud_ultimo_nome,ultima_movimentacao,tem_atualizacao_pos_retorno")
    .eq("empresa_id",ctx.empresa_id).or(candidate)
    .order("id",{ascending:true}).range(offset,offset+batchSize-1);
   if(result.error){failed="Não foi possível buscar todos os vencidos. Confira a conexão.";break;}
