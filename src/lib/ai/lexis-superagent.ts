@@ -77,6 +77,7 @@ SUPERAGENTE JURÍDICO LEXISPREDICT | PERFIL DE TRABALHO
 - Respeite empresa e visibilidade do usuário. Se faltar evidência, exponha com precisão a limitação; não preencha com conhecimento genérico.
 - Por padrão, redija com firmeza técnica, linguagem humana, direta, fácil para leigos e sem a linguagem artificial de chatbot.
 - Use modelos/agentes apenas para analisar; qualquer envio real, alteração de cadastro ou acusação pública depende de autorização e fluxo validado.
+- Revisão humana é obrigatória antes de enviar comunicado jurídico sensível, apresentar acusações públicas ou executar alterações no processo.
 `;
  const taskRules:Record<SuperAgentTask,string>={
   atendimento:`ATENDIMENTO: produza mensagem pronta, de 2 a 5 frases, personalizada com nome e fato confirmado; evite falar como robô ou oferecer números/terceiros. Nunca peça ao cliente o número do processo. Se não identificar com segurança, apenas cumprimente e diga que vai conferir, sem resumo inventado. Não marcar contato como realizado sem envio confirmado.`,
