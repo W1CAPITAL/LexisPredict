@@ -159,6 +159,16 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   // O Superagente pesquisa primeiro a carteira autenticada: CNJ ou nome.
   // Sem identidade segura, nunca usa dados de outro processo.
   const caseEvidence = !simple ? await retrieveAuthorizedCaseEvidence(pergunta) : '';
+  const uncertainIdentity = /identidade\/processo ambíguo|nenhum processo identificável e autorizado|falha ao verificar o processo/i.test(caseEvidence);
+  if(detectedTask==='atendimento'&&uncertainIdentity&&!hasPdf&&!input.tribunalContext){
+    return {
+      resposta:'Bom dia! Vou conferir as informações do seu processo e retorno por aqui assim que tiver uma atualização confirmada.',
+      thinking:null,
+      engineUtilizada:'SUPERAGENTE_IDENTIDADE_NAO_CONFIRMADA',
+      latencia:0,tokensConsumidos:0,sucesso:true,
+      baHint:'Processo ainda não identificado com segurança; nenhum andamento foi informado ao cliente.'
+    };
+  }
   if(caseEvidence)userContent+='\n\n'+caseEvidence;
   // Se já localizou um CNJ inequívoco na carteira, usa-o também na consulta
   // DJEN, sem pedir número ao cliente. Contexto de integração sem cookie nunca
