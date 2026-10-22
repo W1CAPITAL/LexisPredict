@@ -60,6 +60,7 @@ const core: NavItem[] = [
   { label: "Processos da Empresa", href: "/processos", icon: FolderOpen, company: true },
   { label: "Réplica e Provas", href: "/fases-provas", icon: FileText },
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
+  { label: "Vencidos", href: "/vencidos", icon: ShieldAlert },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
   { label: "Superagente", href: "/chat", icon: Bot },
@@ -137,7 +138,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat"]
+      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -252,6 +253,7 @@ export function SidebarVertical() {
         hrefs: [
           "/cases",
           "/processos",
+          "/vencidos",
           "/fases-provas",
           "/analises-internas",
           "/gerador-processos",
