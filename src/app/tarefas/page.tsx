@@ -3,6 +3,7 @@ import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { statusEfetivo } from "@/lib/prazo-status";
 
 import { AtendimentoActions } from '@/components/ops/atendimento-actions';
+import {TarefaEditDialog} from '@/components/tarefas/tarefa-edit-dialog';
 import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
 import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
 import { ProtocoloChip } from '@/components/ops/protocolo-chip';
@@ -156,6 +157,8 @@ export default function TarefasPage() {
   const taskCaseScope = resolveCaseScope(profile as any);
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const [editingTask,setEditingTask]=useState<LegalCase|null>(null);
+  const [searchRefreshKey,setSearchRefreshKey]=useState(0);
   const LIST_PAGE_SIZE = 24;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
@@ -166,7 +169,7 @@ export default function TarefasPage() {
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
-  const remoteSearch = useCompanyProcessSearch(searchDebounced, Boolean(empresaId && authUserId));
+  const remoteSearch = useCompanyProcessSearch(searchDebounced, Boolean(empresaId && authUserId),searchRefreshKey);
   const taskCases = remoteSearch.active ? remoteSearch.cases : cases;
   // filtros persistidos entre abas
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'vencido' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
@@ -1059,7 +1062,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.slice(0, listVisible).map((group, idx) => (
-                <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => openAttendanceForGroup(group)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
+                <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => openAttendanceForGroup(group)} onEdit={()=>setEditingTask(group.cases.find(c=>c.protocolo===group.protocoloReferencia)||group.cases[0]||null)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
             {!loading && !remoteSearch.searching && taskData.focus.length === 0 && (
@@ -1128,7 +1131,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
             <div className="space-y-4 pt-10 border-t border-border/30">
                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
                {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendanceForGroup(group)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendanceForGroup(group)} onEdit={()=>setEditingTask(group.cases.find(c=>c.protocolo===group.protocoloReferencia)||group.cases[0]||null)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
                {showBacklog&&taskData.backlog.length>backlogVisible?<Button type="button" variant="outline" onClick={()=>setBacklogVisible(v=>v+24)}>Mostrar mais 24 do backlog ({taskData.backlog.length-backlogVisible} restantes)</Button>:null}
             </div>
           )}
@@ -1235,6 +1238,19 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
           </DialogContent>
         </Dialog>
 
+        {editingTask?<TarefaEditDialog key={editingTask.protocolo}
+          processo={editingTask}
+          onClose={()=>setEditingTask(null)}
+          onSaved={updated=>{
+            setCases(prev=>prev.map(c=>c.protocolo===updated.protocolo?{...c,...updated}:c));
+            invalidateCarteiraCache();
+            invalidateFastCarteiraCache();
+            setSearchRefreshKey(k=>k+1);
+            setEditingTask(null);
+            window.dispatchEvent(new Event("lexis-carteira-updated"));
+            toast({title:"Edição salva",description:"Processo atualizado no Supabase. Edição não conta como atendimento."});
+          }}
+         />:null}
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
             <form className="flex flex-col h-full" onSubmit={(event)=>{event.preventDefault();void handleSaveAttendance();}}>
@@ -1273,7 +1289,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
   );
 }
 
-function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, isKbFocus?: boolean, onMarkContacted: () => void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
+function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, onEdit, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, isKbFocus?: boolean, onMarkContacted: () => void, onEdit:()=>void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
   return (
     <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
       <div className="flex justify-between items-start mb-6">
@@ -1338,7 +1354,8 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
                <MessageCircle size={18} />
              </Link>
            </Button>
-           <Button variant="ghost" size="icon" onClick={onMarkContacted} className={cn("text-slate-400 hover:text-emerald-600", ui.touch)} title="Marcar Contatado"><UserCheck size={18} /></Button>
+           <Button variant="ghost" size="icon" onClick={onMarkContacted} className={cn("text-slate-400 hover:text-emerald-600", ui.touch)} title="Registrar atendimento"><UserCheck size={18} /></Button>
+           <Button variant="outline" size="sm" type="button" onClick={onEdit} className="h-9 rounded-xl text-[11px] font-bold">Editar processo</Button>
         </div>
                 {(() => {
            const djenCase = (group.cases || []).find((c: any) => c.djen_ultimo_link || c.djen_ultimo_resumo || c.djen_nova_comunicacao);
