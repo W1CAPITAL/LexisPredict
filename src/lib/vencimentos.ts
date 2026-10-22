@@ -41,6 +41,17 @@ export function classificarVencimento(c:CaseVencimento,hoje?:string){
   marcado,excluido:false,dias:dr
  };
 }
+/** Métrica do painel: status cadastrado pela equipe, não atraso inferido.
+ * A flag pode estar desatualizada; jamais usar sozinha para envio automático.
+ */
+export function isVencidoNoCRM(c:CaseVencimento){
+ const d=(c.dados&&typeof c.dados==="object"?c.dados:{} ) as Record<string,unknown>;
+ const raw=(c as CaseVencimento&{status_crm?:string|null}).status_crm||d.status||c.status;
+ return raw==="Vencido"||raw==="Caso Crítico";
+}
+export function isVencidoAcionavelCRM(c:CaseVencimento){
+ return isVencidoNoCRM(c)&&!isCasoEncerrado(c);
+}
 export function isCasoVencido(c:CaseVencimento,hoje?:string){
  return classificarVencimento(c,hoje).vencido;
 }
