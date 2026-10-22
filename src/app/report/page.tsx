@@ -146,6 +146,11 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
             <p className="text-xs text-muted-foreground">{title}</p><p className="font-bold tabular-nums">{fmt(value as number)}</p>
           </div>)}
         </div>
+        <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-3 text-xs">
+          <p className="font-bold">Justificativas individualizadas dos processos ainda sem resultado conclusivo</p>
+          <p className="mt-1 text-muted-foreground">Os casos com resultado divergente, não localizado ou indeterminado receberam o motivo registrado, sua origem, trecho do histórico e verificação necessária. São indícios, não decisões judiciais definitivas.</p>
+          <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold text-primary underline">Ver aba “Pendências de mérito — 799” por processo e advogado</a>
+        </div>
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
           <strong>{fmt(meritoOficial.encerrados_cumprimento)} encerrados no CRM sinalizados com cumprimento ativo.</strong> Conferir a fase antes de encerrar o cumprimento ou contá-lo como satisfeito. Não houve alteração automática do estado dos processos por esta auditoria.
         </p>
