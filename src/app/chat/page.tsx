@@ -43,6 +43,7 @@ import { DataJudDisclaimer } from "@/components/ui/datajud-disclaimer";
 import { cn } from "@/lib/utils";
 import { localQuickReply } from "@/lib/ai/local-quick";
 import { generateBrowserLocalLLM, stopBrowserLocalLLM } from "@/lib/ai/browser-local-llm";
+import { lexisAgentGuidance, selectLexisAgentRole } from '@/lib/ai/lexis-agent-router';
 
 function splitThinking(raw: string): { thinking: string | null; answer: string } {
   const t = String(raw || "");
@@ -189,7 +190,7 @@ export default function AssistentePage() {
         if (img) throw new Error("Os modelos locais de texto não interpretam imagens. Use um motor com visão conectado.");
         setLocalProgress(reason);
         const local = await generateBrowserLocalLLM(
-          (displayText || text) + (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
+          (displayText || text).slice(0, 1850) + '\n\nAGENTE: '+selectLexisAgentRole(displayText || text)+'\n'+lexisAgentGuidance(displayText || text).slice(0, 450) + (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 450) : ""),
           history,
           (p) => setLocalProgress(p.status === "progress" ? `Baixando LLM local: ${p.progress ?? 0}%` : p.message || (p.status === "generating" ? "LLM local gerando resposta..." : "Preparando LLM local...")),
           localModel,
