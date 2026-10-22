@@ -156,7 +156,7 @@ export default function TarefasPage() {
   const taskCaseScope = resolveCaseScope(profile as any);
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
-  const LIST_PAGE_SIZE = 80;
+  const LIST_PAGE_SIZE = 24;
   const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   // Incremental generation prevents stale page responses from updating another
@@ -240,6 +240,7 @@ export default function TarefasPage() {
     if (!fromDb.length) return;
     setContatadosHoje((prev) => {
       const next = Array.from(new Set([...prev, ...fromDb]));
+      if(next.length===prev.length)return prev;
       try {
         localStorage.setItem(getTodayKey(), JSON.stringify(next));
       } catch { /* */ }
@@ -660,7 +661,21 @@ const handleSaveAttendance = async () => {
       } else g.oldestReturnGap = 365;
     });
 
-    const sortedAll = Object.values(groups)
+    // Cache por grupo durante cada rodada: antes, as chamadas pesadas eram
+    // repetidas muitas vezes dentro do comparador de ordenação.
+    const groupValues=Object.values(groups);
+    const scoreOpsByClient=new Map<string,number>();
+    const prioridadeByClient=new Map<string,number>();
+    const listaByClient=new Map<string,FilaLista>();
+    const recenteByClient=new Map<string,boolean>();
+    const baFilterSet=new Set((baHitDigits||[]).map(x=>String(x).replace(/\D/g,'')));
+    for(const g of groupValues){
+      scoreOpsByClient.set(g.cliente,g.cases.reduce((max,c)=>Math.max(max,computeOpsLinha(c).score),0));
+      prioridadeByClient.set(g.cliente,scoreGroupPriority(g.cases as any).score);
+      listaByClient.set(g.cliente,groupFilaLista(g.cases as any));
+      recenteByClient.set(g.cliente,g.cases.some(c=>isAtendimentoRecente(c.ultimoRetorno||(c as any).ultimo_retorno,36)));
+    }
+    const sortedAll = groupValues
       .filter(g => {
         const query = searchDebounced.toLowerCase().trim();
         const digits = query.replace(/\D/g, "");
@@ -694,7 +709,7 @@ const handleSaveAttendance = async () => {
           );
           if (!today) return false;
         }
-        const baSet = new Set((baHitDigits || []).map((x) => String(x).replace(/\D/g, '')));
+        const baSet = baFilterSet;
         const sample = g.cases[0] as any;
         if (filaFiltro === 'hoje') {
           return g.cases.some((c: any) => {
@@ -718,14 +733,14 @@ const handleSaveAttendance = async () => {
         if (filaFiltro === 'silencio') return g.cases.some((c: any) => (computeOpsLinha(c).diasTribunal || 0) >= 45);
         // Fila principal: esconde blacklist (fica na lista própria)
         if (filaFiltro === 'all' || !filaFiltro) {
-          if (groupFilaLista(g.cases as any) === 'blacklist') return false;
+          if (listaByClient.get(g.cliente) === 'blacklist') return false;
         }
         return true;
       })
       .sort((a, b) => {
         if (sortPrazo === 'ops') {
-          const sa = Math.max(0, ...((a.cases || []).map((c: any) => computeOpsLinha(c).score)));
-          const sb = Math.max(0, ...((b.cases || []).map((c: any) => computeOpsLinha(c).score)));
+          const sa=scoreOpsByClient.get(a.cliente)||0;
+          const sb=scoreOpsByClient.get(b.cliente)||0;
           if (sb !== sa) return sb - sa;
         }
         // ordenação por vencimento (mais/menos) alinhada ao filtro da UI
@@ -758,20 +773,20 @@ const handleSaveAttendance = async () => {
         }
 
         // Tratamento: depois de quem ainda não foi atendido
-        const listaA = groupFilaLista(a.cases as any);
-        const listaB = groupFilaLista(b.cases as any);
+        const listaA = listaByClient.get(a.cliente)||'normal';
+        const listaB = listaByClient.get(b.cliente)||'normal';
         const tratA = listaA === 'tratamento';
         const tratB = listaB === 'tratamento';
         if (tratA !== tratB) return tratA ? 1 : -1;
 
         // Atendimento recente (36h): cai na ordem — você já está tratando
-        const recentA = a.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36));
-        const recentB = b.cases.some((c: any) => isAtendimentoRecente(c.ultimoRetorno || c.ultimo_retorno, 36));
+        const recentA = recenteByClient.get(a.cliente)||false;
+        const recentB = recenteByClient.get(b.cliente)||false;
         if (recentA !== recentB) return recentA ? 1 : -1;
 
         if (a.hasBA !== b.hasBA) return a.hasBA ? -1 : 1;
-        const prioA = scoreGroupPriority(a.cases as any).score;
-        const prioB = scoreGroupPriority(b.cases as any).score;
+        const prioA = prioridadeByClient.get(a.cliente)||0;
+        const prioB = prioridadeByClient.get(b.cliente)||0;
         if (prioB !== prioA) return prioB - prioA;
         // legacy continues:
         if (a.hasClosedCourt !== b.hasClosedCourt) return a.hasClosedCourt ? -1 : 1;
@@ -800,7 +815,7 @@ const handleSaveAttendance = async () => {
     }
     const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje ? pending.length : dailyMeta;
     return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
-  }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, profile]);
+  }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1015,7 +1030,7 @@ const handleSaveAttendance = async () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {taskData.focus.slice(0, remoteSearch.active ? taskData.focus.length : listVisible).map((group, idx) => (
+              {taskData.focus.slice(0, listVisible).map((group, idx) => (
                 <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
@@ -1067,7 +1082,7 @@ const handleSaveAttendance = async () => {
                 </div>
               </div>
             )}
-            {!remoteSearch.active && taskData.focus.length > listVisible && (
+            {taskData.focus.length > listVisible && (
               <div className="flex flex-col items-center gap-2 py-4">
                 <Button
                   type="button"
