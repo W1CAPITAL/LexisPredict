@@ -129,3 +129,14 @@ export function linkedCumprimentoCnjs(dados:unknown,primaryCnj:string):string[]{
   }
   return [...found].slice(0,5);
 }
+
+/** Mescla páginas DJEN e o histórico DataJud sem perder atos antigos. */
+export function mergeProcessTimelineEntries(oldEntries:ProcessTimelineEntry[],newEntries:ProcessTimelineEntry[]){
+  const unique=new Map<string,ProcessTimelineEntry>();
+  for(const entry of [...oldEntries,...newEntries])unique.set(entry.id,entry);
+  return [...unique.values()].sort((a,b)=>
+    eventMillis(b.date)-eventMillis(a.date)||
+    a.cnj.localeCompare(b.cnj)||
+    a.label.localeCompare(b.label)
+  );
+}
