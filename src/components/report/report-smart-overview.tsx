@@ -19,6 +19,10 @@ type Props = {
   naoLocalizados: number | null;
   meritoPendente: number | null;
   encerradosEmCumprimento: number | null;
+  improcedentesOficiais: number | null;
+  procedentesOficiais: number | null;
+  parciaisOficiais: number | null;
+  semMeritoOficial: number | null;
   dias: Day[];
 };
 type Kpi = { title: string; count: number | null; hint: string; icon: typeof BarChart3; accent: string };
@@ -75,6 +79,10 @@ export function ReportSmartOverview(props: Props) {
     encerrados_sem_resultado_judicial_localizado: props.naoLocalizados,
     encerrados_resultado_judicial_a_esclarecer: props.meritoPendente,
     encerrados_crm_com_sinal_de_cumprimento: props.encerradosEmCumprimento,
+    procedencia_identificada_em_movimentos_oficiais: props.procedentesOficiais,
+    improcedencia_identificada_em_movimentos_oficiais: props.improcedentesOficiais,
+    procedencia_parcial_identificada_em_movimentos_oficiais: props.parciaisOficiais,
+    sem_julgamento_de_merito_identificado: props.semMeritoOficial,
     atendimentos_por_dia: props.dias
   };
   async function ask(event?: FormEvent<HTMLFormElement>, suggested?: string) {
@@ -128,6 +136,22 @@ export function ReportSmartOverview(props: Props) {
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {cards.map(c=><Info key={c.title} {...c}/>)}
     </div>
+    <section className="rounded-[1.35rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="report-merit-overview">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+        <div><h3 id="report-merit-overview" className="text-base font-extrabold">O que aconteceu nos processos?</h3><p className="mt-1 text-xs text-muted-foreground">Identificações de mérito a partir de movimentações oficiais. Não confirmam trânsito em julgado nem encerramento definitivo.</p></div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        {[
+          {label:"Procedência identificada",value:props.procedentesOficiais,style:"bg-emerald-500/5"},
+          {label:"Procedência parcial",value:props.parciaisOficiais,style:"bg-sky-500/5"},
+          {label:"Improcedência identificada",value:props.improcedentesOficiais,style:"bg-rose-500/5"},
+          {label:"Sem julgamento de mérito",value:props.semMeritoOficial,style:"bg-amber-500/5"},
+        ].map(item=><div key={item.label} className={"rounded-2xl border border-border/70 p-4 " + item.style}>
+          <p className="text-xs font-semibold leading-relaxed text-muted-foreground">{item.label}</p>
+          <p className="mt-2 text-2xl font-black tabular-nums">{fmt(item.value)}</p>
+        </div>)}
+      </div>
+    </section>
     <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
       <section className="rounded-[1.35rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="report-alert-heading">
         <div className="mb-4 flex items-center gap-3">
@@ -149,7 +173,7 @@ export function ReportSmartOverview(props: Props) {
         <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={activePct===null?"Distribuição indisponível":activePct+"% ativos, "+closedPct+"% demais"}>
           {activePct!==null?<><div style={{width:activePct+"%"}} className="bg-indigo-500"/><div style={{width:closedPct+"%"}} className="bg-violet-300 dark:bg-violet-800"/></>:null}
         </div>
-        <div className="mt-6 flex items-center justify-between text-sm"><strong>Atendimentos por dia</strong><span className="text-xs text-muted-foreground">{fmt(props.eventos)} registros no período</span></div>
+        <div className="mt-6 flex items-center justify-between text-sm"><strong>Atendimentos por dia</strong><span className="text-xs text-muted-foreground">{fmt(props.eventos)} registros da equipe no período</span></div>
         {props.dias.length?<div className="mt-4 flex h-28 items-end gap-1.5 overflow-x-auto pb-1 sm:gap-2">
           {props.dias.map(d=><div key={d.ymd} className="group flex min-w-[14px] flex-1 flex-col items-center justify-end gap-1" title={d.ymd+": "+fmt(d.atendimentos)+" processos"}>
             <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">{d.atendimentos || ""}</span>
