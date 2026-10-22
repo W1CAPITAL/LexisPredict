@@ -5,7 +5,9 @@ import { AlertTriangle, ArrowRight, BarChart3, BrainCircuit, CheckCircle2, Chevr
 import { generateBrowserLocalLLM, stopBrowserLocalLLM } from "@/lib/ai/browser-local-llm";
 
 type Day = { ymd: string; atendimentos: number };
+type MemberBrief = {nome:string;atendimentos:{processos:number;eventos:number};edicoes:{processos:number;eventos:number};encerramentos:{processos:number;eventos:number};atividades:number;trabalho:number;verificacoesLote:number;categorias:Array<{categoria:string;registros:number}>;entregas:string[]};
 type Props = {
+  equipe?:MemberBrief[];
   periodLabel: string;
   scopeLabel: string;
   total: number | null;
@@ -64,7 +66,7 @@ export function ReportSmartOverview(props: Props) {
     {title:"Atendidos no período",count:props.atendidos,hint:"Processos diferentes com atendimento registrado",icon:Users,accent:"bg-violet-500/10 text-violet-600 dark:text-violet-300"},
     {title:"Retornos vencidos",count:props.vencidos,hint:"Demandam conferência e priorização",icon:AlertTriangle,accent:"bg-orange-500/10 text-orange-600 dark:text-orange-300"},
   ];
-  const questions = ["O que merece atenção primeiro?", "Como foi o atendimento da equipe?", "Explique os encerramentos", "O que ainda precisa ser conferido?"];
+  const questions = ["O que Davi realizou?", "Compare os atendimentos de Davi, Kris e Adriana", "Quais dossiês e projetos foram registrados?", "Quais atividades precisam de conferência?"];
   const facts = {
     periodo: props.periodLabel,
     escopo_carteira: props.scopeLabel,
@@ -83,6 +85,7 @@ export function ReportSmartOverview(props: Props) {
     improcedencia_identificada_em_movimentos_oficiais: props.improcedentesOficiais,
     procedencia_parcial_identificada_em_movimentos_oficiais: props.parciaisOficiais,
     sem_julgamento_de_merito_identificado: props.semMeritoOficial,
+    equipe: (props.equipe||[]).map(p=>({nome:p.nome,atendimentos:p.atendimentos,edicoes:p.edicoes,encerramentos:p.encerramentos,atividades:p.atividades,trabalho:p.trabalho,verificacoesLote:p.verificacoesLote,categorias:p.categorias,entregas:p.entregas})),
     atendimentos_por_dia: props.dias
   };
   async function ask(event?: FormEvent<HTMLFormElement>, suggested?: string) {
@@ -96,7 +99,8 @@ export function ReportSmartOverview(props: Props) {
         "Você é um analista de gestão jurídica do LexisPredict. Responda em português brasileiro simples, de maneira objetiva e humana, em até 150 palavras.",
         "Use SOMENTE os números do JSON. Nada de inventar processos, culpados, causa de perda, sentença, prazos ou probabilidades.",
         "Diferencie encerramento administrativo de julgamento de mérito. Se o dado estiver nulo, diga que não está disponível.",
-        "Os dados de carteira são atuais, mas atendimentos são do período escolhido. Não some categorias que podem se sobrepor.",
+        "Os dados de carteira são atuais, mas atendimentos e trabalhos são do período escolhido. Não some categorias que podem se sobrepor. Para perguntas por pessoa, preserve exatamente a autoria atribuída.",
+        "Atividades individuais, registros de auditoria e eventos de atendimento usam fontes separadas. Verificações em lote não são tarefas manuais unitárias nem contatos. Nunca diga que ausência de registro prova ausência de trabalho.",
         "Forneça uma observação útil e, quando couber, uma ação prática de conferência. Não afirme ter conferido autos individualmente.",
         "Dados reais agregados: " + JSON.stringify(facts),
         "Pergunta: " + input
@@ -121,8 +125,8 @@ export function ReportSmartOverview(props: Props) {
           <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/80 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-200">
             <Sparkles className="h-3.5 w-3.5" /> Visão inteligente da carteira
           </div>
-          <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">Entenda seus números. Sem complicação.</h2>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">Comece pelo que importa, veja o que exige atenção e pergunte ao LLM. Os detalhes técnicos continuam disponíveis mais abaixo.</p>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">Visão geral da operação</h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">Depois da análise individual da equipe, veja os indicadores gerais da carteira e faça perguntas específicas ao LLM.</p>
           <div className="mt-4 inline-flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
             <span className="rounded-lg bg-white/85 px-3 py-2 dark:bg-white/10">{props.periodLabel}</span>
             <span className="rounded-lg bg-white/85 px-3 py-2 dark:bg-white/10">{props.scopeLabel}</span>
@@ -195,7 +199,7 @@ export function ReportSmartOverview(props: Props) {
         </div>
         <form onSubmit={ask} className="flex flex-col gap-2 sm:flex-row">
           <label htmlFor="report-intelligence-question" className="sr-only">Sua pergunta sobre o relatório</label>
-          <input id="report-intelligence-question" maxLength={260} value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ex.: Quantos casos precisam de acompanhamento?" className="min-h-12 w-full min-w-0 flex-1 rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/>
+          <input id="report-intelligence-question" maxLength={260} value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ex.: O que cada colaborador realizou neste mês?" className="min-h-12 w-full min-w-0 flex-1 rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/>
           <button type="submit" disabled={!canAsk} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50">{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<MessageSquareText className="h-4 w-4"/>}{busy?"Analisando…":"Analisar"}<ArrowRight className="h-4 w-4"/></button>
           {busy?<button type="button" onClick={()=>stopBrowserLocalLLM()} className="inline-flex min-h-12 items-center justify-center gap-1 rounded-xl border border-border px-3 text-xs"><Square className="h-3 w-3"/> Parar</button>:null}
         </form>
