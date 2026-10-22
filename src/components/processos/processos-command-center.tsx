@@ -90,6 +90,8 @@ type Props = {
   onScan?: () => void;
   canScan?: boolean;
   onEdit: (item: LegalCase) => void;
+  initialProcesso?:string;
+  autoEditProcesso?:boolean;
   /** true only when the authenticated user owns the case or supervises */
   canManageItem?: (item: LegalCase) => boolean;
   onAttend: (item: LegalCase) => void;
@@ -331,6 +333,7 @@ function toCsvDownload(base64: string, filename: string) {
 export function ProcessosCommandCenter(props: Props) {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = React.useState("");
+  const autoEditDone=React.useRef("");
   const [tab, setTab] = React.useState<DetailTab>("overview");
   const [tribunal, setTribunal] = React.useState("");
   const [classe, setClasse] = React.useState("");
@@ -412,6 +415,20 @@ export function ProcessosCommandCenter(props: Props) {
     () => rows.find((c) => String(c.id || c.protocolo) === selectedId) || rows[0] || null,
     [rows, selectedId]
   );
+  // Abrir processo vindo da Central/Tarefas: aguarda resultado real da busca,
+  // seleciona o CNJ correto e só então abre o editor, uma única vez.
+  React.useEffect(()=>{
+    const target=String(props.initialProcesso||"").replace(/\D/g,"");
+    if(target.length!==20||!rows.length)return;
+    const found=rows.find(c=>String(c.protocolo||"").replace(/\D/g,"")===target);
+    if(!found)return;
+    const id=String(found.id||found.protocolo);
+    if(selectedId!==id)setSelectedId(id);
+    if(props.autoEditProcesso&&autoEditDone.current!==target){
+      autoEditDone.current=target;
+      if(props.canManageItem?.(found)!==false)props.onEdit(found);
+    }
+  },[props.initialProcesso,props.autoEditProcesso,props.items,props.canManageItem,rows,selectedId]);
   React.useEffect(()=>setOabResult(null),[selectedId]);
 
   // O painel não carrega o histórico de milhares de processos: apenas o CNJ
