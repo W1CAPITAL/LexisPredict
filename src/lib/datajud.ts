@@ -51,6 +51,8 @@ export interface DataJudOptions {
   fast?: boolean;
   /** One short HTTP attempt for serverless cloud micro-batches. */
   cloudBudget?: boolean;
+  /** Consulta solicitada manualmente no painel: ignora cache recente de leitura. */
+  forceRefresh?: boolean;
 }
 
 /** Extrai nomes de polo ativo e passivo a partir do array partes do DataJud. */
@@ -279,7 +281,7 @@ export async function searchDataJudByCpf(
 
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
   // Cache + dedupe só na 1ª tentativa (retries ficam fora do cache hit)
-  if (attempt === 1) {
+  if (attempt === 1 && options.forceRefresh !== true) {
     const key = PerfKeys.datajud(cnj, options.fast === true) + (options.cloudBudget ? ':cloud' : '');
     return perfCached(key, () => fetchDataJudUncached(cnj, 1, options), options.fast ? 60_000 : 120_000);
   }
