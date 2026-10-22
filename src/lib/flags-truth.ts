@@ -69,9 +69,9 @@ export function meritoExclusivo(c: Partial<LegalCase> & Record<string, any>): {
     if (datajud === 'improcedente') {
       return { is_procedente: false, is_improcedente: true, is_parcial: false, evento_tipo: 'sentenca_improcedente' };
     }
-    if (datajud === 'sem_merito') {
-      return { is_procedente: false, is_improcedente: false, is_parcial: false, evento_tipo: undefined };
-    }
+    // Conflitos, acordo e encerramento sem decisão de mérito nunca
+    // devem reativar flags antigas de procedência/improcedência.
+    return { is_procedente: false, is_improcedente: false, is_parcial: false, evento_tipo: undefined };
   }
   const text = classifyMeritoFromText(blob(c));
   let is_parcial = !!text.isParcial || c.evento_tipo === "sentenca_parcial";
