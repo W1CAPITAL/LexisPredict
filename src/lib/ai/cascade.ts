@@ -180,7 +180,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
 
   // Optional first-party Ollama runtime for server-side jobs (own host only).
   // The browser Qwen/Gemma path does not require this server.
-  const ownLocalBase=(process.env.LEXIS_LOCAL_LLM_BASE_URL||'').trim().replace(/\\/+$/,'');
+  const ownLocalBase=(process.env.LEXIS_LOCAL_LLM_BASE_URL||'').trim().replace(/\/+$/,'');
   if(ownLocalBase && !opts.images?.length &&
       ['auto','local_llm','local_gemma','local_lfm'].includes(preferred)){
     const localStart=Date.now();
