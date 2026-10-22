@@ -38,7 +38,7 @@ export async function extractPdfTextForChatAction(formData: FormData) {
 export async function perguntarChatbotIndependente(
   prompt: string,
   history: Array<{ role: string; content: string }> = [],
-  model: string = 'claude',
+  model: string = 'auto',
   opts?: {
     baClaudeDjen?: boolean;
     images?: VisionImage[];
@@ -57,7 +57,7 @@ export async function perguntarChatbotIndependente(
           role: h.role as 'user' | 'assistant',
           content: h.content,
         })),
-      preferred: model || 'claude',
+      preferred: model || 'auto',
       preferredModel: model || 'claude',
       baClaudeDjen: !!opts?.baClaudeDjen,
       images: opts?.images,
