@@ -31,7 +31,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  const counts={todos:prepared.length,retorno:prepared.filter(p=>p.flag.retorno).length,prazo:prepared.filter(p=>p.flag.prazo).length,revisar:prepared.filter(p=>p.flag.revisar).length};
  const visible=useMemo(()=>prepared.filter(p=>{
   if(tab!=="todos"&&!p.flag[tab])return false;
-  if(owner!=="todos"&&p.created_by!==ownerMapKey(owner,owners))return false;
+  if(owner!=="todos"&&!(owners.some(x=>x.id===owner&&(p.created_by===x.id||p.created_by===x.auth_user_id))))return false;
   if(office!=="todos"&&p.escritorio?.trim()!==office)return false;
   const q=norm(query.trim());if(q&&!norm([p.cliente,p.protocolo_ref,p.advogado,p.escritorio,ownerMap.get(p.created_by||"")].join(" ")).includes(q))return false;
   return true;
@@ -91,4 +91,4 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum vencido neste filtro</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
  </div>;
 }
-function ownerMapKey(ownerId:string,owners:Owner[]){return owners.find(x=>x.id===ownerId)?.auth_user_id||ownerId;}
+
