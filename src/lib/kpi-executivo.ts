@@ -17,6 +17,15 @@ export type CategoriaMeritoCadastrado = "procedente"|"improcedente"|"parcial"|"d
 export function categoriaMeritoCadastrado(c:any):CategoriaMeritoCadastrado{
  if(!c)return "sem_indicador";
  const d=dadosOf(c);
+ // Movimentações oficiais do DataJud prevalecem sobre flags e notas internas.
+ // Outros desfechos (acordo, indeferimento etc.) não são improcedência.
+ const oficial = d.merito_fonte === "datajud_tpu_2026-10-22"
+   ? String(d.merito_datajud_20261022?.resultado || "") : "";
+ if (oficial) {
+   if (oficial === "procedente" || oficial === "improcedente" || oficial === "parcial") return oficial;
+   if (oficial === "conflito_resultados") return "divergente";
+   return "sem_indicador";
+ }
  const evento=String(c.evento_tipo||d.evento_tipo||"").toLowerCase();
  const merito=String(c.merito_resultado||d.merito_resultado||"").toLowerCase();
  const proc=c.is_procedente===true||d.is_procedente===true
