@@ -176,7 +176,9 @@ export function isSentencaProcedente(c: {
   const resultadoOficial = dadosOficiais.merito_datajud_20261022?.resultado;
   if (dadosOficiais.merito_fonte === 'datajud_tpu_2026-10-22') {
     if (resultadoOficial === 'procedente' || resultadoOficial === 'parcial') return true;
-    if (resultadoOficial === 'improcedente' || resultadoOficial === 'sem_merito') return false;
+    // A fonte oficial foi consultada. Acordos, divergências e desfechos
+    // formais sem mérito não autorizam converter a flag em procedência.
+    return false;
   }
   const ev = String(c.evento_tipo || '');
   if (ev === 'sentenca_procedente' || ev === 'sentenca_parcial') return true;
@@ -203,7 +205,9 @@ export function isSentencaImprocedente(c: {
   const resultadoOficial = dadosOficiais.merito_datajud_20261022?.resultado;
   if (dadosOficiais.merito_fonte === 'datajud_tpu_2026-10-22') {
     if (resultadoOficial === 'improcedente') return true;
-    if (resultadoOficial === 'procedente' || resultadoOficial === 'parcial' || resultadoOficial === 'sem_merito') return false;
+    // Sem desfecho oficial de improcedência, não deduzir derrota
+    // de "is_procedente=false", da baixa ou de marcações legadas.
+    return false;
   }
   if (c.evento_tipo === 'sentenca_improcedente') return true;
   if (c.is_improcedente === true) return true;
