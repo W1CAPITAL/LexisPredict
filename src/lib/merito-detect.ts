@@ -48,15 +48,13 @@ export function classifyMeritoFromText(text: string | null | undefined): MeritoD
   const isParcial = RE_PARCIAL.test(t);
   const isProcedente = !isParcial && RE_PROCEDENTE.test(t);
   const isImprocedente = !isParcial && RE_IMPROCEDENTE.test(t);
-  const hasSentenca = RE_SENTENCA.test(t) || isProcedente || isImprocedente || isParcial;
-
   let eventoTipo: EventoTipo | null = null;
   if (isAudiencia) {
     eventoTipo = (aud.tipo as EventoTipo) || 'audiencia_julgamento';
   } else if (isParcial) eventoTipo = 'sentenca_parcial';
   else if (isProcedente) eventoTipo = 'sentenca_procedente';
   else if (isImprocedente) eventoTipo = 'sentenca_improcedente';
-  else if (hasSentenca) eventoTipo = 'sentenca_parcial'; // genérico de mérito sem polaridade clara
+  // Sentença genérica não significa procedência parcial.
 
   return {
     eventoTipo,
@@ -176,6 +174,12 @@ export function isSentencaProcedente(c: {
   [k: string]: any;
 }): boolean {
   if (!c) return false;
+  const dadosOficiais = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  const resultadoOficial = dadosOficiais.merito_datajud_20261022?.resultado;
+  if (dadosOficiais.merito_fonte === 'datajud_tpu_2026-10-22') {
+    if (resultadoOficial === 'procedente' || resultadoOficial === 'parcial') return true;
+    if (resultadoOficial === 'improcedente' || resultadoOficial === 'sem_merito') return false;
+  }
   const ev = String(c.evento_tipo || '');
   if (ev === 'sentenca_procedente' || ev === 'sentenca_parcial') return true;
   if (c.is_procedente === true) return true;
@@ -197,6 +201,12 @@ export function isSentencaImprocedente(c: {
   [k: string]: any;
 }): boolean {
   if (!c) return false;
+  const dadosOficiais = c.dados && typeof c.dados === 'object' ? c.dados : {};
+  const resultadoOficial = dadosOficiais.merito_datajud_20261022?.resultado;
+  if (dadosOficiais.merito_fonte === 'datajud_tpu_2026-10-22') {
+    if (resultadoOficial === 'improcedente') return true;
+    if (resultadoOficial === 'procedente' || resultadoOficial === 'parcial' || resultadoOficial === 'sem_merito') return false;
+  }
   if (c.evento_tipo === 'sentenca_improcedente') return true;
   if (c.is_improcedente === true) return true;
   const dados = c.dados && typeof c.dados === 'object' ? c.dados : {};
