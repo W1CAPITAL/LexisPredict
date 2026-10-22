@@ -390,8 +390,6 @@ export async function fetchDjenComunicacoes(
     cloudBudget?: boolean;
     /** Página de 50 publicações; usado na cronologia completa sob demanda. */
     pagina?: number;
-    /** Página de 50 publicações; usado na cronologia completa sob demanda. */
-    pagina?: number;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -417,6 +415,7 @@ async function fetchDjenComunicacoesUncached(
     dataFim?: string;
     /** Short no-retry call for serverless cloud micro-batches. */
     cloudBudget?: boolean;
+    pagina?: number;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
