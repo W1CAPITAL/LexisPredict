@@ -62,6 +62,7 @@ const core: NavItem[] = [
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
+  { label: "Superagente", href: "/chat", icon: Bot },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
@@ -78,7 +79,6 @@ const extras: NavItem[] = [
   { label: "Gerador de processos", href: "/gerador-processos", icon: Search },
   { label: "Peças e documentos", href: "/documents", icon: FileText },
   { label: "Veredito", href: "/veredito", icon: Gavel },
-  { label: "Assistente", href: "/chat", icon: Bot },
   { label: "Finanças", href: "/financas", icon: Wallet },
   { label: "Cálculos", href: "/calculos", icon: Calculator },
   { label: "Importar carteira", href: "/import", icon: Upload },
@@ -137,7 +137,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies"]
+      ["/", "/tarefas", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -172,7 +172,7 @@ export function SidebarVertical() {
       "/processos": "Visão completa da carteira da empresa.",
       "/crm": "Clientes, negócios e acompanhamento comercial.",
       "/gerador-processos": "Cadastre e organize novos processos.",
-      "/chat": "Assistente para dúvidas e análise.",
+      "/chat": "Superagente: investigações, dossiês, atendimento, relatórios e pesquisa por CNJ ou nome.",
       "/financas": "Valores e lançamentos financeiros.",
       "/calculos": "Ferramentas de cálculo jurídico/financeiro.",
       "/import": "Importe uma carteira em lote.",
@@ -198,6 +198,7 @@ export function SidebarVertical() {
       "/supervisao",
       "/whatsapp",
       "/dossies",
+      "/chat",
       "/agenda",
       "/report",
       "/settings",
