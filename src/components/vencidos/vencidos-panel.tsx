@@ -91,8 +91,8 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
     {p.flag.historico&&tab==="prazo"?<p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">O campo de prazo antigo não representa o próximo retorno. Confira sua origem e atualize o cadastro somente com evidência; não atribua atraso ao cliente ou advogado.</p>:null}{p.flag.inconsistencia&&tab==="revisar"?<p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">O status salvo não corresponde à data e ao último atendimento. Corrija a classificação após conferir o histórico; este alerta não comprova omissão.</p>:null}
     {p.datajud_ultimo_nome?<p className="mt-3 line-clamp-2 text-xs text-muted-foreground">Movimentação registrada: {p.datajud_ultimo_nome}</p>:null}
     <div className="mt-4 flex flex-wrap gap-2">
-     <Link href={"/processos?search="+encodeURIComponent(p.protocolo_ref)} className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">Abrir processo <ChevronRight size={14}/></Link>
-     <Link href={"/tarefas?search="+encodeURIComponent(p.protocolo_ref)} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Abrir nas tarefas</Link>
+     <Link prefetch={false} href={"/processos?search="+encodeURIComponent(p.protocolo_ref)+"&processo="+encodeURIComponent(p.protocolo_ref)} className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">Abrir processo <ChevronRight size={14}/></Link>
+     <Link prefetch={false} href={"/tarefas?search="+encodeURIComponent(p.protocolo_ref)} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Abrir nas tarefas</Link>
     </div>
    </article>)}
   </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum vencido neste filtro</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
