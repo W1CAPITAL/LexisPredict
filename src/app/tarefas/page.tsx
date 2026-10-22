@@ -519,16 +519,40 @@ export default function TarefasPage() {
   };
 
   
-const handleSaveAttendance = async () => {
+const openAttendanceForGroup=(group:TaskGroup)=>{
+    const chosen=group.cases.find(c=>c.protocolo===group.protocoloReferencia)||group.cases[0];
+    if(!chosen?.protocolo){
+      toast({title:"Processo não identificado",description:"Abra o processo para conferir o CNJ antes de registrar.",variant:"destructive"});
+      return;
+    }
+    setActiveGroup(group);
+    setAttendanceForm({
+      situacao:isCasoEncerrado(chosen)?"ENCERRADO":"EM ANDAMENTO",
+      observacao:"",
+      proximoRetorno:"",
+      applyToAll:false,
+      filaLista:groupFilaLista([chosen] as any),
+    });
+    setIsAttendanceOpen(true);
+  };
+
+  const handleSaveAttendance = async () => {
     if (!activeGroup || isSavingAttendance) return;
     setIsSavingAttendance(true);
     // One process per click by default; bulk changes must be opt-in and bounded
     // so many sequential server actions cannot time out the browser/session.
-    const primary = activeGroup.cases[0]?.protocolo;
-    const matching = cases.filter(c => attendanceForm.applyToAll
-      ? c.cliente === activeGroup.cliente
-      : c.protocolo === primary);
-    const targets = matching.slice(0, 10);
+    const primary = activeGroup.protocoloReferencia||activeGroup.cases[0]?.protocolo;
+    // A busca remota pode retornar um processo ainda fora das páginas locais.
+    // Use a própria seleção visível do usuário, não a lista parcial `cases`.
+    const matching = attendanceForm.applyToAll
+      ? activeGroup.cases.filter(c=>!!c.protocolo)
+      : activeGroup.cases.filter(c=>c.protocolo===primary).slice(0,1);
+    const targets = Array.from(new Map(matching.map(c=>[c.protocolo,c])).values()).slice(0,10);
+    if(!targets.length){
+      toast({title:"Atendimento não registrado",description:"Nenhum processo válido foi selecionado. Abra o processo e tente novamente.",variant:"destructive"});
+      setIsSavingAttendance(false);
+      return;
+    }
     const remaining = Math.max(0, matching.length - targets.length);
     const confirmed = new Map<string, LegalCase>();
     const pending: string[] = [];
@@ -552,14 +576,19 @@ const handleSaveAttendance = async () => {
         invalidateCarteiraCache();
         invalidateFastCarteiraCache();
       }
-      setCases(cases.map(c => confirmed.get(c.protocolo) || c));
+      if(confirmed.size){
+        setCases(prev=>prev.map(c=>confirmed.get(c.protocolo)||c));
+        window.dispatchEvent(new Event("lexis-carteira-updated"));
+      }
       if (!failures.length && confirmed.size) { setIsAttendanceOpen(false); setActiveGroup(null); }
       toast({
-        title: failures.length ? 'Atendimento parcialmente salvo' : 'Atendimento registrado',
+        title: !confirmed.size ? 'Atendimento não registrado' : failures.length ? 'Atendimento parcialmente salvo' : 'Atendimento registrado',
         description: `${confirmed.size}/${targets.length} processo(s) salvo(s) no Supabase.${remaining ? ` Há ${remaining} processo(s) adicionais: registre em lotes de até 10.` : ''} ${failures.length ? failures.slice(0, 2).join(' · ') : ''}`,
-        variant: failures.length ? 'destructive' : undefined,
+        variant: failures.length||!confirmed.size ? 'destructive' : undefined,
         action: pending.length ? <AtendimentoSyncRetry protocolos={pending}/> : undefined,
       });
+    } catch(error:any){
+      toast({title:"Atendimento não registrado",description:error?.message||"Falha de conexão com o Supabase.",variant:"destructive"});
     } finally { setIsSavingAttendance(false); }
   };
 
@@ -833,8 +862,7 @@ const handleSaveAttendance = async () => {
       } else if (e.key === "Enter") {
         const g = taskData.focus[kbIndex];
         if (g) {
-          setActiveGroup(g);
-          setIsAttendanceOpen(true);
+          openAttendanceForGroup(g);
         }
       }
     };
@@ -1031,7 +1059,7 @@ const handleSaveAttendance = async () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {taskData.focus.slice(0, listVisible).map((group, idx) => (
-                <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
+                <TaskCard key={group.cliente} group={group} isFocus isKbFocus={idx === kbIndex} onMarkContacted={() => openAttendanceForGroup(group)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
               ))}
             </div>
             {!loading && !remoteSearch.searching && taskData.focus.length === 0 && (
@@ -1100,7 +1128,7 @@ const handleSaveAttendance = async () => {
             <div className="space-y-4 pt-10 border-t border-border/30">
                <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
                {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => { setActiveGroup(group); setIsAttendanceOpen(true); }} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
+            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendanceForGroup(group)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
                {showBacklog&&taskData.backlog.length>backlogVisible?<Button type="button" variant="outline" onClick={()=>setBacklogVisible(v=>v+24)}>Mostrar mais 24 do backlog ({taskData.backlog.length-backlogVisible} restantes)</Button>:null}
             </div>
           )}
@@ -1209,7 +1237,7 @@ const handleSaveAttendance = async () => {
 
         <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
           <DialogContent className="sm:max-w-[480px] rounded-2xl border-none shadow-2xl h-[90vh] overflow-hidden p-0 flex flex-col">
-            <form className="flex flex-col h-full">
+            <form className="flex flex-col h-full" onSubmit={(event)=>{event.preventDefault();void handleSaveAttendance();}}>
               <DialogHeader className="p-6 bg-secondary/20 border-b shrink-0"><DialogTitle className="font-black uppercase tracking-tight flex items-center gap-2"><UserCheck className="text-primary" /> Registrar Atendimento</DialogTitle></DialogHeader>
               <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                   <div className="grid gap-2"><Label className={ui.label}>Resultado do Contato</Label><Select value={attendanceForm.situacao} onValueChange={(val) => setAttendanceForm({...attendanceForm, situacao: val})}><SelectTrigger className="rounded-xl h-12 bg-secondary/30 border-none font-bold text-[11px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EM ANDAMENTO" className="text-[10px] font-bold uppercase">Manter Ativo</SelectItem><SelectItem value="ENCERRADO" className="text-[10px] font-bold uppercase text-red-600">Encerrar Caso</SelectItem></SelectContent></Select></div>
@@ -1236,7 +1264,7 @@ const handleSaveAttendance = async () => {
                   </div>
                   <div className="flex items-center space-x-3 pt-2"><Checkbox id="applyToAll" checked={attendanceForm.applyToAll} onCheckedChange={(val) => setAttendanceForm({...attendanceForm, applyToAll: !!val})} /><Label htmlFor="applyToAll" className="text-[10px] font-black uppercase cursor-pointer leading-tight">Aplicar a toda carteira do cliente</Label></div>
               </div>
-              <DialogFooter className="p-6 pt-0 shrink-0"><Button type="button" onClick={handleSaveAttendance} disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">{isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />} Sincronizar Registro</Button></DialogFooter>
+              <DialogFooter className="p-6 pt-0 shrink-0"><Button type="submit" disabled={isSavingAttendance} className="w-full h-14 bg-black text-white rounded-xl font-black uppercase text-[11px] shadow-xl">{isSavingAttendance ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" />} Sincronizar Registro</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -1341,7 +1369,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
              </Button>
            );
         })()}
-<Button variant="ghost" asChild className="h-10 px-3 sm:px-4 rounded-xl text-[10px] font-black uppercase hover:text-primary transition-all"><Link href={`/cases?search=${encodeURIComponent(group.cliente)}`}>Gerir <ChevronRight size={14} className="ml-1 hidden sm:inline" /></Link></Button>
+<Button variant="ghost" asChild className="h-10 px-3 sm:px-4 rounded-xl text-[10px] font-black uppercase hover:text-primary transition-all"><Link href={`/processos?search=${encodeURIComponent(group.protocoloReferencia)}&editar=1`}>Editar <ChevronRight size={14} className="ml-1 hidden sm:inline" /></Link></Button>
       </div>
     </div>
   );
