@@ -60,6 +60,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { processOperationalCoverage, processSourceGapCount, processSourceMatrix, recommendedProcessActions } from "@/lib/processos-command-intelligence";
 import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
+import { fetchProcessosMovementsAction } from "@/app/actions/processos-movements-action";
+import { cnjDigits, formatCnj, mergeProcessTimelineEntries, type ProcessTimelineEntry } from "@/lib/processos-timeline";
 
 
 type Props = {
@@ -117,7 +119,7 @@ function parseDate(value: unknown): Date | null {
   if (!raw) return null;
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {
-    const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T12:00:00`);
+    const d = new Date(/[T ]\d{2}:\d{2}/.test(raw) ? raw : `${iso[1]}-${iso[2]}-${iso[3]}T12:00:00`);
     return Number.isNaN(d.getTime()) ? null : d;
   }
   const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
@@ -285,18 +287,15 @@ function KpiCard({ label, value, hint, kind = "blue", icon }: {
   );
 }
 
-function miniTimeline(c: LegalCase) {
-  const rows = [
-    { label: clean(c.datajud_ultimo_nome) || "Último movimento DataJud", detail: clean(c.evento_resumo), date: c.datajud_ultimo_movimento, source: "DataJud" },
-    { label: clean(c.djen_ultimo_resumo) || "Última publicação DJEN", detail: clean(c.djen_ultimo_resumo), date: c.djen_ultima_data, source: "DJEN" },
-    { label: "Último retorno ao cliente", detail: clean(c.observacao).slice(0, 160), date: c.ultimoRetorno, source: "Atendimento" },
-    { label: "Ajuizamento / distribuição", detail: clean(c.classe_acao), date: c.dataDistribuicao, source: "Processo" },
-  ];
-  return rows
-    .filter((x) => clean(x.date) || clean(x.detail))
-    .sort((a, b) => (parseDate(b.date)?.getTime() || 0) - (parseDate(a.date)?.getTime() || 0))
-    .slice(0, 8);
+function fmtTimelineDate(raw:string){
+  if(!raw)return 'Data não informada';
+  return fmtDate(raw, /[T ]\\d{2}:\\d{2}/.test(raw));
 }
+
+type MovementResponse=Awaited<ReturnType<typeof fetchProcessosMovementsAction>>;
+type MovementView={
+  cnj:string; data:MovementResponse|null; loading:boolean; loadingMore:boolean; error:string;
+};
 
 function toCsvDownload(base64: string, filename: string) {
   const binary = atob(base64);
@@ -396,6 +395,71 @@ export function ProcessosCommandCenter(props: Props) {
     [rows, selectedId]
   );
   React.useEffect(()=>setOabResult(null),[selectedId]);
+
+  // O painel não carrega o histórico de milhares de processos: apenas o CNJ
+  // selecionado quando o usuário abre Mov. Resultados ficam em cache da aba.
+  const selectedCnj=cnjDigits(selected?.protocolo);
+  const selectedDbId=String(selected?.db_id||selected?.id||'');
+  const historyCache=React.useRef(new Map<string,MovementResponse>());
+  const [historyVersion,setHistoryVersion]=React.useState(0);
+  const [onlyCumprimento,setOnlyCumprimento]=React.useState(false);
+  const [history,setHistory]=React.useState<MovementView>({
+    cnj:'',data:null,loading:false,loadingMore:false,error:''
+  });
+
+  React.useEffect(()=>{
+    if(tab!=='movements'||!selectedCnj)return;
+    const cached=historyCache.current.get(selectedCnj);
+    if(cached){
+      setHistory({cnj:selectedCnj,data:cached,loading:false,loadingMore:false,error:''});
+      return;
+    }
+    let cancelled=false;
+    setHistory({cnj:selectedCnj,data:null,loading:true,loadingMore:false,error:''});
+    void fetchProcessosMovementsAction(selectedDbId,selectedCnj).then(result=>{
+      if(cancelled)return;
+      if(result.success)historyCache.current.set(selectedCnj,result);
+      setHistory({cnj:selectedCnj,data:result,loading:false,loadingMore:false,error:result.success?'':result.message});
+    }).catch((error:unknown)=>{
+      if(!cancelled)setHistory({cnj:selectedCnj,data:null,loading:false,loadingMore:false,error:String(error)});
+    });
+    return ()=>{cancelled=true};
+  },[tab,selectedCnj,selectedDbId,historyVersion]);
+
+  const activeHistory=history.cnj===selectedCnj?history:null;
+  const historyEntries:ProcessTimelineEntry[]=activeHistory?.data?.entries||[];
+  const timeline=onlyCumprimento?historyEntries.filter(item=>item.phase==='cumprimento'):historyEntries;
+  const cumprimentoCount=historyEntries.filter(item=>item.phase==='cumprimento').length;
+
+  function refreshMovementHistory(){
+    if(!selectedCnj)return;
+    historyCache.current.delete(selectedCnj);
+    setHistoryVersion(version=>version+1);
+  }
+
+  async function loadMoreMovementHistory(){
+    if(!selectedCnj||!activeHistory?.data?.hasMore||activeHistory.loadingMore)return;
+    const nextPage=activeHistory.data.page+1;
+    setHistory(previous=>({...previous,loadingMore:true}));
+    try{
+      const pageData=await fetchProcessosMovementsAction(selectedDbId,selectedCnj,nextPage);
+      if(!pageData.success)throw new Error(pageData.message);
+      const current=historyCache.current.get(selectedCnj);
+      if(!current)return;
+      const merged:MovementResponse={
+        ...pageData,
+        page:nextPage,
+        entries:mergeProcessTimelineEntries(current.entries,pageData.entries),
+        warnings:[...new Set([...(current.warnings||[]),...(pageData.warnings||[])])]
+      };
+      historyCache.current.set(selectedCnj,merged);
+      setHistory(previous=>previous.cnj===selectedCnj
+        ? {cnj:selectedCnj,data:merged,loading:false,loadingMore:false,error:''} : previous);
+    }catch(error:any){
+      setHistory(previous=>previous.cnj===selectedCnj
+        ? {...previous,loadingMore:false,error:String(error?.message||error)}:previous);
+    }
+  }
 
   const loaded = props.items.length;
   const silenceCount = React.useMemo(() => props.items.filter((c) => (caseSilenceDays(c) || 0) >= 45).length, [props.items]);
@@ -529,7 +593,6 @@ export function ProcessosCommandCenter(props: Props) {
     }finally{setBusy("")}
   }
 
-  const timeline = selected ? miniTimeline(selected) : [];
   const selectedSilence = selected ? caseSilenceDays(selected) : null;
   const selectedSources = React.useMemo(() => selected ? processSourceMatrix(selected) : [], [selected]);
   const selectedActions = React.useMemo(() => selected ? recommendedProcessActions(selected) : [], [selected]);
@@ -908,18 +971,86 @@ export function ProcessosCommandCenter(props: Props) {
               ) : null}
 
               {tab === "movements" ? (
-                <Panel title="Linha do tempo">
-                  {timeline.length ? timeline.map((item, index) => (
-                    <div key={index} className="relative border-l border-blue-500/30 pb-3 pl-4 last:pb-0">
-                      <span className="absolute -left-[4px] top-1 h-2 w-2 rounded-full bg-blue-400 ring-2 ring-[#0a1729]"/>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">{item.label}</p>
-                        <span className="text-[9px] text-slate-600 dark:text-slate-400">{fmtDate(item.date,true)}</span>
-                      </div>
-                      {item.detail ? <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-slate-500">{item.detail}</p> : null}
-                      <p className="mt-1 text-[9px] font-bold uppercase text-blue-400/70">{item.source}</p>
+                <Panel title="Histórico completo · DataJud + DJEN">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                      {activeHistory?.loading
+                        ? 'Consultando movimentações do tribunal…'
+                        : `${historyEntries.length} registros · ${cumprimentoCount} de cumprimento/execução`}
+                    </p>
+                    <button type="button" aria-label="Atualizar movimentos" disabled={!!activeHistory?.loading}
+                      onClick={refreshMovementHistory}
+                      className="rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-800 disabled:opacity-40 dark:text-blue-200">
+                      <RefreshCcw size={11} className="mr-1 inline"/>Atualizar
+                    </button>
+                  </div>
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    <button type="button" onClick={()=>setOnlyCumprimento(false)}
+                      className={cn("rounded-md border px-2 py-1 text-[10px] font-semibold",!onlyCumprimento?"border-blue-500 bg-blue-600 text-white":"border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300")}>
+                      Todos ({historyEntries.length})
+                    </button>
+                    <button type="button" onClick={()=>setOnlyCumprimento(true)}
+                      className={cn("rounded-md border px-2 py-1 text-[10px] font-semibold",onlyCumprimento?"border-blue-500 bg-blue-600 text-white":"border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300")}>
+                      Cumprimento ({cumprimentoCount})
+                    </button>
+                  </div>
+                  {activeHistory?.data?.relatedCnjs?.length ? (
+                    <p className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-800 dark:text-emerald-200">
+                      Cumprimento vinculado por CNJ cadastrado: {activeHistory.data.relatedCnjs.map(formatCnj).join(' · ')}
+                    </p>
+                  ):null}
+                  {activeHistory?.loading ? (
+                    <div className="flex items-center gap-2 py-4 text-[11px] text-slate-600 dark:text-slate-400"><Loader2 size={13} className="animate-spin"/>Carregando atos, decisões, petições e publicações…</div>
+                  ):null}
+                  {activeHistory?.error ? (
+                    <p role="alert" className="mb-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-200">{activeHistory.error}</p>
+                  ):null}
+                  {activeHistory?.data?.warnings?.length ? (
+                    <div className="mb-2 rounded-lg border border-amber-400/20 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-200">
+                      <b>Fontes com consulta parcial:</b> {activeHistory.data.warnings.join(' · ')}
                     </div>
-                  )) : <p className="text-[11px] text-slate-500">Sem timeline em cache. Rode DataJud + DJEN.</p>}
+                  ):null}
+                  {!activeHistory?.loading && !timeline.length ? (
+                    <p className="py-2 text-[11px] text-slate-500">
+                      {onlyCumprimento?'Não há atos identificados como cumprimento nas fontes consultadas.':activeHistory?.data?.message||'Sem movimentos retornados. Verifique a consulta no portal do tribunal.'}
+                    </p>
+                  ):null}
+                  <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
+                    {timeline.map((item)=>(
+                      <div key={item.id} className={cn("relative rounded-r-lg border-l-2 px-3 py-2",
+                        item.phase==='cumprimento'?"border-emerald-500 bg-emerald-500/[.055]":"border-blue-500/45 bg-blue-500/[.035]")}>
+                        <div className="flex flex-wrap items-start justify-between gap-1">
+                          <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">{item.label}</p>
+                          <span className="text-[9px] text-slate-600 dark:text-slate-400">{fmtTimelineDate(item.date)}</span>
+                        </div>
+                        <p className="mt-1 text-[9px] font-bold text-blue-700 dark:text-blue-300">
+                          {item.source} · {formatCnj(item.cnj)}
+                          {item.phase==='cumprimento'?' · Cumprimento':''}
+                        </p>
+                        {item.detail ? (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">
+                              {item.detail.length>210?item.detail.slice(0,210)+'… (ver teor)':item.detail}
+                            </summary>
+                            {item.detail.length>210?<p className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-slate-700 dark:text-slate-300">{item.detail}</p>:null}
+                          </details>
+                        ):null}
+                        {item.link?<a className="mt-1 inline-flex items-center gap-1 text-[10px] text-violet-700 underline dark:text-violet-300" href={item.link} target="_blank" rel="noopener noreferrer"><ExternalLink size={10}/>Ver publicação oficial</a>:null}
+                      </div>
+                    ))}
+                  </div>
+                  {activeHistory?.data?.hasMore ? (
+                    <button type="button" disabled={activeHistory.loadingMore}
+                      onClick={()=>void loadMoreMovementHistory()}
+                      className="mt-2 w-full rounded-lg border border-blue-400/25 bg-blue-500/10 px-2 py-2 text-[11px] font-semibold text-blue-800 disabled:opacity-50 dark:text-blue-200">
+                      {activeHistory.loadingMore?<Loader2 size={12} className="mr-1 inline animate-spin"/>:<ChevronRight size={12} className="mr-1 inline"/>}
+                      Carregar publicações DJEN anteriores · página {activeHistory.data.page+1}
+                    </button>
+                  ):null}
+                  <p className="mt-2 text-[9px] leading-relaxed text-slate-500">
+                    DataJud: todos os movimentos devolvidos na consulta; DJEN: publicações paginadas, com opção de carregar mais.
+                    Atendimentos são registros internos separados. Cumprimentos com outro número aparecem apenas quando há vínculo explícito no cadastro.
+                  </p>
                 </Panel>
               ) : null}
 
