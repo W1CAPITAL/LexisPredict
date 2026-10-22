@@ -48,7 +48,7 @@ const more = [
   ["Gerador", "/gerador-processos", Hash],
   ["Peças", "/documents", FileText],
   ["Veredito", "/veredito", Scale],
-  ["Assistente", "/chat", Bot],
+  ["Superagente", "/chat", Bot],
   ["Finanças", "/financas", Wallet],
   ["Cálculos", "/calculos", Calculator],
   ["Importar", "/import", Upload],
