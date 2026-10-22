@@ -14,8 +14,6 @@ const RE_IMPROCEDENTE =
 
 const RE_PARCIAL = /PROCEDENTE\s+EM\s+PARTE|PARCIALMENTE\s+PROCEDENTE/i;
 
-const RE_SENTENCA = /SENTEN[CÇ]A|AC[OÓ]RD[AÃ]O|DECIS[AÃ]O\s+DE\s+M[EÉ]RITO/i;
-
 export type MeritoDetect = {
   eventoTipo: EventoTipo | null;
   resumo: string | null;
