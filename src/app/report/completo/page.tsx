@@ -73,6 +73,7 @@ import {
   type HonorarioRow,
 } from "@/app/actions/financas-actions";
 import { FileDown } from "lucide-react";
+import { ReportPdfExportButton } from "@/components/report/report-pdf-export-button";
 import { OmniReportStudio } from "@/components/report/omni-report-studio";
 
 export default function UnifiedReport() {
@@ -94,6 +95,7 @@ export default function UnifiedReport() {
   const [financeResumo, setFinanceResumo] = useState<any>(null);
   const [financeRows, setFinanceRows] = useState<HonorarioRow[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
   const [portfolioResumo,setPortfolioResumo]=useState<CarteiraSnapshot|null>(null);
   const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasDaviConcluidas:number;tarefasDaviPeriodo:number;historicoAtendimentosDavi:number;historicoEdicoesDavi:number;encerramentosSistemicosDavi:number;processosComTrabalhoDavi:number;contatosDeclaradosPeriodo:number}|null>(null);
 
@@ -390,36 +392,10 @@ export default function UnifiedReport() {
     window.print();
   };
 
-  const handleDownloadRelatorioEquipe = async () => {
-    if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
-    setPdfLoading(true);
-    try {
-      const [{ getSupervisaoSnapshotAction }, { downloadPdf }, { RelatorioEquipePDF }, { montarRelatorioEquipe }] = await Promise.all([
-        import("@/app/actions/supervisao-actions"),
-        import("@/lib/pdf-download"),
-        import("@/components/pdf/relatorio-equipe-pdf"),
-        import("@/lib/relatorio-equipe-narrativa"),
-      ]);
-      const res = await getSupervisaoSnapshotAction(periodo as any);
-      if (!res.success || !res.snapshot) {
-        alert(res.error || "Não deu para montar o relatório da equipe.");
-        return;
-      }
-      const data = montarRelatorioEquipe(res.snapshot, { geradoEm: new Date().toLocaleString("pt-BR") });
-      await downloadPdf(
-        <RelatorioEquipePDF data={data} />,
-        `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}`
-      );
-    } catch (e) {
-      console.error("Relatorio equipe:", e);
-    } finally {
-      setPdfLoading(false);
-    }
-  };
-
   const handleDownloadPdf = async () => {
     if(!dataComplete)return;
     if (!canExport) { alert("Modo visualização: download bloqueado."); return; }
+    setPdfError("");
     setPdfLoading(true);
     try {
       const [{ downloadPdf }, { DossieOperacionalPDF }] = await Promise.all([
@@ -499,9 +475,12 @@ export default function UnifiedReport() {
       );
       if (ok) {
         setClaudeReady(true);
+      } else {
+        throw new Error("O gerador não conseguiu entregar o PDF. Tente novamente.");
       }
     } catch (e) {
       console.error("PDF:", e);
+      setPdfError(e instanceof Error ? e.message : "Não foi possível gerar o dossiê operacional.");
     } finally {
       setPdfLoading(false);
     }
@@ -509,7 +488,7 @@ export default function UnifiedReport() {
 
   if (!mounted || authLoading) {
     return (
-      <div className="min-h-screen lexis-report-root flex flex-col items-center justify-center space-y-6">
+      <div className="report-completo-shell min-h-screen flex flex-col items-center justify-center space-y-6 bg-[#080f1e] text-slate-100">
         <Loader2 className="w-12 h-12 text-foreground animate-spin" />
         <p className="font-black tracking-[0.4em] text-[10px] text-foreground uppercase">Consolidando Dossiê Authority...</p>
         <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-widest">Carregando carteira e atendimentos da semana…</p>
@@ -527,20 +506,24 @@ export default function UnifiedReport() {
       {label:"Processos editados",value:h?.edicoes?.processos??"…",desc:"Edições manuais registradas"},
       {label:"Carteira da empresa",value:portfolioResumo?.total??"…",desc:"Empresa inteira, obtido direto do Supabase"},
     ];
-    return <main className="min-h-screen lexis-report-root p-4 text-foreground sm:p-7">
+    return <main className="report-completo-shell min-h-screen p-4 text-slate-100 sm:p-7">
       <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7">
+        <header className="report-detail-heading p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">LexisPredict · Relatório operacional</p>
-              <h1 className="mt-1 text-2xl font-extrabold">Visão da equipe em tempo real</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Atendimentos, edições e produtividade obtidos do histórico do Supabase, independentemente do carregamento da carteira.</p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatórios Inteligentes</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Visão completa da operação jurídica, equipe e auditoria. Os indicadores disponíveis vêm do histórico do Supabase, mesmo enquanto a carteira termina de carregar.</p>
             </div>
-            <Link href="/processos" className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">Processos da empresa</Link>
+            <div className="flex flex-wrap items-start gap-2">
+              <Link href="/report" className="report-outline-button">Visão executiva</Link>
+              <Link href="/processos" className="report-outline-button">Processos da empresa</Link>
+              <ReportPdfExportButton periodo={periodo} escopo="empresa" label="Exportar PDF" disabled={!canExport} className="report-premium-button disabled:cursor-not-allowed disabled:opacity-50"/>
+            </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {PERIODO_OPCOES.map(op=><button key={op.id} type="button" title={op.hint} onClick={()=>setPeriodo(op.id)}
-              className={cn("rounded-lg border px-4 py-2 text-xs font-bold",periodo===op.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background")}>{op.label}</button>)}
+              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition",periodo===op.id?"border-violet-500 bg-violet-600 text-white":"border-[#34435e] bg-[#141f34] text-slate-300 hover:border-violet-400")}>{op.label}</button>)}
           </div>
         </header>
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Indicadores rápidos">
@@ -579,10 +562,7 @@ export default function UnifiedReport() {
               <p className="text-sm font-semibold">Detalhamento da carteira</p>
               <p className="mt-1 text-xs text-muted-foreground">{loadError||`Preparando listas e informações processuais (${cases.length} registros recebidos). Os KPIs acima já vêm do histórico completo.`}</p>
             </div>
-            <Button onClick={handleDownloadRelatorioEquipe} disabled={pdfLoading||!canExport} className="text-xs">
-              {pdfLoading?<Loader2 size={15} className="mr-2 animate-spin"/>:<FileDown size={15} className="mr-2"/>}
-              Relatório da equipe em PDF
-            </Button>
+
           </div>
           {loading&&!loadError?<div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary"/></div>:null}
           {loadError?<p className="mt-2 text-xs text-destructive">O relatório detalhado não está completo. A contagem de atendimentos acima permanece baseada no histórico.</p>:null}
@@ -592,16 +572,19 @@ export default function UnifiedReport() {
   }
 
   return (
-    <div className="min-h-screen lexis-report-root font-sans text-foreground">
+    <div className="report-completo-shell min-h-screen font-sans text-slate-100">
       {!dataComplete&&<div role="status" className="print:hidden border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
         {loadError||'Exibindo dados parciais enquanto consolida o restante da carteira. Exportações ficam suspensas até terminar.'}
       </div>}
       <div className="print:hidden sticky top-0 z-[100] bg-background/90 backdrop-blur-xl border-b border-border p-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-6">
-            <Button variant="ghost" asChild className="h-10 px-4 font-black uppercase text-[10px] border-2 border-transparent hover:border-border rounded-lg">
-              <Link href="/"><ArrowLeft size={16} className="mr-2" /> Gabinete</Link>
-            </Button>
+            <Link href="/report" className="report-outline-button"><ArrowLeft size={15}/> Visão executiva</Link>
+            <div className="min-w-[170px]">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-violet-300">LEXISPREDICT / REPORT</p>
+              <h1 className="text-base font-black tracking-tight text-white">Relatórios Inteligentes</h1>
+              <p className="text-[10px] text-slate-400">Detalhamento completo da operação</p>
+            </div>
             <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">{dataComplete?'Carteira consolidada':'Atualizando carteira'}</Badge>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-2">
@@ -632,21 +615,20 @@ export default function UnifiedReport() {
               {claudeLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
               Gerar parecer Claude AI
             </Button>
-            <Button
-              onClick={handleDownloadRelatorioEquipe}
-              disabled={pdfLoading||!dataComplete}
-              className="bg-foreground hover:bg-foreground/90 text-background font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
-            >
-              {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
-              Relatório da equipe
-            </Button>
+            <ReportPdfExportButton
+              periodo={periodo}
+              escopo="empresa"
+              label="PDF gerencial"
+              disabled={!canExport||!dataComplete}
+              className="report-premium-button disabled:cursor-not-allowed disabled:opacity-50"
+            />
             <Button
               onClick={handleDownloadPdf}
               disabled={pdfLoading||!dataComplete}
               className="bg-success hover:bg-success/90 text-success-foreground font-black uppercase text-[10px] h-10 px-6 rounded-lg shadow-md"
             >
               {pdfLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
-              Baixar PDF (arquivo)
+              Dossiê operacional (PDF)
             </Button>
             <Button
               onClick={handlePrint}
@@ -655,8 +637,8 @@ export default function UnifiedReport() {
               className={cn(
                 "font-black uppercase text-[10px] h-10 px-8 rounded-lg transition-all",
                 claudeReady
-                  ? "bg-foreground hover:bg-foreground/90 text-background"
-                  : "bg-muted text-muted-foreground/50 cursor-not-allowed"
+                  ? "report-premium-button"
+                  : "report-outline-button"
               )}
             >
               <Printer size={16} className="mr-2" /> Imprimir / Exportar PDF operacional
@@ -664,38 +646,29 @@ export default function UnifiedReport() {
           </div>
         </div>
       </div>
+      {pdfError?<div role="alert" className="mx-auto mt-3 max-w-7xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">{pdfError}</div>:null}
 
-      <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 print:py-0 space-y-6">
 
         <OmniReportStudio />
 
-        <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 sm:p-16 relative overflow-hidden break-inside-avoid shadow-[6px_6px_0px_rgba(0,0,0,0.08)]">
-           <div className="absolute top-0 right-0 p-10 opacity-[0.04] rotate-12 scale-150 text-primary"><Layers size={300} /></div>
-           <div className="space-y-10 relative z-10">
-              <div className="flex items-center gap-6">
-                 <div className="w-12 h-12 bg-primary flex items-center justify-center text-primary-foreground rounded-lg"><Layers size={28} /></div>
-                 <div>
-                    <h2 className="text-xl font-black uppercase tracking-[0.4em] text-foreground">LexisPredict Elite</h2>
-                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">W1 Capital • Advanced Legal Operations</p>
-                 </div>
+        <section className="report-detail-heading relative overflow-hidden rounded-2xl p-5 sm:p-7 break-inside-avoid">
+          <div className="pointer-events-none absolute -right-12 -top-16 text-violet-400 opacity-[0.07]"><Layers size={250}/></div>
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-5">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-800 text-white shadow-lg shadow-violet-900/30"><Layers size={24}/></span>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-300">LEXISPREDICT / RELATÓRIO COMPLETO</p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatório operacional completo</h2>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300">Carteira, produtividade, auditoria judicial, atividades internas e evidências em uma única visão detalhada.</p>
               </div>
-              <div className="pt-10">
-                 <h1 className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-[0.85] text-foreground">
-                    Dossiê<br />Operacional<br /><span className="text-primary">Master</span>
-                 </h1>
-                 <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-muted-foreground mt-4">Relatório Consolidado de Mérito e Responsabilidade</p>
-              </div>
-           </div>
-           <div className="flex justify-between items-end border-t-2 border-border mt-16 pt-8">
-              <div className="space-y-1">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Auditado por</p>
-                 <p className="text-lg font-black uppercase tracking-tight text-foreground">{profile?.nome}</p>
-              </div>
-              <div className="text-right">
-                 <p className="text-2xl font-black tracking-tighter uppercase text-foreground">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-border text-foreground font-black uppercase text-[8px] px-3">v.26.0 ELITE</Badge>
-              </div>
-           </div>
+            </div>
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Relatório preparado por</span>
+              <span className="text-sm font-bold text-white">{profile?.nome||"—"}</span>
+              <Badge variant="outline" className="mt-1 border-[#3b4861] bg-[#141f34] px-3 text-[9px] font-bold text-slate-200">{metrics.semanaLabel} · {new Date().toLocaleDateString("pt-BR")}</Badge>
+            </div>
+          </div>
         </section>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">

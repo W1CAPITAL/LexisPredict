@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import {useMemo,useState} from "react";
-import {Activity,AlertTriangle,ArrowUpRight,BarChart3,BellRing,BriefcaseBusiness,CheckCircle2,ChevronRight,Clock3,Download,FileClock,FileText,Filter,MessageCircle,RefreshCw,ShieldAlert,Sparkles,Users,Wallet} from "lucide-react";
+import {ReportPdfExportButton} from "@/components/report/report-pdf-export-button";
+import {Activity,AlertTriangle,ArrowUpRight,BarChart3,BellRing,BriefcaseBusiness,CheckCircle2,ChevronRight,Clock3,FileClock,FileText,Filter,MessageCircle,RefreshCw,ShieldAlert,Sparkles,Users,Wallet} from "lucide-react";
 import {CartesianGrid,Cell,Line,LineChart,Pie,PieChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 
 type Person={id:string;nome:string;carteira:number;atendimentos:number;encerramentos:number;edicoes:number;atividades:number};
@@ -66,7 +67,7 @@ export function ReportExecutiveDashboard(p:Props){
     <div className="flex flex-wrap gap-2">
      <Link className={linkClass} href="/processos"><BriefcaseBusiness className="h-4 w-4"/>Processos</Link>
      <Link className={linkClass} href="/report/completo"><FileText className="h-4 w-4"/>Relatório completo</Link>
-     <Link className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-violet-500 bg-gradient-to-r from-blue-600 to-violet-700 px-4 text-xs font-bold text-white hover:brightness-110" href={"/api/report/pdf?periodo="+p.periodo+"&escopo="+(p.meus?"meus":"empresa")}><Download className="h-4 w-4"/>Exportar PDF</Link>
+     <ReportPdfExportButton periodo={p.periodo} escopo={p.meus?"meus":"empresa"} label="Exportar PDF" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-500 bg-gradient-to-r from-blue-600 to-violet-700 px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"/>
     </div>
    </header>
    <nav aria-label="Filtros do relatório" className="mb-4 grid gap-2 rounded-2xl border border-[#28344e] bg-[#111b2e] p-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
