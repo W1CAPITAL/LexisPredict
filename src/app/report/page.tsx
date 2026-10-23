@@ -4,6 +4,7 @@ import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
 import {ReportSync} from "@/components/report/report-sync";
+import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
 import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
 
@@ -297,30 +298,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       </div>
       <p className="mt-3 text-xs text-muted-foreground">Contagem por data de registro da atividade, inclusive importações e conferências lançadas em lote. Um processo pode aparecer em diversas categorias; não some as categorias como se fossem processos únicos.</p>
     </section>
-    <section className="grid gap-4 lg:grid-cols-2">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-bold">Atendimentos por dia</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Um processo conta uma vez em cada dia de atendimento, mesmo que tenha vários registros no mesmo dia.</p>
-        {hist?<div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
-          {hist.dias.map(d=><div key={d.ymd} className="rounded-xl border border-border bg-background p-3 text-center">
-            <p className="text-[10px] font-semibold text-muted-foreground">{periodo==="mes"?br(d.ymd):d.day}</p>
-            <p className="mt-1 text-xl font-black tabular-nums">{d.atendimentos}</p>
-            {periodo!=="mes"?<p className="text-[10px] text-muted-foreground">{br(d.ymd)}</p>:null}
-          </div>)}
-        </div>:<p className="mt-5 text-sm text-muted-foreground">Não foi possível consultar o histórico neste momento. Nenhum número provisório foi usado.</p>}
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-bold">Por colaborador</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Crédito para o executor do atendimento, independentemente da carteira.</p>
-        <div className="mt-4 space-y-2">
-          {hist?.porUsuario.length?hist.porUsuario.map(x=><div key={x.userId} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background p-3">
-            <span className="text-sm font-semibold">{x.nome}</span>
-            <span className="text-right text-sm tabular-nums"><strong>{x.processos}</strong> processos <span className="text-muted-foreground">· {x.eventos} registros</span></span>
-          </div>):<p className="text-sm text-muted-foreground">Não há atendimentos pessoais confirmados para o período consultado.</p>}
-        </div>
-        {hist?.tecnicoEventos?<p className="mt-3 text-xs text-muted-foreground">{hist.tecnicoEventos} eventos de contas técnicas mantidos fora da contagem humana.</p>:null}
-      </div>
-    </section>
+    <AtendimentosEquipeDiarios historico={hist} variant="full" />
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <h2 className="text-lg font-bold">Retornos dos processos ativos</h2>
       <p className="mt-1 text-xs text-muted-foreground">
