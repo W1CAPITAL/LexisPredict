@@ -515,7 +515,11 @@ export default function UnifiedReport() {
               <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatórios Inteligentes</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Visão completa da operação jurídica, equipe e auditoria. Os indicadores disponíveis vêm do histórico do Supabase, mesmo enquanto a carteira termina de carregar.</p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/report" className="report-outline-button">Visão executiva</Link><Link href="/processos" className="report-outline-button">Processos da empresa</Link></div>
+            <div className="flex flex-wrap items-start gap-2">
+              <Link href="/report" className="report-outline-button">Visão executiva</Link>
+              <Link href="/processos" className="report-outline-button">Processos da empresa</Link>
+              <ReportPdfExportButton periodo={periodo} escopo="empresa" label="Exportar PDF" disabled={!canExport} className="report-premium-button disabled:cursor-not-allowed disabled:opacity-50"/>
+            </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {PERIODO_OPCOES.map(op=><button key={op.id} type="button" title={op.hint} onClick={()=>setPeriodo(op.id)}
@@ -558,13 +562,7 @@ export default function UnifiedReport() {
               <p className="text-sm font-semibold">Detalhamento da carteira</p>
               <p className="mt-1 text-xs text-muted-foreground">{loadError||`Preparando listas e informações processuais (${cases.length} registros recebidos). Os KPIs acima já vêm do histórico completo.`}</p>
             </div>
-            <ReportPdfExportButton
-              periodo={periodo}
-              escopo="empresa"
-              label="Exportar PDF gerencial"
-              disabled={!canExport}
-              className="report-premium-button disabled:cursor-not-allowed disabled:opacity-50"
-            />
+
           </div>
           {loading&&!loadError?<div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary"/></div>:null}
           {loadError?<p className="mt-2 text-xs text-destructive">O relatório detalhado não está completo. A contagem de atendimentos acima permanece baseada no histórico.</p>:null}
