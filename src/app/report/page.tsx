@@ -88,7 +88,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
    {title:"Novidades",value:snapshot?.novidades},
    {title:"Baixas tribunal",value:snapshot?.baixas},
  ];
- return <main className="min-h-screen bg-background px-4 py-7 text-foreground sm:px-8">
+ return <main className="report-completo-shell min-h-screen px-4 py-7 text-slate-100 sm:px-8">
    <div className="mx-auto max-w-[1400px] space-y-6">
     <ReportExecutiveDashboard
       periodo={periodo}
