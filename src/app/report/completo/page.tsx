@@ -475,6 +475,8 @@ export default function UnifiedReport() {
       );
       if (ok) {
         setClaudeReady(true);
+      } else {
+        throw new Error("O gerador não conseguiu entregar o PDF. Tente novamente.");
       }
     } catch (e) {
       console.error("PDF:", e);
@@ -637,8 +639,8 @@ export default function UnifiedReport() {
               className={cn(
                 "font-black uppercase text-[10px] h-10 px-8 rounded-lg transition-all",
                 claudeReady
-                  ? "bg-foreground hover:bg-foreground/90 text-background"
-                  : "border border-[#34435e] bg-[#141f34] text-slate-200 hover:border-violet-400"
+                  ? "report-premium-button"
+                  : "report-outline-button"
               )}
             >
               <Printer size={16} className="mr-2" /> Imprimir / Exportar PDF operacional
