@@ -1,6 +1,9 @@
 "use client";
 
 import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
+import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
+import {getAtendimentosHistoricoAction} from "@/app/actions/atendimentos-historico-actions";
+import type {AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import {
   countEditadosAppSemana,
   countEditadosAppHoje,
@@ -100,6 +103,7 @@ export default function Dashboard() {
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [portfolioSummary, setPortfolioSummary] = useState<CarteiraSnapshot | null>(null);
+  const [historicoEquipe,setHistoricoEquipe]=useState<AtendimentosHistorico|null>(null);
   const [carteiraError, setCarteiraError] = useState('');
   const [mounted, setMounted] = useState(false);
   const [phrase,setPhrase]=useState('');
@@ -161,6 +165,22 @@ export default function Dashboard() {
     sync();window.addEventListener('lexis-experience-updated',sync);
     return()=>window.removeEventListener('lexis-experience-updated',sync);
   },[]);
+
+  // Mesmo histórico humano de /report, /supervisao e /processos:
+  // consulta leve, isolada do carregamento paginado da carteira.
+  useEffect(()=>{
+    if(!(profile as any)?.empresa_id)return;
+    let active=true;
+    const refresh=()=>{void getAtendimentosHistoricoAction("esta_semana").then(r=>{
+      if(active&&r.ok)setHistoricoEquipe(r.data);
+    }).catch(()=>{if(active)setHistoricoEquipe(null);});};
+    refresh();
+    const onVisible=()=>{if(!document.hidden)refresh();};
+    window.addEventListener("focus",onVisible);
+    window.addEventListener("lexis-carteira-updated",onVisible);
+    const timer=window.setInterval(onVisible,60_000);
+    return()=>{active=false;window.clearInterval(timer);window.removeEventListener("focus",onVisible);window.removeEventListener("lexis-carteira-updated",onVisible);};
+  },[(profile as any)?.empresa_id]);
 
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
@@ -342,6 +362,7 @@ export default function Dashboard() {
                 {' '}<Link className="underline font-bold" href="/cases">Abrir minha carteira completa</Link>
               </div>
             )}
+            <AtendimentosEquipeDiarios historico={historicoEquipe} variant="full" />
             {isEmpty && (
               <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
                 <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
