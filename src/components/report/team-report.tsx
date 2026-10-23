@@ -31,8 +31,8 @@ const labelCategoria:Record<string,string>={
 function nomeCategoria(s:string){return labelCategoria[s]||s.replace(/_/g," ");}
 function Stat({title,value,explain}:{title:string;value:number;explain:string}){
  return <div className="report-team-stat rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
-  <p className="text-xs font-semibold text-muted-foreground">{title}</p>
-  <p className="mt-1 text-2xl font-extrabold tabular-nums">{n(value)}</p>
+  <p className="report-team-muted text-xs font-semibold text-muted-foreground">{title}</p>
+  <p className="report-team-stat-value mt-1 text-2xl font-extrabold tabular-nums">{n(value)}</p>
   <p className="report-team-entry-description mt-1 text-xs leading-relaxed text-muted-foreground">{explain}</p>
  </div>;
 }
@@ -101,15 +101,15 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
    </div><div className="report-team-date rounded-xl border px-3 py-2 text-xs font-semibold">{data?d(data.inicio)+" a "+d(data.fim):"Período indisponível"}</div></div>
   </div>
   {!data?<div role="alert" className="rounded-2xl border border-amber-500/30 bg-card p-5 text-sm text-muted-foreground">Não foi possível carregar o detalhamento individual nesta consulta. Os números não foram estimados. Os outros painéis continuam disponíveis.</div>:<>
-   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(c=><div key={c.label} className="report-team-stat-card rounded-2xl border border-border/70 bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground"><span>{c.label}</span><c.icon className="h-4 w-4 text-indigo-500"/></div><p className="mt-2 text-2xl font-extrabold tabular-nums">{n(c.val)}</p></div>)}</div>
+   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(c=><div key={c.label} className="report-team-stat-card rounded-2xl border border-border/70 bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground"><span>{c.label}</span><c.icon className="h-4 w-4 text-indigo-500"/></div><p className="report-team-stat-value mt-2 text-2xl font-extrabold tabular-nums">{n(c.val)}</p></div>)}</div>
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="relative w-full sm:w-72"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input type="search" aria-label="Pesquisar colaborador" placeholder="Buscar colaborador" value={search} onChange={e=>setSearch(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/></div>
     <div className="flex gap-2">{([{id:"todos",title:"Toda a equipe"},{id:"com-atividade",title:"Com registros"}] as const).map(x=><button type="button" key={x.id} onClick={()=>setScope(x.id)} aria-pressed={scope===x.id} className={"rounded-full border px-3 py-2 text-xs font-bold "+(scope===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card")}>{x.title}</button>)}</div>
    </div>
    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-    {visible.map(x=><button type="button" key={x.userId} onClick={()=>setSelected(x.userId)} aria-pressed={current?.userId===x.userId} className={"w-full rounded-2xl border p-4 text-left shadow-sm transition-colors "+(current?.userId===x.userId?"border-indigo-400 bg-indigo-500/10 dark:border-indigo-400/60":"border-border/70 bg-card hover:border-indigo-300")}>
+    {visible.map(x=><button type="button" key={x.userId} onClick={()=>setSelected(x.userId)} aria-pressed={current?.userId===x.userId} className={"report-team-person w-full rounded-2xl border p-4 text-left shadow-sm transition-colors "+(current?.userId===x.userId?"border-indigo-400 bg-indigo-500/10 dark:border-indigo-400/60":"border-border/70 bg-card hover:border-indigo-300")}>
      <div className="flex items-center justify-between gap-3"><span className="truncate text-sm font-extrabold">{x.nome}</span><ArrowRight className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-300"/></div>
-     <p className="mt-1 text-xs text-muted-foreground">{x.cargo||"Colaborador"} · {n(x.carteira.total)} processos na carteira</p>
+     <p className="report-team-muted mt-1 text-xs text-muted-foreground">{x.cargo||"Colaborador"} · {n(x.carteira.total)} processos na carteira</p>
      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/60 pt-3">
       <div><p className="text-lg font-black tabular-nums">{n(x.atendimentos.processos)}</p><p className="text-[10px] text-muted-foreground">Atendidos</p></div>
       <div><p className="text-lg font-black tabular-nums">{n(x.edicoes.processos)}</p><p className="text-[10px] text-muted-foreground">Editados</p></div>
@@ -134,14 +134,14 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
      </div>
      <div className="grid gap-4 lg:grid-cols-2">
       <div className="report-team-panel rounded-2xl border border-border/70 p-5"><div className="mb-4 flex items-center gap-2"><FilePenLine className="h-5 w-5 text-indigo-500"/><h4 className="font-extrabold">O que foi registrado como atividade</h4></div><Highlights entries={current.atividades.categorias||[]} empty="Sem atividades cadastradas na tabela de tarefas neste período."/></div>
-      <div className="rounded-2xl border border-border/70 p-5"><div className="mb-4 flex items-center gap-2"><Layers3 className="h-5 w-5 text-violet-500"/><h4 className="font-extrabold">Auditorias, análises e projetos</h4></div>
+      <div className="report-team-panel rounded-2xl border border-border/70 p-5"><div className="mb-4 flex items-center gap-2"><Layers3 className="h-5 w-5 text-violet-500"/><h4 className="font-extrabold">Auditorias, análises e projetos</h4></div>
        <p className="mb-3 text-xs text-muted-foreground"><strong className="text-foreground">{n(current.trabalho.registros)}</strong> registros analíticos, incluindo <strong className="text-foreground">{n(current.trabalho.verificacoesLote)}</strong> verificações sistêmicas em lote. Não equivale a atendimentos a clientes.</p>
        <Highlights entries={current.trabalho.categorias||[]} empty="Sem análise ou projeto cadastrado nessa trilha para o período."/>
       </div>
      </div>
      <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FolderKanban className="h-5 w-5 text-violet-500"/> Entregas e trabalhos descritos</h4><p className="mb-4 text-xs text-muted-foreground">Dossiês, investigações, projetos e triagens com identificação própria. Mostra entregas distintas registradas no período, sem repetir cada linha de um levantamento em lote.</p><DeliveryList items={current.trabalho.entregasRecentes||[]}/></section>
-      <section className="rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FileClock className="h-5 w-5 text-indigo-500"/> Histórico das atividades cadastradas</h4><p className="mb-4 text-xs text-muted-foreground">Descrições recentes salvas em “Minhas atividades”; são registros próprios, não ações presumidas. A lista é uma amostra.</p><ActivityList items={current.atividades.recentes||[]}/></section>
+      <section className="report-team-panel rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FolderKanban className="h-5 w-5 text-violet-500"/> Entregas e trabalhos descritos</h4><p className="mb-4 text-xs text-muted-foreground">Dossiês, investigações, projetos e triagens com identificação própria. Mostra entregas distintas registradas no período, sem repetir cada linha de um levantamento em lote.</p><DeliveryList items={current.trabalho.entregasRecentes||[]}/></section>
+      <section className="report-team-panel rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FileClock className="h-5 w-5 text-indigo-500"/> Histórico das atividades cadastradas</h4><p className="mb-4 text-xs text-muted-foreground">Descrições recentes salvas em “Minhas atividades”; são registros próprios, não ações presumidas. A lista é uma amostra.</p><ActivityList items={current.atividades.recentes||[]}/></section>
      </div>
      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-2"><ShieldCheck className="h-4 w-4 text-emerald-600"/> Atendimento só com registro atribuído ao executor</span>
