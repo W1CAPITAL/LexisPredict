@@ -410,10 +410,10 @@ export default function SupervisaoPage() {
                   <div className="bg-secondary/50 dark:bg-card/70 px-5 sm:px-7 py-4 border-b border-border/30 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Users size={16} className="text-primary" />
-                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Operadores • desempenho geral</h3>
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Colaboradores com atendimento no período</h3>
                     </div>
                     <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0 border-primary/40 text-primary">
-                      {snap.operadores.length} responsáveis
+                      {snap.operadores.filter(op=>op.atendidosSemana>0).length} com atendimento
                     </Badge>
                   </div>
                   <ScrollArea className="max-h-[420px]">
@@ -431,7 +431,7 @@ export default function SupervisaoPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/10">
-                        {snap.operadores.map((op) => (
+                        {snap.operadores.filter(op=>op.atendidosSemana>0).map((op) => (
                           <tr key={op.nome} className="hover:bg-secondary/10 transition-colors group">
                             <td className="px-6 py-3">
                               <div className="flex items-center gap-3">
@@ -482,7 +482,7 @@ export default function SupervisaoPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-[12px] font-black uppercase tracking-tight truncate">{ug.nome}</p>
                               <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                                {ug.total} processos · {ug.ativos} ativos · {ug.atendidosSemana} atendimentos no período
+                                {ug.total} processos · {ug.ativos} ativos{ug.atendidosSemana>0?` · ${ug.atendidosSemana} atendimentos no período`:''}
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-[9px] font-black uppercase">
