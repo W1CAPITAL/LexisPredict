@@ -5,6 +5,8 @@ import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
 import { ProcessosCommandCenter } from '@/components/processos/processos-command-center';
+import {AtendimentosEquipeDiarios} from '@/components/atendimentos/atendimentos-equipe-diarios';
+import type {AtendimentosHistorico} from '@/lib/historico-atendimentos';
 
 /**
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -175,6 +177,7 @@ export default function ProcessosEmpresaPage() {
   const [indicadoresErro,setIndicadoresErro]=useState<string>("");
   const indicadoresRequestSeq=useRef(0);
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState<number|null>(null);
+  const [historicoEquipeSrv,setHistoricoEquipeSrv]=useState<AtendimentosHistorico|null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,6 +371,7 @@ export default function ProcessosEmpresaPage() {
         .then(r=>{
           if(!active||!r.ok)return;
           setAtendidosSemanaSrv(r.data.processos);
+          setHistoricoEquipeSrv(r.data);
           setTopAtendentesSrv(r.data.porUsuario.map(u=>({
             userId:u.userId,userNome:u.nome,dia:0,semana:u.processos,mes:0
           })));
@@ -762,6 +766,7 @@ export default function ProcessosEmpresaPage() {
             <Link href="/vencidos" prefetch={false} className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:text-primary">Central de vencidos · carteira inteira</Link>
             {statusFilter==="vencido"?<span className="self-center text-[11px] text-muted-foreground">A lista desta aba pode estar parcialmente carregada; a central consulta todos os vencidos diretamente.</span>:null}
           </div>
+          <AtendimentosEquipeDiarios historico={historicoEquipeSrv} variant="today" />
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}
