@@ -163,3 +163,120 @@
     color: #000 !important;
   }
 }
+
+
+/* High-contrast pass for the detailed team report and activity evidence. */
+.report-completo-shell .report-team-section {
+  color: #e8eef9 !important;
+}
+.report-completo-shell .report-team-hero {
+  border-color: #3a4968 !important;
+  background: linear-gradient(135deg, #192541 0%, #121d32 58%, #211c3c 100%) !important;
+  color: #f8fafc !important;
+}
+.report-completo-shell .report-team-hero h2,
+.report-completo-shell .report-team-detail h3,
+.report-completo-shell .report-team-panel h4 {
+  color: #f8fafc !important;
+}
+.report-completo-shell .report-team-eyebrow,
+.report-completo-shell .report-team-section .text-indigo-700,
+.report-completo-shell .report-team-section .text-violet-700 {
+  color: #d2c6ff !important;
+}
+.report-completo-shell .report-team-description,
+.report-completo-shell .report-team-section .text-muted-foreground,
+.report-completo-shell .report-team-muted,
+.report-completo-shell .report-team-meta,
+.report-completo-shell .report-team-meta > span:not(.report-team-badge),
+.report-completo-shell .report-team-entry-meta,
+.report-completo-shell .report-team-section .text-slate-500,
+.report-completo-shell .report-team-section .text-slate-600,
+.report-completo-shell .report-team-section .text-gray-500,
+.report-completo-shell .report-team-section .text-gray-600 {
+  color: #c2cde1 !important;
+}
+.report-completo-shell .report-team-date {
+  border-color: #465574 !important;
+  background: #202d47 !important;
+  color: #e4eaff !important;
+}
+.report-completo-shell .report-team-stat-card,
+.report-completo-shell .report-team-stat,
+.report-completo-shell .report-team-panel,
+.report-completo-shell .report-team-detail,
+.report-completo-shell .report-team-person {
+  border-color: #34435e !important;
+  background-color: #111b2e !important;
+  color: #e8eef9 !important;
+}
+.report-completo-shell .report-team-stat-card .text-muted-foreground,
+.report-completo-shell .report-team-stat .text-muted-foreground {
+  color: #c2cde1 !important;
+}
+.report-completo-shell .report-team-stat-value,
+.report-completo-shell .report-team-person .text-lg,
+.report-completo-shell .report-team-person .text-sm,
+.report-completo-shell .report-team-panel h4,
+.report-completo-shell .report-team-detail-heading h3 {
+  color: #f8fafc !important;
+}
+.report-completo-shell .report-team-person:hover,
+.report-completo-shell .report-team-person.is-selected {
+  border-color: #8875f3 !important;
+  background: #1b2944 !important;
+}
+.report-completo-shell .report-team-detail-heading {
+  background: linear-gradient(110deg, #192541, #151e35 65%, #211c3c) !important;
+  border-color: #34435e !important;
+}
+.report-completo-shell .report-team-entry {
+  border-color: #52627e !important;
+  background: #29364d !important;
+  color: #f1f5fb !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+.report-completo-shell .report-team-entry-title {
+  color: #ffffff !important;
+  font-weight: 750 !important;
+}
+.report-completo-shell .report-team-entry-description,
+.report-completo-shell .report-team-entry-meta,
+.report-completo-shell .report-team-entry-meta span,
+.report-completo-shell .report-team-entry .text-muted-foreground {
+  color: #d1dced !important;
+}
+.report-completo-shell .report-team-badge {
+  border: 1px solid #7969b9 !important;
+  background: #3a2e63 !important;
+  color: #e7ddff !important;
+}
+.report-completo-shell .report-team-empty {
+  border: 1px solid #3c4b66 !important;
+  background: #1a2740 !important;
+  color: #d2dced !important;
+}
+.report-completo-shell .report-team-section .text-emerald-600 {
+  color: #86efac !important;
+}
+.report-completo-shell .report-team-section input {
+  border-color: #465574 !important;
+  background: #111b2e !important;
+  color: #f8fafc !important;
+}
+.report-completo-shell .report-team-section input::placeholder {
+  color: #aebbd1 !important;
+}
+.report-completo-shell .report-team-section summary {
+  color: #e0d7ff !important;
+}
+.report-completo-shell .report-team-section .border-t,
+.report-completo-shell .report-team-section .border-b {
+  border-color: #34435e !important;
+}
+@media (max-width: 700px) {
+  .report-completo-shell .report-team-panel,
+  .report-completo-shell .report-team-entry {
+    border-radius: 12px !important;
+  }
+}
