@@ -648,7 +648,7 @@ export default function UnifiedReport() {
       </div>
       {pdfError?<div role="alert" className="mx-auto mt-3 max-w-7xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">{pdfError}</div>:null}
 
-      <div className="max-w-5xl mx-auto py-10 print:py-0 space-y-12">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 print:py-0 space-y-6">
 
         <OmniReportStudio />
 
