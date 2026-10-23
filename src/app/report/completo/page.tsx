@@ -654,33 +654,23 @@ export default function UnifiedReport() {
 
         <OmniReportStudio />
 
-        <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-10 sm:p-16 relative overflow-hidden break-inside-avoid shadow-[6px_6px_0px_rgba(0,0,0,0.08)]">
-           <div className="absolute top-0 right-0 p-10 opacity-[0.04] rotate-12 scale-150 text-primary"><Layers size={300} /></div>
-           <div className="space-y-10 relative z-10">
-              <div className="flex items-center gap-6">
-                 <div className="w-12 h-12 bg-primary flex items-center justify-center text-primary-foreground rounded-lg"><Layers size={28} /></div>
-                 <div>
-                    <h2 className="text-xl font-black uppercase tracking-[0.4em] text-foreground">LexisPredict Elite</h2>
-                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">W1 Capital • Advanced Legal Operations</p>
-                 </div>
+        <section className="report-detail-heading relative overflow-hidden rounded-2xl p-5 sm:p-7 break-inside-avoid">
+          <div className="pointer-events-none absolute -right-12 -top-16 text-violet-400 opacity-[0.07]"><Layers size={250}/></div>
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-5">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-800 text-white shadow-lg shadow-violet-900/30"><Layers size={24}/></span>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-300">LEXISPREDICT / RELATÓRIO COMPLETO</p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatório operacional completo</h2>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300">Carteira, produtividade, auditoria judicial, atividades internas e evidências em uma única visão detalhada.</p>
               </div>
-              <div className="pt-10">
-                 <h1 className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-[0.85] text-foreground">
-                    Dossiê<br />Operacional<br /><span className="text-primary">Master</span>
-                 </h1>
-                 <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-muted-foreground mt-4">Relatório Consolidado de Mérito e Responsabilidade</p>
-              </div>
-           </div>
-           <div className="flex justify-between items-end border-t-2 border-border mt-16 pt-8">
-              <div className="space-y-1">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Auditado por</p>
-                 <p className="text-lg font-black uppercase tracking-tight text-foreground">{profile?.nome}</p>
-              </div>
-              <div className="text-right">
-                 <p className="text-2xl font-black tracking-tighter uppercase text-foreground">{new Date().getFullYear()}</p>
-                 <Badge variant="outline" className="border-border text-foreground font-black uppercase text-[8px] px-3">v.26.0 ELITE</Badge>
-              </div>
-           </div>
+            </div>
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Relatório preparado por</span>
+              <span className="text-sm font-bold text-white">{profile?.nome||"—"}</span>
+              <Badge variant="outline" className="mt-1 border-[#3b4861] bg-[#141f34] px-3 text-[9px] font-bold text-slate-200">{metrics.semanaLabel} · {new Date().toLocaleDateString("pt-BR")}</Badge>
+            </div>
+          </div>
         </section>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 break-inside-avoid">
