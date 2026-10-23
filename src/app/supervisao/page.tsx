@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
+import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
 import { PERIODO_OPCOES, type PeriodoRelatorio, labelPeriodo } from "@/lib/atendimento-semana";
 import { cn } from "@/lib/utils";
 import { Users,
@@ -341,6 +342,8 @@ export default function SupervisaoPage() {
                     hint={snap.operadores.length ? `${snap.operadores[0].total} processos sob responsabilidade` : "sem responsáveis"}
                   />
                 </div>
+
+                <AtendimentosEquipeDiarios historico={snap.historicoAtendimentos} variant="full" />
 
                 <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   <div className="xl:col-span-2 premium-card p-5 sm:p-6">
