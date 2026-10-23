@@ -28,12 +28,26 @@
   background-color: rgba(8, 15, 30, .94) !important;
   backdrop-filter: blur(18px);
 }
+.report-completo-shell [class~="bg-background/70"],
+.report-completo-shell [class~="bg-background/80"] {
+  background-color: rgba(17, 27, 46, .82) !important;
+}
+.report-completo-shell [class~="bg-muted/30"],
+.report-completo-shell [class~="bg-muted/40"],
+.report-completo-shell [class~="bg-muted/50"],
+.report-completo-shell [class~="bg-muted/60"] {
+  background-color: #17243a !important;
+}
 .report-completo-shell .bg-muted,
 .report-completo-shell .bg-slate-100,
 .report-completo-shell .bg-gray-100,
 .report-completo-shell [class~="bg-muted/50"] {
   background-color: #1a263d !important;
 }
+.report-completo-shell .bg-white,
+.report-completo-shell [class~="bg-white/70"],
+.report-completo-shell [class~="bg-white/80"],
+.report-completo-shell [class~="bg-white/85"],
 .report-completo-shell .bg-slate-50,
 .report-completo-shell .bg-gray-50,
 .report-completo-shell .bg-zinc-50,
@@ -49,7 +63,8 @@
 .report-completo-shell .text-gray-800 {
   color: #e7edf8 !important;
 }
-.report-completo-shell .text-muted-foreground {
+.report-completo-shell .text-muted-foreground,
+.report-completo-shell .text-slate-600 {
   color: #9ba9c0 !important;
 }
 .report-completo-shell .text-primary {
@@ -62,6 +77,7 @@
   color: #fb7185 !important;
 }
 .report-completo-shell .border-border,
+.report-completo-shell [class~="border-white/70"],
 .report-completo-shell .border-slate-200,
 .report-completo-shell .border-gray-200,
 .report-completo-shell [class*="border-border/"] {
