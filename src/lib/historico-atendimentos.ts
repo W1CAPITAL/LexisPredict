@@ -5,11 +5,14 @@ export type AtendimentosHistorico = {
  processos:number; eventos:number; tecnicoEventos:number;
  edicoes:{processos:number;eventos:number;hoje:number};
  porUsuario:Array<{userId:string;nome:string;processos:number;eventos:number}>;
+ porUsuarioDia:Array<{userId:string;nome:string;ymd:string;processos:number;eventos:number;encerramentos:number}>;
+ hojePorUsuario:Array<{userId:string;nome:string;processos:number;eventos:number}>;
+ hoje?:string;criterio?:string;
  dias:Array<{ymd:string;day:string;atendimentos:number}>;
  atualizadoEm:string; periodo:PeriodoRelatorio;
 };
 export function emptyHistorico(periodo:PeriodoRelatorio="esta_semana"):AtendimentosHistorico{
- return {processos:0,eventos:0,tecnicoEventos:0,edicoes:{processos:0,eventos:0,hoje:0},porUsuario:[],dias:[],atualizadoEm:"",periodo};
+ return {processos:0,eventos:0,tecnicoEventos:0,edicoes:{processos:0,eventos:0,hoje:0},porUsuario:[],porUsuarioDia:[],hojePorUsuario:[],dias:[],atualizadoEm:"",periodo};
 }
 /** Fonte única e rápida para /processos, Dashboard, /report e Supervisão.
  * Agregação no Postgres; não baixa processos nem todos os logs no browser.
