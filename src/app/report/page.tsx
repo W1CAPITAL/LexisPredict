@@ -7,6 +7,7 @@ import {ReportSync} from "@/components/report/report-sync";
 import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
 import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
+import {ReportExecutiveDashboard} from "@/components/report/report-executive-dashboard";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -89,37 +90,32 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  ];
  return <main className="min-h-screen bg-background px-4 py-7 text-foreground sm:px-8">
    <div className="mx-auto max-w-[1400px] space-y-6">
-    <header className="rounded-3xl border border-border bg-card px-5 py-6 shadow-sm sm:px-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">LexisPredict · Relatórios</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Relatório da equipe</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Veja o trabalho de cada colaborador, seus atendimentos, edições, encerramentos, dossiês, investigações e atividades efetivamente registradas. Consulte também os indicadores gerais e pergunte ao LLM local.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ReportSync/>
-          <a href={`/api/report/pdf?periodo=${encodeURIComponent(periodo)}&escopo=${somenteMinhaCarteira?"meus":"empresa"}`} className="inline-flex items-center rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-sm font-bold text-primary hover:bg-indigo-500/15">Baixar PDF da equipe e resumo</a>
-          <Link href="/minhas-atividades" className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold">Minhas atividades</Link>
-          <Link href="/report/completo" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Relatório completo e PDFs</Link>
-        </div>
-      </div>
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-bold text-muted-foreground">Escopo dos processos:</span>
-        <Link href={pathRelatorio(periodo,false)} aria-current={!somenteMinhaCarteira?"page":undefined}
-          className={`rounded-full border px-4 py-2 text-xs font-bold ${!somenteMinhaCarteira?"bg-primary text-primary-foreground border-primary":"border-border bg-background"}`}>
-          Empresa inteira
-        </Link>
-        <Link href={pathRelatorio(periodo,true)} aria-current={somenteMinhaCarteira?"page":undefined}
-          className={`rounded-full border px-4 py-2 text-xs font-bold ${somenteMinhaCarteira?"bg-primary text-primary-foreground border-primary":"border-border bg-background"}`}>
-          Minha carteira
-        </Link>
-      </div>
-      <nav aria-label="Selecionar período" className="mt-3 flex flex-wrap gap-2">
-        {choices.map(x=><Link key={x.id} href={pathRelatorio(x.id)}
-          aria-current={periodo===x.id?"page":undefined}
-          className={`rounded-full border px-4 py-2 text-xs font-bold ${periodo===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:bg-muted"}`}>{x.name}</Link>)}
-      </nav>
-    </header>
+    <ReportExecutiveDashboard
+      periodo={periodo}
+      meus={somenteMinhaCarteira}
+      total={snapshot?.total??null}
+      ativos={snapshot?.ativos??null}
+      encerrados={snapshot?.encerrados??null}
+      novidades={snapshot?.novidades??null}
+      vencidos={snapshot?.vencidos??null}
+      semRetorno={retorno?.semRetornoLongo??null}
+      atendidos={somenteMinhaCarteira?(hist?.porUsuario?.find(x=>x.userId===ctx.auth_id)?.processos??null):(hist?.processos??null)}
+      eventos={somenteMinhaCarteira?(hist?.porUsuario?.find(x=>x.userId===ctx.auth_id)?.eventos??null):(hist?.eventos??null)}
+      meritoPendente={meritoOficial?.nao_determinados??null}
+      dias={(hist?.dias??[]).map(d=>({
+        ymd:d.ymd,
+        atendimentos:somenteMinhaCarteira?(hist?.porUsuarioDia??[]).filter(x=>x.ymd===d.ymd&&x.userId===ctx.auth_id).reduce((s,x)=>s+x.eventos,0):d.atendimentos,
+        encerramentos:(hist?.porUsuarioDia??[]).filter(x=>x.ymd===d.ymd&&(!somenteMinhaCarteira||x.userId===ctx.auth_id)).reduce((s,x)=>s+x.encerramentos,0)
+      }))}
+      equipe={(teamReport?.pessoas??[]).filter(x=>!somenteMinhaCarteira||x.userId===ctx.auth_id).map(x=>({
+        id:x.userId,nome:x.nome,carteira:x.carteira.total,
+        atendimentos:x.atendimentos.eventos,encerramentos:x.encerramentos.processos,
+        edicoes:x.edicoes.processos,atividades:x.atividades.registros
+      }))}
+    />
+    <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
+      <summary className="cursor-pointer text-sm font-bold text-foreground">Abrir detalhamento individual da equipe e perguntas ao relatório</summary>
+      <div className="mt-5 space-y-6">
     <TeamReport data={teamReport}/>
     <ReportSmartOverview
       periodLabel={choices.find(x=>x.id===periodo)?.name||"Mês atual"}
@@ -142,6 +138,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       dias={hist?.dias?.map(d=>({ymd:d.ymd,atendimentos:d.atendimentos}))??[]}
       equipe={teamReport?.pessoas?.map(p=>({nome:p.nome,atendimentos:p.atendimentos,edicoes:p.edicoes,encerramentos:p.encerramentos,atividades:p.atividades.registros,trabalho:p.trabalho.registros,verificacoesLote:p.trabalho.verificacoesLote,categorias:p.trabalho.categorias.slice(0,6),entregas:p.trabalho.entregasRecentes.slice(0,5).map(e=>e.titulo)}))??[]}
     />
+      </div>
+    </details>
     <details className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-2 text-left marker:hidden">
         <div><h2 className="text-lg font-extrabold">Ver relatório completo e informações técnicas</h2><p className="mt-1 text-sm text-muted-foreground">Mérito judicial, produtividade por colaborador, encerramentos, auditorias e evolução da carteira — sem perder nenhum detalhe.</p></div>
