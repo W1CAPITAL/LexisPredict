@@ -28,7 +28,8 @@ export async function GET(request:Request){
   if(teamResult.error||!teamResult.data||!Array.isArray(teamResult.data.pessoas)){
     return Response.json({error:"Não foi possível consultar a equipe para exportação."},{status:503,headers:{"Cache-Control":"no-store"}});
   }
-  const team=teamResult.data as EquipeRelatorio;
+  const rawTeam=teamResult.data as EquipeRelatorio;
+  const team:EquipeRelatorio=owner?{...rawTeam,pessoas:rawTeam.pessoas.filter(p=>p.userId===String(owner))}:rawTeam;
   const snap=Array.isArray(snapshotResult.data)?snapshotResult.data[0]:null;
   const merito=meritoResult.data?.oficial;
   const ret=retornoResult.data;
@@ -36,17 +37,23 @@ export async function GET(request:Request){
   const overview={
    total:val(snap?.total),ativos:val(snap?.ativos),encerrados:val(snap?.encerrados),
    vencidos:val(snap?.vencidos),novidades:val(snap?.novidades),
-   atendidos:val(hist?.processos),eventos:val(hist?.eventos),
+   atendidos:val(owner?hist?.porUsuario?.find((p:{userId:string})=>p.userId===String(owner))?.processos:hist?.processos),
+   eventos:val(owner?hist?.porUsuario?.find((p:{userId:string})=>p.userId===String(owner))?.eventos:hist?.eventos),
    semRetorno30:val(ret?.semRetornoLongo),meritoPendente:val(merito?.nao_determinados),
    procedentes:val(merito?.procedentes),improcedentes:val(merito?.improcedentes),
    parciais:val(merito?.parciais),semMerito:val(merito?.sem_merito)
   };
   // PDF produzido no servidor: o computador do usuário não processa gráficos nem fontes de um PDF pesado.
   const {renderToBuffer}=await import("@react-pdf/renderer");
-  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope});
+  const trend:Array<{ymd:string;atendimentos:number;encerramentos:number}>=Array.isArray(hist?.dias)?hist.dias.map((day:{ymd:string;atendimentos:number})=>({
+   ymd:day.ymd,
+   atendimentos:owner?Number((hist.porUsuarioDia||[]).filter((x:{userId:string;ymd:string})=>x.userId===String(owner)&&x.ymd===day.ymd).reduce((acc:number,x:{eventos:number})=>acc+Number(x.eventos||0),0)):Number(day.atendimentos||0),
+   encerramentos:Number((hist.porUsuarioDia||[]).filter((x:{userId:string;ymd:string})=>x.ymd===day.ymd&&(!owner||x.userId===String(owner))).reduce((acc:number,x:{encerramentos:number})=>acc+Number(x.encerramentos||0),0))
+  })): [];
+  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend});
   // O componente retorna <Document>, embora os props do componente não sejam DocumentProps.
   const buffer=await renderToBuffer(doc as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>);
-  const name="LexisPredict-Relatorio-Equipe-"+periodo+".pdf";
+  const name="LexisPredict-Relatorio-Gerencial-"+periodo+".pdf";
   return new Response(new Uint8Array(buffer),{
    status:200,headers:{
     "Content-Type":"application/pdf",
