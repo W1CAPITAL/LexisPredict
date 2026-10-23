@@ -107,7 +107,7 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
     <div className="flex gap-2">{([{id:"todos",title:"Toda a equipe"},{id:"com-atividade",title:"Com registros"}] as const).map(x=><button type="button" key={x.id} onClick={()=>setScope(x.id)} aria-pressed={scope===x.id} className={"rounded-full border px-3 py-2 text-xs font-bold "+(scope===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card")}>{x.title}</button>)}</div>
    </div>
    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-    {visible.map(x=><button type="button" key={x.userId} onClick={()=>setSelected(x.userId)} aria-pressed={current?.userId===x.userId} className={"report-team-person w-full rounded-2xl border p-4 text-left shadow-sm transition-colors "+(current?.userId===x.userId?"border-indigo-400 bg-indigo-500/10 dark:border-indigo-400/60":"border-border/70 bg-card hover:border-indigo-300")}>
+    {visible.map(x=><button type="button" key={x.userId} onClick={()=>setSelected(x.userId)} aria-pressed={current?.userId===x.userId} className={"report-team-person w-full rounded-2xl border p-4 text-left shadow-sm transition-colors "+(current?.userId===x.userId?"is-selected border-indigo-400 bg-indigo-500/10 dark:border-indigo-400/60":"border-border/70 bg-card hover:border-indigo-300")}>
      <div className="flex items-center justify-between gap-3"><span className="truncate text-sm font-extrabold">{x.nome}</span><ArrowRight className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-300"/></div>
      <p className="report-team-muted mt-1 text-xs text-muted-foreground">{x.cargo||"Colaborador"} · {n(x.carteira.total)} processos na carteira</p>
      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/60 pt-3">
