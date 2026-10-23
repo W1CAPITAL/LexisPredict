@@ -53,7 +53,7 @@ export async function GET(request:Request){
   const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend});
   // O componente retorna <Document>, embora os props do componente não sejam DocumentProps.
   const buffer=await renderToBuffer(doc as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>);
-  const name="LexisPredict-Relatorio-Equipe-"+periodo+".pdf";
+  const name="LexisPredict-Relatorio-Gerencial-"+periodo+".pdf";
   return new Response(new Uint8Array(buffer),{
    status:200,headers:{
     "Content-Type":"application/pdf",
