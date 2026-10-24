@@ -85,7 +85,7 @@ import { suggestScripts } from "@/lib/script-processual/suggest";
 import { plainTextFromDjen, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst} from "@/lib/djen";
 import { buildUnifiedTimeline } from "@/lib/timeline-normalize";
 import { processarCaso, type LegalCase } from "@/lib/case-logic";
-import { openWhatsAppClient } from "@/lib/whatsapp-links";
+import { openWhatsAppClient, openWhatsAppWebClient } from "@/lib/whatsapp-links";
 import { gerarRascunhoEstrategico } from "@/ai/motor-despacho";
 import { AiDraftPreview } from "@/components/ai/ai-draft-preview";
 import { MOTORS, loadPreferredMotor, resolveMotorId } from "@/lib/ai/motors";
@@ -182,6 +182,7 @@ function WhatsAppTerminalInner() {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
+  const [messageTransport, setMessageTransport] = useState<"browser" | "wa_auto">("browser");
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
   const [bridgeProvider, setBridgeProvider] = useState<"manual" | "local" | null>(null);
   const [debouncedTerm, setDebouncedTerm] = useState("");
@@ -1076,6 +1077,30 @@ function WhatsAppTerminalInner() {
     });
   };
 
+  const openBrowserWhatsApp = () => {
+    if (!canCopy || isViewer) {
+      toast({title:"Acesso restrito",description:"Seu perfil não pode preparar mensagens.",variant:"destructive"});
+      return;
+    }
+    if (!selected || casePhoneDigits(selected).length < 8 || !draft.trim()) {
+      toast({title:"Selecione um processo com telefone e mensagem",description:"Este modo utiliza a sessão pessoal do WhatsApp Web no navegador.",variant:"destructive"});
+      return;
+    }
+    if (!confirmIfDuplicate()) {
+      toast({title:"Abertura cancelada",description:"Mensagem idêntica à já registrada."});
+      return;
+    }
+    try{
+      openWhatsAppWebClient({phone:casePhone(selected),text:draft.trim()});
+      toast({
+        title:"Rascunho aberto no WhatsApp Web",
+        description:"Confirme o destinatário e clique em Enviar no WhatsApp. O Lexis não marca mensagem como enviada ou atendimento realizado sem confirmação do canal.",
+      });
+    }catch(error){
+      toast({title:"Falha ao abrir WhatsApp Web",description:error instanceof Error?error.message:"Confira telefone e navegador.",variant:"destructive"});
+    }
+  };
+
   const sendViaEvolution = async () => {
     const evoTarget = selectedEvoJid;
     const caseTarget =
@@ -1477,6 +1502,28 @@ function WhatsAppTerminalInner() {
 
                   <div className="shrink-0 border-t border-border/50 p-2 sm:p-3 space-y-2 bg-card/30 max-h-[min(40dvh,340px)] overflow-y-auto overscroll-contain">
                     <div className="rounded-xl border border-border/60 bg-background p-2 space-y-2">
+                    <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent p-2.5 space-y-2">
+                      <p className="flex items-center gap-1.5 text-[11px] font-black text-foreground"><MessageCircle size={14} className="text-violet-500"/>Canal para esta mensagem</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={()=>setMessageTransport("browser")}
+                          aria-pressed={messageTransport==="browser"}
+                          className={cn("rounded-lg border px-3 py-2 text-[11px] font-bold transition-colors",messageTransport==="browser"?"border-violet-500 bg-violet-600 text-white":"border-border bg-background text-foreground hover:border-violet-400")}>
+                          <ExternalLink size={13} className="mr-1 inline"/>WhatsApp Web (meu navegador)
+                        </button>
+                        <button type="button" onClick={()=>setMessageTransport("wa_auto")}
+                          aria-pressed={messageTransport==="wa_auto"}
+                          className={cn("rounded-lg border px-3 py-2 text-[11px] font-bold transition-colors",messageTransport==="wa_auto"?"border-emerald-500 bg-emerald-600 text-white":"border-border bg-background text-foreground hover:border-emerald-400")}>
+                          <Send size={13} className="mr-1 inline"/>WA.Auto {evolutionOk===true?"• conectado":"• desconectado"}
+                        </button>
+                      </div>
+                      <p className="text-[11px] leading-5 text-muted-foreground">
+                        {messageTransport==="browser"
+                          ?"Abre a conversa na sua sessão do WhatsApp Web com o texto preenchido. Você revisa e envia por lá; isso NÃO confirma envio, nem altera o último retorno no Lexis."
+                          :evolutionOk===true
+                            ?"Utiliza a ponte conectada, a fila de envio e a confirmação do próprio canal."
+                            :"WA.Auto não está conectado. Escolha WhatsApp Web para preparar o envio sem depender do worker."}
+                      </p>
+                    </div>
                     <Textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
@@ -1512,16 +1559,16 @@ function WhatsAppTerminalInner() {
                         type="button"
                         size="sm"
                         className="rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
-                        onClick={sendViaEvolution}
-                        disabled={sending || evolutionOk !== true || !draft.trim() || (!selected && !selectedEvoJid)}
-                        title={evolutionOk ? "Coloca na fila do dispositivo local" : "Conecte o WhatsApp neste CRM pelo QR Code"}
+                        onClick={messageTransport==="browser" ? openBrowserWhatsApp : sendViaEvolution}
+                        disabled={sending || !draft.trim() || (messageTransport==="browser" ? !selected || casePhoneDigits(selected).length < 8 || !canCopy || isViewer : evolutionOk !== true || (!selected && !selectedEvoJid))}
+                        title={messageTransport==="browser"?"Abrir conversa com texto preenchido; envio manual pelo WhatsApp Web":evolutionOk?"Coloca na fila do dispositivo local":"Conecte WA.Auto ou selecione WhatsApp Web"}
                       >
                         {sending ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
                           <Send size={14} />
                         )}
-                        Enviar dentro do CRM
+                        {messageTransport==="browser"?"Abrir e revisar no WhatsApp Web":"Enviar dentro do CRM"}
                       </Button>
                     </div>
                     </div>
