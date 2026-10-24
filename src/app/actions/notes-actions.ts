@@ -5,6 +5,7 @@
  * Vínculo cliente/protocolo é opcional (só se as colunas existirem).
  */
 import { revalidatePath } from "next/cache";
+import {createdByOwnerIds} from "@/lib/carteira-owner-ids";
 import {
   getStoredNotes,
   saveSingleNote,
@@ -194,7 +195,7 @@ export async function updateNoteAction(
         }
         const db=await getSupabaseAdmin();
         let query=db.from("notes").update(extra).eq("id",id).eq("empresa_id",empresa_id);
-        if(!ctx.isSupervisor&&!ctx.isSuperAdmin)query=query.eq("created_by",ctx.auth_id);
+        if(!ctx.isSupervisor&&!ctx.isSuperAdmin)query=query.in("created_by",createdByOwnerIds(ctx.auth_id,ctx.profile_id));
         const { error }=await query;
         if (error) console.warn("[updateNoteAction] extra fields:", error.message);
       }
