@@ -20,7 +20,7 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { fetchDataJud } from '@/lib/datajud';
 import {
-  canUseAllOperationalFeatures,
+  canOperateCompanyCases,
   resolveCaseScope,
 } from '@/lib/roles';
 
@@ -998,13 +998,8 @@ export async function applyBrowserDjenResultAction(
     return { success: false as const, error: 'Processo não encontrado na carteira.', comunicacoes: [] as any[] };
   }
 
-  if (resolveCaseScope(ctx as any) === 'mine' && String(row.created_by || '') !== String(auth_id)) {
-    return {
-      success: false as const,
-      error: 'Você só pode escanear processos da sua própria carteira.',
-      comunicacoes: [] as any[],
-    };
-  }
+  // Scanner de /processos: o CNJ foi localizado DENTRO da empresa autenticada.
+  // Qualquer membro pode processar a consulta sem ser proprietário da carteira.
 
   // Nunca confiar em payload arbitrário do navegador: limita tamanho e exige
   // que cada publicação pertença ao mesmo CNJ consultado.
@@ -1400,7 +1395,9 @@ export async function fetchCompanyProcessosAction() {
     const ctx = await getUserContext();
     const empresa_id = ctx.empresa_id;
     if (!empresa_id || !ctx.auth_id) return { ...empty, error: 'Sessão expirada.' };
-    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
+    // Ações executivas de /processos cobrem a empresa inteira, independente de cargo.
+    // O tenant foi obtido em getUserContext(), nunca da requisição do browser.
+    const companyWide = true;
 
     // /processos é a rota de consulta de toda a empresa para todos os cargos.
     // Somente supervisor/superadmin vê auditorias/gestão; edição é validada à parte.
@@ -1525,16 +1522,30 @@ export async function recalibrateCasesAction() {
     const ctx = await getUserContext();
     const { empresa_id } = ctx;
     if (!empresa_id) return { success: false, error: 'Sessão expirada', updated: 0 };
-    if (!canUseAllOperationalFeatures(ctx as any)) {
-      return { success: false, error: 'Função disponível para Administrador, Supervisor ou Superadmin.', updated: 0 };
+    if (!canOperateCompanyCases(ctx)) {
+      return { success: false, error: 'Operação exige sessão de usuário vinculado à empresa.', updated: 0 };
     }
 
-    const cases = await getStoredCasesForEmpresa(empresa_id, true);
+    const cases = await getStoredCasesForEmpresa(empresa_id, true, { companyOperational: true });
     if (!cases.length) return { success: true, updated: 0, message: 'Nenhum processo.' };
 
     const recalibrated = cases.map((c) => processarCaso({ ...c }));
-    const res = await saveStoredCasesForEmpresa(recalibrated, empresa_id, true);
+    const res = await saveStoredCasesForEmpresa(recalibrated, empresa_id, true, { companyOperational: true });
     if (!res.success) return { success: false, error: res.message || 'Falha ao salvar', updated: 0 };
+
+    try {
+      const { logAuditoriaSistema } = await import('@/lib/server-db');
+      await logAuditoriaSistema({
+        empresaId: empresa_id,
+        authUserId: ctx.auth_id!,
+        acao: 'edicao',
+        protocolo: 'CARTEIRA-EMPRESA',
+        detalhes: { via: 'recalibrateCasesAction', quantidade: recalibrated.length, carteira: 'empresa' },
+      });
+    } catch (error) {
+      console.error('[recalibrateCasesAction] auditoria indisponível',
+        error instanceof Error ? error.message : 'unknown');
+    }
 
     return {
       success: true,
@@ -1720,8 +1731,8 @@ export async function reclassificarExecutivoCarteiraAction() {
   const ctx = await getUserContext();
   const { empresa_id, auth_id } = ctx;
   if (!empresa_id || !auth_id) return { success: false, updated: 0, error: 'Sem sessão' };
-  if (!canUseAllOperationalFeatures(ctx as any)) {
-    return { success: false, updated: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  if (!canOperateCompanyCases(ctx)) {
+    return { success: false, updated: 0, error: 'Operação exige sessão de usuário vinculado à empresa.' };
   }
 
   try {
@@ -1912,11 +1923,11 @@ export async function batchScanExecutivoAction(opts?: {
   const ctx = await getUserContext();
   const { empresa_id, auth_id, isMasterView, isSupervisor, isSuperAdmin, cargo } = ctx;
   if (!empresa_id || !auth_id) return { success: false, done: 0, error: 'Sem sessão' };
-  if (!canUseAllOperationalFeatures(ctx as any)) {
-    return { success: false, done: 0, error: 'Função disponível para Administrador, Supervisor ou Superadmin.' };
+  if (!canOperateCompanyCases(ctx)) {
+    return { success: false, done: 0, error: 'Operação exige sessão de usuário vinculado à empresa.' };
   }
 
-  const escopoEmpresa = resolveCaseScope(ctx as any) === 'empresa';
+  const escopoEmpresa = true; // Batch do scanner usa carteira da empresa autenticada.
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 50);
   const onlyMissing = opts?.onlyMissing !== false;
   const priorizarEncerrados = opts?.priorizarEncerrados !== false;

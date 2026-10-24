@@ -232,12 +232,14 @@ h1{font-size:24px;line-height:1.25;margin:8px 0 14px}p{line-height:1.65;color:#4
         return isApi ? json({ ok: false, error: 'forbidden' }, 403) : redirect('/')
       }
 
-      // Operador usa somente o conjunto operacional essencial.
+      // /processos é colaborativo: APIs operacionais de consulta/scanner
+      // atendem todos os usuários da empresa após autenticação, tenant e
+      // checagem de pacote. Restrições financeiras permanecem por cargo.
       if (role === 'Operador') {
         if (!isApi && !operatorRouteAllowed(path)) {
           return redirect('/cases')
         }
-        if (isApi && (starts(path, OPERATIONAL_API) || starts(path, FINANCIAL_API))) {
+        if (isApi && starts(path, FINANCIAL_API)) {
           return json({ ok: false, error: 'role_required', required: 'Administrador' }, 403)
         }
       }

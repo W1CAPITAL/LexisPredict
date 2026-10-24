@@ -106,12 +106,23 @@ export function canSeeCompanyProcesses(cargo?: RoleLike): boolean {
 }
 
 /**
- * Na rota /processos a consulta é empresarial para qualquer perfil
- * autenticado da organização, inclusive Visualizador. Isso não dá
- * permissão para editar, executar scanners ou supervisionar.
+ * Na rota /processos todos os membros autenticados podem consultar e atuar
+ * sobre processos da PRÓPRIA empresa, mesmo quando o responsável é outro.
+ * Equipe, segurança, relatórios gerenciais e outras rotas continuam com
+ * suas próprias permissões. Esta função é somente para o fluxo de processos.
  */
 export function canViewCompanyCaseList(cargo?: RoleLike): boolean {
   return resolveRole(cargo) !== 'Desconhecido';
+}
+
+export type CompanyCaseActor = { auth_id?: string | null; empresa_id?: string | null };
+
+/** Gate para ações operacionais da carteira compartilhada.
+ * A identidade e empresa devem vir exclusivamente do getUserContext no servidor.
+ * Não chamar com parâmetros de URL ou perfil enviado pelo navegador.
+ */
+export function canOperateCompanyCases(ctx: CompanyCaseActor): boolean {
+  return Boolean(ctx.auth_id && ctx.empresa_id);
 }
 
 export type CaseScope = 'mine' | 'empresa';
