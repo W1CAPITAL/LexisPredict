@@ -36,7 +36,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const empresaId=String(ctx.empresa_id);
  // O relatório de equipe mostra a empresa inteira por padrão (também para
  // administradores). "Minha carteira" é uma comparação opcional e explícita.
- const somenteMinhaCarteira=params.escopo==="meus";
+ const canViewTeam=Boolean(ctx.isSupervisor||ctx.isSuperAdmin);
+ const somenteMinhaCarteira=!canViewTeam||params.escopo==="meus";
  const owner=somenteMinhaCarteira?ctx.auth_id:null;
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
@@ -93,6 +94,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
     <ReportExecutiveDashboard
       periodo={periodo}
       meus={somenteMinhaCarteira}
+      canViewTeam={canViewTeam}
+      canExport={canViewTeam||ctx.isAdministrador}
       total={snapshot?.total??null}
       ativos={snapshot?.ativos??null}
       encerrados={snapshot?.encerrados??null}
@@ -113,6 +116,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         edicoes:x.edicoes.processos,atividades:x.atividades.registros
       }))}
     />
+    {!canViewTeam && <p className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm text-slate-200">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
+    {canViewTeam && <>
     <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="cursor-pointer text-sm font-bold text-foreground">Abrir detalhamento individual da equipe e perguntas ao relatório</summary>
       <div className="mt-5 space-y-6">
@@ -349,6 +354,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
     <p className="pb-4 text-xs text-muted-foreground">O histórico diferencia processos distintos, registros repetidos, edições e operações de contas técnicas. Os números refletem a consulta mais recente e podem crescer ao longo do dia.</p>
       </div>
     </details>
+    </>}
    </div>
  </main>;
 }
