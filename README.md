@@ -22,6 +22,7 @@
 <img alt="Licença" src="https://img.shields.io/badge/Licen%C3%A7a-Propriet%C3%A1ria-9E78EA" />
 </p>
 
+**[Estúdio de Agentes](https://lexispredict.vercel.app/estudio-agentes)** ·
 **[Plataforma](https://lexispredict.vercel.app)** ·
 **[Superagente](https://lexispredict.vercel.app/chat)** ·
 **[WhatsApp](https://lexispredict.vercel.app/whatsapp)** ·
@@ -57,6 +58,17 @@ Vercel (app + APIs + Server Actions)
 
 Qwen 0.5B no browser = usa RAM/GPU do operador, NÃO da Vercel ou Supabase.
 </pre>
+
+### 🕸️ Estúdio de Agentes e auditoria segura de APIs
+
+**[Abrir Estúdio de Agentes](https://lexispredict.vercel.app/estudio-agentes)** — mapa de especialidades por módulo, gates de evidência e inspeção HAR **100% no navegador, sem upload de credenciais**.
+
+- Perfis especializados para API, PDF, privacidade, performance e atendimento (inspirado em [Agency Agents](https://github.com/msitarzewski/agency-agents)).
+- Regras estruturadas de especificação, implementação, testes, revisão e publicação (inspirado em [Agent Skills](https://github.com/addyosmani/agent-skills)).
+- Inventário local de endpoints a partir de arquivo HAR próprio/autorizado; não replica o [Reverse API Engineer](https://github.com/kalil0321/reverse-api-engineer) nem seus métodos de captura de sessão.
+- **Sem bypass, replay ou persistência de tokens/cookies.** Para criar qualquer cliente API, exige documentação e autorização.
+
+**Guias:** [Mapa das abas](docs/AGENT-STUDIO-REVERSE-API.md) · [Skill de orquestração](skills/agency-orchestration/SKILL.md) · [Reverse API seguro](skills/reverse-api-safe/SKILL.md) · [Instruções para agentes](AGENTS.md).
 
 ### 🎯 O que mudou nos agentes
 
