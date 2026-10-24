@@ -1202,40 +1202,8 @@ export async function scanSingleCaseAction(
   }
 
   const safeEmpresaId = String(empresa_id);
-  if (resolveCaseScope(ctx as any) === 'mine') {
-    const admin = await getSupabaseAdmin();
-    const raw = String(protocolo || '').trim();
-    const digits = raw.replace(/\D/g, '');
-    const variants = [raw];
-    if (digits && digits !== raw) variants.push(digits);
-    if (digits.length === 20) {
-      variants.push(
-        `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`
-      );
-    }
-    const { data: rows } = await admin
-      .from('processos')
-      .select('created_by')
-      .eq('empresa_id', safeEmpresaId)
-      .in('protocolo_ref', Array.from(new Set(variants)))
-      .limit(1);
+  // Scanner colaborativo: empresa autenticada é a fronteira, não created_by.
 
-    const owner = String(rows?.[0]?.created_by || '');
-    if (!owner || owner !== String(auth_id)) {
-      return {
-        success: false,
-        offline: false,
-        error: 'Você só pode escanear processos da sua própria carteira.',
-        casePatch: {},
-        sourceStatus: {
-          datajud: { requested: options.mode !== 'djen', ok: false },
-          djen: { requested: options.mode !== 'datajud', ok: false },
-        },
-        movimentos: [],
-        comunicacoes: [],
-      };
-    }
-  }
 
   const mode = options.mode || 'both';
   const useFast = options.fast === true;
@@ -1299,11 +1267,8 @@ export async function runDataJudScanAction(empresaId: string) {
     if (!ctx.empresa_id || !ctx.auth_id) {
       return { success: false, error: 'Sessão expirada.' };
     }
-    if (!ctx.isSupervisor && !ctx.isSuperAdmin) {
-      return { success: false, error: 'Rodar a empresa inteira exige Supervisor ou Superadmin.' };
-    }
-    if (!ctx.isSuperAdmin && String(empresaId) !== String(ctx.empresa_id)) {
-      return { success: false, error: 'Supervisor só pode operar a própria empresa.' };
+    if (String(empresaId) !== String(ctx.empresa_id)) {
+      return { success: false, error: 'Você só pode executar scanner na sua empresa.' };
     }
     if (!empresaId) return { success: false, error: 'Missing ID' };
     const { getGlobalPendingProcessesSystem } = await import('@/lib/server-db');
