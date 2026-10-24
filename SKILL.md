@@ -53,6 +53,8 @@ Um ponto de entrada para o produto inteiro. O LexisPredict continua sendo um pro
 | plugins | plugin, connector, toolkit | plugin-platform |
 | world | mundo, sandbox, voxel, bioma, criatividade | world-sandbox |
 | agents | equipe de agentes, multiagente | agent-studio |
+| agent-studio-routes | planejar especialidades por aba com evidência | skills/agency-orchestration/SKILL.md; /estudio-agentes |
+| reverse-api-safe | auditar HAR já capturado de sistemas próprios | skills/reverse-api-safe/SKILL.md; sem replay nem credenciais |
 | whatsapp-web | atendimento pelo navegador sem WA.Auto | skills/whatsapp-browser/SKILL.md; entrega manual verificável |
 | legal-research | artigo de norma com fonte oficial | skills/legislacao-brasileira/SKILL.md; não presume vigência |
 | safe-inference | máquinas com pouca RAM / Qwen travando | docs/IA-SEGURA-VERCEL-SUPABASE.md; scripts por padrão |
