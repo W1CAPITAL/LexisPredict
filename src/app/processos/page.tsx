@@ -1,7 +1,7 @@
 "use client";
 
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
-import { canRodarEmpresaScan, canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
+
 
 import { CaseGlassList } from '@/components/cases/case-glass-list';
 import { ProcessosCommandCenter } from '@/components/processos/processos-command-center';
@@ -25,7 +25,7 @@ import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAte
 import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
-import { saveOneCaseAction } from "@/app/actions/case-save-actions";
+import { saveOneCaseAction, deleteOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
 import { linhaDonoPasso, proximoPasso } from '@/lib/fase-resumo';
@@ -156,9 +156,9 @@ export default function ProcessosEmpresaPage() {
     const rowTenant = (item as any).empresa_id;
     return !rowTenant || String(rowTenant) === String((profile as any).empresa_id);
   };
-  /** Só o botão "Rodar empresa" (lote empresa) exige Supervisão/Superadmin. Resto da página é livre. */
-  const canRodarEmpresa = canRodarEmpresaScan(profile as any);
-  const canAssignOwner = canAssignOwnerRule(profile as any);
+  // Operações desta página são colaborativas: todos os usuários da empresa.
+  const canRodarEmpresa = Boolean(authUserId && empresaId);
+  const canAssignOwner = Boolean(authUserId && empresaId);
   const openScanner = useDataJudScanStore((s) => s.openScanner);
   const scannerStatus = useDataJudScanStore((s) => s.status);
   const scannerManualStatus = useDataJudScanStore((s) => s.manualStatus);
@@ -524,6 +524,36 @@ export default function ProcessosEmpresaPage() {
     }
   };
 
+  const handleDelete = async (c: LegalCase) => {
+    if (!canManageItem(c) || saving) return;
+    if (!confirm('EXCLUIR definitivamente este processo da carteira?\n' +
+      String(c.cliente || '') + '\n' + String(c.protocolo || '') +
+      '\n\nEssa ação será identificada na auditoria do sistema.')) return;
+    setSaving(true);
+    try {
+      const res = await deleteOneCaseAction(String(c.protocolo || ''));
+      if (!res.success) {
+        toast({title:'Exclusão não realizada',description:res.message,variant:'destructive'});
+        return;
+      }
+      const next=casesRef.current.filter(x=>String(x.id)!==String(c.id)&&String(x.protocolo)!==String(c.protocolo));
+      casesRef.current=next;
+      setCases(next);
+      setListOffset(next.length);
+      setTotalCount(n=>Math.max(0,n-1));
+      invalidateFastCarteiraCache();
+      invalidateCarteiraCache();
+      window.dispatchEvent(new Event('lexis-carteira-updated'));
+      toast({title:'Processo excluído',description:'Removido da carteira da empresa.'});
+      // Reconstruir páginas sem reutilizar registros que acabaram de ser apagados.
+      void load(true);
+    } catch (error) {
+      toast({title:'Falha ao excluir',description:error instanceof Error?error.message:'Falha inesperada',variant:'destructive'});
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleEncerrar = async (c: LegalCase) => {
     if (!canManageItem(c)) return;
     if (!confirm(`Marcar "${c.cliente}" como ENCERRADO?\nO processo sai da carteira ativa.`)) return;
@@ -815,6 +845,7 @@ export default function ProcessosEmpresaPage() {
               setEditOpen(true);
             }}
             onAttend={(item) => openAttendance(item)}
+            onDelete={(item) => void handleDelete(item)}
             onReopen={(item) => void handleReabrir(item)}
             onExportCsv={exportCsv}
             ownerNameByAuth={nomeByAuth}
