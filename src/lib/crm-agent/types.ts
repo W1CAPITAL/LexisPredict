@@ -8,7 +8,7 @@ export type CrmEvidenceKind = (typeof CRM_EVIDENCE_KINDS)[number];
 export const CRM_AGENT_IDS = [
   'silencio-comercial', 'atraso-regua', 'brief-negocio', 'enriquecer-cnj',
   'enriquecer-contato', 'email-cliente', 'followup-operacional',
-  'anotar-carteira', 'recheck', 'livre',
+  'anotar-carteira', 'recheck', 'pesquisa-legislativa', 'livre',
 ] as const;
 export type CrmAgentId = (typeof CRM_AGENT_IDS)[number];
 
