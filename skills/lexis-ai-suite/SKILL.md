@@ -20,6 +20,9 @@ sem um adapter, chave e autorização explícita.
 - `whatsapp-browser`: preparar URL no web.whatsapp.com do operador, com telefone e rascunho validados, envio manual, sem fingir aceite nem atualizar último retorno. Veja `skills/whatsapp-browser/SKILL.md`. ego-lite é opcional e local, não é serviço serverless.
 - `safe-inference`: Qwen WebGPU só com opt-in; nunca carregar modelo no browser ao falhar API. Vercel e Supabase não executam modelo 0.5B.
 - `security-reviewer`: seguir `skills/vibesec/SKILL.md` com checagens de auth, RLS, SSRF, HTML, PII e segredo no servidor.
+- `api-auditor`: observar somente HAR próprio/autorizado no navegador, sanitizando endpoints e sem enviar dados. Skill `skills/reverse-api-safe/SKILL.md`.
+- `pdf-auditor`, `legal-compliance`, `performance`, `customer-comms`: papéis especializados do planner `src/lib/agents/studio.ts`, com gates de qualidade. Não são workers autônomos nem prova de execução.
+- `agency-orchestration`: matriz por rota do Estúdio em `skills/agency-orchestration/SKILL.md`.
 
 ## Execução e gates
 RECEBER → VALIDAR EMPRESA/USUÁRIO → ROTEAR → OBTER EVIDÊNCIAS → REDIGIR →

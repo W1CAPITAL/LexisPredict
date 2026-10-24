@@ -10,7 +10,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, Wallet, Shield } from "lucide-react";
+import { ArrowLeft, Building2, Wallet, Shield, Network, ArrowRight } from "lucide-react";
 
 const ITEMS = [
   {
@@ -79,6 +79,13 @@ export default function IntegracoesPage() {
             </p>
           </div>
 
+          <Link href="/estudio-agentes#auditoria-api" className="group block rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-500/10 to-sky-500/10 p-4 hover:border-violet-500/50">
+            <div className="flex items-center justify-between gap-4">
+              <div><p className="flex items-center gap-2 font-bold text-foreground"><Network className="h-5 w-5 text-violet-500"/> Auditor de contratos e APIs</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Inspecione HAR de tráfego autorizado, anonimize endpoints e descubra falhas 401/403, 429, 5xx e lentidão. Processamento local, sem tokens de IA ou upload.</p></div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-violet-500 transition-transform group-hover:translate-x-1"/>
+            </div>
+          </Link>
           <ul className="space-y-3">
             {ITEMS.map((it) => (
               <li key={it.nome} className="rounded-2xl border border-border bg-card p-4">
