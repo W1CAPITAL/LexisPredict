@@ -86,6 +86,7 @@ const extras: NavItem[] = [
   { label: "Equipe", href: "/team", icon: Users, supervisor: true },
   { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, supervisor: true },
   { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, supervisor: true },
+  { label: "Estúdio de Agentes", href: "/estudio-agentes", icon: Bot, supervisor: true },
   { label: "Administração", href: "/superadmin", icon: Crown, superadmin: true },
 ];
 
