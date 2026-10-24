@@ -2,6 +2,7 @@ import React from "react";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {ReportTeamSummaryPdf} from "@/components/pdf/report-team-summary-pdf";
 import type {EquipeRelatorio} from "@/components/report/team-report";
+import {getReportAccess} from "@/lib/security/report-access";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -13,9 +14,13 @@ export async function GET(request:Request){
   const ctx=await getUserContext();
   if(!ctx.empresa_id||!ctx.auth_id)return Response.json({error:"Sessão necessária."},{status:401,headers:{"Cache-Control":"no-store"}});
   const url=new URL(request.url);
+  const requestedScope=url.searchParams.get("escopo")==="meus"?"meus":"empresa";
+  const access=getReportAccess(ctx,requestedScope);
+  if(!access.canExport)return Response.json({error:"Seu perfil não pode exportar relatórios."},{status:403,headers:{"Cache-Control":"no-store"}});
   const raw=url.searchParams.get("periodo");
   const periodo=raw==="esta_semana"||raw==="semana_passada"||raw==="mes"?raw:"mes";
-  const scope=url.searchParams.get("escopo")==="meus"?"Minha carteira":"Empresa inteira";
+  if(!access.requestedScopeAllowed)return Response.json({error:"Somente Supervisor ou Superadmin pode exportar dados da empresa."},{status:403,headers:{"Cache-Control":"no-store"}});
+  const scope=access.scope==="meus"?"Minha carteira":"Empresa inteira";
   const owner=scope==="Minha carteira"?ctx.auth_id:null;
   const db=await getSupabaseAdmin();
   const [teamResult,snapshotResult,meritoResult,retornoResult,histResult]=await Promise.all([
