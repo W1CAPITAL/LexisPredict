@@ -123,14 +123,21 @@ export async function fetchScannerQueueAction() {
   const ctx = await getUserContext();
   if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) throw new Error('Sessao sem permissao para scanner.');
   const db = await getSupabaseAdmin();
+  // A fila usa conta técnica SOMENTE no servidor, após identidade/empresa
+  // verificadas. RLS continua ativa para browser e operações diretas.
+  const {count:expected,error:countError}=await db.from('processos')
+    .select('id',{count:'exact',head:true}).eq('empresa_id',ctx.empresa_id);
+  if(countError||expected==null)throw new Error('Não foi possível conferir o tamanho real da carteira para o scanner.');
   const rows: any[] = [];
-  for (let offset = 0; offset < 10000; offset += 500) {
+  let visited=0;
+  for (let offset = 0; offset < 50000; offset += 500) {
     const { data, error } = await db.from('processos')
       .select('id,empresa_id,protocolo_ref,status,status_interno,created_by,datajud_consultado_em,djen_consultado_em,datajud_encerrado_tribunal,em_cumprimento_sentenca,is_procedente,cumprimento_pendente_necessario,tem_atualizacao_pos_retorno,djen_nova_comunicacao')
       .eq('empresa_id',ctx.empresa_id)
       .order('id',{ascending:true})
       .range(offset,offset+499);
     if (error) throw new Error('Falha na fila do scanner: '+error.message);
+    visited+=(data||[]).length;
     for (const item of data || []) {
       if (!item.protocolo_ref) continue;
       rows.push({
@@ -150,6 +157,7 @@ export async function fetchScannerQueueAction() {
     }
     if (!data || data.length < 500) break;
   }
+  if(visited!==expected)throw new Error(`Fila incompleta: ${visited} de ${expected} processos. Tente novamente; nenhuma varredura parcial será iniciada.`);
   return rows as LegalCase[];
 }
 

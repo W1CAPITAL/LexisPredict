@@ -12,6 +12,7 @@ import { resolveCaseScope } from './roles';
 import { normalizePlanId } from './planos-pacotes';
 import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
 import { resolveProcessoCliente } from './processo-cliente';
+import { createdByOwnerIds } from './carteira-owner-ids';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -35,7 +36,7 @@ export async function getSupabaseAdmin() {
 }
 
 const resolveUserContext = cache(async () => {
-  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
+  const empty = { auth_id: null, profile_id: null as string | null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
   // Commercial web: identidade vem exclusivamente do Supabase Auth.
   // Cookies/planilha/"safety mode" não podem criar contexto de tenant.
   const requestClient = await createRequestClient();
@@ -72,6 +73,7 @@ const resolveUserContext = cache(async () => {
 
   return { 
     auth_id: profile?.auth_user_id || null,
+    profile_id: profile?.id || null,
     empresa_id: profile?.empresa_id || null, 
     cargo: cargo,
     email: profile?.email || null,
@@ -172,6 +174,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   const context = await getUserContext();
   if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
   const { auth_id } = context as any;
+  const ownerIds=createdByOwnerIds(context.auth_id,context.profile_id);
 
   // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
   // O escopo vem exclusivamente de resolveCaseScope().
@@ -219,8 +222,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
           .order("created_at", { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         if (mode === "mine") {
-          if (!auth_id) return null;
-          query = query.eq("created_by", auth_id);
+          if (!ownerIds.length) return null;
+          query = query.in("created_by", ownerIds);
         }
         return query;
       };
@@ -277,22 +280,25 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     }
 
     if (!auth_id) return [];
+    // A lista já foi autorizada pelo contexto de sessão. Use primeiro o
+    // servidor com filtro de proprietário VALIDADO; evitar uma leitura parcial
+    // com o client anon quando RLS e IDs históricos coexistirem.
+    try {
+      const admin = await getSupabaseAdmin();
+      const rows = await fetchPages(admin, "mine");
+      return dedupeByProtocolo(mapRows(rows));
+    } catch (e) {
+      console.error("[getStoredCasesForEmpresa] admin mine", e);
+    }
+    // Último recurso: mantém RLS ativo e o MESMO filtro de dono; não abre
+    // carteira empresarial nem transforma erro de permissão em sucesso.
     try {
       if (supabase) {
         const rows = await fetchPages(supabase, "mine");
-        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
+        return dedupeByProtocolo(mapRows(rows));
       }
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] user mine", e);
-    }
-    try {
-      const admin = await getSupabaseAdmin();
-      if (admin) {
-        const rows = await fetchPages(admin, "mine");
-        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
-      }
-    } catch (e) {
-      console.error("[getStoredCasesForEmpresa] admin mine", e);
     }
     return [];
   } catch (error) {
@@ -317,6 +323,7 @@ export async function getStoredCasesPageForEmpresa(
     // avoids anonymous-browser RLS ambiguity. Scope is STILL derived on server.
     const client = await getSupabaseAdmin();
     const { auth_id } = context;
+    const ownerIds=createdByOwnerIds(auth_id,context.profile_id);
     const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;
 
@@ -335,8 +342,8 @@ export async function getStoredCasesPageForEmpresa(
       // Somente a ação explícita de Processos da Empresa usa esta exceção
       // de consulta. Toda edição continua verificando o responsável real.
       if (caseScope === 'mine' && opts?.companyReadOnly !== true) {
-        if (!auth_id) return { data: [] as any[], error: null };
-        query = query.eq("created_by", auth_id);
+        if (!ownerIds.length) return { data: [] as any[], error: null };
+        query = query.in("created_by", ownerIds);
       }
 
       return await query;
@@ -1077,87 +1084,84 @@ export async function listAllEmpresasSystem() {
 }
 
 export async function getStoredNotes(): Promise<any[]> {
-  const { auth_id, empresa_id, isMasterView } = await getUserContext();
-  if (!empresa_id || !auth_id || !supabase) return [];
-  
-  const hasFullAccess = isMasterView === true;
-
-  try {
-    let allData: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      let query = supabase
-        .from('notes')
-        .select('*')
-        .eq('empresa_id', empresa_id)
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (!hasFullAccess) {
-        query = query.eq("created_by", auth_id);
+  const ctx=await getUserContext();
+  if(!ctx.empresa_id||!ctx.auth_id)return [];
+  // RLS protege acessos externos; no servidor, a autorização é feita pelo
+  // contexto assinado antes do uso da conta técnica, nunca por parâmetro da UI.
+  const db=await getSupabaseAdmin();
+  const companyWide=Boolean(ctx.isSupervisor||ctx.isSuperAdmin);
+  const ownerIds=createdByOwnerIds(ctx.auth_id,ctx.profile_id);
+  if(!companyWide&&!ownerIds.length)return [];
+  const all:any[]=[];
+  for(let offset=0;offset<20000;offset+=500){
+    let q=db.from('notes').select('*').eq('empresa_id',ctx.empresa_id)
+      .order('created_at',{ascending:false}).range(offset,offset+499);
+    if(!companyWide)q=q.in('created_by',ownerIds);
+    const {data,error}=await q;
+    if(error)throw new Error('Falha ao ler notas da empresa: '+error.message);
+    all.push(...(data||[]));
+    if(!data||data.length<500)break;
+  }
+  return all.map(row=>{
+    let imageUrl:string|undefined;
+    let content=String(row.content||'');
+    try{
+      if(content.trim().startsWith('{')){
+        const decoded=JSON.parse(content);
+        if(decoded && typeof decoded==='object'){
+          content=String(decoded.text??content);
+          imageUrl=typeof decoded.imageUrl==='string'?decoded.imageUrl:undefined;
+        }
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        hasMore = data.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
-    }
-    
-    return allData.map(item => {
-      let imageUrl;
-      let displayContent = item.content || '';
-      try { 
-        if (displayContent.startsWith('{')) { 
-          const parsed = JSON.parse(displayContent); 
-          displayContent = parsed.text; 
-          imageUrl = parsed.imageUrl; 
-        } 
-      } catch (e) {}
-      return { 
-        id: item.id.toString(), 
-        title: item.title || 'Nota', 
-        content: displayContent, 
-        imageUrl: imageUrl, 
-        color: 'bg-white', 
-        updatedAt: new Date(item.created_at).toLocaleString('pt-BR') 
-      };
-    });
-  } catch (error) { return []; }
+    }catch{/* conteúdo legado textual */}
+    return {
+      id:String(row.id),title:row.title||'Nota',content,imageUrl,
+      cliente:row.cliente??null,
+      protocolo:row.protocolo??row.protocolo_ref??null,
+      created_by:row.created_by,created_at:row.created_at,
+      updatedAt:new Date(row.created_at).toLocaleString('pt-BR'),
+      createdAt:row.created_at,updated_at:row.created_at,
+      color:'bg-white'
+    };
+  });
 }
 
 export async function saveSingleNote(note: any): Promise<{ success: boolean; data?: any }> {
-  const { auth_id, empresa_id } = await getUserContext();
-  if (!empresa_id || !auth_id || !supabase) return { success: false };
-  const dbNote = { title: note.title || 'Nota', content: note.imageUrl ? JSON.stringify({ text: note.content, imageUrl: note.imageUrl }) : note.content, empresa_id: empresa_id, created_by: auth_id };
-  const { data, error } = await supabase.from('notes').insert(dbNote).select().single();
-  if (error) return { success: false };
-  return { success: true, data };
+  const ctx=await getUserContext();
+  if(!ctx.empresa_id||!ctx.auth_id||ctx.isViewer)return {success:false};
+  const content=note.imageUrl?JSON.stringify({text:note.content||'',imageUrl:note.imageUrl}):String(note.content||'');
+  const db=await getSupabaseAdmin();
+  const {data,error}=await db.from('notes').insert({
+    title:String(note.title||'Nota'),content,empresa_id:ctx.empresa_id,created_by:ctx.auth_id
+  }).select().single();
+  if(error)return {success:false};
+  return {success:true,data};
 }
 
 export async function updateStoredNote(id: string, updates: any): Promise<{ success: boolean }> {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return { success: false };
-  const dbUpdates: any = {};
-  if (updates.title !== undefined) dbUpdates.title = updates.title;
-  if (updates.content !== undefined || updates.imageUrl !== undefined) { dbUpdates.content = updates.imageUrl ? JSON.stringify({ text: updates.content, imageUrl: updates.imageUrl }) : updates.content; }
-  const { error } = await supabase.from('notes').update(dbUpdates).eq('id', id).eq('empresa_id', empresa_id);
-  return { success: !error };
+  const ctx=await getUserContext();
+  if(!ctx.empresa_id||!ctx.auth_id||ctx.isViewer||!id)return {success:false};
+  const patch:Record<string,unknown>={};
+  if(updates.title!==undefined)patch.title=updates.title;
+  if(updates.content!==undefined||updates.imageUrl!==undefined){
+    patch.content=updates.imageUrl?JSON.stringify({text:updates.content||'',imageUrl:updates.imageUrl}):String(updates.content||'');
+  }
+  if(!Object.keys(patch).length)return {success:false};
+  const db=await getSupabaseAdmin();
+  let q=db.from('notes').update(patch).eq('empresa_id',ctx.empresa_id).eq('id',id);
+  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
+  const {data,error}=await q.select('id');
+  return {success:!error&&Array.isArray(data)&&data.length===1};
 }
 
 export async function deleteStoredNote(id: string): Promise<{ success: boolean }> {
-  const { empresa_id } = await getUserContext();
-  if (!empresa_id || !supabase) return { success: false };
-  const { error = null } = await supabase.from('notes').delete().eq('id', id).eq('empresa_id', empresa_id);
-  return { success: !error };
+  const ctx=await getUserContext();
+  if(!ctx.empresa_id||!ctx.auth_id||ctx.isViewer||!id)return {success:false};
+  const db=await getSupabaseAdmin();
+  let q=db.from('notes').delete().eq('empresa_id',ctx.empresa_id).eq('id',id);
+  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
+  const {data,error}=await q.select('id');
+  return {success:!error&&Array.isArray(data)&&data.length===1};
 }
 
 export async function getEmpresaUsers(): Promise<UserProfile[]> {
