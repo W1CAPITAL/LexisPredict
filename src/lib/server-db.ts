@@ -167,18 +167,19 @@ function toLegalCase(item: any): LegalCase {
   });
 }
 
-export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = false): Promise<LegalCase[]> {
+export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = false, opts?: { companyOperational?: boolean }): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
   if (!empresaId) return [];
 
   const context = await getUserContext();
-  if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
+  if (!context.auth_id || context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
   const { auth_id } = context as any;
   const ownerIds=createdByOwnerIds(context.auth_id,context.profile_id);
 
-  // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
-  // O escopo vem exclusivamente de resolveCaseScope().
-  const wantAll = resolveCaseScope(context as any) === 'empresa';
+  // /cases permanece pessoal, /processos pode pedir carteira completa
+  // SOMENTE por servidor com sessão e tenant validados. O parâmetro isAdmin
+  // legado nunca confere privilégios por si só.
+  const wantAll = opts?.companyOperational === true || resolveCaseScope(context as any) === 'empresa';
 
   const mapRows = (rows: any[]): LegalCase[] => {
     const out: LegalCase[] = [];
@@ -935,12 +936,13 @@ export async function updateCaseDataJudSystem(caseId: string, patch: any) {
 export async function saveStoredCasesForEmpresa(
   cases: LegalCase[],
   empresaId: string,
-  _isAdmin = false
+  _isAdmin = false,
+  opts?: { companyOperational?: boolean }
 ): Promise<{ success: boolean; message: string }> {
   try {
     const ctx = await getUserContext();
     const { auth_id } = ctx;
-    const caseScope = resolveCaseScope(ctx as any);
+    const caseScope = opts?.companyOperational === true ? 'empresa' : resolveCaseScope(ctx as any);
     if (!auth_id || !ctx.empresa_id) {
       return { success: false, message: 'Sessão expirada.' };
     }
@@ -982,9 +984,14 @@ export async function saveStoredCasesForEmpresa(
         return [];
       }
 
-      const owner = caseScope === 'empresa'
-        ? existingOwner || String((item as any).created_by || auth_id)
-        : auth_id;
+      // Nunca transferir responsabilidade por edição ou scanner.
+      // No caminho colaborativo, novos itens ficam com o autor autenticado;
+      // transferência de dono é uma ação separada e auditada.
+      const owner = opts?.companyOperational === true
+        ? (existingOwner || auth_id)
+        : caseScope === 'empresa'
+          ? (existingOwner || String((item as any).created_by || auth_id))
+          : auth_id;
 
       return [{
         empresa_id: empresaId,
