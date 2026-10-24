@@ -280,22 +280,25 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
     }
 
     if (!auth_id) return [];
+    // A lista já foi autorizada pelo contexto de sessão. Use primeiro o
+    // servidor com filtro de proprietário VALIDADO; evitar uma leitura parcial
+    // com o client anon quando RLS e IDs históricos coexistirem.
+    try {
+      const admin = await getSupabaseAdmin();
+      const rows = await fetchPages(admin, "mine");
+      return dedupeByProtocolo(mapRows(rows));
+    } catch (e) {
+      console.error("[getStoredCasesForEmpresa] admin mine", e);
+    }
+    // Último recurso: mantém RLS ativo e o MESMO filtro de dono; não abre
+    // carteira empresarial nem transforma erro de permissão em sucesso.
     try {
       if (supabase) {
         const rows = await fetchPages(supabase, "mine");
-        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
+        return dedupeByProtocolo(mapRows(rows));
       }
     } catch (e) {
       console.error("[getStoredCasesForEmpresa] user mine", e);
-    }
-    try {
-      const admin = await getSupabaseAdmin();
-      if (admin) {
-        const rows = await fetchPages(admin, "mine");
-        if (rows.length > 0) return dedupeByProtocolo(mapRows(rows));
-      }
-    } catch (e) {
-      console.error("[getStoredCasesForEmpresa] admin mine", e);
     }
     return [];
   } catch (error) {
