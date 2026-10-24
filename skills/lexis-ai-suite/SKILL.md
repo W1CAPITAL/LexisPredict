@@ -17,6 +17,8 @@ sem um adapter, chave e autorização explícita.
 - `legal-researcher`: skill `skills/legislacao-brasileira/SKILL.md`, consulta pontual de normas federais com artigo e metadados de ctresb/leis, sem confiar em vigência ou OCR automaticamente.
 - `dossier-editor`: construir dossiê narrativo por processo/advogado, cronologia, falhas, contraprovas e recomendações; diferenciar CONFIRMADO, ADMISSÃO, INDÍCIO, RELATO e HIPÓTESE.
 - `whatsapp-writer`: elaborar sugestões de resposta curtas, contextualizadas e revisáveis, nunca enviar automaticamente e nunca prometer resultado jurídico sem prova.
+- `whatsapp-browser`: preparar URL no web.whatsapp.com do operador, com telefone e rascunho validados, envio manual, sem fingir aceite nem atualizar último retorno. Veja `skills/whatsapp-browser/SKILL.md`. ego-lite é opcional e local, não é serviço serverless.
+- `safe-inference`: Qwen WebGPU só com opt-in; nunca carregar modelo no browser ao falhar API. Vercel e Supabase não executam modelo 0.5B.
 - `security-reviewer`: seguir `skills/vibesec/SKILL.md` com checagens de auth, RLS, SSRF, HTML, PII e segredo no servidor.
 
 ## Execução e gates

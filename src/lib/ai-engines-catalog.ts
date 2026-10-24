@@ -53,7 +53,7 @@ export const AI_ENGINES: AiEngine[] = [
   {
     id: "local_llm",
     label: "Lexis Local LLM · Qwen 0.5B",
-    desc: "LLM 4-bit executado no próprio navegador; pesos baixados na primeira execução. Requer memória e WebGPU/CPU.",
+    desc: "LLM 4-bit experimental no navegador. Só com opt-in e WebGPU; sem CPU/WASM fallback para proteger computadores com pouca RAM.",
     status: "OPCIONAL",
     group: "local",
     requiresToken: false,

@@ -101,3 +101,32 @@ export function openWhatsAppClient(opts: WhatsAppLinkOptions): void {
 
   window.open(fallback, '_blank', 'noopener,noreferrer');
 }
+
+
+/**
+ * WhatsApp Web no navegador que o operador já usa.
+ * Exige sessão iniciada em web.whatsapp.com e envio MANUAL após revisão.
+ * Não é uma API e não confirma delivery, leitura ou registro de atendimento.
+ */
+export function buildWhatsAppWebSendLink(opts: WhatsAppLinkOptions): string {
+  const phone = normalizeWhatsAppPhone(opts.phone);
+  // E.164 sem +: 8 a 15 dígitos. Rejeita números malformados.
+  if (!/^[1-9]\d{7,14}$/.test(phone)) {
+    throw new Error('Número inválido para WhatsApp Web. Cadastre telefone com DDD e DDI.');
+  }
+  const params = new URLSearchParams({phone});
+  if (opts.text?.trim()) params.set('text', opts.text.trim().slice(0,4096));
+  return 'https://web.whatsapp.com/send?' + params.toString();
+}
+
+export function openWhatsAppWebClient(opts:WhatsAppLinkOptions): boolean {
+  if(typeof window==='undefined')return false;
+  const url=buildWhatsAppWebSendLink(opts);
+  // Abre no gesto do clique, detecta bloqueador de popup e desativa o opener
+  // antes de permitir que a página de destino utilize a aba.
+  const tab=window.open('about:blank','_blank');
+  if(!tab)return false;
+  try{tab.opener=null;tab.location.replace(url);}
+  catch{tab.close();return false;}
+  return true;
+}

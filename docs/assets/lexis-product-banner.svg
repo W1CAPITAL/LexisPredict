@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="460" viewBox="0 0 1440 460" role="img" aria-labelledby="title desc">
+<title id="title">LexisPredict — inteligência jurídica operacional</title>
+<desc id="desc">Banner do LexisPredict em azul meia-noite e violeta, com painel de processos e agentes ilustrado</desc>
+<defs>
+ <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#071225"/><stop offset=".58" stop-color="#0D1732"/><stop offset="1" stop-color="#180C32"/></linearGradient>
+ <radialGradient id="halo" cx=".81" cy=".25" r=".72"><stop stop-color="#8751F9" stop-opacity=".29"/><stop offset="1" stop-color="#8751F9" stop-opacity="0"/></radialGradient>
+ <linearGradient id="blue" x1="0" x2="1"><stop stop-color="#448EFF"/><stop offset="1" stop-color="#9D66FF"/></linearGradient>
+ <linearGradient id="accent" x1="0" x2="1"><stop stop-color="#7352EF"/><stop offset=".55" stop-color="#B068F6"/><stop offset="1" stop-color="#FF66CF"/></linearGradient>
+ <linearGradient id="panel" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#1A2544"/><stop offset="1" stop-color="#101A34"/></linearGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="52"/></filter>
+ <filter id="shadow"><feDropShadow dx="0" dy="24" stdDeviation="20" flood-color="#000000" flood-opacity=".35"/></filter>
+ <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M 42 0 L 0 0 0 42" fill="none" stroke="#8193DB" stroke-opacity=".07" stroke-width="1"/></pattern>
+</defs>
+<rect width="1440" height="460" fill="url(#bg)"/>
+<rect width="1440" height="460" fill="url(#grid)"/>
+<ellipse cx="1170" cy="88" rx="330" ry="180" fill="#783BF8" opacity=".23" filter="url(#blur)"/>
+<ellipse cx="620" cy="450" rx="370" ry="130" fill="#2386D6" opacity=".14" filter="url(#blur)"/>
+<rect width="1440" height="460" fill="url(#halo)"/>
+<g transform="translate(67 65)">
+ <rect width="58" height="58" rx="17" fill="#3C246E"/>
+ <path d="M15 10 H30 V37 H45" fill="none" stroke="url(#accent)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+ <circle cx="46" cy="12" r="4.5" fill="#F472DB"/>
+ <text x="80" y="22" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="1" fill="#D9C7FF">W1 CAPITAL • LEGAL OPERATIONS</text>
+ <text x="80" y="63" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="48" font-weight="800" letter-spacing="-1.5" fill="#F5F7FF">Lexis<tspan fill="#BA8AFF">Predict</tspan></text>
+</g>
+<g transform="translate(71 200)" font-family="Inter,Segoe UI,Arial,sans-serif">
+ <text font-size="35" font-weight="780" fill="#FAFAFF">Inteligência para quem</text>
+ <text y="43" font-size="35" font-weight="780" fill="url(#blue)">opera o Direito de verdade.</text>
+ <text y="89" font-size="17" fill="#B8C6E3">Processos • DataJud / DJEN • Auditoria • Agentes • WhatsApp</text>
+ <rect y="116" rx="13" width="233" height="46" fill="url(#accent)" opacity=".96"/>
+ <text x="24" y="145" font-size="15" fill="white" font-weight="800">PLATAFORMA JURÍDICA</text>
+ <rect x="245" y="116" rx="13" width="163" height="46" fill="#0F1D37" stroke="#4B597E"/>
+ <text x="269" y="145" font-size="15" fill="#D8E0FF" font-weight="700">EVIDÊNCIA &amp; IA</text>
+</g>
+<g transform="translate(755 52)" filter="url(#shadow)">
+ <rect width="632" height="368" rx="23" fill="#0C1429" stroke="#465385" stroke-width="2"/>
+ <rect width="632" height="39" rx="23" fill="#17223F"/>
+ <path d="M0 39h632" stroke="#334166"/>
+ <circle cx="24" cy="20" r="5" fill="#FF7784"/><circle cx="43" cy="20" r="5" fill="#FCC66E"/><circle cx="62" cy="20" r="5" fill="#71DEB1"/>
+ <rect x="92" y="11" width="265" height="18" rx="7" fill="#222D49"/>
+ <text x="109" y="24" font-size="10" fill="#ACBADC" font-family="Inter,Segoe UI,Arial,sans-serif">Buscar processos, normas e movimentações...</text>
+ <rect x="18" y="54" width="110" height="295" rx="13" fill="#121B35"/>
+ <g font-family="Inter,Segoe UI,Arial,sans-serif" font-size="11" fill="#8798C8" font-weight="700">
+  <text x="34" y="82" fill="#C6ABFF">◆ LEXIS</text><text x="34" y="124">▦ Dashboard</text><text x="34" y="153">▤ Processos</text><text x="34" y="182">◉ Agentes</text>
+  <rect x="26" y="202" width="94" height="32" rx="8" fill="#36245F"/>
+  <text x="36" y="224" fill="#E5D8FF">▮ Report</text>
+  <text x="34" y="263">▢ WhatsApp</text><text x="34" y="293">⚙ Ajustes</text>
+ </g>
+ <g font-family="Inter,Segoe UI,Arial,sans-serif">
+  <text x="147" y="80" font-size="20" font-weight="800" fill="#F7F8FF">Visão operacional</text>
+  <text x="147" y="100" font-size="10" fill="#99AAD4">Indicadores, evidências e próximos passos em um único lugar</text>
+ </g>
+ <g>
+  <rect x="148" y="118" width="143" height="76" rx="12" fill="url(#panel)" stroke="#5E4FBB"/>
+  <rect x="302" y="118" width="143" height="76" rx="12" fill="url(#panel)" stroke="#285EAC"/>
+  <rect x="456" y="118" width="156" height="76" rx="12" fill="url(#panel)" stroke="#137D77"/>
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+   <text x="161" y="140" font-size="10" fill="#A9BCE6">CARTEIRA</text><text x="161" y="168" font-size="22" font-weight="800" fill="#FFFFFF">Ativos</text>
+   <text x="314" y="140" font-size="10" fill="#A9BCE6">MOVIMENTAÇÕES</text><text x="314" y="168" font-size="22" font-weight="800" fill="#FFFFFF">DJEN</text>
+   <text x="468" y="140" font-size="10" fill="#A9BCE6">QUALIDADE</text><text x="468" y="168" font-size="22" font-weight="800" fill="#FFFFFF">Auditável</text>
+  </g>
+ </g>
+ <rect x="148" y="205" width="303" height="144" rx="12" fill="#121D36" stroke="#31446A"/>
+ <text x="164" y="225" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="11" font-weight="700" fill="#DDE6FF">Indicadores e produtividade</text>
+ <path d="M165 319 H434 M165 287 H434 M165 255 H434" stroke="#31446A" stroke-opacity=".6"/>
+ <path d="M168 314 Q196 301 221 300 T271 282 T326 264 T376 275 T434 248" stroke="#9C6BFF" stroke-width="3" fill="none"/>
+ <path d="M168 327 Q204 315 229 317 T286 304 T335 289 T386 296 T434 280" stroke="#439BFC" stroke-width="2.5" fill="none"/>
+ <rect x="462" y="205" width="150" height="144" rx="12" fill="#121D36" stroke="#31446A"/>
+ <text x="476" y="226" font-size="11" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="700" fill="#DDE6FF">Agentes &amp; skills</text>
+ <rect x="477" y="243" width="119" height="23" rx="6" fill="#302451"/><text x="487" y="258" fill="#DCCFFF" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="10">✓ Fonte validada</text>
+ <rect x="477" y="274" width="119" height="23" rx="6" fill="#173E4C"/><text x="487" y="289" fill="#9CEDD8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="10">✓ CNJ localizado</text>
+ <rect x="477" y="305" width="119" height="23" rx="6" fill="#27365C"/><text x="487" y="320" fill="#A9CDFF" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="10">✓ Revisão humana</text>
+</g>
+</svg>
