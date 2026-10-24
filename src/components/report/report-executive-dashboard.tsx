@@ -10,6 +10,7 @@ type Person={id:string;nome:string;carteira:number;atendimentos:number;encerrame
 type Day={ymd:string;atendimentos:number;encerramentos:number};
 type Props={
  periodo:"esta_semana"|"semana_passada"|"mes";meus:boolean;
+ canViewTeam:boolean;canExport:boolean;
  total:number|null;ativos:number|null;encerrados:number|null;novidades:number|null;vencidos:number|null;
  semRetorno:number|null;atendidos:number|null;eventos:number|null;meritoPendente:number|null;
  equipe:Person[];dias:Day[];
@@ -50,7 +51,7 @@ export function ReportExecutiveDashboard(p:Props){
   {name:"Encerrados (CRM)",value:Math.max(0,p.encerrados||0),color:colors[1]},
   {name:"Outros estados",value:outros,color:colors[2]}
  ].filter(x=>x.value>0);
- const pathname=(periodo:string,meus=p.meus)=>"/report?periodo="+encodeURIComponent(periodo)+"&escopo="+(meus?"meus":"empresa");
+ const pathname=(periodo:string,meus=p.meus)=>"/report?periodo="+encodeURIComponent(periodo)+"&escopo="+(meus||!p.canViewTeam?"meus":"empresa");
  const notes=[
   {heading:"Retornos a conferir",body:p.semRetorno==null?"Consulta indisponível.":format(p.semRetorno)+" processos ativos sem retorno registrado há 30 dias ou mais.",Icon:Clock3},
   {heading:"Novidades na carteira",body:p.novidades==null?"Consulta indisponível.":format(p.novidades)+" processos com novidade no snapshot atual.",Icon:BellRing},
@@ -62,20 +63,20 @@ export function ReportExecutiveDashboard(p:Props){
    <header className="flex flex-wrap items-start justify-between gap-4 pb-5">
     <div className="flex items-start gap-3">
      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-violet-950 shadow-lg shadow-violet-600/15"><BarChart3 className="h-6 w-6 text-violet-200"/></span>
-     <div><h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Relatórios Inteligentes</h1><p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400 sm:text-sm">Desempenho operacional, carteira e auditoria jurídica num só lugar. Dados reais da empresa, sem estimativas.</p></div>
+     <div><h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Relatórios Inteligentes</h1><p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400 sm:text-sm">Desempenho operacional, carteira e auditoria jurídica num só lugar. Dados reais da carteira autorizada, sem estimativas.</p></div>
     </div>
     <div className="flex flex-wrap gap-2">
      <Link className={linkClass} href="/processos"><BriefcaseBusiness className="h-4 w-4"/>Processos</Link>
-     <Link className={linkClass} href="/report/completo"><FileText className="h-4 w-4"/>Relatório completo</Link>
-     <ReportPdfExportButton periodo={p.periodo} escopo={p.meus?"meus":"empresa"} label="Exportar PDF" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-500 bg-gradient-to-r from-blue-600 to-violet-700 px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"/>
+     {p.canViewTeam && <Link className={linkClass} href="/report/completo"><FileText className="h-4 w-4"/>Relatório completo</Link>}
+     {p.canExport && <ReportPdfExportButton periodo={p.periodo} escopo={p.meus?"meus":"empresa"} label="Exportar PDF" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-500 bg-gradient-to-r from-blue-600 to-violet-700 px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"/>}
     </div>
    </header>
    <nav aria-label="Filtros do relatório" className="mb-4 grid gap-2 rounded-2xl border border-[#28344e] bg-[#111b2e] p-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
     <div><span className="mb-1 block text-[11px] text-slate-400">Período dos eventos</span><div className="flex flex-wrap gap-1">{([{id:"esta_semana",name:"Semana"},{id:"semana_passada",name:"Anterior"},{id:"mes",name:"Mês"}] as const).map(x=><Link key={x.id} aria-current={p.periodo===x.id?"page":undefined} href={pathname(x.id)} className={"rounded-lg px-2.5 py-2 text-xs font-semibold "+(p.periodo===x.id?"bg-violet-600 text-white":"bg-[#19253b] text-slate-300 hover:bg-[#283752]")}>{x.name}</Link>)}</div></div>
-    <div><span className="mb-1 block text-[11px] text-slate-400">Escopo da carteira</span><div className="flex gap-1">{[{key:false,label:"Empresa"},{key:true,label:"Minha"}].map(x=><Link key={String(x.key)} aria-current={p.meus===x.key?"page":undefined} href={pathname(p.periodo,x.key)} className={"rounded-lg px-3 py-2 text-xs font-semibold "+(p.meus===x.key?"bg-violet-600 text-white":"bg-[#19253b] text-slate-300 hover:bg-[#283752]")}>{x.label}</Link>)}</div></div>
+    <div><span className="mb-1 block text-[11px] text-slate-400">Escopo da carteira</span><div className="flex gap-1">{[{key:false,label:"Empresa"},{key:true,label:"Minha"}].filter(x=>p.canViewTeam||x.key).map(x=><Link key={String(x.key)} aria-current={p.meus===x.key?"page":undefined} href={pathname(p.periodo,x.key)} className={"rounded-lg px-3 py-2 text-xs font-semibold "+(p.meus===x.key?"bg-violet-600 text-white":"bg-[#19253b] text-slate-300 hover:bg-[#283752]")}>{x.label}</Link>)}</div></div>
     <label className="block text-[11px] text-slate-400">Responsável — painéis da equipe<select aria-label="Filtrar colaboradores nos painéis da equipe" className="mt-1 block h-9 w-full rounded-lg border border-[#3b4861] bg-[#19253b] px-2 text-xs text-white" value={selected} onChange={e=>setSelected(e.target.value)}><option value="todos">Todos os colaboradores</option>{people.map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
     <label className="block text-[11px] text-slate-400">Comparar na equipe<select className="mt-1 block h-9 w-full rounded-lg border border-[#3b4861] bg-[#19253b] px-2 text-xs text-white" value={metric} onChange={e=>setMetric(e.target.value as "carteira"|"atendimentos")}><option value="carteira">Carteira atribuída</option><option value="atendimentos">Registros de atendimento</option></select></label>
-    <div className="flex flex-wrap items-end gap-2"><Link href={pathname("mes",false)} className={linkClass}><Filter className="h-4 w-4"/>Limpar</Link><Link href="/report" className={linkClass}><RefreshCw className="h-4 w-4"/>Atualizar</Link></div>
+    <div className="flex flex-wrap items-end gap-2"><Link href={pathname("mes",!p.canViewTeam)} className={linkClass}><Filter className="h-4 w-4"/>Limpar</Link><Link href="/report" className={linkClass}><RefreshCw className="h-4 w-4"/>Atualizar</Link></div>
    </nav>
    <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 2xl:grid-cols-6">
     <Stat title="Carteira total" value={p.total} help="Snapshot atual" Icon={Wallet} tone="border-violet-700 bg-gradient-to-br from-violet-900/75 to-[#141b39] text-violet-300"/>
