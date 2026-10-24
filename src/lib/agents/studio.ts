@@ -143,7 +143,7 @@ export function planAgentTeam(goal: string): AgentTeamPlan {
   if (/\b(api|endpoint|har|contrato de api|reverse[- ]?api|integra[cç][aã]o)\b/i.test(text)) add(roles,'api-auditor','security');
   if (/\b(pdf|impress[aã]o|p[aá]gina[cç][aã]o|exportar relat[oó]rio)\b/i.test(text)) add(roles,'pdf-auditor','qa');
   if (/\b(lgpd|consentimento|compliance|permiss[aã]o|rls|autentica[cç][aã]o)\b/i.test(text)) add(roles,'legal-compliance','security');
-  if (/\b(trava|travando|mem[oó]ria|ram|lentid[aã]o|performance|lat[eê]ncia)\b/i.test(text)) add(roles,'performance','qa');
+  if (/\b(trava|travando|mem[oó]ria|ram|lentid[aã]o|desempenho|performance|lat[eê]ncia)\b/i.test(text)) add(roles,'performance','qa');
   if (/\b(whatsapp|mensagem ao cliente|atendimento ao cliente|opt[- ]?out)\b/i.test(text)) add(roles,'customer-comms','legal-compliance');
   const routePaths=(text.match(/\/[a-z][a-z0-9/-]*/gi)||[]).slice(0,8);
   const routeRecommendations=routePaths.flatMap(route=>playbooksForRoute(route).map(p=>({
