@@ -1,6 +1,5 @@
 'use server';
 
-import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
@@ -600,12 +599,15 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
     }
     // Exclusão colaborativa: apenas validação de sessão e tenant (já conferidos).
 
-    const { error } = await admin
+    const {data:deleted,error} = await admin
       .from('processos')
       .delete()
       .eq('empresa_id', ctx.empresa_id)
-      .eq('id', existing.id);
-    if (error) return { success: false, message: error.message };
+      .eq('id', existing.id)
+      .select('id')
+      .maybeSingle();
+    if(error) return {success:false,message:error.message};
+    if(!deleted) return {success:false,message:'O processo não foi excluído. Recarregue e confira o cadastro.'};
 
     try {
       await logAuditoriaSistema({empresaId:ctx.empresa_id,authUserId:ctx.auth_id,acao:'exclusao',protocolo:existing.protocolo_ref,detalhes:{via:'processos-empresa',processo_id:existing.id,responsavel_original:existing.created_by||null}});
