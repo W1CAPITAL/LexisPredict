@@ -1,39 +1,85 @@
-<p align="center">
-  <a href="https://w1capital.github.io/LexisPredict/">
-    <img src="docs/assets/lexis-graph-hero.svg" alt="LexisPredict — clique para abrir o mapa graphify interativo" width="100%" />
-  </a>
+<div align="center">
+
+<img src="docs/assets/lexis-product-banner.svg" alt="LexisPredict — gabinete digital jurídico com dashboard, inteligência e agentes rastreáveis" width="100%" />
+
+### ⚖️ Inteligência para quem opera o Direito de verdade.
+
+**Processos, evidências, atendimento, relatórios e agentes — uma plataforma para transformar trabalho jurídico em operações rastreáveis.**
+
+<p>
+  <a href="https://lexispredict.vercel.app"><img alt="Abrir LexisPredict" src="https://img.shields.io/badge/ABRIR_PLATAFORMA-LEXISPREDICT-7250F1?style=for-the-badge&labelColor=10162A" /></a>
+  <a href="docs/WHATSAPP-WEB-NAVEGADOR.md"><img alt="WhatsApp Web" src="https://img.shields.io/badge/WHATSAPP-WEB_E_WA.AUTO-10B981?style=for-the-badge&labelColor=10162A" /></a>
+  <a href="docs/IA-SEGURA-VERCEL-SUPABASE.md"><img alt="IA segura" src="https://img.shields.io/badge/IA-SEGURA_PARA_PC_LEVE-477BFF?style=for-the-badge&labelColor=10162A" /></a>
+  <a href="skills/lexis-ai-suite/SKILL.md"><img alt="Skills e agentes" src="https://img.shields.io/badge/AGENTES-E_SKILLS-AF71F9?style=for-the-badge&labelColor=10162A" /></a>
 </p>
 
-<p align="center">
-  <strong>LexisPredict</strong><br/>
-  O gabinete digital de quem vive de <strong>prazo</strong> e <strong>volume</strong>.<br/>
-  <em>Não é CRM de vitrine. É o sistema operacional da carteira jurídica.</em>
+<p>
+<img alt="Next.js" src="https://img.shields.io/badge/Next.js-15.5-black?logo=nextdotjs&logoColor=white" />
+<img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" />
+<img alt="Node.js" src="https://img.shields.io/badge/Node.js-24_LTS-5FA04E?logo=nodedotjs&logoColor=white" />
+<img alt="Vercel" src="https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel" />
+<img alt="Supabase" src="https://img.shields.io/badge/Dados-Supabase-3FCF8E?logo=supabase&logoColor=white" />
+<img alt="Licença" src="https://img.shields.io/badge/Licen%C3%A7a-Propriet%C3%A1ria-9E78EA" />
 </p>
 
-<p align="center">
-  <a href="https://w1capital.github.io/LexisPredict/">
-    <img alt="Mapa ao vivo" src="https://img.shields.io/badge/🗺️_mapa_graphify-ABRIR_AO_VIVO-4E79A7?style=for-the-badge&labelColor=0B1220" />
-  </a>
-  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-0B1220?style=for-the-badge&labelColor=111827" />
-  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=nextdotjs&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-  <img alt="Postgres" src="https://img.shields.io/badge/Postgres-multi--tenant-3FCF8E?style=for-the-badge&logo=postgresql&logoColor=white" />
-  <img alt="Graphify" src="https://img.shields.io/badge/graphify-4.3k_nós_·_13.5k_arestas-22D3EE?style=for-the-badge&labelColor=0B1220" />
-  <img alt="Offline" src="https://img.shields.io/badge/offline-EXE_v5+-5EEAD4?style=for-the-badge&labelColor=0B1220" />
-</p>
+**[Plataforma](https://lexispredict.vercel.app)** ·
+**[Superagente](https://lexispredict.vercel.app/chat)** ·
+**[WhatsApp](https://lexispredict.vercel.app/whatsapp)** ·
+**[Relatórios](https://lexispredict.vercel.app/report)** ·
+**[Documentação](docs/)** ·
+**[Mapa arquitetural](https://w1capital.github.io/LexisPredict/)**
 
-<p align="center">
-  <a href="#-por-que-existe">Por que existe</a> ·
-  <a href="#-o-que-é">Produto</a> ·
-  <a href="#-para-quem">Para quem</a> ·
-  <a href="#-web-vs-offline">Web vs Offline</a> ·
-  <a href="#-módulos">Módulos</a> ·
-  <a href="#-mapa-graphify-ao-vivo">Mapa graphify</a> ·
-  <a href="#-planilha--crm">Planilha & CRM</a> ·
-  <a href="#-arquitetura">Arquitetura</a> ·
-  <a href="#-começar">Começar</a> ·
-  <a href="#-licença">Licença</a>
-</p>
+</div>
+
+---
+
+## ✨ Conheça a plataforma
+
+| 🏛️ **Carteira processual** | 🧠 **Inteligência com evidências** | 💬 **Atendimento multicanal** |
+| :--- | :--- | :--- |
+| CNJ, DataJud, DJEN, prazos, responsáveis e movimentações | Agentes especializados, fontes verificáveis, memória operacional e revisão humana | WhatsApp Web do operador ou WA.Auto conectado; envio e entrega não são presumidos |
+| **📊 Report premium** | **🛡️ Segurança por empresa** | **⚙️ Modelo local sem travar o PC** |
+| Produtividade, auditorias, histórico e exportação PDF | Sessão, perfis, visibilidade, Supabase e trilhas de auditoria | Scripts como alternativa leve; Qwen browser opt-in e GPU-only; modelos de servidor quando configurados |
+
+> **Filosofia:** primeiro os fatos, depois as inferências. O LexisPredict não transforma falta de retorno em andamento inventado, nem interpreta ausência de consulta como prova de encerramento.
+
+## 🧭 Arquitetura: onde cada parte realmente roda
+
+<pre>
+Operador (Chrome, Edge ou ego-lite)
+    │  Next.js UI • WhatsApp Web • motor de regras
+    ▼
+Vercel (app + APIs + Server Actions)
+    ├── Supabase (processos, equipes, evidências, auditoria e permissões)
+    ├── DataJud / DJEN (consultas oficiais, quando disponíveis)
+    ├── WA.Auto / worker no Render (opcional, conectado com QR)
+    └── Motor de IA remoto / Colibri (opcional, com infraestrutura própria)
+
+Qwen 0.5B no browser = usa RAM/GPU do operador, NÃO da Vercel ou Supabase.
+</pre>
+
+### 🎯 O que mudou nos agentes
+
+- **Pesquisa legislativa:** acervo público [ctresb/leis](https://github.com/ctresb/leis), buscando norma/artigo sob demanda, com fonte e verificação de metadados. Texto convertido não dispensa consulta oficial.
+- **WhatsApp Web:** modo de atendimento com rascunho aberto no navegador autenticado do operador, sem depender do WA.Auto e sem inventar confirmação de entrega.
+- **Proteção de PCs com pouca memória:** nenhuma tentativa automática de Qwen 0,5B após falha dos motores online; GPU e aceite explícito são necessários para uso experimental.
+- **Agentes especializados:** pesquisa, auditoria, atendimento, dossiês e conferência de fontes em vez de respostas genéricas sem evidência.
+
+**Documentação focada:** [WhatsApp no navegador](docs/WHATSAPP-WEB-NAVEGADOR.md) · [Inferência segura](docs/IA-SEGURA-VERCEL-SUPABASE.md) · [Legislação](skills/legislacao-brasileira/SKILL.md) · [Skills de atendimento](skills/whatsapp-browser/SKILL.md) · [Fluxo de agentes](skills/lexis-ai-suite/SKILL.md)
+
+## 🚀 Executar localmente para desenvolvimento
+
+
+~~~bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev       # http://localhost:9002
+pnpm typecheck
+pnpm test
+pnpm build
+~~~
+
+O projeto utiliza **Node.js 24 LTS**. Configurações e credenciais de Supabase, provedores de IA e workers permanecem privadas; nunca publique chaves `service_role` ou tokens de WhatsApp no frontend. Executar Next.js localmente não desloca as funções de banco para o navegador.
 
 ---
 
