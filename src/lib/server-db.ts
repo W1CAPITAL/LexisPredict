@@ -1090,11 +1090,13 @@ export async function getStoredNotes(): Promise<any[]> {
   // contexto assinado antes do uso da conta técnica, nunca por parâmetro da UI.
   const db=await getSupabaseAdmin();
   const companyWide=Boolean(ctx.isSupervisor||ctx.isSuperAdmin);
+  const ownerIds=createdByOwnerIds(ctx.auth_id,ctx.profile_id);
+  if(!companyWide&&!ownerIds.length)return [];
   const all:any[]=[];
   for(let offset=0;offset<20000;offset+=500){
     let q=db.from('notes').select('*').eq('empresa_id',ctx.empresa_id)
       .order('created_at',{ascending:false}).range(offset,offset+499);
-    if(!companyWide)q=q.eq('created_by',ctx.auth_id);
+    if(!companyWide)q=q.in('created_by',ownerIds);
     const {data,error}=await q;
     if(error)throw new Error('Falha ao ler notas da empresa: '+error.message);
     all.push(...(data||[]));
@@ -1147,7 +1149,7 @@ export async function updateStoredNote(id: string, updates: any): Promise<{ succ
   if(!Object.keys(patch).length)return {success:false};
   const db=await getSupabaseAdmin();
   let q=db.from('notes').update(patch).eq('empresa_id',ctx.empresa_id).eq('id',id);
-  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.eq('created_by',ctx.auth_id);
+  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
   const {data,error}=await q.select('id');
   return {success:!error&&Array.isArray(data)&&data.length===1};
 }
@@ -1157,7 +1159,7 @@ export async function deleteStoredNote(id: string): Promise<{ success: boolean }
   if(!ctx.empresa_id||!ctx.auth_id||ctx.isViewer||!id)return {success:false};
   const db=await getSupabaseAdmin();
   let q=db.from('notes').delete().eq('empresa_id',ctx.empresa_id).eq('id',id);
-  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.eq('created_by',ctx.auth_id);
+  if(!ctx.isSupervisor&&!ctx.isSuperAdmin)q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
   const {data,error}=await q.select('id');
   return {success:!error&&Array.isArray(data)&&data.length===1};
 }
