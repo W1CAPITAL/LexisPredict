@@ -1,6 +1,7 @@
 export type AgentRoleId =
   | 'director'
   | 'researcher'
+  | 'legal-researcher'
   | 'builder'
   | 'critic'
   | 'simulator'
@@ -34,6 +35,12 @@ const ROLES: Record<AgentRoleId, AgentRole> = {
     label: 'Researcher',
     mission: 'Busca evidência, fontes e lacunas antes de conclusões.',
     tools: ['research-firecrawl', 'memory-core'],
+  },
+  'legal-researcher': {
+    id: 'legal-researcher',
+    label: 'Pesquisador legislativo',
+    mission: 'Localiza norma e artigo, preserva versão, data e URL oficial, marca lacunas e não presume vigência.',
+    tools: ['legislation-reader', 'source-validation'],
   },
   builder: {
     id: 'builder',
@@ -90,6 +97,7 @@ export function planAgentTeam(goal: string): AgentTeamPlan {
   const roles = new Set<AgentRoleId>(['director', 'critic', 'qa']);
 
   if (/pesquis|fonte|web|jurisprud|precedente/i.test(text)) add(roles, 'researcher');
+  if (/\b(lei|artigo|arts?\.|legisla|c[oó]digo civil|cpc\b|cdc\b|lgpd\b|constitui[cç][aã]o|vig[eê]ncia)\b/i.test(text)) add(roles, 'legal-researcher');
   if (/c[oó]digo|app|build|bug|implementar|integra/i.test(text)) add(roles, 'builder', 'security');
   if (/simul|cen[aá]rio|mundo|jogo|agente|economia|estrat[eé]gia/i.test(text)) add(roles, 'simulator');
   if (/imagem|v[ií]deo|visual|criativ|design|narrativa/i.test(text)) add(roles, 'creative');

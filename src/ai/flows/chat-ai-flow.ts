@@ -13,6 +13,7 @@ import { buildCognitivePlan } from '@/lib/cognitive/orchestrator';
 import { retrieveMemory } from '@/lib/cognitive/memory';
 import { runQualityGate } from '@/lib/cognitive/quality';
 import { revisionalBankContext } from '@/lib/legal/revisional-bank-skill';
+import { retrieveLegislationEvidence, formatLegislationEvidence } from '@/lib/legal/leis-repository';
 import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 import { bpmnSkillContext } from '@/lib/bpmn-skill';
 import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
@@ -264,6 +265,9 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
   const skillSystem = lexisAgentGuidance(pergunta)+ '\n\n'+superAgentInstructions(pergunta);
+  // Pesquisa legal não envia dados da carteira. Só o identificador da norma sai ao GitHub.
+  const legislationEvidence = simple ? null : await retrieveLegislationEvidence(pergunta);
+  const legislationSystem = formatLegislationEvidence(legislationEvidence);
   // Internal curated knowledge is available without tokens.
   // Needle is a separate optional RAG source for safe, generic questions only:
   // never send PDFs, images, case IDs, or personal data to an external index.
@@ -279,7 +283,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
       preferred,
       forceEngineId: preferred === 'auto' ? undefined : preferred,
       surface: simple ? 'chat-fast' : 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + evidenceSystem,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + legislationSystem + evidenceSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,

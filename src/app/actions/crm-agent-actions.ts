@@ -11,6 +11,7 @@ import type { CrmAgentId, CrmAgentRunLog } from "@/lib/crm-agent/types";
 import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
 import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
+import {retrieveLegislationEvidence} from "@/lib/legal/leis-repository";
 
 async function ctx() {
   const c = await getUserContext();
@@ -529,6 +530,45 @@ export async function runCrmAgentAction(input: {
 
   const agentId = (input.agent_id in AGENT_CATALOG ? input.agent_id : "livre") as CrmAgentId;
   const agent = AGENT_CATALOG[agentId];
+  if(agentId === "pesquisa-legislativa") {
+    const reference=String(input.prompt||"").trim().slice(0,1800);
+    const found=await retrieveLegislationEvidence(reference);
+    const item=found?.citation;
+    const logsForResearch:CrmAgentRunLog[]=[{
+      agent_id:agentId,
+      tool:"lookup_legislation_article",
+      ok:!!found?.found,
+      summary:found?.found?"norma e artigo recuperados no repositório":"referência ou fonte não confirmada",
+      at:now(),
+    }];
+    if(!found)return {
+      success:false,logs:logsForResearch,error:"Indique uma norma identificável e o ano (por exemplo: art. 42 do CDC ou Lei 10.406/2002).",
+      content:"",
+    };
+    if(!found.found)return {
+      success:false,logs:logsForResearch,
+      error:found.error||"A fonte não foi localizada.",
+      content:"Não foi possível confirmar a redação no acervo consultado. Não vou inventar o texto. Confira a publicação oficial.",
+    };
+    return {
+      success:true,logs:logsForResearch,
+      content:[
+        "## Fonte legislativa recuperada",
+        "**"+found.title+"**"+(item?.article?" — art. "+item.article:""),
+        "",
+        found.excerpt||"",
+        "",
+        "**Acervo convertido:** "+found.sourceUrl,
+        "**Fonte oficial indicada:** "+(found.officialUrl||"não informada"),
+        "**Versão informada:** "+(found.compiledVersion||"não informada"),
+        "**Coleta do acervo:** "+(found.downloadedAt||"não informada"),
+        found.revoked?"**Alerta:** acervo registra revogação; não use como lei vigente.":"",
+        "",
+        "_Leitura documental, não parecer jurídico. OCR, alterações e vigência devem ser conferidos na publicação oficial antes de usar em peça, atendimento ou prazo._",
+      ].filter(Boolean).join("\n"),
+    };
+  }
+
 
   const outstanding = await agentListOutstandingAction();
   logs.push({
