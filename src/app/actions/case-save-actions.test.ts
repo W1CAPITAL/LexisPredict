@@ -88,9 +88,20 @@ describe('Gravação do atendimento', () => {
     expect(state.mirror).not.toHaveBeenCalled();
     expect(state.audit).not.toHaveBeenCalled();
   });
-  it('não aceita atendimento de perfil somente leitura', async () => {
+  it('permite atendimento ao Visualizador da mesma empresa, preservando autoria e dono', async () => {
     state.context.isViewer = true;
-    expect((await registrarAtendimentoCompletoAction({ protocolo: state.row.protocolo_ref })).success).toBe(false);
+    state.context.cargo = 'Visualizador';
+    state.context.isSupervisor = false;
+    const result = await registrarAtendimentoCompletoAction({ protocolo: state.row.protocolo_ref });
+    expect(result.success).toBe(true);
+    expect(state.patches[0].atendido_por).toBe('supervisor-1');
+    expect(state.patches[0].dados.created_by).toBe('operador-2');
+    expect(state.conditions).toContainEqual(['empresa_id', 'empresa-1']);
+  });
+  it('recusa atendimento de processo de outra empresa mesmo para supervisor', async () => {
+    state.row.empresa_id = 'empresa-2';
+    const result = await registrarAtendimentoCompletoAction({ protocolo: state.row.protocolo_ref });
+    expect(result.success).toBe(false);
     expect(state.patches).toHaveLength(0);
   });
 });
