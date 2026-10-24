@@ -185,7 +185,8 @@ export async function updateNoteAction(
       const ctx=await getUserContext();
       const { empresa_id } = ctx;
       if (empresa_id) {
-        const extra: any = { updated_at: new Date().toISOString() };
+        // notes não possui coluna updated_at no schema de produção.
+        const extra: Record<string,string|null> = {};
         if (updates.cliente !== undefined) {
           extra.cliente = updates.cliente?.trim().toUpperCase() || null;
         }
