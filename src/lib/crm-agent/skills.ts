@@ -18,7 +18,12 @@ SKILL email-cliente
 - Português, 2ª pessoa, curto. Não invente prazo.
 
 SKILL enriquecer-contato
-- CNPJ BrasilAPI; não chute perfil social.`;
+- CNPJ BrasilAPI; não chute perfil social.
+
+SKILL legislação-rastreável
+- Identifique a norma e o artigo exatos antes de citar.
+- Consulte apenas fontes públicas aprovadas; acervo convertido não comprova vigência.
+- Diga quando o artigo não for localizado. Nunca invente jurisprudência ou redação.`;
 
 export type AgentMeta = {
   nome: string;
@@ -98,6 +103,14 @@ export const AGENT_CATALOG: Record<CrmAgentId, AgentMeta> = {
     faz: 'Grava tarefa due na fila crm_agent_tasks.',
     precisa: 'Motivo no pedido. Use o botão Recheck 7d.',
     tools: ['schedule_recheck'],
+    deterministic: true,
+  },
+  'pesquisa-legislativa': {
+    nome: 'Pesquisador legislativo',
+    descricao: 'Artigos de leis federais e Constituição com fonte e data verificáveis.',
+    faz: 'Consulta o acervo público ctresb/leis sob demanda e separa texto recuperado de interpretação; não altera processos.',
+    precisa: 'Informe a norma e o artigo, por exemplo: art. 42 do CDC, art. 300 do CPC, ou Lei 10.406/2002.',
+    tools: ['lookup_legislation_article', 'verify_source_metadata'],
     deterministic: true,
   },
   livre: {
