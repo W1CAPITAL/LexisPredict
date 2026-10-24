@@ -18,6 +18,7 @@ import { khojLegalContext } from '@/lib/ai/khoj-bridge';
 import { bpmnSkillContext } from '@/lib/bpmn-skill';
 import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
 import { superAgentInstructions, detectSuperAgentTask } from '@/lib/ai/lexis-superagent';
+import { compactAgentGuidance } from '@/lib/agents/studio';
 import { retrieveAuthorizedCaseEvidence } from '@/lib/ai/lexis-superagent-evidence';
 import { retrieveNeedleEvidence, retrieveCuratedLexisEvidence, formatKnowledgeEvidence } from '@/lib/ai/needle-rag';
 
@@ -265,6 +266,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
   const skillSystem = lexisAgentGuidance(pergunta)+ '\n\n'+superAgentInstructions(pergunta);
+  const teamSystem = simple ? '' : compactAgentGuidance(pergunta);
   // Pesquisa legal não envia dados da carteira. Só o identificador da norma sai ao GitHub.
   const legislationEvidence = simple ? null : await retrieveLegislationEvidence(pergunta);
   const legislationSystem = formatLegislationEvidence(legislationEvidence);
@@ -283,7 +285,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
       preferred,
       forceEngineId: preferred === 'auto' ? undefined : preferred,
       surface: simple ? 'chat-fast' : 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + legislationSystem + evidenceSystem,
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + teamSystem + legislationSystem + evidenceSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
@@ -339,7 +341,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
         ? 'O Colibri não está disponível. Configure um servidor HTTPS externo com um modelo carregado e a variável COLIBRI_BASE_URL na Vercel. Sua pergunta não foi enviada para provedores externos.'
         : preferred === 'minicpm' || preferred === 'minicpm-v'
           ? 'O MiniCPM não respondeu. Inicie o servidor Ollama/vLLM/llama.cpp com MiniCPM e configure MINICPM_BASE_URL na Vercel. Seu conteúdo não foi encaminhado a outros provedores.'
-          : 'Os motores configurados não responderam. No navegador, selecione Lexis Local LLM para gerar localmente sem créditos; confira também a conexão com Colibri e MiniCPM.',
+          : 'Os motores configurados não responderam. Para proteger a memória do computador, use Motor Lexis (scripts) ou configure Colibri/MiniCPM em servidor próprio. Qwen no navegador só em modo experimental, com autorização e WebGPU.',
       thinking: null,
       engineUtilizada: preferred === 'colibri' ? 'COLIBRI_INDISPONIVEL' : (preferred === 'minicpm' || preferred === 'minicpm-v') ? 'MINICPM_INDISPONIVEL' : 'MOTORES_INDISPONIVEIS',
       latencia: 0,
