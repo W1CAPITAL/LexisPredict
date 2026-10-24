@@ -52,14 +52,14 @@ export function DataJudScannerPanel() {
     scanScope, setScanScope,
     claudeAiEnabled, setClaudeAiEnabled
   } = useDataJudScanStore();
-  const { isSuperAdmin, canScan: canScanRole, profile } = useAdmin();
+  const { isSuperAdmin, profile } = useAdmin();
   const startCloudForUser = () => startCloudScan(String(profile?.empresa_id||''),String(profile?.auth_user_id||''));
   React.useEffect(() => {
     if(profile?.empresa_id&&profile?.auth_user_id)restoreCloudScan(String(profile.empresa_id),String(profile.auth_user_id));
   },[profile?.empresa_id,profile?.auth_user_id,restoreCloudScan]);
   const { plan, isLocked, isBlocked, isExpired } = usePlano();
   const allowedByPlan = isSuperAdmin || planTemScanner(plan);
-  const allowed = canScanRole && allowedByPlan && !isLocked;
+  const allowed = Boolean(profile?.empresa_id && profile?.auth_user_id) && allowedByPlan && !isLocked;
 
   React.useEffect(() => {
     if (!allowed && (status === 'running' || manualStatus === 'running')) {
