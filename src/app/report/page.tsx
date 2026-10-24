@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
+import {getReportAccess} from "@/lib/security/report-access";
 import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
 import {ReportSync} from "@/components/report/report-sync";
@@ -36,8 +37,9 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const empresaId=String(ctx.empresa_id);
  // O relatório de equipe mostra a empresa inteira por padrão (também para
  // administradores). "Minha carteira" é uma comparação opcional e explícita.
- const canViewTeam=Boolean(ctx.isSupervisor||ctx.isSuperAdmin);
- const somenteMinhaCarteira=!canViewTeam||params.escopo==="meus";
+ const access=getReportAccess(ctx,params.escopo==="meus"?"meus":"empresa");
+ const canViewTeam=access.canViewTeam;
+ const somenteMinhaCarteira=access.scope==="meus";
  const owner=somenteMinhaCarteira?ctx.auth_id:null;
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
@@ -95,7 +97,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       periodo={periodo}
       meus={somenteMinhaCarteira}
       canViewTeam={canViewTeam}
-      canExport={canViewTeam||ctx.isAdministrador}
+      canExport={access.canExport}
       total={snapshot?.total??null}
       ativos={snapshot?.ativos??null}
       encerrados={snapshot?.encerrados??null}
