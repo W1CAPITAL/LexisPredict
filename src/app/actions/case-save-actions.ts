@@ -640,7 +640,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
 
 export async function reassignCaseOwnerAction(input: { protocolo: string; novoOwnerAuthId: string }): Promise<{ success: boolean; message: string }> {
   try {
-    const { empresa_id, auth_id, isSupervisor, isSuperAdmin } = await getUserContext();
+    const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
 
     const protocolo = String(input.protocolo || '').trim();
@@ -649,13 +649,7 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     const admin = await getSupabaseAdmin();
     const { data: me } = await admin.from('usuarios').select('cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
-    const canTransfer = canSupervisaoCarteira({
-      ...(me as any),
-      isSuperAdmin: Boolean((me as any)?.is_superadmin),
-      isSupervisor: Boolean((me as any)?.is_supervisor),
-    }) || Boolean(isSupervisor) || Boolean(isSuperAdmin);
-    if (!canTransfer) return { success: false, message: SUPERVISAO_REQUIRED };
-
+    // /processos é colaborativo: transferência dentro da mesma empresa.
     const { data: target } = await admin.from('usuarios').select('auth_user_id').eq('empresa_id', empresa_id).eq('auth_user_id', novo).maybeSingle();
     if (!target?.auth_user_id) return { success: false, message: 'Responsável não encontrado na empresa.' };
 
@@ -664,9 +658,10 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     const now = new Date().toISOString();
     const dados = { ...(current.dados || {}), created_by: novo, owner_updated_by: auth_id, owner_updated_at: now, edited_by: auth_id, edited_at: now };
-    const { data: updated, error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('id', current.id).select('id,created_by').maybeSingle();
+    const { data: updated, error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('id', current.id).eq('empresa_id', empresa_id).select('id,created_by').maybeSingle();
     if (error) return { success: false, message: error.message };
     if (!updated || String(updated.created_by) !== novo) return { success: false, message: 'A transferência não foi persistida.' };
+    try{await logAuditoriaSistema({empresaId:empresa_id,authUserId:auth_id,acao:'edicao',protocolo,detalhes:{via:'reatribuicao-processos',responsavel_anterior:current.created_by||null,novo_responsavel:novo}});}catch(e){console.error('[reassignCaseOwnerAction] auditoria indisponível',e);}
 
     if (sheetsWebhookConfigured()) {
       const row = buildSheetRow({ ...(current.dados || {}), protocolo, created_by: novo, edited_by: auth_id, edited_at: now }, empresa_id, auth_id, String((me as any)?.nome || auth_id), { ...current, dados });
