@@ -7,6 +7,7 @@ import {
   canRunOperationalScanner,
   canSeeCompanyProcesses,
   canViewCompanyCaseList,
+  canOperateCompanyCases,
   canSuperviseCompany,
   canUseAllOperationalFeatures,
   operatorRouteAllowed,
@@ -48,6 +49,18 @@ describe("commercial role contract", () => {
     }
     expect(canViewCompanyCaseList(null)).toBe(false);
     expect(resolveCaseScope("Operador")).toBe("mine");
+  });
+
+  it("P0: todos os perfis da mesma empresa podem operar /processos, sem cargo especial", () => {
+    const cargos=["Operador","Administrador","Visualizador","Supervisor","Superadmin"];
+    for (const cargo of cargos) {
+      expect(canOperateCompanyCases({auth_id:"login-verificado",empresa_id:"empresa-auth"}),cargo).toBe(true);
+    }
+    expect(canOperateCompanyCases({auth_id:null,empresa_id:"empresa-auth"})).toBe(false);
+    expect(canOperateCompanyCases({auth_id:"login-verificado",empresa_id:null})).toBe(false);
+    // Exportações gerenciais NÃO se tornam públicas com a colaboração da carteira.
+    expect(canExportOperationalData("Visualizador")).toBe(false);
+    expect(canAccessSecurity("Operador")).toBe(false);
   });
 
   it("Supervisor tem visão consolidada da empresa", () => {
