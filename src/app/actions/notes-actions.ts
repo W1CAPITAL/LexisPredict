@@ -9,7 +9,6 @@ import {createdByOwnerIds} from "@/lib/carteira-owner-ids";
 import {
   getStoredNotes,
   saveSingleNote,
-  updateStoredNote,
   deleteStoredNote,
   getUserContext,
   getSupabaseAdmin,
@@ -174,39 +173,42 @@ export async function updateNoteAction(
   }
 ) {
   try {
-    const result = await updateStoredNote(id, {
-      title: updates.title,
-      content: updates.content,
-      imageUrl: updates.imageUrl,
-    });
-
-    // best-effort: atualiza cliente/protocolo se colunas existirem
-    if (result.success && (updates.cliente !== undefined || updates.protocolo !== undefined)) {
-      const ctx=await getUserContext();
-      const { empresa_id } = ctx;
-      if (empresa_id) {
-        // notes não possui coluna updated_at no schema de produção.
-        const extra: Record<string,string|null> = {};
-        if (updates.cliente !== undefined) {
-          extra.cliente = updates.cliente?.trim().toUpperCase() || null;
-        }
-        if (updates.protocolo !== undefined) {
-          extra.protocolo = updates.protocolo?.trim() || null;
-          extra.protocolo_ref = updates.protocolo?.trim() || null;
-        }
-        const db=await getSupabaseAdmin();
-        let query=db.from("notes").update(extra).eq("id",id).eq("empresa_id",empresa_id);
-        if(!ctx.isSupervisor&&!ctx.isSuperAdmin)query=query.in("created_by",createdByOwnerIds(ctx.auth_id,ctx.profile_id));
-        const { error }=await query;
-        if (error) console.warn("[updateNoteAction] extra fields:", error.message);
-      }
+    const ctx=await getUserContext();
+    if(!ctx.auth_id||!ctx.empresa_id||ctx.isViewer||!id)
+      return {success:false,error:"Sem permissão para editar esta nota."};
+    const db=await getSupabaseAdmin();
+    const permitted=()=>{
+      let q=db.from('notes').select('id,content').eq('id',id).eq('empresa_id',ctx.empresa_id);
+      if(!ctx.isSupervisor&&!ctx.isSuperAdmin)
+        q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
+      return q;
+    };
+    const {data:existing,error:lookupError}=await permitted().maybeSingle();
+    if(lookupError||!existing)return {success:false,error:"Nota não encontrada ou sem permissão."};
+    const patch:Record<string,string|null>={};
+    if(updates.title!==undefined)patch.title=updates.title;
+    if(updates.cliente!==undefined)patch.cliente=updates.cliente?.trim().toUpperCase()||null;
+    if(updates.protocolo!==undefined){
+      patch.protocolo=updates.protocolo?.trim()||null;
+      patch.protocolo_ref=updates.protocolo?.trim()||null;
     }
-
-    if (result.success) revalidatePath("/notes");
-    return result;
-  } catch (e: any) {
-    console.error("[updateNoteAction]", e?.message || e);
-    return { success: false, error: e?.message || "Falha ao atualizar" };
+    if(updates.content!==undefined||updates.imageUrl!==undefined){
+      const existingText=unpackContent(existing.content);
+      const text=updates.content!==undefined?updates.content:existingText.text;
+      const imageUrl=updates.imageUrl!==undefined?updates.imageUrl:existingText.imageUrl;
+      patch.content=imageUrl?JSON.stringify({text,imageUrl}):text;
+    }
+    if(!Object.keys(patch).length)return {success:false,error:"Nenhuma alteração informada."};
+    let q=db.from('notes').update(patch).eq('id',id).eq('empresa_id',ctx.empresa_id);
+    if(!ctx.isSupervisor&&!ctx.isSuperAdmin)
+      q=q.in('created_by',createdByOwnerIds(ctx.auth_id,ctx.profile_id));
+    const {data,error}=await q.select('id').maybeSingle();
+    if(error||!data)return {success:false,error:"Não foi possível salvar a nota."};
+    revalidatePath("/notes");
+    return {success:true};
+  }catch(error){
+    console.error('[updateNoteAction] failed',error instanceof Error?error.message:'unknown');
+    return {success:false,error:"Erro temporário ao atualizar nota."};
   }
 }
 
