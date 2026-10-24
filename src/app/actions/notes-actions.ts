@@ -13,7 +13,7 @@ import {
   getUserContext,
   getSupabaseAdmin,
 } from "@/lib/server-db";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+
 
 function unpackContent(raw: any): { text: string; imageUrl?: string } {
   if (!raw) return { text: "" };
@@ -113,8 +113,9 @@ export async function createNoteAction(note: {
 }) {
   try {
     // 1) tenta insert completo (com cliente/protocolo se colunas existirem)
-    const { auth_id, empresa_id } = await getUserContext();
-    if (!empresa_id || !auth_id || !isSupabaseConfigured || !supabase) {
+    const ctx = await getUserContext();
+    const { auth_id, empresa_id } = ctx;
+    if (!empresa_id || !auth_id || ctx.isViewer) {
       return { success: false, error: "Sessão ou Supabase indisponível" };
     }
 
@@ -138,7 +139,8 @@ export async function createNoteAction(note: {
         protocolo: note.protocolo?.trim() || null,
         protocolo_ref: note.protocolo?.trim() || null,
       };
-      const { data, error } = await supabase.from("notes").insert(withLink).select().single();
+      const db=await getSupabaseAdmin();
+      const { data, error } = await db.from("notes").insert(withLink).select().single();
       if (!error) {
         revalidatePath("/notes");
         return { success: true, data: mapNote(data) };
@@ -178,8 +180,9 @@ export async function updateNoteAction(
     });
 
     // best-effort: atualiza cliente/protocolo se colunas existirem
-    if (result.success && (updates.cliente !== undefined || updates.protocolo !== undefined) && supabase) {
-      const { empresa_id } = await getUserContext();
+    if (result.success && (updates.cliente !== undefined || updates.protocolo !== undefined)) {
+      const ctx=await getUserContext();
+      const { empresa_id } = ctx;
       if (empresa_id) {
         const extra: any = { updated_at: new Date().toISOString() };
         if (updates.cliente !== undefined) {
@@ -189,11 +192,10 @@ export async function updateNoteAction(
           extra.protocolo = updates.protocolo?.trim() || null;
           extra.protocolo_ref = updates.protocolo?.trim() || null;
         }
-        const { error } = await supabase
-          .from("notes")
-          .update(extra)
-          .eq("id", id)
-          .eq("empresa_id", empresa_id);
+        const db=await getSupabaseAdmin();
+        let query=db.from("notes").update(extra).eq("id",id).eq("empresa_id",empresa_id);
+        if(!ctx.isSupervisor&&!ctx.isSuperAdmin)query=query.eq("created_by",ctx.auth_id);
+        const { error }=await query;
         if (error) console.warn("[updateNoteAction] extra fields:", error.message);
       }
     }
