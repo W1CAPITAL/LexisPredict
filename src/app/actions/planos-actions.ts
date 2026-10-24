@@ -2,6 +2,8 @@
 
 import { getUserContext } from "@/lib/server-db";
 import { normalizePlanId, type PlanId } from "@/lib/planos-pacotes";
+import {valorCiclo} from "@/lib/planos-precos";
+import {RENEWAL_TERMS_VERSION} from "@/lib/subscription-renewal";
 
 export type EmpresaPlanoRow = {
   id: string;
@@ -547,5 +549,116 @@ export async function trocarMeuPlanoAction(
     };
   } catch (e: any) {
     return { ok: false as const, error: e?.message || "Falha." };
+  }
+}
+
+
+/**
+ * Registra um pedido de renovação com ciência explícita do termo vigente.
+ * Não ativa assinatura, não altera vencimento e não executa cobrança.
+ * O histórico e a requisição ficam no servidor, sem confiar no plano enviado pelo navegador.
+ */
+export async function solicitarRenovacaoAssinaturaAction(input: {
+  ciclo: "mensal" | "anual";
+  termosVersao: string;
+  confirmouTermos: boolean;
+}) {
+  const ctx = await getUserContext();
+  const empresaId = String(ctx?.empresa_id || "").trim();
+  if (!ctx?.auth_id || !empresaId) {
+    return {ok: false as const, error: "Vincule uma empresa e entre novamente para solicitar a renovação."};
+  }
+  const autorizado = !!(ctx as any).isSuperAdmin || !!(ctx as any).isSupervisor || !!(ctx as any).isAdministrador;
+  if (!autorizado) {
+    return {ok: false as const, error: "Somente o responsável autorizado pela empresa pode solicitar renovação."};
+  }
+  if (!input || !input.confirmouTermos || input.termosVersao !== RENEWAL_TERMS_VERSION) {
+    return {ok: false as const, error: "Leia e aceite a versão atual do termo de renovação antes de continuar."};
+  }
+  if (input.ciclo !== "mensal" && input.ciclo !== "anual") {
+    return {ok: false as const, error: "Selecione um ciclo de renovação válido."};
+  }
+  try {
+    const {getSupabaseAdmin} = await import("@/lib/server-db");
+    const admin = await getSupabaseAdmin();
+    if (!admin) return {ok: false as const, error: "Banco de dados comercial indisponível."};
+
+    const {data: empresa, error: empresaError} = await admin
+      .from("empresas")
+      .select("id, plano, plano_expira_em")
+      .eq("id", empresaId)
+      .maybeSingle();
+    if (empresaError) return {ok: false as const, error: empresaError.message};
+    if (!empresa) return {ok: false as const, error: "Empresa não encontrada."};
+
+    // Nunca sobrescrever pedidos pendentes de upgrade, downgrade ou ativação.
+    const {data: pendente, error: pendenteError} = await admin
+      .from("solicitacoes_assinatura")
+      .select("id")
+      .eq("empresa_id", empresaId)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+    if (pendenteError) return {ok: false as const, error: pendenteError.message};
+    if (pendente) {
+      return {ok: false as const, error: "Já existe uma solicitação comercial pendente para esta empresa. Conclua ou cancele o pedido anterior antes de renovar."};
+    }
+
+    const plan = normalizePlanId(String(empresa.plano || "essencial"));
+    const priceReference = valorCiclo(plan, input.ciclo);
+    const observation = "Solicitação de renovação. Termo " + RENEWAL_TERMS_VERSION + ". Sem ativação ou cobrança automática; sujeita à confirmação comercial.";
+    const {data: request, error: requestError} = await admin
+      .from("solicitacoes_assinatura")
+      .insert({
+        empresa_id: empresaId,
+        solicitado_por: ctx.auth_id,
+        plano: plan,
+        ciclo: input.ciclo,
+        status: "pending",
+        observacao: observation,
+      })
+      .select("id")
+      .single();
+    if (requestError || !request?.id) {
+      return {ok: false as const, error: requestError?.message || "A solicitação não foi salva."};
+    }
+
+    const {error: auditError} = await admin
+      .from("commercial_audit_log")
+      .insert({
+        empresa_id: empresaId,
+        actor_user_id: ctx.auth_id,
+        event: "subscription.renewal_requested",
+        payload: {
+          request_id: request.id,
+          terms_version: RENEWAL_TERMS_VERSION,
+          accepted_explicitly: true,
+          accepted_at: new Date().toISOString(),
+          plan,
+          cycle: input.ciclo,
+          public_price_reference_brl: priceReference,
+          previous_expiration: empresa.plano_expira_em || null,
+          billing_activated: false,
+          source: "lexispredict_planos",
+        },
+      });
+
+    if (auditError) {
+      // Nunca confirmar um aceite sem trilha de auditoria válida.
+      await admin.from("solicitacoes_assinatura").delete().eq("id", request.id).eq("empresa_id", empresaId);
+      return {ok: false as const, error: "Não foi possível registrar o aceite auditável. A renovação não foi confirmada."};
+    }
+
+    return {
+      ok: true as const,
+      requestId: String(request.id),
+      pending: true,
+      plan,
+      ciclo: input.ciclo,
+      termsVersion: RENEWAL_TERMS_VERSION,
+      message: "Solicitação registrada para análise comercial. Não houve cobrança ou renovação automática.",
+    };
+  } catch (e) {
+    return {ok: false as const, error: e instanceof Error ? e.message : "Falha ao solicitar renovação."};
   }
 }
