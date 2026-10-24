@@ -72,7 +72,7 @@ export const MOTORS: MotorDef[] = [
     id: 'local_llm',
     label: 'Lexis Local LLM · Qwen 0.5B',
     short: 'LLM local',
-    desc: 'Modelo real 4-bit que roda no navegador (WebGPU/CPU). Baixa pesos na primeira utilização; não precisa de token.',
+    desc: 'Experimental e desativado por padrão: roda na RAM/GPU do PC, exige aceite e WebGPU. Sem fallback CPU, pode travar PCs modestos.',
     scope: 'browser',
   },
   {
