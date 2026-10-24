@@ -165,3 +165,20 @@ export function planAgentTeam(goal: string): AgentTeamPlan {
     ],
   };
 }
+
+
+/** Instrução compacta para uso no fluxo já existente do chat.
+ * NÃO executa ferramentas ou modelos adicionais; apenas escolhe critérios.
+ */
+export function compactAgentGuidance(goal:string):string{
+  if(!/\b(api|endpoint|har|pdf|relat[oó]rio|auditoria|dossi[eê]|whatsapp|consentimento|lgpd|ram|desempenho|processo|provas|prazo|integra[cç][aã]o)\b/i.test(goal))return '';
+  const plan=planAgentTeam(goal.slice(0,1200));
+  const roles=plan.roles.filter(x=>!['director','critic','qa'].includes(x.id)).slice(0,3);
+  if(!roles.length)return '';
+  return [
+    '\n[PLANO DE ESPECIALISTAS - ORIENTAÇÃO, NÃO EXECUÇÃO]',
+    ...roles.map(x=>x.label+': '+x.mission.slice(0,145)),
+    'Gates: fontes e escopo; se faltar dado, declare lacuna. Não afirme ação de agente, envio ou consulta que não ocorreu.',
+    '[/PLANO DE ESPECIALISTAS]',
+  ].join('\n').slice(0,720);
+}
