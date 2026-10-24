@@ -226,7 +226,7 @@ function WhatsAppTerminalInner() {
     try {
       const m = resolveMotorId(loadPreferredMotor());
       // Respeita o motor salvo (não força tudo para omni)
-      if (m) setSelectedMotor(m);
+      if (m) setSelectedMotor(m === "local_llm" ? "local_only" : m); // evita tentativa de inferência browser nesta aba
     } catch { /* ignore */ }
   }, []);
   const [aiDraft, setAiDraft] = useState<string | null>(null);
@@ -904,7 +904,7 @@ function WhatsAppTerminalInner() {
         }
       }
 
-      if (selectedMotor === "local_only") {
+      if (selectedMotor === "local_only" || selectedMotor === "local_llm") {
         const text = localScripts[0]?.texto || "";
         if (text) {
           setAiDraft(text);
