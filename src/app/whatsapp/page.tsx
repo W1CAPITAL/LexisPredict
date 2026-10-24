@@ -1091,7 +1091,8 @@ function WhatsAppTerminalInner() {
       return;
     }
     try{
-      openWhatsAppWebClient({phone:casePhone(selected),text:draft.trim()});
+      const opened=openWhatsAppWebClient({phone:casePhone(selected),text:draft.trim()});
+      if(!opened)throw new Error("O navegador bloqueou a nova aba. Permita pop-ups do LexisPredict e tente novamente.");
       toast({
         title:"Rascunho aberto no WhatsApp Web",
         description:"Confirme o destinatário e clique em Enviar no WhatsApp. O Lexis não marca mensagem como enviada ou atendimento realizado sem confirmação do canal.",
