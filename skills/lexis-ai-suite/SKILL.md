@@ -1,7 +1,7 @@
 ---
 name: lexis-ai-suite
 description: Orquestra pesquisa jurídica com fontes, escrita de dossiês, respostas de WhatsApp, revisão de segurança e ferramentas opcionais de IA local da W1CAPITAL.
-version: "1.1.0"
+version: "1.2.0"
 ---
 
 # Lexis AI Suite (W1CAPITAL)
@@ -14,6 +14,7 @@ sem um adapter, chave e autorização explícita.
 ## Roteamento
 - `source-researcher`: buscar fontes públicas oficiais com Spider quando o usuário pede consulta; URLs públicas HTTPS jus.br/gov.br; máximo 2 páginas por tarefa e 8 segundos por fonte.
 - `evidence-analyst`: indexar CNJ, DJEN, DataJud e anexos. Fatos registrados devem apontar para identificador de fonte e trechos auditáveis.
+- `legal-researcher`: skill `skills/legislacao-brasileira/SKILL.md`, consulta pontual de normas federais com artigo e metadados de ctresb/leis, sem confiar em vigência ou OCR automaticamente.
 - `dossier-editor`: construir dossiê narrativo por processo/advogado, cronologia, falhas, contraprovas e recomendações; diferenciar CONFIRMADO, ADMISSÃO, INDÍCIO, RELATO e HIPÓTESE.
 - `whatsapp-writer`: elaborar sugestões de resposta curtas, contextualizadas e revisáveis, nunca enviar automaticamente e nunca prometer resultado jurídico sem prova.
 - `security-reviewer`: seguir `skills/vibesec/SKILL.md` com checagens de auth, RLS, SSRF, HTML, PII e segredo no servidor.
