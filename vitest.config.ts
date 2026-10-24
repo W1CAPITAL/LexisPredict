@@ -10,6 +10,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Vitest executa no Node sem o pacote sentinel de Next, mas produção mantém import server-only.
+      'server-only': path.resolve(__dirname, './src/test/server-only-stub.ts'),
     },
   },
 });
