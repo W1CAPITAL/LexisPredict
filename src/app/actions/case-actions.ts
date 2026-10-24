@@ -1172,7 +1172,7 @@ export async function scanSingleCaseAction(
 ) {
   const ctx = await getUserContext();
   const { empresa_id, auth_id } = ctx;
-  if (!canRunOperationalScanner(ctx as any)) {
+  if (!ctx.empresa_id || !ctx.auth_id) {
     return {
       success: false,
       offline: false,
