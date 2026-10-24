@@ -20,7 +20,6 @@ import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encerrar-scan';
 import { fetchDataJud } from '@/lib/datajud';
 import {
-  canRunOperationalScanner,
   canUseAllOperationalFeatures,
   resolveCaseScope,
 } from '@/lib/roles';
@@ -121,7 +120,7 @@ export async function fetchRepoCasesPageAction(limit = 250, offset = 0, adminVie
  */
 export async function fetchScannerQueueAction() {
   const ctx = await getUserContext();
-  if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) throw new Error('Sessao sem permissao para scanner.');
+  if (!ctx.empresa_id || !ctx.auth_id) throw new Error('Sessao sem permissao para scanner.');
   const db = await getSupabaseAdmin();
   // A fila usa conta técnica SOMENTE no servidor, após identidade/empresa
   // verificadas. RLS continua ativa para browser e operações diretas.
@@ -962,10 +961,10 @@ export async function applyBrowserDjenResultAction(
   const ctx = await getUserContext();
   const { empresa_id, auth_id } = ctx;
 
-  if (!canRunOperationalScanner(ctx as any)) {
+  if (!ctx.empresa_id || !ctx.auth_id) {
     return {
       success: false as const,
-      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      error: 'Scanner exige sessão vinculada à empresa.',
       comunicacoes: [] as any[],
     };
   }
@@ -1177,7 +1176,7 @@ export async function scanSingleCaseAction(
     return {
       success: false,
       offline: false,
-      error: 'Scanner disponível para Administrador, Supervisor ou Superadmin.',
+      error: 'Scanner exige sessão vinculada à empresa.',
       casePatch: {},
       sourceStatus: {
         datajud: { requested: options.mode !== 'djen', ok: false },
@@ -1528,9 +1527,7 @@ export async function clearDataJudAuditAction(protocolo: string) {
     .maybeSingle();
 
   if (!dbItem) return { success: false };
-  if (!ctx.isSupervisor && !ctx.isSuperAdmin && String(dbItem.created_by || '') !== String(auth_id)) {
-    return { success: false, error: 'Acesso restrito à sua própria carteira.' };
-  }
+  // Reconhecer novidades é operação de todos os membros desta empresa.
 
   const patch = {
     tem_atualizacao_pos_retorno: false,
