@@ -122,7 +122,11 @@ export function buildWhatsAppWebSendLink(opts: WhatsAppLinkOptions): string {
 export function openWhatsAppWebClient(opts:WhatsAppLinkOptions): boolean {
   if(typeof window==='undefined')return false;
   const url=buildWhatsAppWebSendLink(opts);
-  // Com noopener, window.open pode retornar null mesmo quando a aba foi criada.
-  window.open(url,'_blank','noopener,noreferrer');
+  // Abre no gesto do clique, detecta bloqueador de popup e desativa o opener
+  // antes de permitir que a página de destino utilize a aba.
+  const tab=window.open('about:blank','_blank');
+  if(!tab)return false;
+  try{tab.opener=null;tab.location.replace(url);}
+  catch{tab.close();return false;}
   return true;
 }
