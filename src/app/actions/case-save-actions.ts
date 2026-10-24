@@ -6,7 +6,7 @@ import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
-import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
+import { resolveCaseScope } from '@/lib/roles';
 import { canAccessExistingCase } from '@/lib/case-edit-access';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { resolveSituacaoFromRow } from '@/lib/resolve-situacao';
@@ -438,7 +438,7 @@ export async function registrarAtendimentoCompletoAction(input: {
 }): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase; mirror?: Awaited<ReturnType<typeof mirrorAtendimento>> }> {
   try {
     const ctx = await getUserContext();
-    if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer || !input?.protocolo) return { success: false, message: ctx.isViewer ? 'Acesso somente para leitura.' : 'Sessão expirada ou protocolo inválido.' };
+    if (!ctx.empresa_id || !ctx.auth_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
     const admin = await getSupabaseAdmin();
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
@@ -592,20 +592,13 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
   try {
     const ctx = await getUserContext();
     if (!ctx.empresa_id || !ctx.auth_id || !protocolo) return { success: false, message: 'Sessão ou protocolo inválido.' };
-    if (!canDeleteCase(ctx as any)) {
-      return { success: false, message: 'Operador não possui permissão para excluir processos.' };
-    }
-
     const admin = await getSupabaseAdmin();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado.' };
     if (!(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Processo fora da empresa.' };
     }
-    // Editar e atender e permitido para todos; excluir exige propriedade ou supervisao.
-    if (!(ctx.isSupervisor || ctx.isSuperAdmin) && String(existing.created_by || '') !== String(ctx.auth_id)) {
-      return { success: false, message: 'Somente o proprietario ou a supervisao pode excluir este processo.' };
-    }
+    // Exclusão colaborativa: apenas validação de sessão e tenant (já conferidos).
 
     const { error } = await admin
       .from('processos')
@@ -613,6 +606,10 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
       .eq('empresa_id', ctx.empresa_id)
       .eq('id', existing.id);
     if (error) return { success: false, message: error.message };
+
+    try {
+      await logAuditoriaSistema({empresaId:ctx.empresa_id,authUserId:ctx.auth_id,acao:'exclusao',protocolo:existing.protocolo_ref,detalhes:{via:'processos-empresa',processo_id:existing.id,responsavel_original:existing.created_by||null}});
+    }catch(e){console.error('[deleteOneCaseAction] auditoria indisponível',e);}
 
     if (sheetsWebhookConfigured()) {
       void sheetsServerPost({
@@ -714,11 +711,11 @@ export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<s
 
 export async function retryAtendimentoMirrorAction(protocolo: string) {
   const ctx = await getUserContext();
-  if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) return { success: false, message: 'Acesso não autorizado.' };
+  if (!ctx.empresa_id || !ctx.auth_id) return { success: false, message: 'Acesso não autorizado.' };
   const row = await loadProcessoRow(ctx.empresa_id, protocolo);
   const pending = row?.dados?.atendimento_sync;
   if (!row || !pending?.input) return { success: false, message: 'Nenhum espelho pendente para este processo.' };
-  if (!(await canAccessExistingCase(ctx, row))) return { success: false, message: 'Acesso restrito à sua própria carteira.' };
+  if (!(await canAccessExistingCase(ctx, row))) return { success: false, message: 'Acesso restrito à sua empresa.' };
   if (pending.state === 'synced') return { success: true, message: 'Planilha já atualizada.' };
   const mirror = await mirrorAtendimento({ ...pending.input, empresaId: ctx.empresa_id, protocolo: row.protocolo_ref });
   if (!mirror.ok) return { success: false, message: mirror.reason || 'A planilha ainda não confirmou a atualização.' };
