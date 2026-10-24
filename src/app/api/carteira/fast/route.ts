@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStoredCasesPageForEmpresa, getSupabaseAdmin, getUserContext } from '@/lib/server-db';
-import { createdByOwnerIds } from '@/lib/carteira-owner-ids';
 
 /**
  * Paginated, tenant-authenticated HTTP endpoint. Avoids large Next Server Action
@@ -36,7 +35,6 @@ export async function GET(request: NextRequest) {
     const db = await getSupabaseAdmin();
 
     const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
-    const ownerIds=createdByOwnerIds(ctx.auth_id,ctx.profile_id);
     const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',
