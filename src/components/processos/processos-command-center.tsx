@@ -90,9 +90,10 @@ type Props = {
   onScan?: () => void;
   canScan?: boolean;
   onEdit: (item: LegalCase) => void;
+  onDelete?: (item: LegalCase) => void;
   initialProcesso?:string;
   autoEditProcesso?:boolean;
-  /** true only when the authenticated user owns the case or supervises */
+  /** The tenant-based write permission validated by the server. */
   canManageItem?: (item: LegalCase) => boolean;
   onAttend: (item: LegalCase) => void;
   onReopen?: (item: LegalCase) => void;
@@ -928,6 +929,7 @@ export function ProcessosCommandCenter(props: Props) {
                   {(!props.canManageItem || props.canManageItem(selected)) ?
                     <div className="flex shrink-0 flex-col gap-1">
                       <Button size="sm" onClick={() => props.onEdit(selected)} className="h-8 bg-blue-600 px-2 text-[10px] text-white">Editar</Button>
+                      {props.onDelete && <Button size="sm" variant="outline" onClick={() => props.onDelete?.(selected)} className="h-8 border-red-500/30 px-2 text-[10px] text-red-600 dark:text-red-300 hover:bg-red-500/10">Excluir</Button>}
                       <Button size="sm" variant="outline" onClick={() => props.onAttend(selected)} className="h-8 px-2 text-[10px]">Atendimento</Button>
                       {isCasoEncerrado(selected) && props.onReopen ?
                         <Button size="sm" variant="outline" onClick={() => props.onReopen?.(selected)} className="h-8 px-2 text-[10px]">Reabrir</Button> : null}
