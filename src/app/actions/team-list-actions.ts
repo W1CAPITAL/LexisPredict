@@ -1,7 +1,6 @@
 'use server';
 
-import { getEmpresaUsers, getUserContext } from '@/lib/server-db';
-import { canAssignOwner } from '@/lib/auth-supervisao';
+import { getEmpresaUsers, getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 
 export type AssignableUser = {
   id: string;
@@ -11,16 +10,18 @@ export type AssignableUser = {
   cargo?: string;
 };
 
-/** Lista usuários da empresa para Supervisor/Superadmin atribuir o contrato. */
+/** Lista usuários da própria empresa para reatribuição colaborativa em /processos. */
 export async function listAssignableUsersAction(): Promise<AssignableUser[]> {
   const ctx = await getUserContext();
-  if (!ctx.empresa_id) return [];
+  if (!ctx.empresa_id || !ctx.auth_id) return [];
 
-  // Use the same normalized rule as the reassignment mutation. This keeps
-  // accented cargos such as "Supervisão" consistent with the UI and server.
-  if (!canAssignOwner(ctx as any)) return [];
-
-  const users = await getEmpresaUsers();
+  const db = await getSupabaseAdmin();
+  const {data:users,error}=await db.from('usuarios')
+    .select('id,auth_user_id,nome,email,cargo')
+    .eq('empresa_id',ctx.empresa_id)
+    .not('auth_user_id','is',null)
+    .order('nome',{ascending:true});
+  if(error)throw new Error('Não foi possível consultar responsáveis desta empresa.');
   return (users || [])
     .filter((u: any) => u?.auth_user_id)
     .map((u: any) => ({
