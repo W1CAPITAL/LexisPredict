@@ -1533,6 +1533,19 @@ export async function recalibrateCasesAction() {
     const res = await saveStoredCasesForEmpresa(recalibrated, empresa_id, true, { companyOperational: true });
     if (!res.success) return { success: false, error: res.message || 'Falha ao salvar', updated: 0 };
 
+    try {
+      const { logAuditoriaSistema } = await import('@/lib/server-db');
+      await logAuditoriaSistema({
+        empresaId: empresa_id,
+        authUserId: ctx.auth_id!,
+        acao: 'edicao',
+        detalhes: { via: 'recalibrateCasesAction', quantidade: recalibrated.length, carteira: 'empresa' },
+      });
+    } catch (error) {
+      console.error('[recalibrateCasesAction] auditoria indisponível',
+        error instanceof Error ? error.message : 'unknown');
+    }
+
     return {
       success: true,
       updated: recalibrated.length,
