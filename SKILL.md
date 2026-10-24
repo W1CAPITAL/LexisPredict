@@ -53,6 +53,9 @@ Um ponto de entrada para o produto inteiro. O LexisPredict continua sendo um pro
 | plugins | plugin, connector, toolkit | plugin-platform |
 | world | mundo, sandbox, voxel, bioma, criatividade | world-sandbox |
 | agents | equipe de agentes, multiagente | agent-studio |
+| whatsapp-web | atendimento pelo navegador sem WA.Auto | skills/whatsapp-browser/SKILL.md; entrega manual verificável |
+| legal-research | artigo de norma com fonte oficial | skills/legislacao-brasileira/SKILL.md; não presume vigência |
+| safe-inference | máquinas com pouca RAM / Qwen travando | docs/IA-SEGURA-VERCEL-SUPABASE.md; scripts por padrão |
 | improve | autoaprimoramento | sinais → patch pequeno → eval |
 | gtm | copy, demo, campanha | gtm-agent + media |
 | bpmn | modelar/revisar fluxo, Camunda, swimlane, gateway, As-Is/To-Be | skills/bpmn + tooling determinístico |
