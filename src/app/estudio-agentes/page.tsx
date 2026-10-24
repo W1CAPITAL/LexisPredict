@@ -1,6 +1,6 @@
 "use client";
 
-import {useMemo,useRef,useState} from "react";
+import {useMemo,useRef,useState, type ReactNode} from "react";
 import Link from "next/link";
 import {Sidebar} from "@/components/layout/sidebar";
 import {Button} from "@/components/ui/button";
@@ -198,9 +198,9 @@ function Metric({label,value}:{label:string;value:string|number}){
 function MetricLight({label,value}:{label:string;value:number}){
  return <div className="rounded-xl border border-border bg-background p-4"><p className="text-2xl font-black">{value}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>;
 }
-function SmallFeature({icon,title,text}:{icon:React.ReactNode;title:string;text:string}){
+function SmallFeature({icon,title,text}:{icon:ReactNode;title:string;text:string}){
  return <div className="flex gap-3 rounded-2xl border border-border bg-card p-4">{icon}<div><p className="font-bold">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div></div>;
 }
-function Info({title,icon,children}:{title:string;icon:React.ReactNode;children:React.ReactNode}){
+function Info({title,icon,children}:{title:string;icon:ReactNode;children:ReactNode}){
  return <div className="rounded-xl border border-border bg-background/70 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-bold">{icon}{title}</p>{children}</div>;
 }
