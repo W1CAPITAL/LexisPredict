@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export function TermsOfServiceContent() {
   return (
@@ -54,7 +55,7 @@ export function TermsOfServiceContent() {
         Serviços de terceiros, tribunais, DataJud, DJEN, provedores de IA, Vercel e Supabase podem apresentar indisponibilidade, limites ou alterações. Salvo contrato específico, não há garantia de disponibilidade contínua ou SLA específico.</p>
 
         <p><strong>11. Assinatura, suspensão e cancelamento</strong><br />
-        A assinatura pode ser suspensa por inadimplência, fraude, abuso, risco de segurança ou violação contratual. Antes de qualquer bloqueio financeiro, o sistema deve se basear em um estado real de empresa/assinatura no servidor; ausência de empresa em instalação nova não equivale a inadimplência. Cancelamentos e alterações de plano seguem o ciclo comercial vigente.</p>
+        A assinatura pode ser suspensa por inadimplência, fraude, abuso, risco de segurança ou violação contratual. Antes de qualquer bloqueio financeiro, o sistema deve se basear em um estado real de empresa/assinatura no servidor; ausência de empresa em instalação nova não equivale a inadimplência. Cancelamentos e alterações de plano seguem o ciclo comercial vigente. A renovação solicitada pela área de planos está sujeita ao <Link href="/termos/renovacao-assinatura" className="font-semibold text-violet-700 underline">Termo de Solicitação de Renovação</Link>; o pedido não faz cobrança ou renovação automática.</p>
 
         <p><strong>12. Responsabilidade</strong><br />
         Na máxima extensão permitida em lei, o LexisPredict não responde por danos indiretos decorrentes de uso inadequado, dado inserido incorretamente, indisponibilidade de fonte externa ou decisão tomada sem conferência profissional. Nada neste termo exclui responsabilidade que a lei não permita limitar.</p>
