@@ -12,6 +12,7 @@ import { resolveCaseScope } from './roles';
 import { normalizePlanId } from './planos-pacotes';
 import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
 import { resolveProcessoCliente } from './processo-cliente';
+import { createdByOwnerIds } from './carteira-owner-ids';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -35,7 +36,7 @@ export async function getSupabaseAdmin() {
 }
 
 const resolveUserContext = cache(async () => {
-  const empty = { auth_id: null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
+  const empty = { auth_id: null, profile_id: null as string | null, empresa_id: null, cargo: null as UserRole | null, email: null, nome: null, isSuperAdmin: false, isSupervisor: false, isViewer: false, isMasterView: false, isAdministrador: false, isEmpresaWide: false, caseScope: 'mine' as const, weight: 0, safety: false };
   // Commercial web: identidade vem exclusivamente do Supabase Auth.
   // Cookies/planilha/"safety mode" não podem criar contexto de tenant.
   const requestClient = await createRequestClient();
@@ -72,6 +73,7 @@ const resolveUserContext = cache(async () => {
 
   return { 
     auth_id: profile?.auth_user_id || null,
+    profile_id: profile?.id || null,
     empresa_id: profile?.empresa_id || null, 
     cargo: cargo,
     email: profile?.email || null,
@@ -172,6 +174,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
   const context = await getUserContext();
   if (context.empresa_id !== empresaId) throw new Error("Acesso à empresa não autorizado.");
   const { auth_id } = context as any;
+  const ownerIds=createdByOwnerIds(context.auth_id,context.profile_id);
 
   // O parâmetro isAdmin é legado e NÃO amplia visibilidade.
   // O escopo vem exclusivamente de resolveCaseScope().
@@ -219,8 +222,8 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
           .order("created_at", { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         if (mode === "mine") {
-          if (!auth_id) return null;
-          query = query.eq("created_by", auth_id);
+          if (!ownerIds.length) return null;
+          query = query.in("created_by", ownerIds);
         }
         return query;
       };
@@ -317,6 +320,7 @@ export async function getStoredCasesPageForEmpresa(
     // avoids anonymous-browser RLS ambiguity. Scope is STILL derived on server.
     const client = await getSupabaseAdmin();
     const { auth_id } = context;
+    const ownerIds=createdByOwnerIds(auth_id,context.profile_id);
     const caseScope = resolveCaseScope(context as any);
     const onlyAtivos = opts?.onlyAtivos === true;
 
@@ -335,8 +339,8 @@ export async function getStoredCasesPageForEmpresa(
       // Somente a ação explícita de Processos da Empresa usa esta exceção
       // de consulta. Toda edição continua verificando o responsável real.
       if (caseScope === 'mine' && opts?.companyReadOnly !== true) {
-        if (!auth_id) return { data: [] as any[], error: null };
-        query = query.eq("created_by", auth_id);
+        if (!ownerIds.length) return { data: [] as any[], error: null };
+        query = query.in("created_by", ownerIds);
       }
 
       return await query;
