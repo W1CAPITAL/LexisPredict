@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import {SubscriptionRenewalTermsContent} from "@/components/legal/SubscriptionRenewalTermsContent";
+import {RENEWAL_TERMS_VERSION} from "@/lib/subscription-renewal";
 import { usePlano } from "@/hooks/use-plano";
 import { useAdmin } from "@/hooks/use-admin";
 import {
@@ -18,6 +21,7 @@ import {
 import {
   trocarMeuPlanoAction,
   salvarPlanoEmpresaAction,
+  solicitarRenovacaoAssinaturaAction,
 } from "@/app/actions/planos-actions";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -98,6 +102,9 @@ export function PlanosEmpresaPanel() {
   const { toast } = useToast();
   const [ciclo, setCiclo] = useState<"mensal" | "anual">("mensal");
   const [busy, setBusy] = useState<PlanId | null>(null);
+  const [renewalAccepted, setRenewalAccepted] = useState(false);
+  const [renewalBusy, setRenewalBusy] = useState(false);
+  const [renewalRequestId, setRenewalRequestId] = useState<string | null>(null);
 
   const currentPlan: PlanId = plan;
   const canChange = !!(isAdmin || isSuperAdmin) && !setupRequired;
@@ -234,6 +241,37 @@ export function PlanosEmpresaPanel() {
 
 
 
+
+  const onSolicitarRenovacao = async () => {
+    if (renewalBusy || !renewalAccepted || !canChange) return;
+    setRenewalBusy(true);
+    try {
+      const result = await solicitarRenovacaoAssinaturaAction({
+        ciclo,
+        confirmouTermos: true,
+        termosVersao: RENEWAL_TERMS_VERSION,
+      });
+      if (!result.ok) {
+        toast({ title: "Renovação não registrada", description: result.error, variant: "destructive" });
+        return;
+      }
+      setRenewalRequestId(result.requestId);
+      setRenewalAccepted(false);
+      toast({
+        title: "Pedido de renovação registrado",
+        description: "Aguardando confirmação comercial do valor, período e condições. Nenhuma cobrança foi realizada.",
+      });
+    } catch (error) {
+      toast({
+        title: "Falha ao solicitar renovação",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setRenewalBusy(false);
+    }
+  };
+
   return (
     <section aria-label="Planos e assinatura" className="space-y-6">
       <div className="overflow-hidden rounded-2xl border border-[#dfe7f2] bg-white shadow-[0_2px_10px_rgba(16,36,71,.035)]">
@@ -284,7 +322,7 @@ export function PlanosEmpresaPanel() {
         <div className="flex rounded-xl bg-[#edf2f8] p-1">
           <button
             type="button"
-            onClick={() => setCiclo("mensal")}
+            onClick={() => { setCiclo("mensal"); setRenewalAccepted(false); }}
             className={cn(
               "min-w-[120px] rounded-lg px-5 py-2 text-sm font-bold transition",
               ciclo === "mensal" ? "bg-white text-[#1f6fff] shadow-sm" : "text-[#36516f]"
@@ -294,7 +332,7 @@ export function PlanosEmpresaPanel() {
           </button>
           <button
             type="button"
-            onClick={() => setCiclo("anual")}
+            onClick={() => { setCiclo("anual"); setRenewalAccepted(false); }}
             className={cn(
               "min-w-[120px] rounded-lg px-5 py-2 text-sm font-bold transition",
               ciclo === "anual" ? "bg-white text-[#1f6fff] shadow-sm" : "text-[#36516f]"
@@ -392,6 +430,63 @@ export function PlanosEmpresaPanel() {
           );
         })}
       </div>
+
+
+      <section aria-labelledby="renovacao-assinatura-title" className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-[0_3px_14px_rgba(16,36,71,.07)]">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-sky-50 p-5 sm:p-6">
+          <div className="flex max-w-2xl items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+              <Clock3 className="h-5 w-5"/>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[.13em] text-violet-700">Assinatura da empresa</p>
+              <h3 id="renovacao-assinatura-title" className="mt-1 text-xl font-black text-[#102447]">Termo de renovação de assinatura</h3>
+              <p className="mt-1 text-sm leading-relaxed text-[#546987]">Confira o plano, o ciclo e as condições antes de enviar o pedido. A solicitação não renova automaticamente nem gera cobrança.</p>
+            </div>
+          </div>
+          <Link href="/termos/renovacao-assinatura" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center rounded-xl border border-violet-300 bg-white px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50">
+            Ler termo em página própria <ArrowRight className="ml-2 h-4 w-4"/>
+          </Link>
+        </div>
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="grid gap-3 rounded-xl border border-[#dfe7f2] bg-[#f8faff] p-4 sm:grid-cols-2">
+            <div><p className="text-xs text-[#617693]">Plano cadastrado</p><p className="mt-1 text-base font-black text-[#102447]">{PLAN_LABEL[currentPlan]}</p></div>
+            <div><p className="text-xs text-[#617693]">Validade atual</p><p className="mt-1 text-base font-black text-[#102447]">{expiresLabel || "Não informada"}</p></div>
+            <div><p className="text-xs text-[#617693]">Novo ciclo solicitado</p><p className="mt-1 text-base font-black text-[#102447]">{ciclo === "anual" ? "12 meses" : "1 mês"}</p></div>
+            <div><p className="text-xs text-[#617693]">Preço público de referência</p><p className="mt-1 text-base font-black text-[#102447]">{formatBRL(ciclo === "anual" ? PLANOS_PRECOS[currentPlan].valorAnual : PLANOS_PRECOS[currentPlan].valorMensal)}</p></div>
+          </div>
+          <details className="group rounded-xl border border-[#dfe7f2] bg-[#fbfcff] p-4">
+            <summary className="cursor-pointer text-sm font-bold text-violet-700">Visualizar as condições completas do termo (versão {RENEWAL_TERMS_VERSION})</summary>
+            <div className="mt-4 max-h-[370px] overflow-y-auto border-t border-[#e5e9f2] pt-4">
+              <SubscriptionRenewalTermsContent
+                planName={PLAN_LABEL[currentPlan]}
+                cycle={ciclo}
+                displayedAmount={formatBRL(ciclo === "anual" ? PLANOS_PRECOS[currentPlan].valorAnual : PLANOS_PRECOS[currentPlan].valorMensal)}
+                expiresLabel={expiresLabel}
+              />
+            </div>
+          </details>
+          {renewalRequestId ? (
+            <div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
+              <p className="font-bold">Solicitação registrada para análise comercial.</p>
+              <p className="mt-1">Protocolo: <code className="break-all font-mono">{renewalRequestId}</code></p>
+              <p className="mt-1 text-xs">A validade da assinatura e as cobranças não foram alteradas.</p>
+            </div>
+          ) : (
+            <>
+              <label className="flex items-start gap-3 rounded-xl border border-[#dfe7f2] p-4 text-sm leading-relaxed text-[#263955]">
+                <input type="checkbox" checked={renewalAccepted} onChange={e=>setRenewalAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-violet-600" disabled={!canChange || renewalBusy}/>
+                <span>Li e compreendi o <strong>Termo de Renovação de Assinatura</strong> (versão {RENEWAL_TERMS_VERSION}). Confirmo que estou autorizado a solicitar a renovação pela empresa e entendo que o valor final e a ativação exigem confirmação comercial, sem débito automático por este pedido.</span>
+              </label>
+              <button type="button" onClick={() => void onSolicitarRenovacao()} disabled={!renewalAccepted || renewalBusy || !canChange} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">
+                {renewalBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldCheck className="mr-2 h-4 w-4"/>}
+                {renewalBusy ? "Registrando solicitação…" : "Solicitar renovação com aceite"}
+              </button>
+            </>
+          )}
+          <p className="text-xs text-[#667993]">Somente usuários autorizados podem enviar o pedido. Se já existir solicitação comercial pendente, ela será preservada; a renovação não a substituirá.</p>
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="flex items-center gap-4 rounded-2xl border border-[#dfe7f2] bg-white p-5">
