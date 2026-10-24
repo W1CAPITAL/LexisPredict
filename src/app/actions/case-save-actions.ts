@@ -1,12 +1,11 @@
 'use server';
 
-import { canSupervisaoCarteira, SUPERVISAO_REQUIRED } from '@/lib/auth-supervisao';
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib/case-logic';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
-import { canDeleteCase, resolveCaseScope } from '@/lib/roles';
+import { resolveCaseScope } from '@/lib/roles';
 import { canAccessExistingCase } from '@/lib/case-edit-access';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { resolveSituacaoFromRow } from '@/lib/resolve-situacao';
@@ -438,7 +437,7 @@ export async function registrarAtendimentoCompletoAction(input: {
 }): Promise<{ success: boolean; message: string; ultimoRetorno?: string; proximoPrazo?: string; case?: LegalCase; mirror?: Awaited<ReturnType<typeof mirrorAtendimento>> }> {
   try {
     const ctx = await getUserContext();
-    if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer || !input?.protocolo) return { success: false, message: ctx.isViewer ? 'Acesso somente para leitura.' : 'Sessão expirada ou protocolo inválido.' };
+    if (!ctx.empresa_id || !ctx.auth_id || !input?.protocolo) return { success: false, message: 'Sessão expirada ou protocolo inválido.' };
     const admin = await getSupabaseAdmin();
     let protocolo = String(input.protocolo).trim();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
@@ -592,27 +591,27 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
   try {
     const ctx = await getUserContext();
     if (!ctx.empresa_id || !ctx.auth_id || !protocolo) return { success: false, message: 'Sessão ou protocolo inválido.' };
-    if (!canDeleteCase(ctx as any)) {
-      return { success: false, message: 'Operador não possui permissão para excluir processos.' };
-    }
-
     const admin = await getSupabaseAdmin();
     const existing = await loadProcessoRow(ctx.empresa_id, protocolo);
     if (!existing) return { success: false, message: 'Processo não encontrado.' };
     if (!(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Processo fora da empresa.' };
     }
-    // Editar e atender e permitido para todos; excluir exige propriedade ou supervisao.
-    if (!(ctx.isSupervisor || ctx.isSuperAdmin) && String(existing.created_by || '') !== String(ctx.auth_id)) {
-      return { success: false, message: 'Somente o proprietario ou a supervisao pode excluir este processo.' };
-    }
+    // Exclusão colaborativa: apenas validação de sessão e tenant (já conferidos).
 
-    const { error } = await admin
+    const {data:deleted,error} = await admin
       .from('processos')
       .delete()
       .eq('empresa_id', ctx.empresa_id)
-      .eq('id', existing.id);
-    if (error) return { success: false, message: error.message };
+      .eq('id', existing.id)
+      .select('id')
+      .maybeSingle();
+    if(error) return {success:false,message:error.message};
+    if(!deleted) return {success:false,message:'O processo não foi excluído. Recarregue e confira o cadastro.'};
+
+    try {
+      await logAuditoriaSistema({empresaId:ctx.empresa_id,authUserId:ctx.auth_id,acao:'exclusao',protocolo:existing.protocolo_ref,detalhes:{via:'processos-empresa',processo_id:existing.id,responsavel_original:existing.created_by||null}});
+    }catch(e){console.error('[deleteOneCaseAction] auditoria indisponível',e);}
 
     if (sheetsWebhookConfigured()) {
       void sheetsServerPost({
@@ -643,7 +642,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
 
 export async function reassignCaseOwnerAction(input: { protocolo: string; novoOwnerAuthId: string }): Promise<{ success: boolean; message: string }> {
   try {
-    const { empresa_id, auth_id, isSupervisor, isSuperAdmin } = await getUserContext();
+    const { empresa_id, auth_id } = await getUserContext();
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
 
     const protocolo = String(input.protocolo || '').trim();
@@ -652,13 +651,7 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     const admin = await getSupabaseAdmin();
     const { data: me } = await admin.from('usuarios').select('cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
-    const canTransfer = canSupervisaoCarteira({
-      ...(me as any),
-      isSuperAdmin: Boolean((me as any)?.is_superadmin),
-      isSupervisor: Boolean((me as any)?.is_supervisor),
-    }) || Boolean(isSupervisor) || Boolean(isSuperAdmin);
-    if (!canTransfer) return { success: false, message: SUPERVISAO_REQUIRED };
-
+    // /processos é colaborativo: transferência dentro da mesma empresa.
     const { data: target } = await admin.from('usuarios').select('auth_user_id').eq('empresa_id', empresa_id).eq('auth_user_id', novo).maybeSingle();
     if (!target?.auth_user_id) return { success: false, message: 'Responsável não encontrado na empresa.' };
 
@@ -667,9 +660,10 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     const now = new Date().toISOString();
     const dados = { ...(current.dados || {}), created_by: novo, owner_updated_by: auth_id, owner_updated_at: now, edited_by: auth_id, edited_at: now };
-    const { data: updated, error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('id', current.id).select('id,created_by').maybeSingle();
+    const { data: updated, error } = await admin.from('processos').update({ created_by: novo, dados, updated_at: now }).eq('id', current.id).eq('empresa_id', empresa_id).select('id,created_by').maybeSingle();
     if (error) return { success: false, message: error.message };
     if (!updated || String(updated.created_by) !== novo) return { success: false, message: 'A transferência não foi persistida.' };
+    try{await logAuditoriaSistema({empresaId:empresa_id,authUserId:auth_id,acao:'edicao',protocolo,detalhes:{via:'reatribuicao-processos',responsavel_anterior:current.created_by||null,novo_responsavel:novo}});}catch(e){console.error('[reassignCaseOwnerAction] auditoria indisponível',e);}
 
     if (sheetsWebhookConfigured()) {
       const row = buildSheetRow({ ...(current.dados || {}), protocolo, created_by: novo, edited_by: auth_id, edited_at: now }, empresa_id, auth_id, String((me as any)?.nome || auth_id), { ...current, dados });
@@ -714,11 +708,11 @@ export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<s
 
 export async function retryAtendimentoMirrorAction(protocolo: string) {
   const ctx = await getUserContext();
-  if (!ctx.empresa_id || !ctx.auth_id || ctx.isViewer) return { success: false, message: 'Acesso não autorizado.' };
+  if (!ctx.empresa_id || !ctx.auth_id) return { success: false, message: 'Acesso não autorizado.' };
   const row = await loadProcessoRow(ctx.empresa_id, protocolo);
   const pending = row?.dados?.atendimento_sync;
   if (!row || !pending?.input) return { success: false, message: 'Nenhum espelho pendente para este processo.' };
-  if (!(await canAccessExistingCase(ctx, row))) return { success: false, message: 'Acesso restrito à sua própria carteira.' };
+  if (!(await canAccessExistingCase(ctx, row))) return { success: false, message: 'Acesso restrito à sua empresa.' };
   if (pending.state === 'synced') return { success: true, message: 'Planilha já atualizada.' };
   const mirror = await mirrorAtendimento({ ...pending.input, empresaId: ctx.empresa_id, protocolo: row.protocolo_ref });
   if (!mirror.ok) return { success: false, message: mirror.reason || 'A planilha ainda não confirmou a atualização.' };

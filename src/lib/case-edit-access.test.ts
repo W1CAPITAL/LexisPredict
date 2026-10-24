@@ -28,14 +28,15 @@ describe('case edit permission - closed cases in /processos', () => {
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO', 'auth-1'))).toBe(true);
   });
   it('prevents cross-company access for any role', async () => {
-    for (const cargo of ['Superadmin', 'Supervisor', 'Administrador', 'Operador']) {
+    for (const cargo of ['Superadmin', 'Supervisor', 'Administrador', 'Operador', 'Visualizador']) {
       expect(await canAccessExistingCase(makeCtx(cargo) as any, processo('ENCERRADO', 'auth-1', 'empresa-2'))).toBe(false);
     }
   });
-  it('retains operator ownership and viewer read-only restrictions', async () => {
+  it('allows all tenant members including Visualizador to edit colleagues processes', async () => {
     expect(await canAccessExistingCase(makeCtx('Operador') as any, processo('ENCERRADO'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Operador') as any, processo('ENCERRADO', 'auth-1'))).toBe(true);
-    expect(await canAccessExistingCase(makeCtx('Visualizador') as any, processo('ENCERRADO', 'auth-1'))).toBe(false);
+    expect(await canAccessExistingCase(makeCtx('Visualizador') as any, processo('ENCERRADO', 'auth-1'))).toBe(true);
+    expect(await canAccessExistingCase(makeCtx('Visualizador') as any, processo('EM ANDAMENTO', 'auth-2'))).toBe(true);
   });
   it('permits supervisors and superadmins for active and closed own-company cases', async () => {
     for (const cargo of ['Superadmin','Supervisor']) {
