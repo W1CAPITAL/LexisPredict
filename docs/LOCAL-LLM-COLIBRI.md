@@ -8,9 +8,9 @@ O LexisPredict tem **dois mecanismos diferentes** e mostra sempre quem respondeu
 
 ### Rodar agora com o LLM local
 
-Abra `/chat`, selecione **Lexis Local LLM · Qwen 0.5B**, envie texto. Na primeira execução, autorize o download e aguarde o indicador de progresso. Em computadores com GPU compatível, usa WebGPU; caso contrário tenta CPU via WASM. É necessário navegador atualizado, memória e conexão para baixar o modelo. Perguntas subsequentes podem usar o cache. Sem esses requisitos, o app exibirá um erro claro; **não garante funcionamento em aparelhos fracos**. Imagens não são suportadas pelo Qwen textual. PDFs podem fornecer texto extraído, limitado por contexto e memória.
+Abra `/chat`, selecione **Lexis Local LLM · Qwen 0.5B**, envie texto. Na primeira execução, autorize o download e aguarde o indicador de progresso. Para evitar travamento de computadores com pouca RAM, esta versão **não usa fallback CPU/WASM**: a execução exige WebGPU, memória adequada e aceite manual por sessão. Se não cumprir, escolha Motor Lexis (scripts) ou inferência em servidor privado. É necessário navegador atualizado, memória e conexão para baixar o modelo. Perguntas subsequentes podem usar o cache. Sem esses requisitos, o app exibirá um erro claro; **não garante funcionamento em aparelhos fracos**. Imagens não são suportadas pelo Qwen textual. PDFs podem fornecer texto extraído, limitado por contexto e memória.
 
-Quando o Colibri exclusivo falha, o assistente pode usar o Qwen **no navegador**, identificando `LOCAL_BROWSER`, sem enviar o prompt a outro provedor de inferência. Outros provedores online na cascata permanecem separados.
+Quando o Colibri ou outro motor remoto falha, o assistente **não inicia automaticamente** o Qwen no navegador. A seleção experimental exige consentimento e nunca serve como fallback silencioso. A inferência via Colibri continua sendo serviço distinto e opcional. Outros provedores online na cascata permanecem separados.
 
 ### Instalar o Colibri de verdade no Windows / VPS
 
@@ -32,3 +32,8 @@ O Colibri NÃO é um provedor hospedado pronto para usar. Sua API precisa de um 
 - `MOTORES_E_LOCAL_INDISPONIVEIS`: Colibri/provedores falharam e o download/carga local também; exibir os motivos e não fingir sucesso.
 
 Os arquivos `public/workers/lexis-local-llm.worker.mjs` e `src/lib/ai/browser-local-llm.ts` são separados da rota de servidor e não carregam pesos no build do Next.js.
+
+
+## Política de memória (outubro de 2026)
+
+Consulte [IA segura: Vercel, Supabase e PC de 8 GB](IA-SEGURA-VERCEL-SUPABASE.md). O antigo fallback CPU foi removido do worker para evitar congelamento da máquina. O modelo de 0,5B também pode demandar centenas de megabytes a gigabytes extras de memória temporária para inferência.
