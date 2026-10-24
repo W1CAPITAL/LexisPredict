@@ -1,6 +1,5 @@
 import Link from "next/link";
-
-export const RENEWAL_TERMS_VERSION = "2026-10-24";
+import {RENEWAL_TERMS_VERSION} from "@/lib/subscription-renewal";
 
 type Props = {
   planName?: string;
