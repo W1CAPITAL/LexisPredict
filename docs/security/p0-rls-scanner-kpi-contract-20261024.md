@@ -16,6 +16,7 @@ Esta matriz é baseada no código real e na política do banco verificada em 24/
 | /whatsapp | Server Actions, worker autenticado ou deep link | Contatos autorizados | service_role exclusivamente no servidor | Não registrar envio sem confirmação da ponte/canal |
 | /report/completo e PDF | Next.js middleware e API | Somente supervisão no consolidado | Gate de perfil no servidor | Download e dados de equipe nunca dependem só de botão oculto |
 | CRM/financeiro/documentos | Ações de servidor + tabelas RLS | Empresa/cargo | Tenant + perfil + ação explícita | Escrita não pode ser liberada somente por autenticação |
+| /notes | Server Actions com verificação de sessão | Próprias ou supervisão | Acesso técnico apenas após validar empresa e dono | Não usar Supabase anônimo do módulo compartilhado para ler/gravar em RLS |
 
 ## Regra principal
 
@@ -39,6 +40,7 @@ leitura autenticada no servidor, em vez de conceder ALL ao usuário.
 - Scanner não trata registros em memória como carteira atual se a fonte confirmada
   não retornar processos.
 - A API paginada não substitui falha de snapshot por zero ou contagem da primeira página.
+- Notas também carregavam por cliente Supabase anônimo: leitura, criação, edição e exclusão agora utilizam a sessão validada no servidor, tenant + cargo/owner. O legado das notas contém 89 registros ligados ao auth_user_id, 5 ao perfil e 4 sem dono; supervisão consegue inspecionar estes últimos, enquanto demais usuários só leem suas próprias notas.
 
 ## Verificação segura em ambiente real
 
