@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStoredCasesPageForEmpresa, getSupabaseAdmin, getUserContext } from '@/lib/server-db';
+import { createdByOwnerIds } from '@/lib/carteira-owner-ids';
 
 /**
  * Paginated, tenant-authenticated HTTP endpoint. Avoids large Next Server Action
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
     const db = await getSupabaseAdmin();
 
     const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
+    const ownerIds=createdByOwnerIds(ctx.auth_id,ctx.profile_id);
     const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest) {
     let snapshot: Snapshot = { ...EMPTY };
     if (!withSummary) {
       return NextResponse.json({ ok: true, cases: listResult, summary: snapshot,
-        totalCount: 0, offset, limit, hasMore: listResult.length === limit }, { headers });
+        totalCount: null, totalCountExact: false, offset, limit, hasMore: listResult.length === limit }, { headers });
     }
     if (!countResult.error && Array.isArray(countResult.data) && countResult.data[0]) {
       const row = countResult.data[0] as Record<string, unknown>;
@@ -67,11 +69,13 @@ export async function GET(request: NextRequest) {
           .map(k=>[k,Number(row[k]||0)])
       )} as Snapshot;
     } else {
-      // Preserve page availability if a database migration is temporarily missing.
-      const q = db.from('processos').select('id', { count: 'exact', head: true }).eq('empresa_id', empresaId);
-      const { count } = scope === 'empresa' || ctx.caseScope === 'empresa'
-        ? await q : await q.eq('created_by', ctx.auth_id);
-      snapshot.total = count ?? listResult.length;
+      // Nunca exibir zero nem substituir uma contagem oficial por registros
+      // de uma única página: o KPI ficaria incorreto sem qualquer aviso.
+      console.error('[api/carteira/fast] snapshot indisponível',countResult.error);
+      return NextResponse.json({
+        ok:false,error:'Resumo indisponível no banco. A carteira não foi alterada; atualize os indicadores após recuperar a conexão.',
+        code:'portfolio_snapshot_unavailable'
+      },{status:503,headers});
     }
     if(!meritoResult.error && meritoResult.data && typeof meritoResult.data==='object'){
       const m=meritoResult.data as Record<string,unknown>;
