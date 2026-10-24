@@ -328,9 +328,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       try {
         const { fetchScannerQueueAction } = await import('@/app/actions/case-actions');
         const remote = await fetchScannerQueueAction();
-        if (Array.isArray(remote) && remote.length > 0) {
+        if(!Array.isArray(remote))throw new Error('O servidor não confirmou a fila da carteira.');
+        // Nunca reutilizar processos do cache quando o banco retornou zero.
+        // Uma lista antiga na memória não significa carteira atual.
+        allLocal = remote;
+        if (remote.length > 0) {
           // Fila leve: nao sobrescreve a carteira detalhada que esta nas outras telas.
-          allLocal = remote;
           get().addLog({
             protocolo: 'SISTEMA',
             message: `Carteira completa sincronizada: ${remote.length} processo(s)`,
@@ -352,6 +355,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set({ manualStatus: 'paused', manualTotal: 0 });
         return; // Nunca fingir que so os registros carregados representam a carteira inteira.
       }
+    }
+    if (allLocal.length===0) {
+      get().addLog({
+        protocolo:'SISTEMA',
+        message:'Nenhum CNJ disponível no banco para esta empresa. O scanner não usará processos antigos em cache.',
+        latency:0,success:false,type:'error',engine:'Local'
+      });
+      set({manualStatus:'idle',manualTotal:0});
+      return;
     }
     const nEnc = allLocal.filter((c) => isCasoEncerrado(c)).length;
     let cases = prioritizeScanQueue(allLocal);
