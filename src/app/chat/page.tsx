@@ -103,6 +103,7 @@ export default function AssistentePage() {
   const [loading, setLoading] = useState(false);
   const [localProgress, setLocalProgress] = useState<string | null>(null);
   const [model, setModel] = useState<MotorId>("omni");
+  const [localModelAllowed, setLocalModelAllowed] = useState(false);
   const [baClaude, setBaClaude] = useState(false);
   const [pendingImage, setPendingImage] = useState<{
     mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -117,13 +118,22 @@ export default function AssistentePage() {
   const pdfRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setModel(loadPreferredMotor());
+    const stored=loadPreferredMotor();
+    // Preferência antiga não deve disparar o Qwen após atualizar a página.
+    setModel(stored === 'local_llm' ? 'local_only' : stored);
     setBaClaude(loadBaClaudeDjenEnabled());
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+  useEffect(() => {
+    // Interrompa o worker ao sair da aba; nenhuma inferência persiste oculta.
+    const onHidden=()=>{if(document.hidden)stopBrowserLocalLLM();};
+    document.addEventListener('visibilitychange',onHidden);
+    return ()=>{document.removeEventListener('visibilitychange',onHidden);stopBrowserLocalLLM();};
+  }, []);
+
 
   const onImage = async (file: File | null) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -200,11 +210,13 @@ export default function AssistentePage() {
         }
         const localGuidance=task==='geral'?'':`REGRAS LEXIS SUPERAGENTE: português natural, específico, sem inventar prazos ou atos. Separe fato de hipótese. Cliente: não pedir CNJ nem telefone, responder por aqui. Dossiê: cronologia, prova, risco e ação. Modo incisivo só quando pedido expressamente; sem insultos. Nunca alegar que enviou mensagens.\n`;
         const localContext=caseContext?caseContext.slice(0,3100):'';
+        if (!localModelAllowed) throw new Error("Qwen 0.5B desativado para evitar travar seu PC. Para ativar, marque a confirmação experimental abaixo. Prefira scripts sem modelo.");
         const local = await generateBrowserLocalLLM(
           localGuidance+(displayText || text)+ (localContext?'\n\n'+localContext:'')+
             (pdf?.text ? "\n\nTrecho do PDF:\n" + pdf.text.slice(0, 2600) : ""),
           history,
           (p) => setLocalProgress(p.status === "progress" ? `Baixando LLM local: ${p.progress ?? 0}%` : p.message || (p.status === "generating" ? "LLM local gerando resposta..." : "Preparando LLM local...")),
+          {explicitConsent:true,maxTokens:64,timeoutMs:120000},
         );
         return {
           resposta: local.text, thinking: null, sucesso: true,
@@ -227,19 +239,15 @@ export default function AssistentePage() {
           max_tokens: 4096,
         });
         const unavailable = !res.sucesso && /FALLBACK|MOTORES_INDISPONIVEIS|COLIBRI_INDISPONIVEL|MINICPM_INDISPONIVEL|ALL_PROVIDERS_FAILED|ERROR/i.test(String(res.engineUtilizada || res.engine || ""));
-        if (unavailable && !img) {
-          try {
-            res = await tryBrowserLocal((model === "colibri" || model === "minicpm")
-              ? "Servidor privado desconectado. Iniciando Qwen local no navegador..."
-              : "Provedores indisponíveis. Tentando LLM local no navegador...");
-          } catch (localError: any) {
-            res = {
-              ...res,
-              resposta: `O motor online não respondeu e o modelo local também não iniciou: ${localError?.message || String(localError)}. Para a primeira execução, permita o download do modelo e confira a memória do navegador.`,
-              engineUtilizada: "MOTORES_E_LOCAL_INDISPONIVEIS",
-              sucesso: false,
-            };
-          }
+        if (unavailable) {
+          // No automatic local model fallback, even for stored preferences.
+          // On 8GB PCs this triggered WASM weight allocation and a full system freeze.
+          res = {
+            ...res,
+            resposta:"Os motores configurados não responderam. Por segurança, não vou baixar/carregar Qwen 0.5B na RAM do seu navegador automaticamente. Use o motor Lexis (scripts) ou configure um servidor de inferência fora da Vercel.",
+            engineUtilizada:"MOTORES_REMOTOS_INDISPONIVEIS_LOCAL_SEGURO",
+            sucesso:false,
+          };
         }
       }
 
@@ -281,7 +289,7 @@ export default function AssistentePage() {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-3">
-            <MotorSelector value={model} onChange={setModel} />
+            <MotorSelector value={model} onChange={(m)=>{setModel(m);setLocalModelAllowed(false);stopBrowserLocalLLM();}} />
             <div className="flex items-center gap-2">
               <Switch
                 id="chat-ba-claude"
@@ -349,6 +357,17 @@ export default function AssistentePage() {
         </ScrollArea>
 
         <form onSubmit={send} className="shrink-0 border-t border-border p-4 sm:px-6 bg-card/50">
+          {model === "local_llm" ? (
+            <div className="mx-auto mb-3 flex max-w-3xl flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+              <Switch id="allow-heavy-local-model" checked={localModelAllowed} onCheckedChange={(on)=>{setLocalModelAllowed(on);if(!on)stopBrowserLocalLLM();}}/>
+              <div className="min-w-0 flex-1">
+                <Label htmlFor="allow-heavy-local-model" className="text-xs font-bold text-foreground">Autorizar Qwen 0,5B experimental neste navegador</Label>
+                <p className="text-[11px] leading-5 text-muted-foreground">
+                  Desligado por padrão. Exige WebGPU e memória; nunca roda na Vercel nem no Supabase. Sem fallback para CPU. Para PCs com 8 GB, prefira "Motor Lexis (scripts)" ou inferência em servidor próprio.
+                </p>
+              </div>
+            </div>
+          ) : null}
           {(pendingImage || pendingPdf) && (
             <div className="max-w-3xl mx-auto mb-2 flex flex-wrap gap-3 text-[10px] text-muted-foreground">
               {pendingImage && (
