@@ -1539,6 +1539,7 @@ export async function recalibrateCasesAction() {
         empresaId: empresa_id,
         authUserId: ctx.auth_id!,
         acao: 'edicao',
+        protocolo: 'CARTEIRA-EMPRESA',
         detalhes: { via: 'recalibrateCasesAction', quantidade: recalibrated.length, carteira: 'empresa' },
       });
     } catch (error) {
