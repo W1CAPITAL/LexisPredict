@@ -16,6 +16,7 @@
 1. `applyBrowserDjenResultAction`: elimina a checagem obsoleta de dono no scanner de processo alheio da mesma empresa; mantém a checagem por tenant.
 2. `recalibrateCasesAction`: processa o conjunto empresarial, sem exigir Administrador; grava auditoria da execução.
 3. `reclassificarExecutivoCarteiraAction` e `batchScanExecutivoAction`: operam somente no tenant autenticado, não apenas nos registros próprios do executor.
+   - Revisão de 25/10/2026: removido o filtro residual `created_by=auth_id` da reclassificação executiva. A paginação agora ordena por ID e as duas gravações incluem `empresa_id`, com auditoria agregada da ação por executor.
 4. `getStoredCasesForEmpresa` e `saveStoredCasesForEmpresa`: opção explícita `companyOperational` para fluxos coletivos, preservando o comportamento pessoal padrão e o responsável original.
 5. Middleware: Operador pode alcançar APIs operacionais de scanner, desde que autenticado, vinculado ao tenant e com pacote contratado; APIs financeiras continuam restritas por cargo.
 
@@ -35,3 +36,8 @@
 - `/cases`: lista pessoal e KPIs pessoais seguem corretos.
 - Outra empresa: resultado vazio/403; nenhum usuário obtém dados ou executa operações fora do tenant.
 - Relatórios consolidados e gestão de usuários não sofrem elevação de permissão.
+
+
+## Revisão P0-C — 25/10/2026
+
+O banco mantém RLS ligada e a carteira inteira é acessível por usuários autenticados da empresa, inclusive Operador/Administrador/Supervisor. Foram observados 2.648 processos para cada um desses perfis em transações SQL de leitura revertidas. Visualizador consta nas regras e testes, mas não havia login real desse perfil na amostra. A alteração neste lote é de código: **não desliga a RLS, não muda políticas, não transfere titulares e não altera processos até que um operador solicite uma reclassificação**.
