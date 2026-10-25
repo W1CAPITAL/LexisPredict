@@ -21,7 +21,6 @@ import { decidirEncerramentoScan, aplicarDecisaoNoPatch } from '@/lib/auto-encer
 import { fetchDataJud } from '@/lib/datajud';
 import {
   canOperateCompanyCases,
-  resolveCaseScope,
 } from '@/lib/roles';
 
 /** Uma retentativa em timeout/rede para DataJud/DJEN (não multiplica lote). */
@@ -1738,7 +1737,9 @@ export async function reclassificarExecutivoCarteiraAction() {
   try {
     const { analisarProcedenciaECumprimento } = await import('@/lib/datajud-sync');
     const admin = await getSupabaseAdmin();
-    const companyWide = resolveCaseScope(ctx as any) === 'empresa';
+    // /processos é colaborativo: TODO usuário autenticado opera a carteira
+    // da própria empresa, não apenas os processos marcados em created_by.
+    // A empresa veio exclusivamente do getUserContext do servidor.
 
     let page = 0;
     const pageSize = 500;
@@ -1753,9 +1754,8 @@ export async function reclassificarExecutivoCarteiraAction() {
           'id, protocolo_ref, created_by, dados, datajud_ultimo_nome, datajud_encerrado_motivo, cumprimento_sentenca_motivo, djen_ultimo_resumo, em_cumprimento_sentenca, is_procedente, cumprimento_pendente_necessario, data_transito_julgado'
         )
         .eq('empresa_id', empresa_id)
+        .order('id', { ascending: true })
         .range(page * pageSize, page * pageSize + pageSize - 1);
-
-      if (!companyWide) query = query.eq('created_by', auth_id);
 
       const { data: rows, error } = await query;
       if (error) throw new Error(error.message);
@@ -1880,11 +1880,13 @@ export async function reclassificarExecutivoCarteiraAction() {
               cumprimento_sentenca_motivo: patch.cumprimento_sentenca_motivo ?? row.cumprimento_sentenca_motivo,
             })
             .eq('id', row.id)
+            .eq('empresa_id', empresa_id)
         ).error;
 
         // Coluna inexistente → grava só JSON dados (flags executivas)
         if (upErr && /does not exist|column/i.test(upErr.message || '')) {
-          upErr = (await admin.from('processos').update({ dados: newDados, em_cumprimento_sentenca: patch.em_cumprimento_sentenca }).eq('id', row.id)).error;
+          upErr = (await admin.from('processos').update({ dados: newDados, em_cumprimento_sentenca: patch.em_cumprimento_sentenca }).eq('id', row.id)
+            .eq('empresa_id', empresa_id)).error;
         }
 
         if (!upErr) {
@@ -1906,6 +1908,21 @@ export async function reclassificarExecutivoCarteiraAction() {
       page += 1;
     }
 
+    // Uma reclassificação é uma operação automatizada, não atendimento humano.
+    // Registra o executor sem alterar created_by nem atribuir atendido_por.
+    try {
+      const { logAuditoriaSistema }=await import('@/lib/server-db');
+      await logAuditoriaSistema({
+        empresaId:empresa_id,
+        authUserId:auth_id,
+        acao:'edicao',
+        protocolo:'CARTEIRA-EMPRESA',
+        detalhes:{via:'reclassificarExecutivoCarteiraAction',escopo:'empresa',scanned,updated,hits},
+      });
+    }catch(error){
+      console.error('[reclassificarExecutivoCarteiraAction] auditoria indisponível',
+        error instanceof Error ? error.message : 'unknown');
+    }
     return { success: true, scanned, updated, hits };
   } catch (e: any) {
     console.error('[reclassificarExecutivoCarteiraAction]', e);
