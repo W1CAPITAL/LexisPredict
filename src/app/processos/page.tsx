@@ -25,6 +25,7 @@ import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAte
 import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
+import {reconcileCompanyPage} from "@/lib/processos-page-reconcile";
 import { saveOneCaseAction, deleteOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
@@ -223,6 +224,7 @@ export default function ProcessosEmpresaPage() {
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
   const listRequestSeq=useRef(0);
+  const pendingCrossTabRefresh=useRef(false);
 
   const load = async (force = false) => {
     if (!empresaId || !authUserId) return;
@@ -252,13 +254,10 @@ export default function ProcessosEmpresaPage() {
       if(seq!==listRequestSeq.current)return; // resposta antiga não pode repor lista obsoleta
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
       // revalidada fica antes das demais, inclusive apos mudar de aba.
-      const all=[...res.cases,...casesRef.current,...((previous?.cases||[]) as LegalCase[])];
-      const seen=new Set<string>();
-      const merged=all.filter(item=>{
-        const key=String(item.id||item.protocolo||"");
-        if(!key||seen.has(key))return false;
-        seen.add(key);return true;
-      });
+      const merged=reconcileCompanyPage(
+        res.cases,casesRef.current,(previous?.cases||[]) as LegalCase[],force
+      );
+      casesRef.current=merged;
       setCases(merged);
       setListOffset(merged.length);
       writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
@@ -355,13 +354,51 @@ export default function ProcessosEmpresaPage() {
     void load(true);
   };
 
+  // Edições feitas em OUTRA aba devem invalidar a memória deste login.
+  // Enquanto o formulário está aberto, mantém o sinal pendente e atualiza
+  // assim que fechar; nunca interrompe uma edição com dados remotos.
   useEffect(()=>{
     if(!empresaId||!authUserId)return;
-    const refresh=()=>{if(!document.hidden&&!editOpen&&!attendingOpen)void load(true);};
-    const timer=window.setInterval(refresh,90_000);
-    window.addEventListener("focus",refresh);
-    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);};
-  },[empresaId,authUserId,editOpen,attendingOpen]);
+    let timer:number|null=null;
+    const blocked=()=>document.hidden||editOpen||attendingOpen||saving||attendanceSaving;
+    const schedule=()=>{
+      pendingCrossTabRefresh.current=true;
+      if(blocked())return;
+      if(timer!==null)window.clearTimeout(timer);
+      timer=window.setTimeout(()=>{
+        timer=null;
+        if(blocked())return;
+        pendingCrossTabRefresh.current=false;
+        invalidateFastCarteiraCache();
+        invalidateCarteiraCache({broadcast:false});
+        setSearchRefreshKey(v=>v+1);
+        void load(true);
+        void refreshIndicadores();
+      },350);
+    };
+    const onStorage=(event:StorageEvent)=>{
+      if(event.key==='lexis_carteira_invalidation_v1'||event.key==='lexis_carteira_refresh_at')
+        schedule();
+    };
+    const refresh=()=>{
+      if(pendingCrossTabRefresh.current) schedule();
+      else if(!blocked())void load(true);
+    };
+    const onVisible=()=>{if(!document.hidden&&pendingCrossTabRefresh.current)schedule();};
+    const onFocus=()=>refresh();
+    const periodic=window.setInterval(()=>{if(!document.hidden)refresh();},90_000);
+    window.addEventListener('storage',onStorage);
+    window.addEventListener('focus',onFocus);
+    document.addEventListener('visibilitychange',onVisible);
+    if(pendingCrossTabRefresh.current)schedule();
+    return()=>{
+      if(timer!==null)window.clearTimeout(timer);
+      window.clearInterval(periodic);
+      window.removeEventListener('storage',onStorage);
+      window.removeEventListener('focus',onFocus);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[empresaId,authUserId,editOpen,attendingOpen,saving,attendanceSaving]);
 
   useEffect(()=>{
     if(!empresaId||!authUserId)return;
@@ -723,9 +760,13 @@ export default function ProcessosEmpresaPage() {
   
   const loadMoreFromServer = async () => {
     if (loadingMore || !hasServerMore) return;
+    const currentRequestSeq=listRequestSeq.current;
     setLoadingMore(true);
     try {
       const res = await fetchFastCarteiraCached('empresa', 100, listOffset, empresaId, authUserId);
+      // Uma exclusão ou reatribuição pode ter invalidado este lote enquanto
+      // ele estava em trânsito. Nunca anexar resposta antiga ao snapshot novo.
+      if(currentRequestSeq!==listRequestSeq.current)return;
       const batch = res.cases;
       setTotalCount(res.totalCount);
       setCases((prev) => {
@@ -884,7 +925,13 @@ export default function ProcessosEmpresaPage() {
                   protocolo={String(editing.protocolo || '')}
                   currentOwnerAuthId={(editing as any).created_by}
                   canAssign={canAssignOwner}
-                  onAssigned={(id) => setEditing({ ...editing, created_by: id } as any)}
+                  onAssigned={(id) => {
+                    setEditing(prev=>prev?{...prev,created_by:id} as LegalCase:prev);
+                    // A transferência já foi persistida pelo controle filho.
+                    // Notificar todas as abas imediatamente, sem salvar os
+                    // demais campos do formulário (ainda não confirmados).
+                    syncedUpdate(editing.protocolo);
+                  }}
                 />
 
                 <div className="grid grid-cols-2 gap-3">

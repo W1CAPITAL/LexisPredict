@@ -95,10 +95,13 @@ export function writeCarteiraCache(
   } catch { /* armazenamento cheio/indisponivel: cache em memoria continua valido */ }
 }
 
-export function invalidateCarteiraCache() {
+export function invalidateCarteiraCache(opts: {broadcast?:boolean} = {}) {
   memory.clear();
-  // Revoga os snapshots HTTP da mesma carteira após edições e logout.
-  try{if(typeof window!=='undefined')localStorage.setItem('lexis_carteira_invalidation_v1',String(Date.now()));}catch{}
+  // Uma notificação RECEBIDA de outra aba limpa o cache local, mas não
+  // reemite storage (senão as abas ficam atualizando umas às outras em loop).
+  if(opts.broadcast!==false){
+    try{if(typeof window!=='undefined')localStorage.setItem('lexis_carteira_invalidation_v1',String(Date.now()));}catch{}
+  }
   const s = storage();
   if (s) {
     try {
