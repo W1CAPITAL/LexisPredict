@@ -80,12 +80,16 @@ export async function runCloudScanBatch(input: {
       const datajudOk = result.sourceStatus?.datajud?.ok===true;
       const djenOk = result.sourceStatus?.djen?.ok===true;
       if (success && input.mode==='both' && (!datajudOk || !djenOk)) partialCount++;
+      const datajudSource = result.sourceStatus?.datajud;
+      const datajudError = datajudSource && 'error' in datajudSource && typeof datajudSource.error === 'string'
+        ? datajudSource.error
+        : null;
       caseResults.push({
         cnj:item.protocolo,success,durationMs:Date.now()-itemStartedAt,
         datajudOk,
         djenOk,
-        ...(!datajudOk && result.sourceStatus?.datajud?.error
-          ? {datajudError:String(result.sourceStatus.datajud.error).slice(0,120)}
+        ...(!datajudOk && datajudError
+          ? {datajudError:datajudError.slice(0,120)}
           : {}),
         ...(!success?{error:'Nenhuma consulta oficial confirmada neste lote'}:{}),
       });
