@@ -41,7 +41,7 @@ describe('P0 KPIs empresariais: leitura completa e filtro autenticado',()=>{
    in:(_field:string,ids:string[])=>{ownerIds.push(ids);return query;},
    range:()=>query,
    then:(resolve:(value:unknown)=>unknown)=>Promise.resolve({
-    data:[{id:1,status:'Vencido',status_interno:'EM ANDAMENTO',dados:{status:'No Prazo'}}],error:null
+    data:[{id:1,status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:'2020-01-01',ultimo_retorno:'2019-12-01',dados:{status:'No Prazo'}}],error:null
    }).then(resolve),
   };
   const users:any={

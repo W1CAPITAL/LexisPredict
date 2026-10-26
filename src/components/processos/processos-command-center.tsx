@@ -685,7 +685,7 @@ export function ProcessosCommandCenter(props: Props) {
           <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
           <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
           <KpiCard icon={<ShieldCheck size={15}/>} label="Encerrados" value={props.indicadoresLoading ? "…" : props.encerradosCount} hint="estado atual no Supabase" />
-          <KpiCard icon={<AlertTriangle size={15}/>} label="Vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="carteira inteira" kind="red" />
+          <KpiCard icon={<AlertTriangle size={15}/>} label="Retornos vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="Próximo contato atrasado · não indica prazo judicial perdido" kind="red" />
           <KpiCard icon={<ShieldAlert size={15}/>} label="Risco alto" value={props.loading ? "…" : highRiskCount} hint={`${updateCount} com novidade`} kind="red" />
         </div>
         <button type="button" onClick={() => setMetricsOpen(!metricsOpen)}
@@ -992,7 +992,7 @@ export function ProcessosCommandCenter(props: Props) {
                     </Panel>
                   ) : null}
                   <Panel title="Alertas críticos" tone="red">
-                    {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Prazo/retorno vencido"/> : null}
+                    {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Status marcado Vencido no CRM; confira a data do próximo retorno"/> : null}
                     {(selectedSilence || 0) >= 45 ? <AlertLine icon={<FileClock size={12}/>} text={`Sem movimentação há ${selectedSilence} dias`}/> : null}
                     {selected.djen_nova_comunicacao ? <AlertLine icon={<Gavel size={12}/>} text="Nova publicação DJEN não tratada"/> : null}
                     {djenCriticalLabel(selected) ? <AlertLine icon={<ShieldAlert size={12}/>} text={`Radar DJEN: ${djenCriticalLabel(selected)}`}/> : null}
