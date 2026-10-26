@@ -639,10 +639,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       get().addLog({
         protocolo: c.protocolo,
-        message,
+        message: res.partial
+          ? `CONSULTA PARCIAL · ${String(res.message || 'Uma fonte não confirmou')} · ${message}`
+          : message,
         latency,
-        success: !!res.success,
-        type: patch.datajud_encerrado_tribunal
+        success: !!res.success && !res.partial,
+        type: res.partial ? 'error' : patch.datajud_encerrado_tribunal
           ? 'closed'
           : patch.indicio_busca_apreensao || patch.alerta_ia
             ? 'ai'
