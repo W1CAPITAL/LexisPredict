@@ -56,7 +56,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    <p className="mt-3 text-xs text-muted-foreground">Referência: {br(hoje)} · Datas calculadas no horário de Brasília · A contagem muda quando os dados são atualizados</p>
   </div>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-   {([{id:"retorno",label:"Retornos atrasados",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
+   {([{id:"retorno",label:"Retornos vencidos",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
       {id:"todos",label:"Marcados vencidos no CRM",hint:`${counts.ativosMarcados} ativos · ${bloqueados} encerrados manualmente (sem cobrança)`,value:counts.todos,icon:AlertTriangle},
       {id:"revisar",label:"Cadastros para revisar",hint:"Status não combina com as datas ou com encerramento",value:counts.revisar,icon:ShieldAlert},
       {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
@@ -65,7 +65,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
     </button>)}
   </div>
   <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-foreground" role="status">
-   {tab==="retorno"?"Retornos atrasados = a próxima data combinada com o cliente já passou e não há atendimento posterior que a resolva. Confira se houve contato não registrado. Isto NÃO é um prazo do tribunal.":
+   {tab==="retorno"?"Retornos vencidos = a próxima data combinada com o cliente já passou e não há atendimento posterior que a resolva. Confira se houve contato não registrado. Isto NÃO é um prazo do tribunal.":
     tab==="todos"?`Status do CRM = registros marcados como Vencido/Caso Crítico, como no dashboard. Destes, ${counts.ativosMarcados} estão abertos e ${bloqueados} têm marcação manual de encerramento. Não contatar os encerrados só por esse status.`:
     tab==="revisar"?"Revisão cadastral = marcação de Vencido não combina com o agendamento/atendimento, ou o caso já foi encerrado. Corrigir somente após verificar o histórico. Não é fila automática de cobrança.":
     "Datas antigas = valor histórico de um campo legado diferente de próximo retorno. Não indica, sozinho, atraso de contato nem perda de prazo judicial."}
@@ -78,7 +78,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   </div>
   {limitReached?<p role="alert" className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-xs">A consulta alcançou o limite de registros. A lista pode estar incompleta; refine os filtros ou recarregue.</p>:null}
   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"marcações cadastradas no CRM":tab==="retorno"?"retornos ao cliente para verificar":tab==="prazo"?"datas legadas antigas, sem comprovação de atraso judicial":"cadastros a revisar"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} marcado(s) como encerrado(s), sem cobrança`:""}</span>
+   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"marcações cadastradas no CRM":tab==="retorno"?"retornos vencidos ao cliente para verificar":tab==="prazo"?"datas legadas antigas, sem comprovação de atraso judicial":"cadastros a revisar"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} marcado(s) como encerrado(s), sem cobrança`:""}</span>
    <div className="flex flex-wrap gap-2">
     <Link href="/cases?filter=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Meus processos vencidos</Link>
     <Link href="/tarefas?filtro=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Fila de tarefas vencidas</Link>
