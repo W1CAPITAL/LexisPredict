@@ -46,8 +46,10 @@ export function classificarVencimento(c:CaseVencimento,hoje?:string){
  */
 export function isVencidoNoCRM(c:CaseVencimento){
  const d=(c.dados&&typeof c.dados==="object"?c.dados:{} ) as Record<string,unknown>;
- const raw=(c as CaseVencimento&{status_crm?:string|null}).status_crm||d.status||c.status;
- return raw==="Vencido"||raw==="Caso Crítico";
+ // Coluna status é a fonte canônica do CRM. O JSON legado só é usado
+ // se ela estiver ausente; não deixar dados.status velho se sobrepor ao banco.
+ const raw=(c as CaseVencimento&{status_crm?:string|null}).status_crm ?? c.status ?? d.status;
+ return /^(vencido|caso cr[ií]tico)$/i.test(String(raw||"").trim());
 }
 export function isVencidoAcionavelCRM(c:CaseVencimento){
  return isVencidoNoCRM(c)&&!isCasoEncerrado(c);
