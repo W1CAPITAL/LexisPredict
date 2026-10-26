@@ -491,8 +491,10 @@ export async function auditCaseCoreSystem(
   if (!datajudOk && !djenOk) {
     // Falha real de fonte. Nunca afirmar que "sem itens" = offline:
     // datajudOk/djenOk ficam true quando a consulta respondeu validamente, mesmo vazia.
+    // P0: scanner local nao deve registrar um "Monitoramento Regular"
+    // ou atendimento bem-sucedido quando ambas as fontes falharam.
     return {
-      success: true,
+      success: false,
       offline: true,
       error: 'Não foi possível consultar as fontes externas agora.',
       message: 'DataJud e DJEN ficaram indisponíveis nesta tentativa. Nenhum dado existente foi alterado.',
