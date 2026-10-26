@@ -37,7 +37,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import {isVencidoAcionavelCRM} from "@/lib/vencimentos";
+import {isCasoVencido} from "@/lib/vencimentos";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 // Scanner panel mounts on demand through the app's ClientChrome.
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
@@ -331,8 +331,8 @@ export default function ProcessosEmpresaPage() {
       if(wasClosed!==nowClosed){
         setAtivosCount(n=>n===null?n:Math.max(0,n+(nowClosed?-1:1)));
         setEncerradosCount(n=>n===null?n:Math.max(0,n+(nowClosed?1:-1)));
-        const wasOverdue=isVencidoAcionavelCRM(previous);
-        const nowOverdue=isVencidoAcionavelCRM(updated);
+        const wasOverdue=isCasoVencido(previous);
+        const nowOverdue=isCasoVencido(updated);
         setVencidosCount(n=>n===null?n:Math.max(0,n+(nowClosed?0:Number(nowOverdue))-(wasClosed?0:Number(wasOverdue))));
       }
     }
