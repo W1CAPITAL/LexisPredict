@@ -640,10 +640,13 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
               ? ' · teor ainda limitado'
               : ' · teor enriquecido'
           : '';
+      // A execução oficial ocupa o início do feed. Hipóteses de IA nunca
+      // substituem o status das fontes nem viram prova de mérito/baixa.
+      const officialLine = String(res.message || '').trim() || baseMsg;
       const message = aiLine
-        ? aiLine
+        ? `${officialLine} · ${aiLine}`
         : aiEng
-          ? `[IA: ${aiEng}] ${labelCumpr} · ${baseMsg}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}${teorNote}`
+          ? `${officialLine} · [HIPÓTESE IA: ${aiEng} · NÃO CONFIRMADO] ${labelCumpr}${patch.ai_flags_label ? ` | ${patch.ai_flags_label}` : ''}${teorNote}`
           : scope === 'cumprimento'
             ? `${labelCumpr} · ${baseMsg}${teorNote}`
             : baseMsg;
