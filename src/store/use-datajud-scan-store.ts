@@ -55,6 +55,7 @@ interface DataJudScanState {
   cloudCursorId: string;
   cloudSuccesses: number;
   cloudFailures: number;
+  cloudPartials: number;
   cloudAttempts: number;
   cloudRetryPass: number;
   cloudBusy: boolean;
@@ -69,6 +70,7 @@ interface DataJudScanState {
   manualClosed: number;
   manualDjenAlerts: number;
   manualErrors: number;
+  manualPartials: number;
   lastLogs: ScanLog[];
 
   scanMode: ScanMode;
@@ -115,7 +117,7 @@ function persistCloudCheckpoint(state:DataJudScanState) {
   if(typeof window==='undefined'||!state.cloudTenantId||!state.cloudUserId)return;
   try{localStorage.setItem(cloudKey(state.cloudTenantId,state.cloudUserId),JSON.stringify({
     at:Date.now(),startedAt:state.cloudStartedAt,cursor:state.cloudCursorId,
-    done:state.done,total:state.total,successes:state.cloudSuccesses,failures:state.cloudFailures,
+    done:state.done,total:state.total,successes:state.cloudSuccesses,failures:state.cloudFailures,partials:state.cloudPartials,
     attempts:state.cloudAttempts,retryPass:state.cloudRetryPass,
     mode:state.scanMode,scope:state.scanScope,
   }));}catch{/* storage unavailable */}
@@ -138,6 +140,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   cloudCursorId: '',
   cloudSuccesses: 0,
   cloudFailures: 0,
+  cloudPartials: 0,
   cloudAttempts: 0,
   cloudRetryPass: 0,
   cloudBusy: false,
@@ -152,6 +155,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   manualClosed: 0,
   manualDjenAlerts: 0,
   manualErrors: 0,
+  manualPartials: 0,
   lastLogs: [],
 
   scanMode: 'both',
@@ -230,6 +234,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudStartedAt:String(cp.startedAt),cloudCursorId:String(cp.cursor||''),
       done:Number(cp.done||0),total:Number(cp.total||0),
       cloudSuccesses:Number(cp.successes||0),cloudFailures:Number(cp.failures||0),
+      cloudPartials:Number(cp.partials||0),
       cloudAttempts:Number(cp.attempts||cp.done||0),cloudRetryPass:Number(cp.retryPass||0),
       scanMode:['both','datajud','djen'].includes(cp.mode)?cp.mode:'both',
       scanScope:cp.scope==='cumprimento'?'cumprimento':'full',
@@ -251,6 +256,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudCursorId: resume ? get().cloudCursorId : '',
       cloudSuccesses: resume ? get().cloudSuccesses : 0,
       cloudFailures: resume ? get().cloudFailures : 0,
+      cloudPartials: resume ? get().cloudPartials : 0,
       cloudAttempts: resume ? get().cloudAttempts : 0,
       cloudRetryPass: resume ? get().cloudRetryPass : 0,
       done: resume ? get().done : 0,
@@ -316,6 +322,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
             manualClosed: 0,
             manualDjenAlerts: 0,
             manualErrors: 0,
+            manualPartials: 0,
             // LOTE2: não apaga o feed inteiro — mantém últimos 15 para contexto
             lastLogs: get().lastLogs.slice(0, 15),
           }),
@@ -611,6 +618,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const latency = Date.now() - start;
       const patch = (res?.casePatch as Record<string, any>) || {};
 
+      if (res.partial) set((s) => ({ manualPartials: s.manualPartials + 1 }));
       if (res.success && res.casePatch) {
         if (patch.tem_atualizacao_pos_retorno) set((s) => ({ manualAlerts: s.manualAlerts + 1 }));
         if (patch.djen_nova_comunicacao) set((s) => ({ manualDjenAlerts: s.manualDjenAlerts + 1 }));
@@ -688,7 +696,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         if (st.manualDone > 0 && st.manualDone % 10 === 0) {
           get().addLog({
             protocolo: 'SISTEMA',
-            message: `Progresso ${st.manualDone}/${st.manualTotal || '?'} · alertas ${st.manualAlerts} · DJEN ${st.manualDjenAlerts} · erros ${st.manualErrors}`,
+            message: `Progresso ${st.manualDone}/${st.manualTotal || '?'} · alertas ${st.manualAlerts} · DJEN ${st.manualDjenAlerts} · parciais ${st.manualPartials} · erros ${st.manualErrors}`,
             latency: 0,
             success: true,
             type: 'ok',
@@ -741,6 +749,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudCursorId: '',
       cloudSuccesses: 0,
       cloudFailures: 0,
+      cloudPartials: 0,
       cloudAttempts: 0,
       cloudRetryPass: 0,
       cloudBusy: false,
@@ -751,6 +760,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       manualDone: 0,
       manualTotal: 0,
       manualErrors: 0,
+      manualPartials: 0,
       manualAlerts: 0,
       manualClosed: 0,
       manualDjenAlerts: 0,
@@ -837,6 +847,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       const attempted = st.cloudAttempts + Math.max(0, Number(worker.processed || 0));
       const visibleDone = Math.min(totalForMode > 0 ? totalForMode : attempted, attempted);
       const failures = st.cloudFailures + Number(worker.failedCount || 0);
+      const partials = st.cloudPartials + Number(worker.partialCount || 0);
       const successes = st.cloudSuccesses + Number(worker.successCount || 0);
 
       set({
@@ -845,6 +856,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         cloudAttempts: attempted,
         cloudCursorId: /^\d+$/.test(String(worker.lastId || '')) ? String(worker.lastId) : st.cloudCursorId,
         cloudFailures: failures,
+        cloudPartials: partials,
         cloudSuccesses: successes,
         pending: pendingForMode ?? Math.max(0, totalForMode - visibleDone),
         alerts: metrics.alerts ?? 0,
@@ -880,7 +892,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         clearCloudCheckpoint(get());
         get().addLog({
           protocolo: 'SISTEMA',
-          message: `Fila percorrida: ${successes} com ao menos uma fonte confirmada (inclui parciais), ${failures} sem confirmação, ${attempted} tentativas.${pendingForMode === null ? ' Total de pendências não disponível.' : ` ${pendingForMode} fontes ainda pendentes após as passagens.`} Nenhuma consulta parcial equivale a auditoria BOTH completa.`,
+          message: `Fila percorrida: ${successes - partials} com resultado completo, ${partials} parciais, ${failures} sem confirmação, ${attempted} tentativas.${pendingForMode === null ? ' Total de pendências não disponível.' : ` ${pendingForMode} fontes ainda pendentes após as passagens.`} Nenhuma consulta parcial equivale a auditoria BOTH completa.`,
           latency: 0,
           success: true,
           type: 'ok',
