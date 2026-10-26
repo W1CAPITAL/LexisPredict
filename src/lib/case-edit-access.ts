@@ -1,4 +1,5 @@
 import type { getUserContext } from '@/lib/server-db';
+import { canOperateCompanyCases } from '@/lib/roles';
 
 type Context = Awaited<ReturnType<typeof getUserContext>>;
 
@@ -9,6 +10,6 @@ type Context = Awaited<ReturnType<typeof getUserContext>>;
  * O servidor deve sempre validar a empresa, inclusive ao usar service_role.
  */
 export async function canAccessExistingCase(ctx: Context, row: Record<string, any> | null): Promise<boolean> {
-  if (!row || !ctx.auth_id || !ctx.empresa_id ) return false;
+  if (!row || !canOperateCompanyCases(ctx)) return false;
   return String(row.empresa_id || '') === String(ctx.empresa_id);
 }
