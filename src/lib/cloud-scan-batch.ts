@@ -42,6 +42,7 @@ export async function runCloudScanBatch(input: {
       processed: 0,
       successCount: 0,
       failedCount: 0,
+      partialCount: 0,
       mode: input.mode,
       scope: input.scope,
       since: input.since || null,
@@ -53,6 +54,7 @@ export async function runCloudScanBatch(input: {
 
   let successCount = 0;
   let failedCount = 0;
+  let partialCount = 0;
   let lastId = input.afterId || null;
   const caseResults: Array<{cnj:string;success:boolean;durationMs:number;datajudOk:boolean;djenOk:boolean;error?:string}> = [];
 
@@ -75,10 +77,13 @@ export async function runCloudScanBatch(input: {
       const success = result.success === true && !(result as any).offline;
       if (success) successCount += 1;
       else failedCount += 1;
+      const datajudOk = result.sourceStatus?.datajud?.ok===true;
+      const djenOk = result.sourceStatus?.djen?.ok===true;
+      if (success && input.mode==='both' && (!datajudOk || !djenOk)) partialCount++;
       caseResults.push({
         cnj:item.protocolo,success,durationMs:Date.now()-itemStartedAt,
-        datajudOk:result.sourceStatus?.datajud?.ok===true,
-        djenOk:result.sourceStatus?.djen?.ok===true,
+        datajudOk,
+        djenOk,
         ...(!success?{error:'Nenhuma consulta oficial confirmada neste lote'}:{}),
       });
     } catch (error) {
@@ -100,6 +105,7 @@ export async function runCloudScanBatch(input: {
     processed: successCount + failedCount,
     successCount,
     failedCount,
+    partialCount,
     lastId,
     caseResults,
     mode: input.mode,
