@@ -3,7 +3,7 @@
  * Os estados salvos no CRM não são eventos de consulta.
  */
 export function scanSourceLogMessage(
- item:{success?:boolean;datajudOk?:boolean;djenOk?:boolean;error?:string|null},
+ item:{success?:boolean;datajudOk?:boolean;djenOk?:boolean;datajudError?:string|null;error?:string|null},
  mode:'datajud'|'djen'|'both'
 ):string{
  const datajud=item.datajudOk===true;
@@ -17,6 +17,8 @@ export function scanSourceLogMessage(
   return djen?'DJEN: consulta oficial confirmada':'DJEN: sem confirmação oficial; verificar fonte';
  if(datajud&&djen)return 'DataJud e DJEN: consultas oficiais confirmadas';
  if(datajud)return 'Consulta PARCIAL · DataJud: OK · DJEN: não confirmado; reconsultar DJEN';
- if(djen)return 'Consulta PARCIAL · DataJud: não confirmado · DJEN: OK; reconsultar DataJud';
+ if(djen)return 'Consulta PARCIAL · DataJud: não confirmado'+
+  (item.datajudError?' ('+String(item.datajudError).slice(0,100)+')':'')+
+  ' · DJEN: OK; reconsultar DataJud';
  return 'Consulta sem confirmação de fontes oficiais; verificar falhas';
 }
