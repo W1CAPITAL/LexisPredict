@@ -571,17 +571,24 @@ export async function getGlobalPendingProcessesSystem(
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(slotsAtivos);
 
-  if (error) return [];
+  if (error) {
+    console.error('[getGlobalPendingProcessesSystem] ativos', error.message);
+    throw new Error('Falha ao consultar a fila de processos ativos no Supabase.');
+  }
 
   const out: LegalCase[] = (ativos || []).map(mapProcessoRow);
 
-  const { data: encerrados } = await admin
+  const { data: encerrados, error: encerradosError } = await admin
     .from('processos')
     .select('*')
     .eq('empresa_id', empresaId)
     .in('status', statusExcluidos)
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(slotsEnc * 4);
+  if (encerradosError) {
+    console.error('[getGlobalPendingProcessesSystem] encerrados', encerradosError.message);
+    throw new Error('Falha ao consultar a fila de processos encerrados no Supabase.');
+  }
 
   for (const item of encerrados || []) {
     if (out.length >= limit) break;
@@ -604,13 +611,17 @@ export async function getGlobalPendingProcessesSystem(
   // Se ainda sobrar vaga (poucos encerrados), completa com mais ativos
   if (out.length < limit) {
     const ids = new Set(out.map((c) => String(c.id || (c as any).db_id)));
-    const { data: maisAtivos } = await admin
+    const { data: maisAtivos, error: maisAtivosError } = await admin
       .from('processos')
       .select('*')
       .eq('empresa_id', empresaId)
       .not('status', 'in', statusFilter)
       .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
       .limit(limit * 2);
+    if (maisAtivosError) {
+      console.error('[getGlobalPendingProcessesSystem] complemento', maisAtivosError.message);
+      throw new Error('Falha ao completar a fila do scanner no Supabase.');
+    }
     for (const item of maisAtivos || []) {
       if (out.length >= limit) break;
       if (ids.has(String(item.id))) continue;
@@ -625,7 +636,7 @@ export async function getGlobalPendingProcessesSystem(
     // Lote4: se o micro-lote genérico não trouxe candidatos, busca DIRETO no banco
     // (flags executivas / procedente / baixa) — não faz fallback silencioso para Full
     if (filtered.length === 0) {
-      const { data: cand } = await admin
+      const { data: cand, error: candError } = await admin
         .from('processos')
         .select('*')
         .eq('empresa_id', empresaId)
@@ -639,18 +650,25 @@ export async function getGlobalPendingProcessesSystem(
         )
         .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
         .limit(limit * 3);
-
+      if (candError) {
+        console.error('[getGlobalPendingProcessesSystem] cumprimento', candError.message);
+        throw new Error('Falha ao consultar a fila de cumprimento no Supabase.');
+      }
       const mapped = (cand || []).map(mapProcessoRow);
       filtered = mapped.filter((c) => isCandidatoCumprimentoScan(c));
       if (filtered.length === 0) {
 
-        const { data: never } = await admin
+        const { data: never, error: neverError } = await admin
           .from('processos')
           .select('*')
           .eq('empresa_id', empresaId)
           .is('datajud_consultado_em', null)
           .order('created_at', { ascending: false })
           .limit(limit);
+        if (neverError) {
+          console.error('[getGlobalPendingProcessesSystem] sem consulta', neverError.message);
+          throw new Error('Falha ao consultar processos sem verificação anterior no Supabase.');
+        }
         filtered = (never || []).map(mapProcessoRow);
       }
     }
