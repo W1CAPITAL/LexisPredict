@@ -16,6 +16,7 @@ import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
 import { mensagemScanHttp } from '@/lib/scan-http-pt';
 import { labelResultadoCumprimentoScan, cumprimentoPendenteIndefinido } from '@/lib/cumprimento-scan-labels';
 import {scanSourceLogMessage} from '@/lib/scan-result-label';
+import { cloudSourceCooldownMs, shouldRetryPendingCloudSources } from '@/lib/cloud-scan-recovery';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -54,6 +55,8 @@ interface DataJudScanState {
   cloudCursorId: string;
   cloudSuccesses: number;
   cloudFailures: number;
+  cloudAttempts: number;
+  cloudRetryPass: number;
   cloudBusy: boolean;
   cloudLastCnj: string | null;
   cloudTenantId: string;
@@ -97,6 +100,7 @@ interface DataJudScanState {
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let cloudPollBusy = false;
 let consecutiveCloudFailures = 0;
+let cloudCooldownUntil = 0;
 const CLOUD_POLL_MS = 5000; // lote sequencial: cloudPollBusy previne sobreposicao
 const CLOUD_CHECKPOINT_KEY = 'lexis_scan_cloud_checkpoint_v2:';
 function cloudKey(empresaId:string,userId:string) {return CLOUD_CHECKPOINT_KEY+empresaId+':'+userId;}
@@ -112,6 +116,7 @@ function persistCloudCheckpoint(state:DataJudScanState) {
   try{localStorage.setItem(cloudKey(state.cloudTenantId,state.cloudUserId),JSON.stringify({
     at:Date.now(),startedAt:state.cloudStartedAt,cursor:state.cloudCursorId,
     done:state.done,total:state.total,successes:state.cloudSuccesses,failures:state.cloudFailures,
+    attempts:state.cloudAttempts,retryPass:state.cloudRetryPass,
     mode:state.scanMode,scope:state.scanScope,
   }));}catch{/* storage unavailable */}
 }
@@ -133,6 +138,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   cloudCursorId: '',
   cloudSuccesses: 0,
   cloudFailures: 0,
+  cloudAttempts: 0,
+  cloudRetryPass: 0,
   cloudBusy: false,
   cloudLastCnj: null,
   cloudTenantId: '',
@@ -223,6 +230,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudStartedAt:String(cp.startedAt),cloudCursorId:String(cp.cursor||''),
       done:Number(cp.done||0),total:Number(cp.total||0),
       cloudSuccesses:Number(cp.successes||0),cloudFailures:Number(cp.failures||0),
+      cloudAttempts:Number(cp.attempts||cp.done||0),cloudRetryPass:Number(cp.retryPass||0),
       scanMode:['both','datajud','djen'].includes(cp.mode)?cp.mode:'both',
       scanScope:cp.scope==='cumprimento'?'cumprimento':'full',
     });
@@ -230,6 +238,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
   startCloudScan: (empresaId,userId) => {
     consecutiveCloudFailures = 0;
+    cloudCooldownUntil = 0;
     const scope = get().scanScope || 'full';
     const mode = get().scanMode || 'both';
     const resume = get().status === 'paused' && !!get().cloudStartedAt;
@@ -242,6 +251,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudCursorId: resume ? get().cloudCursorId : '',
       cloudSuccesses: resume ? get().cloudSuccesses : 0,
       cloudFailures: resume ? get().cloudFailures : 0,
+      cloudAttempts: resume ? get().cloudAttempts : 0,
+      cloudRetryPass: resume ? get().cloudRetryPass : 0,
       done: resume ? get().done : 0,
       pending: resume ? get().pending : 0,
       cloudBusy: false,
@@ -727,6 +738,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       cloudCursorId: '',
       cloudSuccesses: 0,
       cloudFailures: 0,
+      cloudAttempts: 0,
+      cloudRetryPass: 0,
       cloudBusy: false,
       cloudLastCnj: null,
       cloudTenantId: '',
@@ -747,7 +760,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
    * cada poll espera um micro-lote terminar e para quando a sessão chega a N/N.
    */
   pollStatus: async () => {
-    if (get().status !== 'running' || cloudPollBusy) return;
+    if (get().status !== 'running' || cloudPollBusy || Date.now() < cloudCooldownUntil) return;
     cloudPollBusy = true;
     set({cloudBusy:true});
 
@@ -793,6 +806,15 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
         });
       }
+      const cooldownMs = cloudSourceCooldownMs(audited);
+      if (cooldownMs > 0) {
+        cloudCooldownUntil = Date.now() + cooldownMs;
+        get().addLog({
+          protocolo:'SISTEMA',engine:'Nuvem',
+          message:`Tribunal limitou ou atrasou a consulta. Pausa de ${Math.round(cooldownMs / 1000)}s antes do próximo CNJ (dados preservados).`,
+          latency:0,success:false,type:'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+        });
+      }
       if (Number(worker.partialCount || 0) > 0) {
         get().addLog({
           protocolo:'SISTEMA',engine:'Nuvem',
@@ -812,19 +834,22 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         });
         if (res.ok) metrics = await res.json();
       } catch { /* KPIs opcionais: cursor e resultados do worker continuam válidos */ }
-      const pendingForMode = Number(metrics.pending ?? 0);
+      const pendingForMode = metrics.pending == null || !Number.isFinite(Number(metrics.pending))
+        ? null : Math.max(0, Number(metrics.pending));
       const totalForMode = Number(metrics.total ?? 0);
-      const attempted = st.done + Math.max(0, Number(worker.processed || 0));
+      const attempted = st.cloudAttempts + Math.max(0, Number(worker.processed || 0));
+      const visibleDone = Math.min(totalForMode > 0 ? totalForMode : attempted, attempted);
       const failures = st.cloudFailures + Number(worker.failedCount || 0);
       const successes = st.cloudSuccesses + Number(worker.successCount || 0);
 
       set({
         total: totalForMode,
-        done: attempted,
+        done: visibleDone,
+        cloudAttempts: attempted,
         cloudCursorId: /^\d+$/.test(String(worker.lastId || '')) ? String(worker.lastId) : st.cloudCursorId,
         cloudFailures: failures,
         cloudSuccesses: successes,
-        pending: Math.max(0, totalForMode - attempted),
+        pending: pendingForMode ?? Math.max(0, totalForMode - visibleDone),
         alerts: metrics.alerts ?? 0,
         cloudDjenAlerts: metrics.djenAlerts ?? 0,
         closed: metrics.closed ?? 0,
@@ -834,16 +859,31 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       // NUNCA misturar registros salvos (telemetria) ao histórico de consultas
       // reais. Só caseResults informa duração, fonte e resultado desta sessão.
 
-      if (Number(worker.processed || 0) === 0 || (totalForMode > 0 && attempted >= totalForMode)) {
+      if (Number(worker.processed || 0) === 0) {
+        if (shouldRetryPendingCloudSources({
+          processed:Number(worker.processed || 0), pending:pendingForMode, retryPass:st.cloudRetryPass,
+        })) {
+          // O cursor da primeira passagem ignorou fontes parciais. Recomeçar
+          // uma única vez apenas nos registros que continuam pendentes desde
+          // o início da sessão, sem alterar desfechos de processos.
+          set({ cloudCursorId:'', cloudRetryPass:1, pending:pendingForMode ?? 0 });
+          persistCloudCheckpoint(get());
+          get().addLog({
+            protocolo:'SISTEMA',engine:'Nuvem',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+            message:`Fila percorrida, porém ${pendingForMode} fonte(s) ainda pendente(s). Iniciando 1 reconsulta controlada dos registros incompletos.`,
+            latency:0,success:false,type:'error',
+          });
+          return;
+        }
         if (pollTimer) {
           clearInterval(pollTimer);
           pollTimer = null;
         }
-        set({ status: 'done', pending: Math.max(0, totalForMode - attempted) });
+        set({ status: 'done', pending: pendingForMode ?? Math.max(0, totalForMode - visibleDone) });
         clearCloudCheckpoint(get());
         get().addLog({
           protocolo: 'SISTEMA',
-          message: `Fila percorrida: ${successes} com ao menos uma fonte confirmada (inclui parciais), ${failures} sem confirmação, ${attempted} tentativas. Casos parciais e falhas exigem reconsulta da fonte pendente.`,
+          message: `Fila percorrida: ${successes} com ao menos uma fonte confirmada (inclui parciais), ${failures} sem confirmação, ${attempted} tentativas.${pendingForMode === null ? ' Total de pendências não disponível.' : ` ${pendingForMode} fontes ainda pendentes após as passagens.`} Nenhuma consulta parcial equivale a auditoria BOTH completa.`,
           latency: 0,
           success: true,
           type: 'ok',
