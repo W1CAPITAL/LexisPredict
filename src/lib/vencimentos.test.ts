@@ -1,8 +1,8 @@
 import {describe,it,expect} from 'vitest';
-import {classificarVencimento,isVencidoNoCRM,isVencidoAcionavelCRM,resumirCentralVencidos} from './vencimentos';
+import {classificarVencimento,isVencidoNoCRM,isVencidoAcionavelCRM,resumirCentralVencidos,type CaseVencimento} from './vencimentos';
 
 const hoje='2026-10-26';
-const base={status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:null,ultimo_retorno:null,proximo_prazo:null};
+const base:CaseVencimento={status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:null,ultimo_retorno:null,proximo_prazo:null};
 const prepared=(rows:Array<typeof base & {dados?:Record<string,unknown>}>)=>
  rows.map(p=>({...p,flag:classificarVencimento(p,hoje)}));
 
