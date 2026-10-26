@@ -166,7 +166,7 @@ export async function fetchCarteiraPageClient(opts: {
   pendingPages.set(key,promise);
   try{
     const rows=await promise;
-    if(cacheGeneration()===key.split(':').at(-1)){
+    if(cacheGeneration()===key.split(':').at(-1) && pendingPages.get(key)===promise){
       pageMemory.set(key,{rows,at:Date.now()});
       if(pageMemory.size>40)pageMemory.delete(pageMemory.keys().next().value!);
     }
@@ -219,6 +219,8 @@ export async function fetchCarteiraAllClient(opts: {
   onError?: (error: unknown) => void;
   scope?: "mine" | "empresa";
   shouldContinue?: () => boolean;
+  /** Force server reads after another tab edits /processos or on manual reload. */
+  force?: boolean;
 }): Promise<LegalCase[]> {
   if (!opts.empresaId) return [];
   const pageSize = Math.max(40, Math.min(Number(opts.pageSize || 160), 250));
@@ -242,6 +244,7 @@ export async function fetchCarteiraAllClient(opts: {
         offset,
         onlyAtivos: opts.onlyAtivos,
         scope: opts.scope,
+        force: opts.force,
       });
     } catch (error) {
       opts.onError?.(error);

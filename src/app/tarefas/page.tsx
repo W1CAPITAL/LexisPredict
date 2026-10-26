@@ -165,6 +165,8 @@ export default function TarefasPage() {
   // Incremental generation prevents stale page responses from updating another
   // tenant/profile or a route the operator already left.
   const loadingGeneration=React.useRef(0);
+  const lastCarteiraReadAt=React.useRef(0);
+  const pendingCarteiraRefresh=React.useRef(false);
   const [syncingCases, setSyncingCases] = useState(false);
   const [carteiraError, setCarteiraError] = useState('');
   const [search, setSearch] = useState('');
@@ -289,8 +291,10 @@ export default function TarefasPage() {
     localStorage.setItem('lexis_tarefas_meta', newVal.toString());
   };
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
     if (!empresaId || !authUserId) return;
+    lastCarteiraReadAt.current=Date.now();
+    if(force)setSearchRefreshKey(k=>k+1);
     const generation=++loadingGeneration.current;
     const active=()=>loadingGeneration.current===generation;
     setLoading(true);
@@ -305,6 +309,7 @@ export default function TarefasPage() {
           firstPageSize: 36,
           pageSize: 300,
           scope: taskCaseScope,
+          force,
           onPage: (partial, page) => {
             if(!active())return;
             // Mostra primeira página imediatamente. Os lotes intermediários
@@ -323,7 +328,8 @@ export default function TarefasPage() {
         scope: taskCaseScope,
         userId: authUserId,
         viewKey: 'tarefas',
-        reuseFreshCache: true,
+        reuseFreshCache: !force,
+        authoritativeEmpty: force,
         maxAgeMs: 2 * 60_000,
         onShow: (data, source) => {
           if(!active())return;
@@ -350,6 +356,50 @@ export default function TarefasPage() {
     if(mounted)void loadData();
     return ()=>{loadingGeneration.current++;};
   }, [loadData,mounted]);
+
+  // Other tabs and other routes can change this queue. Force network data
+  // without rebroadcasting an invalidation (avoids refresh loops).
+  useEffect(() => {
+    if (!mounted || !empresaId || !authUserId) return;
+    let timer:number|null=null;
+    const blocked=()=>document.hidden || !!editingTask || isAttendanceOpen || isSavingAttendance;
+    const schedule=(onlyWhenStale=false)=>{
+      if(blocked())return;
+      if(onlyWhenStale && !pendingCarteiraRefresh.current &&
+        Date.now()-lastCarteiraReadAt.current < 90_000)return;
+      if(timer)window.clearTimeout(timer);
+      timer=window.setTimeout(()=>{
+        timer=null;
+        if(blocked())return;
+        pendingCarteiraRefresh.current=false;
+        void loadData(true);
+      },450);
+    };
+    const changed=()=>{
+      pendingCarteiraRefresh.current=true;
+      schedule();
+    };
+    const onStorage=(ev:StorageEvent)=>{
+      if(ev.key==='lexis_carteira_invalidation_v1' || ev.key==='lexis_carteira_refresh_at')changed();
+    };
+    const onVisible=()=>{if(!document.hidden)schedule(true);};
+    const onFocus=()=>schedule(true);
+    window.addEventListener('lexis-carteira-updated',changed);
+    window.addEventListener('storage',onStorage);
+    window.addEventListener('focus',onFocus);
+    document.addEventListener('visibilitychange',onVisible);
+    const interval=window.setInterval(()=>schedule(true),120_000);
+    // Invalidation during a modal stays pending until the modal closes.
+    if(pendingCarteiraRefresh.current)schedule(true);
+    return ()=>{
+      if(timer)window.clearTimeout(timer);
+      window.clearInterval(interval);
+      window.removeEventListener('lexis-carteira-updated',changed);
+      window.removeEventListener('storage',onStorage);
+      window.removeEventListener('focus',onFocus);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[mounted,empresaId,authUserId,loadData,editingTask,isAttendanceOpen,isSavingAttendance]);
 
   const handleSingleScan = async (protocolo: string) => {
     if (!protocolo) return;
@@ -925,7 +975,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
           <div className="flex items-center gap-2">
             <Link href="/vencidos" className="inline-flex h-10 items-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">Central de vencidos</Link>
             <Button type="button" variant={filaFiltro==="vencido"?"default":"outline"} size="sm" onClick={()=>setFilaFiltro(filaFiltro==="vencido"?"all":"vencido")} className="h-10 rounded-xl">Ver vencidos nesta fila</Button>
-            <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
+            <Button variant="outline" size="sm" onClick={() => void loadData(true)} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Recarregar carteira
             </Button>
             <Button asChild size="sm" className="h-10 rounded-xl bg-[#1f6fff] px-5 font-bold text-white hover:bg-[#145de0]">
@@ -1113,7 +1163,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                         invalidateCarteiraCache();
                         invalidateCarteiraClientCache();
                       } catch { /* cache best effort */ }
-                      void loadData();
+                      void loadData(true);
                     }}
                   >
                     Recarregar carteira
