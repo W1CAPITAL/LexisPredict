@@ -329,6 +329,7 @@ export default function TarefasPage() {
         userId: authUserId,
         viewKey: 'tarefas',
         reuseFreshCache: !force,
+        authoritativeEmpty: force,
         maxAgeMs: 2 * 60_000,
         onShow: (data, source) => {
           if(!active())return;
