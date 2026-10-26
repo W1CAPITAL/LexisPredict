@@ -2,7 +2,7 @@
 import {useMemo,useState} from "react";
 import Link from "next/link";
 import {AlertTriangle,CalendarClock,CheckCircle2,ChevronRight,Clock3,Filter,Search,ShieldAlert,Users} from "lucide-react";
-import {classificarVencimento} from "@/lib/vencimentos";
+import {classificarVencimento,isVencidoAcionavelCRM,isVencidoNoCRM,resumirCentralVencidos} from "@/lib/vencimentos";
 
 export type VencidoRow={
  id:number;cliente:string;protocolo_ref:string;created_by:string|null;status:string|null;status_interno:string|null;statusManual?:string|null;
@@ -14,7 +14,8 @@ export type Owner={id:string;auth_user_id:string|null;nome:string};
 const format=(n:number)=>n.toLocaleString("pt-BR");
 const br=(v:string|null)=>v&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(8,10)+"/"+v.slice(5,7)+"/"+v.slice(0,4):"—";
 const norm=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-const crmVencido=(p:VencidoRow)=>p.status==="Vencido"||p.status==="Caso Crítico";
+const crmVencido=(p:VencidoRow)=>isVencidoNoCRM(p);
+const crmAcionavel=(p:VencidoRow)=>isVencidoAcionavelCRM(p);
 export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[];owners:Owner[];hoje:string;limitReached:boolean}){
  const [tab,setTab]=useState<"todos"|"retorno"|"prazo"|"revisar">("todos");
  const [query,setQuery]=useState("");
@@ -30,13 +31,13 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  const prepared=useMemo(()=>data.map(p=>({...p,flag:classificarVencimento(p,hoje)}))
  .filter(p=>crmVencido(p)||(!p.flag.excluido&&(p.flag.vencido||p.flag.historico||p.flag.inconsistencia))),[data,hoje]);
  const offices=useMemo(()=>Array.from(new Set(prepared.map(p=>p.escritorio?.trim()).filter((s):s is string=>!!s))).sort((a,b)=>a.localeCompare(b,"pt-BR")),[prepared]);
- const counts={todos:prepared.filter(crmVencido).length,retorno:prepared.filter(p=>p.flag.retorno).length,prazo:prepared.filter(p=>p.flag.historico).length,revisar:prepared.filter(p=>p.flag.inconsistencia).length};
- const bloqueados=prepared.filter(p=>crmVencido(p)&&p.flag.excluido).length;
+ const counts=useMemo(()=>resumirCentralVencidos(prepared),[prepared]);
+ const bloqueados=counts.encerradosMarcados;
  const visible=useMemo(()=>prepared.filter(p=>{
-  if(tab==="todos"&&!crmVencido(p))return false;
+  if(tab==="todos"&&!crmAcionavel(p))return false;
   if(tab==="retorno"&&!p.flag.retorno)return false;
   if(tab==="prazo"&&!p.flag.historico)return false;
-  if(tab==="revisar"&&!p.flag.inconsistencia)return false;
+  if(tab==="revisar"&&!p.flag.inconsistencia&&!(crmVencido(p)&&p.flag.excluido))return false;
   if(owner!=="todos"&&!(owners.some(x=>x.id===owner&&(p.created_by===x.id||p.created_by===x.auth_user_id))))return false;
   if(office!=="todos"&&p.escritorio?.trim()!==office)return false;
   const q=norm(query.trim());if(q&&!norm([p.cliente,p.protocolo_ref,p.advogado,p.escritorio,ownerMap.get(p.created_by||"")].join(" ")).includes(q))return false;
@@ -50,7 +51,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   <div className="rounded-[1.6rem] border border-rose-300/35 bg-gradient-to-br from-rose-50 via-background to-violet-50 p-6 dark:from-rose-950/20 dark:to-violet-950/20">
    <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-rose-700 dark:text-rose-300"><AlertTriangle size={15}/> Central de vencidos</p>
    <h1 className="mt-2 text-3xl font-black">Vencidos do CRM, sem confundir com retornos atrasados.</h1>
-   <p className="mt-2 max-w-3xl text-sm text-muted-foreground">O indicador principal considera o status Vencido/Caso Crítico cadastrado no CRM. Retornos atrasados por data são exibidos separadamente e não aumentam essa contagem. Cadastros com encerramento manual ficam bloqueados para cobrança.</p>
+   <p className="mt-2 max-w-3xl text-sm text-muted-foreground">O indicador principal considera o status Vencido/Caso Crítico de processos ativos no CRM, igual ao resumo da carteira. Retornos atrasados por data são separados; encerrados ainda marcados como vencidos aparecem somente na revisão e nunca para cobrança.</p>
    <p className="mt-3 text-xs text-muted-foreground">Referência: {br(hoje)} · Datas calculadas no horário de Brasília · A contagem muda quando os dados são atualizados</p>
   </div>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -70,7 +71,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   </div>
   {limitReached?<p role="alert" className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-xs">A consulta alcançou o limite de registros. A lista pode estar incompleta; refine os filtros ou recarregue.</p>:null}
   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"marcações no status do CRM":tab==="retorno"?"retornos atrasados por data para conferência":"cadastros a conferir"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} com encerramento manual, sem cobrança`:""}</span>
+   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"processos ativos marcados no CRM":tab==="retorno"?"retornos atrasados por data para conferência":"cadastros a conferir"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} com encerramento manual, sem cobrança`:""}</span>
    <div className="flex flex-wrap gap-2">
     <Link href="/cases?filter=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Meus processos vencidos</Link>
     <Link href="/tarefas?filtro=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Fila de tarefas vencidas</Link>
@@ -79,7 +80,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   {visible.length?<div className="grid gap-3 md:grid-cols-2">
    {visible.slice(0,visibleCount).map(p=><article key={p.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
     <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h2 className="text-sm font-extrabold">{p.cliente||"Cliente não identificado"}</h2><p className="mt-1 font-mono text-[11px] text-muted-foreground">{p.protocolo_ref||"Sem CNJ"}</p></div>
-     <div className="flex gap-1.5 flex-wrap">{p.flag.excluido?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">Encerrado manualmente: revisar</span>:null}{tab==="todos"&&crmVencido(p)&&!p.flag.retorno&&!p.flag.excluido?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">Status antigo: revisar</span>:null}{p.flag.retorno?<span className="rounded-full bg-rose-500/10 px-2.5 py-1 text-[10px] font-bold text-rose-700 dark:text-rose-300">Retorno vencido</span>:null}{tab==="prazo"&&p.flag.historico?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">Data histórica; retorno não vencido</span>:null}{tab==="revisar"&&p.flag.inconsistencia?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">{p.flag.marcado?"Marcado como vencido indevidamente":"Retorno vencido sem status atualizado"}</span>:null}</div>
+     <div className="flex gap-1.5 flex-wrap">{p.flag.excluido?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">Encerrado manualmente: revisar</span>:null}{tab==="todos"&&crmAcionavel(p)&&!p.flag.retorno?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">Status antigo: revisar</span>:null}{p.flag.retorno?<span className="rounded-full bg-rose-500/10 px-2.5 py-1 text-[10px] font-bold text-rose-700 dark:text-rose-300">Retorno vencido</span>:null}{tab==="prazo"&&p.flag.historico?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">Data histórica; retorno não vencido</span>:null}{tab==="revisar"&&crmVencido(p)&&p.flag.excluido?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">Encerrado com status antigo: corrigir cadastro, sem cobrança</span>:null}{tab==="revisar"&&p.flag.inconsistencia?<span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">{p.flag.marcado?"Marcado como vencido indevidamente":"Retorno vencido sem status atualizado"}</span>:null}</div>
     </div>
     <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
      <div><p className="text-muted-foreground">Próximo retorno</p><p className="mt-1 font-bold">{br(p.proximo_retorno)}</p></div>

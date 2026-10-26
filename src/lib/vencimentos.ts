@@ -46,12 +46,33 @@ export function classificarVencimento(c:CaseVencimento,hoje?:string){
  */
 export function isVencidoNoCRM(c:CaseVencimento){
  const d=(c.dados&&typeof c.dados==="object"?c.dados:{} ) as Record<string,unknown>;
- const raw=(c as CaseVencimento&{status_crm?:string|null}).status_crm||d.status||c.status;
- return raw==="Vencido"||raw==="Caso Crítico";
+ // Coluna status é a fonte canônica do CRM. O JSON legado só é usado
+ // se ela estiver ausente; não deixar dados.status velho se sobrepor ao banco.
+ const raw=(c as CaseVencimento&{status_crm?:string|null}).status_crm ?? c.status ?? d.status;
+ return /^(vencido|caso cr[ií]tico)$/i.test(String(raw||"").trim());
 }
 export function isVencidoAcionavelCRM(c:CaseVencimento){
  return isVencidoNoCRM(c)&&!isCasoEncerrado(c);
 }
 export function isCasoVencido(c:CaseVencimento,hoje?:string){
  return classificarVencimento(c,hoje).vencido;
+}
+
+/** Mesma contagem da Central e dos KPIs: marcação do CRM apenas em casos ativos.
+ * Retornos em atraso e datas históricas são categorias independentes.
+ * O status de encerrado marcado indevidamente vai para revisão, nunca cobrança.
+ */
+export function resumirCentralVencidos(
+ rows: ReadonlyArray<CaseVencimento & {flag: ReturnType<typeof classificarVencimento>}>
+){
+ let todos=0,retorno=0,prazo=0,revisar=0,encerradosMarcados=0;
+ for(const p of rows){
+  const marcado=isVencidoNoCRM(p);
+  if(marcado&&!p.flag.excluido)todos++;
+  if(p.flag.retorno)retorno++;
+  if(p.flag.historico)prazo++;
+  if(p.flag.inconsistencia||(marcado&&p.flag.excluido))revisar++;
+  if(marcado&&p.flag.excluido)encerradosMarcados++;
+ }
+ return {todos,retorno,prazo,revisar,encerradosMarcados};
 }
