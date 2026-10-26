@@ -777,15 +777,10 @@ export async function getScanStatusMetrics(
     .eq('empresa_id', empresaId)
     .eq('datajud_encerrado_tribunal', true);
 
-  const orderColumn = mode === 'djen' ? 'djen_consultado_em' : 'datajud_consultado_em';
-  const { data: recent } = await admin
-    .from('processos')
-    .select('protocolo_ref, tem_atualizacao_pos_retorno, datajud_encerrado_tribunal, djen_nova_comunicacao, datajud_ultimo_nome, datajud_consultado_em, djen_consultado_em')
-    .eq('empresa_id', empresaId)
-    .not(orderColumn, 'is', null)
-    .order(orderColumn, { ascending: false })
-    .limit(10);
-
+  // Esta rota retorna apenas métricas agregadas. Uma linha de processos
+  // não é evento do scanner: antes o estado salvo gerava logs falsos com
+  // latency=0, BAIXA NO TRIBUNAL e MONITORAMENTO REGULAR a cada poll.
+  // Eventos reais devem vir unicamente de caseResults / execução local.
   const totalN = total || 0;
   const pendingN = pending || 0;
 
@@ -798,22 +793,9 @@ export async function getScanStatusMetrics(
     closed: closed || 0,
     mode,
     since,
-    recentLogs: recent?.map(r => ({
-      protocolo: r.protocolo_ref,
-      message: r.datajud_encerrado_tribunal
-        ? 'BAIXA NO TRIBUNAL'
-        : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao)
-          ? 'NOVA MOVIMENTAÇÃO'
-          : 'Monitoramento Regular',
-      success: true,
-      latency: 0,
-      type: r.datajud_encerrado_tribunal
-        ? 'closed'
-        : (r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao)
-          ? 'update'
-          : 'ok',
-      engine: 'Nuvem'
-    })) || []
+    // Contrato legado mantido vazio para clientes em versões anteriores.
+    // Histórico exibível precisa de duração e resultado da requisição real.
+    recentLogs: []
   };
 }
 
