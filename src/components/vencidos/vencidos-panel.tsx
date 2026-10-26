@@ -2,7 +2,7 @@
 import {useMemo,useState} from "react";
 import Link from "next/link";
 import {AlertTriangle,CalendarClock,CheckCircle2,ChevronRight,Clock3,Filter,Search,ShieldAlert,Users} from "lucide-react";
-import {classificarVencimento,isVencidoAcionavelCRM,isVencidoNoCRM} from "@/lib/vencimentos";
+import {classificarVencimento,isVencidoAcionavelCRM,isVencidoNoCRM,resumirCentralVencidos} from "@/lib/vencimentos";
 
 export type VencidoRow={
  id:number;cliente:string;protocolo_ref:string;created_by:string|null;status:string|null;status_interno:string|null;statusManual?:string|null;
@@ -31,8 +31,8 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  const prepared=useMemo(()=>data.map(p=>({...p,flag:classificarVencimento(p,hoje)}))
  .filter(p=>crmVencido(p)||(!p.flag.excluido&&(p.flag.vencido||p.flag.historico||p.flag.inconsistencia))),[data,hoje]);
  const offices=useMemo(()=>Array.from(new Set(prepared.map(p=>p.escritorio?.trim()).filter((s):s is string=>!!s))).sort((a,b)=>a.localeCompare(b,"pt-BR")),[prepared]);
- const counts={todos:prepared.filter(crmAcionavel).length,retorno:prepared.filter(p=>p.flag.retorno).length,prazo:prepared.filter(p=>p.flag.historico).length,revisar:prepared.filter(p=>p.flag.inconsistencia||(crmVencido(p)&&p.flag.excluido)).length};
- const bloqueados=prepared.filter(p=>crmVencido(p)&&p.flag.excluido).length;
+ const counts=useMemo(()=>resumirCentralVencidos(prepared),[prepared]);
+ const bloqueados=counts.encerradosMarcados;
  const visible=useMemo(()=>prepared.filter(p=>{
   if(tab==="todos"&&!crmAcionavel(p))return false;
   if(tab==="retorno"&&!p.flag.retorno)return false;
