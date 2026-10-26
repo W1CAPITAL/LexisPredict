@@ -56,7 +56,7 @@ export async function runCloudScanBatch(input: {
   let failedCount = 0;
   let partialCount = 0;
   let lastId = input.afterId || null;
-  const caseResults: Array<{cnj:string;success:boolean;durationMs:number;datajudOk:boolean;djenOk:boolean;error?:string}> = [];
+  const caseResults: Array<{cnj:string;success:boolean;durationMs:number;datajudOk:boolean;djenOk:boolean;datajudError?:string;error?:string}> = [];
 
   for (let i = 0; i < casesToAudit.length; i++) {
     if (Date.now() - startedAt > MAX_RUNTIME_MS) break;
@@ -84,6 +84,9 @@ export async function runCloudScanBatch(input: {
         cnj:item.protocolo,success,durationMs:Date.now()-itemStartedAt,
         datajudOk,
         djenOk,
+        ...(!datajudOk && result.sourceStatus?.datajud?.error
+          ? {datajudError:String(result.sourceStatus.datajud.error).slice(0,120)}
+          : {}),
         ...(!success?{error:'Nenhuma consulta oficial confirmada neste lote'}:{}),
       });
     } catch (error) {
