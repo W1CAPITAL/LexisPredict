@@ -630,7 +630,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
         source: 'LexisPredict',
         actor: ctx.auth_id || 'sync',
         actor_name: String((ctx as any).nome || (ctx as any).email || ctx.auth_id || 'Sistema'),
-        perfil: 'superadmin',
+        perfil: String((me as any)?.cargo || (me as any)?.role || 'Operador'),
       }).catch(() => {});
     }
 
@@ -650,7 +650,7 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
     if (!protocolo || !novo) return { success: false, message: 'Protocolo e novo responsável obrigatórios.' };
 
     const admin = await getSupabaseAdmin();
-    const { data: me } = await admin.from('usuarios').select('cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
+    const { data: me } = await admin.from('usuarios').select('nome,cargo,role,perfil').eq('empresa_id', empresa_id).eq('auth_user_id', auth_id).maybeSingle();
     // /processos é colaborativo: transferência dentro da mesma empresa.
     const { data: target } = await admin.from('usuarios').select('auth_user_id').eq('empresa_id', empresa_id).eq('auth_user_id', novo).maybeSingle();
     if (!target?.auth_user_id) return { success: false, message: 'Responsável não encontrado na empresa.' };
@@ -667,7 +667,7 @@ export async function reassignCaseOwnerAction(input: { protocolo: string; novoOw
 
     if (sheetsWebhookConfigured()) {
       const row = buildSheetRow({ ...(current.dados || {}), protocolo, created_by: novo, edited_by: auth_id, edited_at: now }, empresa_id, auth_id, String((me as any)?.nome || auth_id), { ...current, dados });
-      void sheetsServerPost({ action: 'upsert_batch', rows: [{ ...row, created_by: novo, CreatedBy: novo, Responsavel: novo }], source: 'LexisPredict', actor: auth_id, actor_name: String((me as any)?.nome || auth_id), perfil: 'superadmin' }).catch(() => {});
+      void sheetsServerPost({ action: 'upsert_batch', rows: [{ ...row, created_by: novo, CreatedBy: novo, Responsavel: novo }], source: 'LexisPredict', actor: auth_id, actor_name: String((me as any)?.nome || auth_id), perfil: String((me as any)?.cargo || (me as any)?.role || 'Operador') }).catch(() => {});
     }
 
     return { success: true, message: 'Responsável atualizado.' };
@@ -700,7 +700,7 @@ export async function stampAndLogEdicaoAction(protocolo: string, extra: Record<s
     if (sheetsWebhookConfigured()) {
       const actorName = String((ctx as any).nome || (ctx as any).email || ctx.auth_id || 'Sistema');
       const sheetRow = buildSheetRow({ ...(row.dados || {}), ...extra, protocolo, edited_by: ctx.auth_id, edited_at: now }, ctx.empresa_id, ctx.auth_id || null, actorName, { ...row, dados });
-      void sheetsServerPost({ action: 'upsert_batch', rows: [sheetRow], source: 'LexisPredict', actor: ctx.auth_id || 'sync', actor_name: actorName, perfil: 'superadmin' }).catch(() => {});
+      void sheetsServerPost({ action: 'upsert_batch', rows: [sheetRow], source: 'LexisPredict', actor: ctx.auth_id || 'sync', actor_name: actorName, perfil: String(ctx.cargo || 'Operador') }).catch(() => {});
     }
     return { success: true };
   } catch { return { success: false }; }
