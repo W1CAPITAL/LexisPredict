@@ -15,6 +15,7 @@ import { appendScanLog } from '@/lib/scan-event-log';
 import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
 import { mensagemScanHttp } from '@/lib/scan-http-pt';
 import { labelResultadoCumprimentoScan, cumprimentoPendenteIndefinido } from '@/lib/cumprimento-scan-labels';
+import {scanSourceLogMessage} from '@/lib/scan-result-label';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -783,9 +784,11 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set({cloudLastCnj:cnj});
         get().addLog({
           protocolo:cnj,engine:'Nuvem',
-          message:item.success ? `Consulta oficial concluída · DataJud: ${item.datajudOk?'OK':'não confirmado'} · DJEN: ${item.djenOk?'OK':'não confirmado'}` : `Falha de consulta · ${String(item.error||'fonte indisponível').slice(0,140)}`,
-          latency:Number(item.durationMs||0),success:item.success===true,
-          type:item.success?'ok':'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+          message: scanSourceLogMessage(item,mode),
+          latency:Number(item.durationMs||0),success:item.success===true && (!item.datajudOk || !item.djenOk ? mode!=='both' : true),
+          // Parcial deve ser destacado, nao apresentado como consulta completa.
+          type:item.success && (mode!=='both'||(item.datajudOk && item.djenOk))?'ok':'error',
+          source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
         });
       }
       consecutiveCloudFailures = worker.failedCount > 0 && worker.successCount === 0
@@ -818,11 +821,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
 
       persistCloudCheckpoint(get());
-      if (metrics.recentLogs?.length > 0) {
-        metrics.recentLogs.forEach((log: ScanLog) =>
-          get().addLog({ ...log, engine: log.engine || 'Nuvem' })
-        );
-      }
+      // NUNCA misturar registros salvos (telemetria) ao histórico de consultas
+      // reais. Só caseResults informa duração, fonte e resultado desta sessão.
 
       if (Number(worker.processed || 0) === 0 || (totalForMode > 0 && attempted >= totalForMode)) {
         if (pollTimer) {
