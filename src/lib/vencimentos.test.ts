@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {classificarVencimento,isVencidoNoCRM,isVencidoAcionavelCRM,resumirCentralVencidos,type CaseVencimento} from './vencimentos';
+import {classificarVencimento,isCasoVencido,isVencidoNoCRM,isVencidoAcionavelCRM,resumirCentralVencidos,type CaseVencimento} from './vencimentos';
 
 const hoje='2026-10-26';
 const base:CaseVencimento={status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:null,ultimo_retorno:null,proximo_prazo:null};
@@ -7,6 +7,17 @@ const prepared=(rows:CaseVencimento[])=>
  rows.map(p=>({...p,flag:classificarVencimento(p,hoje)}));
 
 describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>{
+ it('return date past with no later contact is overdue regardless of CRM status',()=>{
+  const expired={...base,status:'No Prazo',proximo_retorno:'2026-10-20',ultimo_retorno:'2026-10-19'};
+  expect(isCasoVencido(expired,hoje)).toBe(true);
+  expect(isVencidoNoCRM(expired)).toBe(false);
+  const markedButCurrent={...base,status:'Vencido',proximo_retorno:'2026-11-15'};
+  expect(isCasoVencido(markedButCurrent,hoje)).toBe(false);
+  expect(isVencidoNoCRM(markedButCurrent)).toBe(true);
+  const attendedAfter={...expired,ultimo_retorno:'2026-10-21'};
+  expect(isCasoVencido(attendedAfter,hoje)).toBe(false);
+  expect(isCasoVencido({...expired,status_interno:'ENCERRADO'},hoje)).toBe(false);
+ });
  it('prioritizes the canonical status over stale JSON',()=>{
   expect(isVencidoNoCRM({...base,status:'No Prazo',dados:{status:'Vencido'}})).toBe(false);
   expect(isVencidoNoCRM({...base,status:null,dados:{status:'Vencido'}})).toBe(true);
