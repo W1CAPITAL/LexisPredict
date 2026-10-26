@@ -1,7 +1,7 @@
 "use server";
 
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
-import {isCasoVencido} from "@/lib/vencimentos";
+import {isVencidoNoCRM} from "@/lib/vencimentos";
 
 export type ProcessosEmpresaKpis = {
   ok: boolean;
@@ -67,6 +67,21 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
     const authId = String(ctx.auth_id || '');
     // CompanyView is only enabled by the dedicated company-read screen.
     const companyWide = companyView || ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
+    // Both auth UUID and legacy usuarios.id are valid responsible IDs.
+    // Never trust an owner ID sent by the browser.
+    const ownerIds = [authId];
+    if (!companyWide) {
+      const { data: profile, error: profileError } = await admin.from("usuarios")
+        .select("id,auth_user_id")
+        .eq("empresa_id", empresaId)
+        .eq("auth_user_id", authId)
+        .maybeSingle();
+      if (profileError) {
+        return { ok:false,total:0,ativos:0,encerradosCarteira:0,baixasTribunal:0,vencidos:0,
+          error:"Falha ao confirmar o responsável da carteira." };
+      }
+      if (profile?.id && !ownerIds.includes(String(profile.id))) ownerIds.push(String(profile.id));
+    }
     const pageSize = 1000;
     let offset = 0;
     let total = 0;
@@ -79,21 +94,23 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
       let query = admin
         .from("processos")
         .select(
-          "status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
+          "id, status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
         )
         .eq("empresa_id", empresaId)
+        .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
 
       if (!companyWide) {
         if (!authId) break;
-        query = query.eq("created_by", authId);
+        query = query.in("created_by", ownerIds);
       }
 
       const { data, error } = await query;
 
       if (error) {
-        console.error("[processos-kpis]", error.message);
-        break;
+        console.error("[processos-kpis] consulta incompleta", error.message);
+        return { ok:false,total:0,ativos:0,encerradosCarteira:0,baixasTribunal:0,vencidos:0,
+          error:"Não foi possível carregar todos os indicadores. Tente novamente." };
       }
       const chunk = data || [];
       for (const row of chunk) {
@@ -104,13 +121,17 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
           encerradosCarteira++;
         } else {
           ativos++;
-          if (isCasoVencido(c)) vencidos++;
+          // Mesmo contrato do KPI oficial: status cadastrado de caso ativo.
+          if (isVencidoNoCRM(c)) vencidos++;
         }
         if (isBaixaTribunal(c)) baixasTribunal++;
       }
       if (chunk.length < pageSize) break;
       offset += pageSize;
-      if (offset > 30000) break;
+      if (offset > 30000) {
+        return { ok:false,total:0,ativos:0,encerradosCarteira:0,baixasTribunal:0,vencidos:0,
+          error:"Limite de paginação alcançado. Indicadores indisponíveis." };
+      }
     }
 
     // Invariante: ativos + encerrados = total
