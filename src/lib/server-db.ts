@@ -560,7 +560,10 @@ export async function getGlobalPendingProcessesSystem(
         exhausted = true;
         break;
       }
-      const nextCursor = String(rows[rows.length - 1]?.id || '');
+      // Dynamic PostgREST projection is typed as GenericStringError; the
+      // runtime row always includes id, validated below before advancing.
+      const lastRow = rows[rows.length - 1] as unknown as {id?: number | string};
+      const nextCursor = String(lastRow?.id ?? '');
       if (!nextCursor || nextCursor === cursor) {
         throw new Error('Cursor da fila do scanner não avançou; varredura não concluída.');
       }
