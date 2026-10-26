@@ -360,7 +360,7 @@ export default function TarefasPage() {
   // without rebroadcasting an invalidation (avoids refresh loops).
   useEffect(() => {
     if (!mounted || !empresaId || !authUserId) return;
-    let timer:ReturnType<typeof setTimeout>|null=null;
+    let timer:number|null=null;
     const blocked=()=>document.hidden || !!editingTask || isAttendanceOpen || isSavingAttendance;
     const schedule=(onlyWhenStale=false)=>{
       if(blocked())return;
