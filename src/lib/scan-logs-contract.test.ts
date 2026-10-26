@@ -8,7 +8,7 @@ describe('P0: status snapshots must never spoof live cloud scanner events',()=>{
     .split('export async function updateCaseDataJudSystem(')[0];
   expect(fn).toContain('recentLogs: []');
   expect(fn).not.toContain('latency: 0');
-  expect(fn).not.toContain('BAIXA NO TRIBUNAL');
+  expect(fn).not.toContain('message: r.datajud_encerrado_tribunal');
  });
  it('client only uses real current worker caseResults, not stale telemetry as logs',()=>{
   const source=readFileSync(resolve(process.cwd(),'src/store/use-datajud-scan-store.ts'),'utf8');
