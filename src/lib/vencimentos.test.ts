@@ -3,7 +3,7 @@ import {classificarVencimento,isVencidoNoCRM,isVencidoAcionavelCRM,resumirCentra
 
 const hoje='2026-10-26';
 const base:CaseVencimento={status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:null,ultimo_retorno:null,proximo_prazo:null};
-const prepared=(rows:Array<typeof base & {dados?:Record<string,unknown>}>)=>
+const prepared=(rows:CaseVencimento[])=>
  rows.map(p=>({...p,flag:classificarVencimento(p,hoje)}));
 
 describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>{
