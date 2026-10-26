@@ -229,6 +229,7 @@ export async function auditCaseCoreSystem(
 
   let datajudOk = false;
   let djenOk = false;
+  let datajudIssue: string | null = null;
 
   // Pré-busca paralela (both) — Sugerir resposta / auditoria
   let preDataJud: any = null;
@@ -274,7 +275,10 @@ export async function auditCaseCoreSystem(
         mode === 'both'
           ? preDataJud
           : await fetchDataJud(protoSafe || protocolo, 1, { ...options, fast: options.fast !== false });
-      if (dataJud && !dataJud.error) {
+      // HTTP 200 with zero hits is a valid API response but NOT a
+      // confirmed consultation of this CNJ. Do not set a fresh
+      // datajud_consultado_em or "DataJud OK" for an absent index record.
+      if (dataJud && !dataJud.error && dataJud.found !== false) {
         datajudOk = true;
         movimentos = normalizeMovimentosList(dataJud.movimentos || []);
         const upd = detectarAtualizacaoPosRetorno(target.ultimoRetorno, movimentos);
@@ -401,7 +405,9 @@ export async function auditCaseCoreSystem(
           eventResumo = upd.nomeUltimo || eventResumo;
         }
       }
+      if (!datajudOk) datajudIssue = String(dataJud?.message || 'DataJud sem retorno confirmado').slice(0,180);
     } catch (e) {
+      datajudIssue = e instanceof Error ? e.message.slice(0,180) : 'DataJud indisponível';
       console.error('[auditCaseCoreSystem] DataJud fail', protocolo, e);
     }
   }
@@ -491,8 +497,10 @@ export async function auditCaseCoreSystem(
   if (!datajudOk && !djenOk) {
     // Falha real de fonte. Nunca afirmar que "sem itens" = offline:
     // datajudOk/djenOk ficam true quando a consulta respondeu validamente, mesmo vazia.
+    // P0: scanner local nao deve registrar um "Monitoramento Regular"
+    // ou atendimento bem-sucedido quando ambas as fontes falharam.
     return {
-      success: true,
+      success: false,
       offline: true,
       error: 'Não foi possível consultar as fontes externas agora.',
       message: 'DataJud e DJEN ficaram indisponíveis nesta tentativa. Nenhum dado existente foi alterado.',
@@ -940,7 +948,7 @@ export async function auditCaseCoreSystem(
     success: true,
     offline: false,
     sourceStatus: {
-      datajud: { requested: mode === 'datajud' || mode === 'both', ok: datajudOk },
+      datajud: { requested: mode === 'datajud' || mode === 'both', ok: datajudOk, ...(!datajudOk && datajudIssue ? {error:datajudIssue}: {}) },
       djen: { requested: mode === 'djen' || mode === 'both', ok: djenOk },
     },
     casePatch: patch,

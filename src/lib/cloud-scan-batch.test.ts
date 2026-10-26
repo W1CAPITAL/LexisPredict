@@ -28,6 +28,17 @@ describe('P0: cloud scan cannot claim success on failed official reads',()=>{
   expect(result).toMatchObject({success:false,processed:1,successCount:0,failedCount:1});
  });
 
+ it('counts a DJEN-only result as partial even when the batch can continue',async()=>{
+  mock.queue.mockResolvedValue([{id:1,protocolo:'1234567-00.2026.8.26.0001'}]);
+  mock.audit.mockResolvedValue({
+   success:true,offline:false,sourceStatus:{datajud:{ok:false},djen:{ok:true}}
+  });
+  expect(await runCloudScanBatch(input)).toMatchObject({
+   success:true,processed:1,successCount:1,partialCount:1,failedCount:0,
+   caseResults:[{datajudOk:false,djenOk:true}]
+  });
+ });
+
  it('records genuine official success while staying inside the requested tenant',async()=>{
   mock.queue.mockResolvedValue([{id:1,protocolo:'1234567-00.2026.8.26.0001'}]);
   mock.audit.mockResolvedValue({success:true,sourceStatus:{datajud:{ok:true},djen:{ok:true}}});

@@ -15,6 +15,7 @@ import { appendScanLog } from '@/lib/scan-event-log';
 import { isScanFresh, scanDelayMs, sleepMs } from '@/lib/parados-scan-queue';
 import { mensagemScanHttp } from '@/lib/scan-http-pt';
 import { labelResultadoCumprimentoScan, cumprimentoPendenteIndefinido } from '@/lib/cumprimento-scan-labels';
+import {scanSourceLogMessage} from '@/lib/scan-result-label';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -638,10 +639,12 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       get().addLog({
         protocolo: c.protocolo,
-        message,
+        message: res.partial
+          ? `CONSULTA PARCIAL · ${String(res.message || 'Uma fonte não confirmou')} · ${message}`
+          : message,
         latency,
-        success: !!res.success,
-        type: patch.datajud_encerrado_tribunal
+        success: !!res.success && !res.partial,
+        type: res.partial ? 'error' : patch.datajud_encerrado_tribunal
           ? 'closed'
           : patch.indicio_busca_apreensao || patch.alerta_ia
             ? 'ai'
@@ -783,9 +786,19 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         set({cloudLastCnj:cnj});
         get().addLog({
           protocolo:cnj,engine:'Nuvem',
-          message:item.success ? `Consulta oficial concluída · DataJud: ${item.datajudOk?'OK':'não confirmado'} · DJEN: ${item.djenOk?'OK':'não confirmado'}` : `Falha de consulta · ${String(item.error||'fonte indisponível').slice(0,140)}`,
-          latency:Number(item.durationMs||0),success:item.success===true,
-          type:item.success?'ok':'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+          message: scanSourceLogMessage(item,mode),
+          latency:Number(item.durationMs||0),success:item.success===true && (!item.datajudOk || !item.djenOk ? mode!=='both' : true),
+          // Parcial deve ser destacado, nao apresentado como consulta completa.
+          type:item.success && (mode!=='both'||(item.datajudOk && item.djenOk))?'ok':'error',
+          source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+        });
+      }
+      if (Number(worker.partialCount || 0) > 0) {
+        get().addLog({
+          protocolo:'SISTEMA',engine:'Nuvem',
+          message:`${worker.partialCount} consulta(s) parcial(is): uma das fontes oficiais não confirmou. Reconsulte a fonte pendente; isto não equivale a uma auditoria BOTH completa.`,
+          latency:Number(worker.durationMs || 0),
+          success:false,type:'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
         });
       }
       consecutiveCloudFailures = worker.failedCount > 0 && worker.successCount === 0
@@ -818,11 +831,8 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
 
       persistCloudCheckpoint(get());
-      if (metrics.recentLogs?.length > 0) {
-        metrics.recentLogs.forEach((log: ScanLog) =>
-          get().addLog({ ...log, engine: log.engine || 'Nuvem' })
-        );
-      }
+      // NUNCA misturar registros salvos (telemetria) ao histórico de consultas
+      // reais. Só caseResults informa duração, fonte e resultado desta sessão.
 
       if (Number(worker.processed || 0) === 0 || (totalForMode > 0 && attempted >= totalForMode)) {
         if (pollTimer) {
@@ -833,7 +843,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         clearCloudCheckpoint(get());
         get().addLog({
           protocolo: 'SISTEMA',
-          message: `Fila percorrida: ${successes} sucessos, ${failures} falhas, ${attempted} tentativas. Reinicie para reprocessar eventuais falhas.`,
+          message: `Fila percorrida: ${successes} com ao menos uma fonte confirmada (inclui parciais), ${failures} sem confirmação, ${attempted} tentativas. Casos parciais e falhas exigem reconsulta da fonte pendente.`,
           latency: 0,
           success: true,
           type: 'ok',
