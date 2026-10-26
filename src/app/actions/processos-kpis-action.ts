@@ -1,7 +1,7 @@
 "use server";
 
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
-import {isVencidoNoCRM} from "@/lib/vencimentos";
+import {isCasoVencido} from "@/lib/vencimentos";
 
 export type ProcessosEmpresaKpis = {
   ok: boolean;
@@ -121,8 +121,9 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
           encerradosCarteira++;
         } else {
           ativos++;
-          // Mesmo contrato do KPI oficial: status cadastrado de caso ativo.
-          if (isVencidoNoCRM(c)) vencidos++;
+          // Mesmo contrato da RPC e da /vencidos: retorno agendado vencido,
+          // sem atendimento posterior. Um status manual não prova atraso.
+          if (isCasoVencido(c)) vencidos++;
         }
         if (isBaixaTribunal(c)) baixasTribunal++;
       }
