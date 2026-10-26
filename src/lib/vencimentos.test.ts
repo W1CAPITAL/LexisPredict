@@ -17,7 +17,7 @@ describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>
   const closed={...base,status:'Vencido',status_interno:'ENCERRADO'};
   expect(isVencidoAcionavelCRM(closed)).toBe(false);
   const counts=resumirCentralVencidos(prepared([closed]));
-  expect(counts).toEqual({todos:0,retorno:0,prazo:0,revisar:1,encerradosMarcados:1});
+  expect(counts).toEqual({todos:1,ativosMarcados:0,retorno:0,prazo:0,revisar:1,encerradosMarcados:1});
  });
 
  it('counts date-overdue returns separately and never treats a historical prazo as overdue',()=>{
@@ -27,8 +27,18 @@ describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>
    {...base,status:'No Prazo',proximo_retorno:'2026-11-20',ultimo_retorno:'2026-10-20',proximo_prazo:'2026-01-01'},
   ]);
   expect(resumirCentralVencidos(rows)).toEqual({
-   todos:1,retorno:2,prazo:1,revisar:1,encerradosMarcados:0
+   todos:1,ativosMarcados:1,retorno:2,prazo:1,revisar:1,encerradosMarcados:0
   });
+ });
+
+ it('explains the real 10-versus-9 discrepancy without hiding an ended case',()=>{
+  const open=Array.from({length:9},(_,i)=>({...base,status:'Vencido',proximo_retorno:`2026-10-${String(i+1).padStart(2,'0')}`}));
+  const closed={...base,status:'Vencido',dados:{statusManual:'Encerrado'}};
+  const totals=resumirCentralVencidos(prepared([...open,closed]));
+  expect(totals.todos).toBe(10);
+  expect(totals.ativosMarcados).toBe(9);
+  expect(totals.encerradosMarcados).toBe(1);
+  expect(totals.retorno).toBe(9);
  });
 
  it('does not call an attended client overdue merely because an old return date survived',()=>{

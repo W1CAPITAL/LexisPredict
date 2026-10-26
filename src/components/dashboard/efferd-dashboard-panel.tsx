@@ -231,11 +231,11 @@ export function Dashboard({
       hint: "Andamentos e prazos do escopo de lista carregado",
     },
     {
-      label: "Vencidos",
+      label: "Status vencido no CRM",
       value: empresaResumo?.vencidos ?? "…",
       icon: <AlertTriangle size={16} />,
-      tone: (empresaResumo?.vencidos||0)>0 ? "danger" : "ok",
-      hint: "Prazo estourado",
+      tone: (empresaResumo?.vencidos||0)>0 ? "warn" : "ok",
+      hint: "Marcações cadastradas; NÃO significa prazo judicial perdido. Veja /vencidos.",
     },
     {
       label: "Novidades CNJ",
