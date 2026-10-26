@@ -791,6 +791,14 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
         });
       }
+      if (Number(worker.partialCount || 0) > 0) {
+        get().addLog({
+          protocolo:'SISTEMA',engine:'Nuvem',
+          message:`${worker.partialCount} consulta(s) parcial(is): uma das fontes oficiais não confirmou. Reconsulte a fonte pendente; isto não equivale a uma auditoria BOTH completa.`,
+          latency:Number(worker.durationMs || 0),
+          success:false,type:'error',source:mode==='both'?'Both':mode==='djen'?'DJEN':'DataJud',
+        });
+      }
       consecutiveCloudFailures = worker.failedCount > 0 && worker.successCount === 0
         ? consecutiveCloudFailures + 1 : 0;
 
@@ -833,7 +841,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         clearCloudCheckpoint(get());
         get().addLog({
           protocolo: 'SISTEMA',
-          message: `Fila percorrida: ${successes} sucessos, ${failures} falhas, ${attempted} tentativas. Reinicie para reprocessar eventuais falhas.`,
+          message: `Fila percorrida: ${successes} com ao menos uma fonte confirmada (inclui parciais), ${failures} sem confirmação, ${attempted} tentativas. Casos parciais e falhas exigem reconsulta da fonte pendente.`,
           latency: 0,
           success: true,
           type: 'ok',
