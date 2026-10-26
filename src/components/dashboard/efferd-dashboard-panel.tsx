@@ -210,7 +210,7 @@ export function Dashboard({
     {name:"Carteira",v:empresaResumo.total},
     {name:"Ativos",v:empresaResumo.ativos},
     {name:"Novidades",v:empresaResumo.novidades},
-    {name:"Vencidos",v:empresaResumo.vencidos},
+    {name:"Retornos vencidos",v:empresaResumo.vencidos},
     {name:"Baixas tribunal",v:empresaResumo.baixas},
     {name:"Enc. carteira",v:empresaResumo.encerrados},
   ]:[],[empresaResumo]);
@@ -231,11 +231,11 @@ export function Dashboard({
       hint: "Andamentos e prazos do escopo de lista carregado",
     },
     {
-      label: "Status vencido no CRM",
+      label: "Retornos vencidos",
       value: empresaResumo?.vencidos ?? "…",
       icon: <AlertTriangle size={16} />,
       tone: (empresaResumo?.vencidos||0)>0 ? "warn" : "ok",
-      hint: "Marcações cadastradas; NÃO significa prazo judicial perdido. Veja /vencidos.",
+      hint: "Retorno agendado já passou e não houve novo atendimento. Não é prazo judicial.",
     },
     {
       label: "Novidades CNJ",
