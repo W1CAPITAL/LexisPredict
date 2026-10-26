@@ -153,6 +153,8 @@ export async function loadCarteiraComCache(opts: {
   onError?: (error: unknown) => void;
   onKpiSafe?: (cases: any[], source: "network" | "stale-fallback") => void;
   allowStaleKpiFallback?: boolean;
+  /** A successful empty remote page must replace old data after a hard refresh. */
+  authoritativeEmpty?: boolean;
   viewKey?: string;
   reuseFreshCache?: boolean;
   maxAgeMs?: number;
@@ -177,6 +179,21 @@ export async function loadCarteiraComCache(opts: {
       opts.onShow(list, "network");
       opts.onKpiSafe?.(list, "network");
       return { cases: list, source: "network" };
+    }
+    if (opts.authoritativeEmpty && (remote as any).__incomplete !== true) {
+      // Exclusion/reassignment can legitimately leave a user with zero cases.
+      // Clear just this scoped snapshot; do not publish another invalidation
+      // while reacting to one from /processos (cross-tab loop).
+      if (opts.empresaId && opts.userId) {
+        memory.delete(memKey(opts.empresaId, scope, opts.userId, viewKey));
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(sessionKey(opts.empresaId, scope, opts.userId, viewKey));
+          }
+        } catch { /* no browser storage available */ }
+      }
+      opts.onShow([], "empty");
+      return { cases: [], source: "empty" };
     }
     if (cached?.cases?.length) {
       opts.onKpiSafe?.(cached.cases, "stale-fallback");
