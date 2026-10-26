@@ -37,7 +37,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import {isCasoVencido} from "@/lib/vencimentos";
+import {isCasoVencido,isVencidoAcionavelCRM} from "@/lib/vencimentos";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 // Scanner panel mounts on demand through the app's ClientChrome.
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
