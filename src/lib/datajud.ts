@@ -4,6 +4,7 @@
  */
 
 import { perfCached, PerfKeys, perfLog, perfNow } from '@/lib/performance-motor';
+import { resolveDataJudTimeoutMs } from '@/lib/datajud-time-budget';
 
 export const COURT_ALIASES: Record<string, string> = {
   "8.01": "tjac", "8.02": "tjal", "8.03": "tjap", "8.04": "tjam", "8.05": "tjba",
@@ -307,7 +308,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const isFast = options.fast === true;
 
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
-  const timeoutMs = options.cloudBudget ? 11000 : isFast ? 32000 : 42000;
+  const timeoutMs = resolveDataJudTimeoutMs({cloudBudget:options.cloudBudget,fast:isFast});
   const maxAttempts = options.cloudBudget ? 1 : 3;
 
   try {
