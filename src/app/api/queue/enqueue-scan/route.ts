@@ -4,7 +4,10 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   const auth = request.headers.get('Authorization');
-  if (auth !== `Bearer ${process.env.DATAJUD_WORKER_SECRET}`) {
+  const secret = process.env.DATAJUD_WORKER_SECRET?.trim();
+  // Never authenticate the literal "Bearer undefined"/"Bearer " if the
+  // worker secret has not been configured on this deployment.
+  if (!secret || auth !== `Bearer ${secret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -15,10 +18,9 @@ export async function POST(request: Request) {
     body = {};
   }
 
-  const empresa_id = body.empresa_id;
-  const mode = body.mode || 'both';
-
-  if (!empresa_id) {
+  const empresa_id = typeof body.empresa_id === 'string' ? body.empresa_id.trim() : '';
+  const mode = ['both', 'datajud', 'djen'].includes(body.mode) ? body.mode : 'both';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(empresa_id)) {
     return NextResponse.json({ error: 'empresa_id' }, { status: 400 });
   }
 
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.DATAJUD_WORKER_SECRET}`,
+        Authorization: `Bearer ${secret}`,
       },
     }
   );
