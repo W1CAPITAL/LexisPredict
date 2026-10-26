@@ -44,8 +44,8 @@ import { planTemScanner } from '@/lib/planos-pacotes';
 
 export function DataJudScannerPanel() {
   const { 
-    status, total, done, cloudSuccesses, cloudFailures, cloudBusy, cloudLastCnj, alerts, cloudDjenAlerts, closed, pending, cycles,
-    manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualDjenAlerts, lastLogs,
+    status, total, done, cloudSuccesses, cloudPartials, cloudFailures, cloudBusy, cloudLastCnj, alerts, cloudDjenAlerts, closed, pending, cycles,
+    manualStatus, manualTotal, manualDone, manualAlerts, manualClosed, manualErrors, manualPartials, manualDjenAlerts, lastLogs,
     isMinimized, toggleMinimize, startCloudScan, restoreCloudScan, pauseCloudScan, 
     startManualScan, resumeManualScan, pauseManualScan, resetScan,
     scanMode, setScanMode,
@@ -278,7 +278,8 @@ export function DataJudScannerPanel() {
                   <div className="grid grid-cols-2 gap-2">
                     <DashboardMiniKpi label="Tribunal Alertas" value={alerts} color="text-red-600" />
                     <DashboardMiniKpi label="DJEN Alertas" value={cloudDjenAlerts} color="text-blue-600" />
-                    <DashboardMiniKpi label="Sucessos" value={cloudSuccesses} color="text-emerald-600" />
+                    <DashboardMiniKpi label="Fonte OK" value={cloudSuccesses} color="text-emerald-600" />
+                    <DashboardMiniKpi label="Parciais" value={cloudPartials} color="text-amber-700" />
                     <DashboardMiniKpi label="Falhas" value={cloudFailures} color="text-red-600" />
                     <DashboardMiniKpi label="Restante estimado" value={pending} color="text-slate-400" />
                   </div>
@@ -287,7 +288,7 @@ export function DataJudScannerPanel() {
                     {status === "running" ? <Pause size={12} className="mr-2" /> : <Play size={12} className="mr-2" />}
                     {status === "running" ? "Pausar Servidor" : status === "paused" ? "Retomar Servidor" : "Iniciar nova varredura"}
                   </Button>
-                  {cloudFailures > 0 && <p className="text-[9px] font-semibold text-red-700">As falhas não são consideradas consultas bem-sucedidas. Reinicie a varredura após verificar a fonte.</p>}
+                  {(cloudFailures > 0 || cloudPartials > 0) && <p className="text-[9px] font-semibold text-amber-800">Parcial significa que ao menos uma fonte oficial não confirmou. Fonte OK inclui esses casos; nenhum parcial é auditoria BOTH completa.</p>}
                </div>
              )}
           </section>
@@ -330,7 +331,9 @@ export function DataJudScannerPanel() {
                   <div className="grid grid-cols-3 gap-2">
                     <DashboardMiniKpi label="Dj. Alertas" value={manualAlerts} color="text-red-600" />
                     <DashboardMiniKpi label="DJEN Alertas" value={manualDjenAlerts} color="text-blue-600" />
-                    <DashboardMiniKpi label="Concluídos" value={manualDone} color="text-emerald-600" />
+                    <DashboardMiniKpi label="Tentativas" value={manualDone} color="text-emerald-600" />
+                    <DashboardMiniKpi label="Parciais" value={manualPartials} color="text-amber-700" />
+                    <DashboardMiniKpi label="Falhas" value={manualErrors} color="text-red-600" />
                   </div>
 
                   <div className="flex gap-2">
