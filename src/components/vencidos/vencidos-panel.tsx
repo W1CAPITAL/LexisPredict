@@ -17,7 +17,7 @@ const norm=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLower
 const crmVencido=(p:VencidoRow)=>isVencidoNoCRM(p);
 const crmAcionavel=(p:VencidoRow)=>isVencidoAcionavelCRM(p);
 export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[];owners:Owner[];hoje:string;limitReached:boolean}){
- const [tab,setTab]=useState<"todos"|"retorno"|"prazo"|"revisar">("todos");
+ const [tab,setTab]=useState<"todos"|"retorno"|"prazo"|"revisar">("retorno");
  const [query,setQuery]=useState("");
  const [owner,setOwner]=useState("todos");
  const [office,setOffice]=useState("todos");
@@ -34,7 +34,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  const counts=useMemo(()=>resumirCentralVencidos(prepared),[prepared]);
  const bloqueados=counts.encerradosMarcados;
  const visible=useMemo(()=>prepared.filter(p=>{
-  if(tab==="todos"&&!crmAcionavel(p))return false;
+  if(tab==="todos"&&!crmVencido(p))return false;
   if(tab==="retorno"&&!p.flag.retorno)return false;
   if(tab==="prazo"&&!p.flag.historico)return false;
   if(tab==="revisar"&&!p.flag.inconsistencia&&!(crmVencido(p)&&p.flag.excluido))return false;
@@ -49,19 +49,26 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  }),[prepared,tab,owner,office,query,order,owners,hoje,ownerMap]);
  return <div className="space-y-5">
   <div className="rounded-[1.6rem] border border-rose-300/35 bg-gradient-to-br from-rose-50 via-background to-violet-50 p-6 dark:from-rose-950/20 dark:to-violet-950/20">
-   <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-rose-700 dark:text-rose-300"><AlertTriangle size={15}/> Central de vencidos</p>
-   <h1 className="mt-2 text-3xl font-black">Vencidos do CRM, sem confundir com retornos atrasados.</h1>
-   <p className="mt-2 max-w-3xl text-sm text-muted-foreground">O indicador principal considera o status Vencido/Caso Crítico de processos ativos no CRM, igual ao resumo da carteira. Retornos atrasados por data são separados; encerrados ainda marcados como vencidos aparecem somente na revisão e nunca para cobrança.</p>
+   <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-rose-700 dark:text-rose-300"><CalendarClock size={15}/> Central de retornos e pendências</p>
+   <h1 className="mt-2 text-3xl font-black">Quem precisa de retorno? O que é só cadastro antigo?</h1>
+   <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Comece pelos retornos ao cliente com data passada. Os status marcados no CRM, as divergências de cadastro e os campos de datas antigas são verificações diferentes — podem aparecer no mesmo processo e <strong>não devem ser somados</strong>.</p>
+   <p className="mt-2 text-xs font-semibold text-foreground">Nenhum indicador desta página, isoladamente, comprova prazo judicial perdido ou autoriza cobrança/envio automático.</p>
    <p className="mt-3 text-xs text-muted-foreground">Referência: {br(hoje)} · Datas calculadas no horário de Brasília · A contagem muda quando os dados são atualizados</p>
   </div>
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-   {([{id:"todos",label:"Vencidos no CRM",value:counts.todos,icon:AlertTriangle},
-      {id:"retorno",label:"Retornos por data (conferir)",value:counts.retorno,icon:CalendarClock},
-      {id:"revisar",label:"Status divergentes",value:counts.revisar,icon:ShieldAlert},
-      {id:"prazo",label:"Datas antigas (não vencidos)",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
+   {([{id:"retorno",label:"Retornos atrasados",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
+      {id:"todos",label:"Marcados vencidos no CRM",hint:`${counts.ativosMarcados} ativos · ${bloqueados} encerrados manualmente (sem cobrança)`,value:counts.todos,icon:AlertTriangle},
+      {id:"revisar",label:"Cadastros para revisar",hint:"Status não combina com as datas ou com encerramento",value:counts.revisar,icon:ShieldAlert},
+      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
     className={"rounded-2xl border p-4 text-left shadow-sm transition "+(tab===x.id?"border-rose-400 bg-rose-500/10":"border-border bg-card hover:border-rose-300")}>
-     <x.icon className="h-5 w-5 text-rose-600"/><p className="mt-3 text-2xl font-black tabular-nums">{format(x.value)}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{x.label}</p>
+     <x.icon className="h-5 w-5 text-rose-600"/><p className="mt-3 text-2xl font-black tabular-nums">{format(x.value)}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{x.label}</p><p className="mt-2 text-[11px] leading-snug text-muted-foreground">{x.hint}</p>
     </button>)}
+  </div>
+  <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-foreground" role="status">
+   {tab==="retorno"?"Retornos atrasados = a próxima data combinada com o cliente já passou e não há atendimento posterior que a resolva. Confira se houve contato não registrado. Isto NÃO é um prazo do tribunal.":
+    tab==="todos"?`Status do CRM = registros marcados como Vencido/Caso Crítico, como no dashboard. Destes, ${counts.ativosMarcados} estão abertos e ${bloqueados} têm marcação manual de encerramento. Não contatar os encerrados só por esse status.`:
+    tab==="revisar"?"Revisão cadastral = marcação de Vencido não combina com o agendamento/atendimento, ou o caso já foi encerrado. Corrigir somente após verificar o histórico. Não é fila automática de cobrança.":
+    "Datas antigas = valor histórico de um campo legado diferente de próximo retorno. Não indica, sozinho, atraso de contato nem perda de prazo judicial."}
   </div>
   <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-4">
    <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input type="search" value={query} onChange={e=>{setQuery(e.target.value);setVisibleCount(40)}} placeholder="Buscar cliente, CNJ ou advogado" aria-label="Pesquisar vencidos" className="h-10 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm"/></div>
@@ -71,7 +78,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   </div>
   {limitReached?<p role="alert" className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-xs">A consulta alcançou o limite de registros. A lista pode estar incompleta; refine os filtros ou recarregue.</p>:null}
   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"processos ativos marcados no CRM":tab==="retorno"?"retornos atrasados por data para conferência":"cadastros a conferir"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} com encerramento manual, sem cobrança`:""}</span>
+   <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"marcações cadastradas no CRM":tab==="retorno"?"retornos ao cliente para verificar":tab==="prazo"?"datas legadas antigas, sem comprovação de atraso judicial":"cadastros a revisar"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} marcado(s) como encerrado(s), sem cobrança`:""}</span>
    <div className="flex flex-wrap gap-2">
     <Link href="/cases?filter=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Meus processos vencidos</Link>
     <Link href="/tarefas?filtro=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Fila de tarefas vencidas</Link>
@@ -96,7 +103,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
      <Link prefetch={false} href={"/tarefas?search="+encodeURIComponent(p.protocolo_ref)} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Abrir nas tarefas</Link>
     </div>
    </article>)}
-  </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum vencido neste filtro</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
+  </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum registro nesta categoria</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
   {visible.length>visibleCount?<button type="button" onClick={()=>setVisibleCount(x=>x+40)} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:bg-muted">Mostrar mais 40 processos ({format(visible.length-visibleCount)} restantes)</button>:null}
  </div>;
 }
