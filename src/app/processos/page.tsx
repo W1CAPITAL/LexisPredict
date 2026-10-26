@@ -20,7 +20,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { resolveRole } from "@/lib/roles";
+import { resolveRole, canOperateCompanyCases } from "@/lib/roles";
 import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
@@ -152,7 +152,7 @@ export default function ProcessosEmpresaPage() {
   const empresaId = String((profile as any)?.empresa_id || '');
   const authUserId = String((profile as any)?.auth_user_id || '');
   const canManageItem = (item: LegalCase): boolean => {
-    if (!(profile as any)?.auth_user_id || !(profile as any)?.empresa_id) return false;
+    if (!canOperateCompanyCases({auth_id:(profile as any)?.auth_user_id,empresa_id:(profile as any)?.empresa_id})) return false;
     const rowTenant = (item as any).empresa_id;
     return !rowTenant || String(rowTenant) === String((profile as any).empresa_id);
   };
