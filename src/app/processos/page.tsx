@@ -37,7 +37,7 @@ import { compareOps, computeOpsLinha } from '@/lib/ops-linha';
 import { isBuscaApreensaoReal } from '@/lib/ba-real';
 import { countAuditadosHoje, countAuditadosNestaSemana, countAuditadosTribunalSemana, countEditadosAppSemana, labelSemanaAuditoria, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import { isCasoEncerrado } from "@/lib/status-encerrado";
-import {isCasoVencido,isVencidoAcionavelCRM} from "@/lib/vencimentos";
+import {isCasoVencido} from "@/lib/vencimentos";
 import { EncerrarScannerPanel } from "@/components/processos/encerrar-scanner-panel";
 // Scanner panel mounts on demand through the app's ClientChrome.
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
@@ -709,7 +709,7 @@ export default function ProcessosEmpresaPage() {
   const editadosApp = useMemo(() => countEditadosAppSemana(cases), [cases]);
   const auditadosHoje = useMemo(() => countAuditadosHoje(cases), [cases]);
   const ativos = useMemo(() => cases.filter((c) => !isCasoEncerrado(c)), [cases]);
-  const vencidos = useMemo(() => ativos.filter((c) => isVencidoAcionavelCRM(c)), [ativos]);
+  const vencidos = useMemo(() => ativos.filter((c) => isCasoVencido(c)), [ativos]);
 
   // Ranking da EMPRESA vem do servidor (não do array cases, que pode ser parcial/pessoal)
   const topAtendentes = topAtendentesSrv;
@@ -730,9 +730,9 @@ export default function ProcessosEmpresaPage() {
   // busca por nome não funcionava e podia mostrar processos incorretos.
   const base = hasSearch ? searchHits : cases;
     let list = base.filter((c) => {
-      if (statusFilter==="vencido"&&!isVencidoAcionavelCRM(c)) return false;
+      if (statusFilter==="vencido"&&!isCasoVencido(c)) return false;
       if (statusFilter && statusFilter!=="vencido" && statusFilter!=="Vencido" && c.status !== statusFilter) return false;
-      if (statusFilter==="Vencido" && !isVencidoAcionavelCRM(c)) return false;
+      if (statusFilter==="Vencido" && !isCasoVencido(c)) return false;
       if (baOnly && !isBuscaApreensaoReal(c)) return false;
       if (silencioOnly) {
         const d = computeOpsLinha(c).diasTribunal;
