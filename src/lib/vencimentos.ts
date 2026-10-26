@@ -57,3 +57,22 @@ export function isVencidoAcionavelCRM(c:CaseVencimento){
 export function isCasoVencido(c:CaseVencimento,hoje?:string){
  return classificarVencimento(c,hoje).vencido;
 }
+
+/** Mesma contagem da Central e dos KPIs: marcação do CRM apenas em casos ativos.
+ * Retornos em atraso e datas históricas são categorias independentes.
+ * O status de encerrado marcado indevidamente vai para revisão, nunca cobrança.
+ */
+export function resumirCentralVencidos(
+ rows: ReadonlyArray<CaseVencimento & {flag: ReturnType<typeof classificarVencimento>}>
+){
+ let todos=0,retorno=0,prazo=0,revisar=0,encerradosMarcados=0;
+ for(const p of rows){
+  const marcado=isVencidoNoCRM(p);
+  if(marcado&&!p.flag.excluido)todos++;
+  if(p.flag.retorno)retorno++;
+  if(p.flag.historico)prazo++;
+  if(p.flag.inconsistencia||(marcado&&p.flag.excluido))revisar++;
+  if(marcado&&p.flag.excluido)encerradosMarcados++;
+ }
+ return {todos,retorno,prazo,revisar,encerradosMarcados};
+}
