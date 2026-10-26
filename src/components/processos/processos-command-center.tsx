@@ -992,7 +992,7 @@ export function ProcessosCommandCenter(props: Props) {
                     </Panel>
                   ) : null}
                   <Panel title="Alertas críticos" tone="red">
-                    {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Prazo/retorno vencido"/> : null}
+                    {selected.status === "Vencido" ? <AlertLine icon={<CircleAlert size={12}/>} text="Status marcado Vencido no CRM; confira a data do próximo retorno"/> : null}
                     {(selectedSilence || 0) >= 45 ? <AlertLine icon={<FileClock size={12}/>} text={`Sem movimentação há ${selectedSilence} dias`}/> : null}
                     {selected.djen_nova_comunicacao ? <AlertLine icon={<Gavel size={12}/>} text="Nova publicação DJEN não tratada"/> : null}
                     {djenCriticalLabel(selected) ? <AlertLine icon={<ShieldAlert size={12}/>} text={`Radar DJEN: ${djenCriticalLabel(selected)}`}/> : null}
