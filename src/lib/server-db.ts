@@ -530,29 +530,46 @@ export async function getGlobalPendingProcessesSystem(
     const combined = scope === 'cumprimento'
       ? `and(or(${condition}),or(${freshConditions}),or(${candidateCondition}))`
       : `and(or(${condition}),or(${freshConditions}))`;
-    // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
-    // FULL usa projeção leve (sem JSON dados); em cumprimento o JSON legado
-    // ainda pode conter indicios executivos necessários para a triagem.
-    let query = admin.from('processos')
-      .select(scope === 'cumprimento' ? '*' : PROCESSOS_LIST_COLUMNS)
-      .eq('empresa_id', empresaId).or(combined);
-    if (opts?.afterId) query = query.gt('id', opts.afterId);
-    const { data: sessionRows, error: sessionError } = await query
-      .order('id', { ascending: true })
-      .limit(Math.max(limit, 3));
-
-    if (sessionError) {
-      console.error('[getGlobalPendingProcessesSystem] session', sessionError);
-      throw new Error(`Falha ao preparar fila DataJud/DJEN: ${sessionError.message}`);
+    // Triagem de cumprimento: o primeiro micro-lote pode conter falsos
+    // candidatos (flags legadas). Nunca responder "fila concluída" só porque
+    // os primeiros 3 não passaram no predicado final.
+    const pageSize = scope === 'cumprimento' ? 200 : Math.max(limit, 3);
+    const maxPages = scope === 'cumprimento' ? 50 : 1;
+    const { isCandidatoCumprimentoScan } = scope === 'cumprimento'
+      ? await import('@/lib/scan-scope-cumprimento')
+      : { isCandidatoCumprimentoScan: (_item: LegalCase) => true };
+    const sessionCases: LegalCase[] = [];
+    let cursor = opts?.afterId || null;
+    let exhausted = false;
+    for (let page = 0; page < maxPages; page++) {
+      let query = admin.from('processos')
+        .select(scope === 'cumprimento' ? '*' : PROCESSOS_LIST_COLUMNS)
+        .eq('empresa_id', empresaId).or(combined);
+      if (cursor) query = query.gt('id', cursor);
+      const { data: sessionRows, error: sessionError } = await query
+        .order('id', { ascending: true })
+        .limit(pageSize);
+      if (sessionError) {
+        console.error('[getGlobalPendingProcessesSystem] session', sessionError.message);
+        throw new Error('Falha ao preparar fila DataJud/DJEN no Supabase.');
+      }
+      const rows = sessionRows || [];
+      sessionCases.push(...rows.map(mapProcessoRow).filter(isCandidatoCumprimentoScan));
+      if (sessionCases.length >= limit) return sessionCases.slice(0, limit);
+      if (rows.length < pageSize) {
+        exhausted = true;
+        break;
+      }
+      const nextCursor = String(rows[rows.length - 1]?.id || '');
+      if (!nextCursor || nextCursor === cursor) {
+        throw new Error('Cursor da fila do scanner não avançou; varredura não concluída.');
+      }
+      cursor = nextCursor;
     }
-
-    let sessionCases = (sessionRows || []).map(mapProcessoRow);
-
-    if (scope === 'cumprimento') {
-      const { isCandidatoCumprimentoScan } = await import('@/lib/scan-scope-cumprimento');
-      sessionCases = sessionCases.filter((item) => isCandidatoCumprimentoScan(item));
+    if (!exhausted) {
+      // Segurança: jamais anunciar fila vazia se não percorremos tudo.
+      throw new Error('Triagem de cumprimento atingiu o limite de páginas. Varredura não concluída.');
     }
-
     return sessionCases.slice(0, limit);
   }
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
