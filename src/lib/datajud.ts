@@ -393,7 +393,8 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
         numeroProcesso: cnjLimpo,
         movimentos: [],
         error: false,
-        message: "Não localizado no DataJud.",
+        found: false,
+        message: "Não localizado no índice DataJud.",
         latency,
         attempts: attempt
       };
@@ -410,6 +411,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       tribunal: source.tribunal || alias.toUpperCase(),
       orgaoJulgador: source.orgaoJulgador?.nome || source.orgaoJulgador?.codigo || null,
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
+      found: true,
       dataAjuizamento: source.dataAjuizamento || null,
       partes: partesRaw,
       poloAtivo: polos.ativo,
