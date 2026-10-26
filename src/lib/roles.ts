@@ -165,7 +165,11 @@ export function canEditCase(cargo?: RoleLike): boolean {
   return canUseReducedOperationalFeatures(cargo);
 }
 
-/** Operador não exclui; Administrador ou superior pode excluir dentro do próprio escopo. */
+/** Regra LEGADA para outras telas (ex. /cases). Não aplicar a /processos:
+ * nessa rota, todos os membros autenticados da mesma empresa podem excluir,
+ * com empresa validada no servidor e auditoria de autor.
+ * Use canOperateCompanyCases(ctx) + canAccessExistingCase(ctx,row).
+ */
 export function canDeleteCase(cargo?: RoleLike): boolean {
   return isAdminGroup(cargo);
 }

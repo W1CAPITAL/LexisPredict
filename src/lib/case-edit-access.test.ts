@@ -27,6 +27,20 @@ describe('case edit permission - closed cases in /processos', () => {
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO'))).toBe(true);
     expect(await canAccessExistingCase(makeCtx('Administrador') as any, processo('EM ANDAMENTO', 'auth-1'))).toBe(true);
   });
+  it('refuses unauthenticated and company-less writes, including delete/attendance', async () => {
+    const item=processo('EM ANDAMENTO','auth-colega','empresa-1');
+    expect(await canAccessExistingCase(makeCtx('Operador','empresa-1','') as any,item)).toBe(false);
+    expect(await canAccessExistingCase(makeCtx('Visualizador','', 'auth-1') as any,item)).toBe(false);
+    expect(await canAccessExistingCase(makeCtx('Administrador') as any,null)).toBe(false);
+  });
+  it('every tenant role may edit attend and delete colleagues cases, regardless of situation',async()=>{
+    for(const cargo of ['Operador','Administrador','Supervisor','Superadmin','Visualizador']){
+      for(const status of ['EM ANDAMENTO','ENCERRADO','ARQUIVADO','EXTINTO']){
+        const row=processo(status,'auth-outro','empresa-1');
+        expect(await canAccessExistingCase(makeCtx(cargo) as any,row)).toBe(true);
+      }
+    }
+  });
   it('prevents cross-company access for any role', async () => {
     for (const cargo of ['Superadmin', 'Supervisor', 'Administrador', 'Operador', 'Visualizador']) {
       expect(await canAccessExistingCase(makeCtx(cargo) as any, processo('ENCERRADO', 'auth-1', 'empresa-2'))).toBe(false);
