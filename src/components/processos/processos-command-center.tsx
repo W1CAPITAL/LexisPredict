@@ -685,7 +685,7 @@ export function ProcessosCommandCenter(props: Props) {
           <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
           <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
           <KpiCard icon={<ShieldCheck size={15}/>} label="Encerrados" value={props.indicadoresLoading ? "…" : props.encerradosCount} hint="estado atual no Supabase" />
-          <KpiCard icon={<AlertTriangle size={15}/>} label="Vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="carteira inteira" kind="red" />
+          <KpiCard icon={<AlertTriangle size={15}/>} label="Retornos vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="Próximo contato atrasado · não indica prazo judicial perdido" kind="red" />
           <KpiCard icon={<ShieldAlert size={15}/>} label="Risco alto" value={props.loading ? "…" : highRiskCount} hint={`${updateCount} com novidade`} kind="red" />
         </div>
         <button type="button" onClick={() => setMetricsOpen(!metricsOpen)}
