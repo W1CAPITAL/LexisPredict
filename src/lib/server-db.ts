@@ -530,29 +530,49 @@ export async function getGlobalPendingProcessesSystem(
     const combined = scope === 'cumprimento'
       ? `and(or(${condition}),or(${freshConditions}),or(${candidateCondition}))`
       : `and(or(${condition}),or(${freshConditions}))`;
-    // Cursor crescente: um tribunal indisponivel nao prende os demais CNJs.
-    // FULL usa projeção leve (sem JSON dados); em cumprimento o JSON legado
-    // ainda pode conter indicios executivos necessários para a triagem.
-    let query = admin.from('processos')
-      .select(scope === 'cumprimento' ? '*' : PROCESSOS_LIST_COLUMNS)
-      .eq('empresa_id', empresaId).or(combined);
-    if (opts?.afterId) query = query.gt('id', opts.afterId);
-    const { data: sessionRows, error: sessionError } = await query
-      .order('id', { ascending: true })
-      .limit(Math.max(limit, 3));
-
-    if (sessionError) {
-      console.error('[getGlobalPendingProcessesSystem] session', sessionError);
-      throw new Error(`Falha ao preparar fila DataJud/DJEN: ${sessionError.message}`);
+    // Triagem de cumprimento: o primeiro micro-lote pode conter falsos
+    // candidatos (flags legadas). Nunca responder "fila concluída" só porque
+    // os primeiros 3 não passaram no predicado final.
+    const pageSize = scope === 'cumprimento' ? 200 : Math.max(limit, 3);
+    const maxPages = scope === 'cumprimento' ? 50 : 1;
+    const { isCandidatoCumprimentoScan } = scope === 'cumprimento'
+      ? await import('@/lib/scan-scope-cumprimento')
+      : { isCandidatoCumprimentoScan: (_item: LegalCase) => true };
+    const sessionCases: LegalCase[] = [];
+    let cursor = opts?.afterId || null;
+    let exhausted = false;
+    for (let page = 0; page < maxPages; page++) {
+      let query = admin.from('processos')
+        .select(scope === 'cumprimento' ? '*' : PROCESSOS_LIST_COLUMNS)
+        .eq('empresa_id', empresaId).or(combined);
+      if (cursor) query = query.gt('id', cursor);
+      const { data: sessionRows, error: sessionError } = await query
+        .order('id', { ascending: true })
+        .limit(pageSize);
+      if (sessionError) {
+        console.error('[getGlobalPendingProcessesSystem] session', sessionError.message);
+        throw new Error('Falha ao preparar fila DataJud/DJEN no Supabase.');
+      }
+      const rows = sessionRows || [];
+      sessionCases.push(...rows.map(mapProcessoRow).filter(isCandidatoCumprimentoScan));
+      if (sessionCases.length >= limit) return sessionCases.slice(0, limit);
+      if (rows.length < pageSize) {
+        exhausted = true;
+        break;
+      }
+      // Dynamic PostgREST projection is typed as GenericStringError; the
+      // runtime row always includes id, validated below before advancing.
+      const lastRow = rows[rows.length - 1] as unknown as {id?: number | string};
+      const nextCursor = String(lastRow?.id ?? '');
+      if (!nextCursor || nextCursor === cursor) {
+        throw new Error('Cursor da fila do scanner não avançou; varredura não concluída.');
+      }
+      cursor = nextCursor;
     }
-
-    let sessionCases = (sessionRows || []).map(mapProcessoRow);
-
-    if (scope === 'cumprimento') {
-      const { isCandidatoCumprimentoScan } = await import('@/lib/scan-scope-cumprimento');
-      sessionCases = sessionCases.filter((item) => isCandidatoCumprimentoScan(item));
+    if (!exhausted) {
+      // Segurança: jamais anunciar fila vazia se não percorremos tudo.
+      throw new Error('Triagem de cumprimento atingiu o limite de páginas. Varredura não concluída.');
     }
-
     return sessionCases.slice(0, limit);
   }
   const statusExcluidos = ['ENCERRADO', 'Arquivado', 'EXTINTO', 'SUSPENSO', 'IMOVEL', 'IMÓVEL', 'finalizado'];
@@ -571,17 +591,24 @@ export async function getGlobalPendingProcessesSystem(
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(slotsAtivos);
 
-  if (error) return [];
+  if (error) {
+    console.error('[getGlobalPendingProcessesSystem] ativos', error.message);
+    throw new Error('Falha ao consultar a fila de processos ativos no Supabase.');
+  }
 
   const out: LegalCase[] = (ativos || []).map(mapProcessoRow);
 
-  const { data: encerrados } = await admin
+  const { data: encerrados, error: encerradosError } = await admin
     .from('processos')
     .select('*')
     .eq('empresa_id', empresaId)
     .in('status', statusExcluidos)
     .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
     .limit(slotsEnc * 4);
+  if (encerradosError) {
+    console.error('[getGlobalPendingProcessesSystem] encerrados', encerradosError.message);
+    throw new Error('Falha ao consultar a fila de processos encerrados no Supabase.');
+  }
 
   for (const item of encerrados || []) {
     if (out.length >= limit) break;
@@ -604,13 +631,17 @@ export async function getGlobalPendingProcessesSystem(
   // Se ainda sobrar vaga (poucos encerrados), completa com mais ativos
   if (out.length < limit) {
     const ids = new Set(out.map((c) => String(c.id || (c as any).db_id)));
-    const { data: maisAtivos } = await admin
+    const { data: maisAtivos, error: maisAtivosError } = await admin
       .from('processos')
       .select('*')
       .eq('empresa_id', empresaId)
       .not('status', 'in', statusFilter)
       .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
       .limit(limit * 2);
+    if (maisAtivosError) {
+      console.error('[getGlobalPendingProcessesSystem] complemento', maisAtivosError.message);
+      throw new Error('Falha ao completar a fila do scanner no Supabase.');
+    }
     for (const item of maisAtivos || []) {
       if (out.length >= limit) break;
       if (ids.has(String(item.id))) continue;
@@ -625,7 +656,7 @@ export async function getGlobalPendingProcessesSystem(
     // Lote4: se o micro-lote genérico não trouxe candidatos, busca DIRETO no banco
     // (flags executivas / procedente / baixa) — não faz fallback silencioso para Full
     if (filtered.length === 0) {
-      const { data: cand } = await admin
+      const { data: cand, error: candError } = await admin
         .from('processos')
         .select('*')
         .eq('empresa_id', empresaId)
@@ -639,18 +670,25 @@ export async function getGlobalPendingProcessesSystem(
         )
         .order('datajud_consultado_em', { ascending: true, nullsFirst: true })
         .limit(limit * 3);
-
+      if (candError) {
+        console.error('[getGlobalPendingProcessesSystem] cumprimento', candError.message);
+        throw new Error('Falha ao consultar a fila de cumprimento no Supabase.');
+      }
       const mapped = (cand || []).map(mapProcessoRow);
       filtered = mapped.filter((c) => isCandidatoCumprimentoScan(c));
       if (filtered.length === 0) {
 
-        const { data: never } = await admin
+        const { data: never, error: neverError } = await admin
           .from('processos')
           .select('*')
           .eq('empresa_id', empresaId)
           .is('datajud_consultado_em', null)
           .order('created_at', { ascending: false })
           .limit(limit);
+        if (neverError) {
+          console.error('[getGlobalPendingProcessesSystem] sem consulta', neverError.message);
+          throw new Error('Falha ao consultar processos sem verificação anterior no Supabase.');
+        }
         filtered = (never || []).map(mapProcessoRow);
       }
     }

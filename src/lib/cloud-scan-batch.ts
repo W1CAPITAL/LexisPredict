@@ -94,7 +94,9 @@ export async function runCloudScanBatch(input: {
   }
 
   return {
-    success: true,
+    // "executou" não equivale a "consultou com sucesso": não sinalizar
+    // sucesso quando a única fonte oficial falhou, nem em lote parcial.
+    success: failedCount === 0 && successCount > 0,
     processed: successCount + failedCount,
     successCount,
     failedCount,
