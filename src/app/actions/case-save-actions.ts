@@ -630,7 +630,7 @@ export async function deleteOneCaseAction(protocolo: string): Promise<{ success:
         source: 'LexisPredict',
         actor: ctx.auth_id || 'sync',
         actor_name: String((ctx as any).nome || (ctx as any).email || ctx.auth_id || 'Sistema'),
-        perfil: String((me as any)?.cargo || (me as any)?.role || 'Operador'),
+        perfil: String(ctx.cargo || 'Operador'),
       }).catch(() => {});
     }
 
