@@ -471,7 +471,7 @@ export default function Dashboard() {
                   </div>
                   <div className="col-span-2 lg:col-span-1 rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-4 flex items-center justify-between shadow-sm">
                     <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wide text-blue-700/80">Audiências* · Cumprimento ativo</p>
-                      <p className="mt-1 text-2xl font-black tabular-nums text-blue-700">{portfolioSummary?.meritoDisponivel?\`\${metrics.countAudiencia.toLocaleString("pt-BR")}* · \${portfolioSummary.cumprimentos.toLocaleString("pt-BR")}\`:"…"}</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-blue-700">{portfolioSummary?.meritoDisponivel?`${metrics.countAudiencia.toLocaleString("pt-BR")}* · ${portfolioSummary.cumprimentos.toLocaleString("pt-BR")}`:"…"}</p>
                       <p className="mt-1 text-[10px] leading-relaxed text-blue-700/80 dark:text-blue-200/80">Sinalizados: {portfolioSummary?.meritoDisponivel?portfolioSummary.cumprimentosSinalizados.toLocaleString("pt-BR"):"—"} · A instaurar: {portfolioSummary?.meritoDisponivel?portfolioSummary.cumprimentosPendentes.toLocaleString("pt-BR"):"—"} · Revisar status: {portfolioSummary?.meritoDisponivel?portfolioSummary.cumprimentosRevisar.toLocaleString("pt-BR"):"—"}</p>
                     </div><Activity className="text-blue-600/40 shrink-0" size={24}/>
                   </div>
