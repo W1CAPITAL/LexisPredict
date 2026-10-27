@@ -6,7 +6,7 @@ export const dynamic="force-dynamic";
 export const revalidate=0;
 
 export default async function AnalisesInternasPage({searchParams}:{
-  searchParams:Promise<{q?:string;cat?:string;pagina?:string}>
+  searchParams:Promise<{q?:string;cat?:string;pagina?:string;atividadesPagina?:string;acoesPagina?:string}>
 }) {
   const ctx=await getUserContext();
   // A rota é acessível a todo colaborador autenticado, mas conteúdo e KPIs
@@ -81,7 +81,7 @@ export default async function AnalisesInternasPage({searchParams}:{
       <h1 className="mt-2 text-3xl font-extrabold">Minhas análises e atividades</h1>
       <p className="mt-2 max-w-4xl text-sm text-slate-300">Histórico individual: análises documentadas, atividades manuais e ações operacionais. Cada fonte é identificada e não comprova, por si só, revisão jurídica integral ou contato com o cliente.</p>
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[[resumo.totalRegistros,"Registros analíticos"],[resumo.atividadesRegistradas,"Atividades manuais"],[resumo.acoesRegistradas,"Ações operacionais"],[resumo.auditoriaDocumental,"Auditorias documentais"]].map(([v,l])=>
+        {[[resumo.totalRegistros,cat?"Análises filtradas":"Registros analíticos"],[resumo.atividadesRegistradas,"Atividades manuais"],[resumo.acoesRegistradas,"Ações operacionais"],[resumo.auditoriaDocumental,"Auditorias documentais"]].map(([v,l])=>
           <div key={String(l)} className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl">{v}</strong><p className="mt-1 text-xs text-slate-300">{l}</p></div>)}
       </div>
     </header>
@@ -97,7 +97,7 @@ export default async function AnalisesInternasPage({searchParams}:{
     {resumoError?<p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">Não foi possível conferir todos os indicadores: {resumoError.message}</p>:null}
     <h2 className="text-xl font-bold">Análises e auditorias documentadas</h2>
     {error?<p role="alert" className="rounded-lg bg-red-100 p-4 text-red-800">Erro ao consultar análises: {error.message}</p>:
-    !(data||[]).length?<p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Ainda não há análises registradas em seu nome nesta seleção.</p>:
+    !(data||[]).length?<p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Nenhuma análise documental atribuída à sua conta nesta seleção. Outras atividades e ações registradas podem aparecer nas seções abaixo.</p>:
     <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[980px] text-sm">
         <thead className="bg-slate-900 text-white"><tr>{["Cliente / processo","Atividade atribuída","Data","Fonte","Comprovação"].map(t=><th key={t} className="p-3 text-left">{t}</th>)}</tr></thead>
