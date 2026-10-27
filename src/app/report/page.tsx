@@ -158,7 +158,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-primary">Auditoria judicial · CNJ / DataJud</p>
           <h2 id="merito-oficial-title" className="mt-1 text-xl font-extrabold">Resultado dos processos encerrados</h2>
-          <p className="mt-1 max-w-4xl text-xs text-muted-foreground">Movimentos oficiais identificados no DataJud (TPU). O tipo de sentença registrado não confirma trânsito em julgado nem eventual reforma por recurso. Encerrado no CRM é situação administrativa, não julgamento.</p>
+          <p className="mt-1 max-w-4xl text-xs text-muted-foreground">Movimentos oficiais identificados no DataJud (TPU). O tipo de sentença registrado não confirma trânsito em julgado nem eventual reforma por recurso. Quando aparecer “—”, a fonte estruturada de TPU não está disponível no registro; isso não significa zero resultados. Encerrado no CRM é situação administrativa, não julgamento.</p>
         </div>
         <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary underline">Consultar processo, advogado e movimento na planilha</a>
       </div>
