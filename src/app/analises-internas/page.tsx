@@ -18,7 +18,7 @@ export default async function AnalisesInternasPage({searchParams}:{
   const param=await searchParams;
   const q=String(param?.q||"").replace(/[^0-9A-Za-z.\- ]/g,"").slice(0,80);
   const cat=String(param?.cat||"").replace(/[^a-z_]/g,"").slice(0,50);
-  const pagina=Math.min(99,Math.max(1,Number(param?.pagina||1)||1));
+  const pagina=Math.min(999,Math.max(1,Number(param?.pagina||1)||1));
   const atividadesPagina=Math.min(99,Math.max(1,Number(param?.atividadesPagina||1)||1));
   const acoesPagina=Math.min(99,Math.max(1,Number(param?.acoesPagina||1)||1));
   const limit=40;
