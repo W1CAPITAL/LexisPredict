@@ -47,6 +47,7 @@ describe('P0: cloud scan cannot claim success on failed official reads',()=>{
   expect(mock.audit).toHaveBeenCalledWith('1234567-00.2026.8.26.0001','tenant-1','both',expect.any(Object));
  });
 
+ // The worker's batch size is deliberately bounded to three CNJs.
  it('processes a bounded batch concurrently and advances to the last selected ID',async()=>{
   mock.queue.mockResolvedValue([
    {id:1,db_id:'1',protocolo:'1234567-00.2026.8.26.0001'},
