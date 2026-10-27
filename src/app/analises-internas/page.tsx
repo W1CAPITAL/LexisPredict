@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { canViewCompanyAnalyses } from "@/lib/roles";
+import { AnalisesPdfExportButton } from "@/components/analises-internas/pdf-export-button";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -94,6 +95,16 @@ export default async function AnalisesInternasPage({searchParams}:{
       <button className="rounded-lg bg-blue-700 px-5 py-2 text-sm font-semibold text-white" type="submit">Buscar</button>
       <Link href="/report" className="rounded-lg border border-border bg-card px-4 py-2 text-sm">Voltar ao relatório</Link>
     </form>
+    <section className="flex flex-col gap-4 rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-500/10 via-background to-background p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">Exportação profissional</p>
+        <h2 className="mt-1 text-lg font-bold">Seu trabalho em PDF</h2>
+        <p className="mt-1 max-w-xl text-sm text-muted-foreground">Capa, indicadores e histórico pessoal, respeitando a busca, a categoria e a paginação da tela. Sem expor análises de outros usuários.</p>
+      </div>
+      {ctx.isViewer
+        ?<p className="max-w-xs text-xs text-muted-foreground">Perfil Visualizador: exportação bloqueada. A leitura da página continua disponível.</p>
+        :<AnalisesPdfExportButton q={q} cat={cat} pagina={pagina} atividadesPagina={atividadesPagina} acoesPagina={acoesPagina}/>}
+    </section>
     {resumoError?<p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">Não foi possível conferir todos os indicadores: {resumoError.message}</p>:null}
     <h2 className="text-xl font-bold">Análises e auditorias documentadas</h2>
     {error?<p role="alert" className="rounded-lg bg-red-100 p-4 text-red-800">Erro ao consultar análises: {error.message}</p>:
