@@ -17,67 +17,46 @@ export type CategoriaMeritoCadastrado = "procedente"|"improcedente"|"parcial"|"d
 export function categoriaMeritoCadastrado(c:any):CategoriaMeritoCadastrado{
  if(!c)return "sem_indicador";
  const d=dadosOf(c);
- const oficial = d.merito_fonte === "datajud_tpu_2026-10-22"
-   ? String(d.merito_datajud_20261022?.resultado || "") : "";
- if (oficial) {
-   if (oficial === "procedente" || oficial === "improcedente" || oficial === "parcial") return oficial;
-   if (oficial === "conflito_resultados") return "divergente";
+ const oficial=d.merito_fonte==="datajud_tpu_2026-10-22"
+   ? String(d.merito_datajud_20261022?.resultado||"") : "";
+ if(oficial){
+   if(oficial==="procedente"||oficial==="improcedente"||oficial==="parcial")return oficial;
+   if(oficial==="conflito_resultados")return "divergente";
    return "sem_indicador";
  }
 
- const motivo=String(c.procedente_motivo ?? d.procedente_motivo ?? "").trim().toUpperCase();
- const textoAtual=[
-   c.evento_tipo,d.evento_tipo,c.evento_resumo,d.evento_resumo,
-   c.datajud_ultimo_nome,d.datajud_ultimo_nome,
-   c.djen_ultimo_resumo,d.djen_ultimo_resumo,
-   c.merito_resultado,d.merito_resultado
- ].filter(Boolean).join(" ").toUpperCase();
+ // O motivo textual prevalece sobre is_procedente: o booleano legado também
+ // foi marcado em casos parciais e não prova vitória do autor.
+ const motivo=String(c.procedente_motivo??d.procedente_motivo??"").trim().toUpperCase();
+ const evento=String(c.evento_tipo??d.evento_tipo??"").trim().toLowerCase();
+ const merito=String(c.merito_resultado??d.merito_resultado??"").trim().toLowerCase();
 
- const classificarTexto=(texto:string):CategoriaMeritoCadastrado|null=>{
-   const parcial=/PARCIAL|EM PARTE/.test(texto);
-   const improcedente=/IMPROCEDENTE|IMPROCED[ÊE]NCIA/.test(texto);
-   const procedente=/PROCEDENTE|PROCED[ÊE]NCIA/.test(texto) && !improcedente && !parcial;
-   const sinais=Number(parcial)+Number(improcedente)+Number(procedente);
-   if(sinais>1)return "divergente";
-   if(parcial)return "parcial";
-   if(improcedente)return "improcedente";
-   if(procedente)return "procedente";
-   return null;
- };
+ const proc=evento==="sentenca_procedente"
+   || d.sentenca_procedente===true || merito==="procedente";
+ const imp=evento==="sentenca_improcedente"
+   || c.is_improcedente===true || d.is_improcedente===true
+   || d.sentenca_improcedente===true || merito==="improcedente";
+ const parcial=evento==="sentenca_parcial"
+   || c.sentenca_parcial===true || d.sentenca_parcial===true || merito==="parcial";
+ const sinais=Number(proc)+Number(imp)+Number(parcial);
+ if(sinais>1)return "divergente";
+ const estruturada:CategoriaMeritoCadastrado|null=
+   parcial?"parcial":imp?"improcedente":proc?"procedente":null;
 
- const motivoCategoria=classificarTexto(motivo);
- const atualCategoria=classificarTexto(textoAtual);
- const flagPositiva=c.is_procedente===true || d.is_procedente===true;
-
- if(motivoCategoria==="divergente")return "divergente";
- if(motivoCategoria==="parcial")
-   return atualCategoria && atualCategoria!=="parcial" ? "divergente" : "parcial";
- if(motivoCategoria==="improcedente")
-   return flagPositiva || (atualCategoria && atualCategoria!=="improcedente") ? "divergente" : "improcedente";
- if(motivoCategoria==="procedente")
-   return atualCategoria && atualCategoria!=="procedente" ? "divergente" : "procedente";
-
- // "Decisão interlocutória de mérito" não revela, sozinha, quem venceu.
- // Se houver resultado atual explícito, ele prevalece; se contradisser a flag positiva, revisar.
- if(/DECIS[ÃA]O INTERLOCUT[ÓO]RIA DE M[ÉE]RITO/.test(motivo)){
-   if(atualCategoria==="improcedente" && flagPositiva)return "divergente";
-   if(atualCategoria)return atualCategoria;
-   return "sem_indicador";
+ // Resultado recursal sem identificar qual parte recorreu não prova
+ // procedência parcial do pedido inicial.
+ const recursoAmbiguo=/(PROVIMENTO EM PARTE|PARCIALMENTE PROVIDO|^PROVIMENTO$)/.test(motivo);
+ let motivoCategoria:CategoriaMeritoCadastrado|null=null;
+ if(!recursoAmbiguo){
+   if(/PARCIAL|EM PARTE/.test(motivo))motivoCategoria="parcial";
+   else if(/IMPROCEDENTE|IMPROCED[ÊE]NCIA/.test(motivo))motivoCategoria="improcedente";
+   else if(/PROCEDENTE|PROCED[ÊE]NCIA/.test(motivo)
+     && !/IMPROCEDENTE|PARCIAL|EM PARTE/.test(motivo))motivoCategoria="procedente";
  }
- if(atualCategoria)return atualCategoria;
 
- // Compatibilidade com campos estruturados antigos. A flag positiva isolada não
- // basta para declarar procedência; o booleano legado também marcava parciais.
- const evento=String(c.evento_tipo||d.evento_tipo||"").toLowerCase();
- const merito=String(c.merito_resultado||d.merito_resultado||"").toLowerCase();
- const proc=evento==="sentenca_procedente"||merito==="procedente";
- const imp=c.is_improcedente===true||d.is_improcedente===true
-   ||d.sentenca_improcedente===true||evento==="sentenca_improcedente"||merito==="improcedente";
- const partial=d.sentenca_parcial===true||evento==="sentenca_parcial"||merito==="parcial";
- if((proc&&imp)||(partial&&imp))return "divergente";
- if(partial)return "parcial";
- if(imp)return "improcedente";
- if(proc)return "procedente";
+ if(motivoCategoria&&estruturada&&motivoCategoria!==estruturada)return "divergente";
+ if(motivoCategoria)return motivoCategoria;
+ if(estruturada)return estruturada;
  return "sem_indicador";
 }
 export function flagProcedente(c:any):boolean{
@@ -87,24 +66,32 @@ export function flagImprocedente(c:any):boolean{
  return categoriaMeritoCadastrado(c)==="improcedente";
 }
 
-function statusExecucaoOf(c:any,d:any):string{
-  return String(
-    c?.status_executivo ?? d?.status_executivo ??
-    c?.detalhes_execucao?.status_executivo ?? d?.detalhes_execucao?.status_executivo ?? ''
-  ).trim().toLowerCase();
+function statusExecucaoOf(c:any,d:any):string[]{
+ return [
+   c?.status_executivo,d?.status_executivo,
+   c?.detalhes_execucao?.status_executivo,d?.detalhes_execucao?.status_executivo
+ ].filter(Boolean).map(v=>String(v).trim().toLowerCase());
 }
 
-export function flagCumprimentoAtivo(c: any): boolean {
-  const d = dadosOf(c);
-  if (flagCumprimentoEncerrado(c)) return false;
-  const status=statusExecucaoOf(c,d);
-  return c?.cumprimento_ativo===true || d.cumprimento_ativo===true || status==='ativo';
+export function flagCumprimentoEncerrado(c:any):boolean{
+ const d=dadosOf(c);
+ const statuses=statusExecucaoOf(c,d);
+ return c?.cumprimento_encerrado===true
+   || d.cumprimento_encerrado===true
+   || c?.detalhes_execucao?.cumprimento_encerrado===true
+   || d.detalhes_execucao?.cumprimento_encerrado===true
+   || statuses.some(s=>/(encerrad|extint|arquiv|baixad)/.test(s));
 }
 
-export function flagCumprimentoEncerrado(c: any): boolean {
-  const d = dadosOf(c);
-  const status=statusExecucaoOf(c,d);
-  return !!(c?.cumprimento_encerrado || d.cumprimento_encerrado || status==='encerrado');
+export function flagCumprimentoAtivo(c:any):boolean{
+ const d=dadosOf(c);
+ if(flagCumprimentoEncerrado(c))return false;
+ const statuses=statusExecucaoOf(c,d);
+ const explicitActive=statuses.includes("ativo")
+   || c?.cumprimento_ativo===true || d.cumprimento_ativo===true
+   || c?.detalhes_execucao?.cumprimento_ativo===true
+   || d.detalhes_execucao?.cumprimento_ativo===true;
+ return c?.em_cumprimento_sentenca===true && explicitActive;
 }
 
 export function flagFaltaInstaurar(c: any): boolean {
