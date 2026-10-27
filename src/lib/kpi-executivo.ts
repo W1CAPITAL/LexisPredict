@@ -91,7 +91,7 @@ export function flagCumprimentoAtivo(c:any):boolean{
    || c?.cumprimento_ativo===true || d.cumprimento_ativo===true
    || c?.detalhes_execucao?.cumprimento_ativo===true
    || d.detalhes_execucao?.cumprimento_ativo===true;
- return c?.em_cumprimento_sentenca===true && explicitActive;
+ return (c?.em_cumprimento_sentenca===true || d.em_cumprimento_sentenca===true) && explicitActive;
 }
 
 export function flagFaltaInstaurar(c: any): boolean {
