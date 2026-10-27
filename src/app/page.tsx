@@ -213,10 +213,10 @@ export default function Dashboard() {
     // MÉRITO OBRIGATÓRIO (kpiExec ANTES de usar cumprimento/procedentes)
     // Alinhado à aba Ações Procedentes: flag is_procedente do scanner (não só evento_tipo)
     const kpiExec = computeKpiExecutivo(cases as any);
-    const countCumprimento = kpiExec.cumprimentoAtivo;
+    const countCumprimento = portfolioSummary?.meritoDisponivel ? portfolioSummary.cumprimentos : kpiExec.cumprimentoAtivo;
     const countProcedente = kpiExec.procedentes;
     const countImprocedente = kpiExec.improcedentes;
-    const countAudiencia = ativos.filter(c =>
+    const countAudiencia = portfolioSummary?.meritoDisponivel ? portfolioSummary.audiencias : ativos.filter(c =>
       String(c.evento_tipo || '').includes('audiencia')
     ).length;
 
@@ -242,7 +242,7 @@ export default function Dashboard() {
       baixasTribunalAindaAtivos: kpis.baixasTribunalAindaAtivos, countBA, countParados60, countParados90, countCumprimento, countAuditadosSemana, countAuditadosTribunal, countEditadosApp, countAuditadosHoje: countAuditadosHojeN,
       countProcedente, countImprocedente, countAudiencia
     };
-  }, [cases, t, baHitDigits]);
+  }, [cases, t, baHitDigits, portfolioSummary]);
 
   const priorityQueue = useMemo(() => {
     return cases
@@ -468,15 +468,16 @@ export default function Dashboard() {
                     </div><AlertCircle className="text-orange-600/40 shrink-0" size={24}/>
                   </div>
                   <div className="col-span-2 lg:col-span-1 rounded-2xl border border-blue-200 bg-blue-50/80 dark:bg-blue-950/30 p-4 flex items-center justify-between shadow-sm">
-                    <div><p className="text-[10px] font-black uppercase tracking-wide text-blue-700/80">Audiências* · Cumprimento</p>
-                      <p className="mt-1 text-2xl font-black tabular-nums text-blue-700">{portfolioSummary?`${metrics.countAudiencia}* · ${portfolioSummary.cumprimentos}`:"…"}</p>
+                    <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wide text-blue-700/80">Audiências ativas · Cumprimento ativo</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-blue-700">{portfolioSummary?.meritoDisponivel?\`\${portfolioSummary.audiencias.toLocaleString("pt-BR")} · \${portfolioSummary.cumprimentos.toLocaleString("pt-BR")}\`:"…"}</p>
+                      <p className="mt-1 text-[10px] leading-relaxed text-blue-700/80 dark:text-blue-200/80">A instaurar: {portfolioSummary?.meritoDisponivel?portfolioSummary.cumprimentosPendentes.toLocaleString("pt-BR"):"—"} · Revisar status: {portfolioSummary?.meritoDisponivel?portfolioSummary.cumprimentosRevisar.toLocaleString("pt-BR"):"—"}</p>
                     </div><Activity className="text-blue-600/40 shrink-0" size={24}/>
                   </div>
                 </div>
-                <p className="px-1 text-[10px] text-muted-foreground">
-                  Mérito: indicadores registrados no CRM em toda a carteira do seu escopo, sem duplicar casos conflitantes.
-                  Não significam trânsito em julgado, vitória definitiva ou conferência individual dos autos.
-                  *Audiências ainda refletem apenas os processos carregados na tela.
+                <p className="px-1 text-[10px] leading-relaxed text-muted-foreground">
+                  Mérito: classificação baseada no motivo cadastrado e nos sinais judiciais atuais; não confirma trânsito em julgado, resultado definitivo de recurso ou recebimento.
+                  Sem indicador de mérito: {portfolioSummary?.meritoDisponivel?portfolioSummary.semIndicador.toLocaleString("pt-BR"):"—"}.
+                  Audiências são contadas sobre todo o escopo apenas quando há sinal explícito de designação nos campos atuais. Cumprimentos ativos, pendentes de instauração e sinalizações sem status confiável ficam separados.
                 </p>
               </section>
 {/* G2 — KPIs Revisional & Jurídico */}
