@@ -15,6 +15,8 @@ describe('P0: recuperar somente fontes oficiais pendentes', () => {
     expect(cloudSourceCooldownMs([{datajudError:'O tribunal pediu pausa (429)'}])).toBe(45000);
     expect(cloudSourceCooldownMs([{datajudError:'Tribunal instável (shard).'}])).toBe(15000);
     expect(cloudSourceCooldownMs([{datajudError:'Tempo esgotado no tribunal.'}])).toBe(7000);
-    expect(cloudSourceCooldownMs([{datajudError:null}])).toBe(0);
+    expect(cloudSourceCooldownMs([{djenError:'HTTP 429 — limite de consultas'}])).toBe(45000);
+    expect(cloudSourceCooldownMs([{djenError:'Timeout ao consultar DJEN'}])).toBe(7000);
+    expect(cloudSourceCooldownMs([{datajudError:null,djenError:null}])).toBe(0);
   });
 });
