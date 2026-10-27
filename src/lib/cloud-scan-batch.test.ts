@@ -43,7 +43,7 @@ describe('P0: cloud scan cannot claim success on failed official reads',()=>{
   mock.queue.mockResolvedValue([{id:1,protocolo:'1234567-00.2026.8.26.0001'}]);
   mock.audit.mockResolvedValue({success:true,sourceStatus:{datajud:{ok:true},djen:{ok:true}}});
   expect(await runCloudScanBatch(input)).toMatchObject({success:true,processed:1,successCount:1,failedCount:0});
-  expect(mock.queue).toHaveBeenCalledWith(1,'tenant-1',expect.objectContaining({scope:'full',mode:'both'}));
+  expect(mock.queue).toHaveBeenCalledWith(3,'tenant-1',expect.objectContaining({scope:'full',mode:'both'}));
   expect(mock.audit).toHaveBeenCalledWith('1234567-00.2026.8.26.0001','tenant-1','both',expect.any(Object));
  });
 
