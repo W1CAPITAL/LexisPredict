@@ -107,3 +107,33 @@ export async function getResumoAnalisesDaEmpresa(
   responsavel:"Davi Alves Figueredo",consultaEm:new Date().toISOString()
  };
 }
+
+
+/**
+ * Totais privados da aba /analises-internas. A autoria é obtida exclusivamente
+ * da sessão autenticada no servidor, nunca de parâmetros recebidos da interface.
+ * Não reutilizar getResumoAnalisesDaEmpresa(): aquele é gerencial e inclui
+ * registros de toda a equipe.
+ */
+export async function getResumoAnalisesDoUsuario(
+ empresaId:string,authUserId:string
+):Promise<Pick<AnalisesResumo,"totalRegistros"|"processosAnalisados"|"auditoriaDocumental"|"triagemReplicaProvas"|"investigacoesExternas">>{
+ if(!empresaId||!authUserId)throw new Error("Identidade necessária para consultar análises");
+ const db=await getSupabaseAdmin();
+ const rows=await paginate<Pick<Analysis,"processo_id"|"categoria">>((a,b)=>
+  db.from("registros_trabalho_analitico")
+   .select("processo_id,categoria")
+   .eq("empresa_id",empresaId)
+   .eq("responsavel_auth_user_id",authUserId)
+   .order("id",{ascending:true})
+   .range(a,b)
+ );
+ const typeCount=(name:string)=>rows.filter(row=>row.categoria===name).length;
+ return {
+  totalRegistros:rows.length,
+  processosAnalisados:new Set(rows.filter(row=>ANALISE_TIPOS.has(row.categoria)&&row.processo_id!=null).map(row=>row.processo_id)).size,
+  auditoriaDocumental:typeCount("auditoria_documental"),
+  triagemReplicaProvas:typeCount("triagem_replica_provas"),
+  investigacoesExternas:typeCount("investigacao_get")+typeCount("investigacao_externa")
+ };
+}
