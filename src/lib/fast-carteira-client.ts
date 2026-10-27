@@ -5,7 +5,7 @@ export type CarteiraSnapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
   improcedentes:number;parciais:number;divergentesMerito:number;semIndicador:number;
-  audiencias:number;cumprimentosPendentes:number;cumprimentosRevisar:number;meritoDisponivel:boolean;
+  cumprimentosPendentes:number;cumprimentosRevisar:number;cumprimentosSinalizados:number;cumprimentosEncerrados:number;meritoDisponivel:boolean;
   semRetorno30?:number;semRetornoNunca?:number;retornoDisponivel?:boolean;
 };
 export type FastCarteiraResponse = {
