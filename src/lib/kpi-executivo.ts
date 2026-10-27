@@ -17,8 +17,6 @@ export type CategoriaMeritoCadastrado = "procedente"|"improcedente"|"parcial"|"d
 export function categoriaMeritoCadastrado(c:any):CategoriaMeritoCadastrado{
  if(!c)return "sem_indicador";
  const d=dadosOf(c);
- // Movimentações oficiais do DataJud prevalecem sobre flags e notas internas.
- // Outros desfechos (acordo, indeferimento etc.) não são improcedência.
  const oficial = d.merito_fonte === "datajud_tpu_2026-10-22"
    ? String(d.merito_datajud_20261022?.resultado || "") : "";
  if (oficial) {
@@ -26,12 +24,55 @@ export function categoriaMeritoCadastrado(c:any):CategoriaMeritoCadastrado{
    if (oficial === "conflito_resultados") return "divergente";
    return "sem_indicador";
  }
+
+ const motivo=String(c.procedente_motivo ?? d.procedente_motivo ?? "").trim().toUpperCase();
+ const textoAtual=[
+   c.evento_tipo,d.evento_tipo,c.evento_resumo,d.evento_resumo,
+   c.datajud_ultimo_nome,d.datajud_ultimo_nome,
+   c.djen_ultimo_resumo,d.djen_ultimo_resumo,
+   c.merito_resultado,d.merito_resultado
+ ].filter(Boolean).join(" ").toUpperCase();
+
+ const classificarTexto=(texto:string):CategoriaMeritoCadastrado|null=>{
+   const parcial=/PARCIAL|EM PARTE/.test(texto);
+   const improcedente=/IMPROCEDENTE|IMPROCED[ÊE]NCIA/.test(texto);
+   const procedente=/PROCEDENTE|PROCED[ÊE]NCIA/.test(texto) && !improcedente && !parcial;
+   const sinais=Number(parcial)+Number(improcedente)+Number(procedente);
+   if(sinais>1)return "divergente";
+   if(parcial)return "parcial";
+   if(improcedente)return "improcedente";
+   if(procedente)return "procedente";
+   return null;
+ };
+
+ const motivoCategoria=classificarTexto(motivo);
+ const atualCategoria=classificarTexto(textoAtual);
+ const flagPositiva=c.is_procedente===true || d.is_procedente===true;
+
+ if(motivoCategoria==="divergente")return "divergente";
+ if(motivoCategoria==="parcial")
+   return atualCategoria && atualCategoria!=="parcial" ? "divergente" : "parcial";
+ if(motivoCategoria==="improcedente")
+   return flagPositiva || (atualCategoria && atualCategoria!=="improcedente") ? "divergente" : "improcedente";
+ if(motivoCategoria==="procedente")
+   return atualCategoria && atualCategoria!=="procedente" ? "divergente" : "procedente";
+
+ // "Decisão interlocutória de mérito" não revela, sozinha, quem venceu.
+ // Se houver resultado atual explícito, ele prevalece; se contradisser a flag positiva, revisar.
+ if(/DECIS[ÃA]O INTERLOCUT[ÓO]RIA DE M[ÉE]RITO/.test(motivo)){
+   if(atualCategoria==="improcedente" && flagPositiva)return "divergente";
+   if(atualCategoria)return atualCategoria;
+   return "sem_indicador";
+ }
+ if(atualCategoria)return atualCategoria;
+
+ // Compatibilidade com campos estruturados antigos. A flag positiva isolada não
+ // basta para declarar procedência; o booleano legado também marcava parciais.
  const evento=String(c.evento_tipo||d.evento_tipo||"").toLowerCase();
  const merito=String(c.merito_resultado||d.merito_resultado||"").toLowerCase();
- const proc=c.is_procedente===true||d.is_procedente===true
-   || evento==="sentenca_procedente"||merito==="procedente";
+ const proc=evento==="sentenca_procedente"||merito==="procedente";
  const imp=c.is_improcedente===true||d.is_improcedente===true
-   || d.sentenca_improcedente===true||evento==="sentenca_improcedente"||merito==="improcedente";
+   ||d.sentenca_improcedente===true||evento==="sentenca_improcedente"||merito==="improcedente";
  const partial=d.sentenca_parcial===true||evento==="sentenca_parcial"||merito==="parcial";
  if((proc&&imp)||(partial&&imp))return "divergente";
  if(partial)return "parcial";
@@ -46,19 +87,24 @@ export function flagImprocedente(c:any):boolean{
  return categoriaMeritoCadastrado(c)==="improcedente";
 }
 
+function statusExecucaoOf(c:any,d:any):string{
+  return String(
+    c?.status_executivo ?? d?.status_executivo ??
+    c?.detalhes_execucao?.status_executivo ?? d?.detalhes_execucao?.status_executivo ?? ''
+  ).trim().toLowerCase();
+}
+
 export function flagCumprimentoAtivo(c: any): boolean {
   const d = dadosOf(c);
-  if (c?.cumprimento_encerrado || d.cumprimento_encerrado) return false;
-  return !!(
-    c?.em_cumprimento_sentenca ||
-    d.em_cumprimento_sentenca ||
-    c?.evento_tipo === 'cumprimento_sentenca'
-  );
+  if (flagCumprimentoEncerrado(c)) return false;
+  const status=statusExecucaoOf(c,d);
+  return c?.cumprimento_ativo===true || d.cumprimento_ativo===true || status==='ativo';
 }
 
 export function flagCumprimentoEncerrado(c: any): boolean {
   const d = dadosOf(c);
-  return !!(c?.cumprimento_encerrado || d.cumprimento_encerrado);
+  const status=statusExecucaoOf(c,d);
+  return !!(c?.cumprimento_encerrado || d.cumprimento_encerrado || status==='encerrado');
 }
 
 export function flagFaltaInstaurar(c: any): boolean {
@@ -107,6 +153,7 @@ export type KpiExecutivo = {
   improcedentes: number;
   parciais: number;
   divergentesMerito: number;
+  semIndicador: number;
   cumprimentoAtivo: number;
   cumprimentoEncerrado: number;
   faltaInstaurar: number;
@@ -122,6 +169,7 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
   let improcedentes = 0;
   let parciais=0;
   let divergentesMerito=0;
+  let semIndicador=0;
   let cumprimentoAtivo = 0;
   let cumprimentoEncerrado = 0;
   let faltaInstaurar = 0;
@@ -136,6 +184,7 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
     if(merito==="improcedente")improcedentes++;
     if(merito==="parcial")parciais++;
     if(merito==="divergente")divergentesMerito++;
+    if(merito==="sem_indicador")semIndicador++;
     if (flagCumprimentoAtivo(c)) cumprimentoAtivo += 1;
     if (flagCumprimentoEncerrado(c)) cumprimentoEncerrado += 1;
     if (flagFaltaInstaurar(c)) faltaInstaurar += 1;
@@ -155,6 +204,7 @@ export function computeKpiExecutivo(cases: any[]): KpiExecutivo {
     improcedentes,
     parciais,
     divergentesMerito,
+    semIndicador,
     cumprimentoAtivo,
     cumprimentoEncerrado,
     faltaInstaurar,
