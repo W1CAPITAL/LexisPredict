@@ -87,15 +87,23 @@ describe("commercial role contract", () => {
     expect(page).toContain("const usuario=String(ctx.auth_id)");
     expect(page).toContain('.eq("empresa_id",empresa)');
     expect(page).toContain('.eq("responsavel_auth_user_id",usuario)');
-    expect(page).toContain("getResumoAnalisesDoUsuario(empresa,usuario)");
+    expect(page).toContain('query.order("data_atividade"');
+    expect(page).toContain('tarefasQuery.order("data_realizacao"');
+    expect(page).toContain('acoesQuery.order("created_at"');
+    expect(page).toContain('.eq("auth_user_id",usuario)');
+    expect(page).toContain('["edicao","atendimento"]');
+    expect(page).not.toContain("getResumoAnalisesDoUsuario(");
     expect(page).toContain("{x.responsavel_nome}");
     expect(page).not.toContain("Análises e investigações de Davi");
     expect(page).not.toContain("<b>Davi Alves Figueredo</b>");
-    const personalSummary = lib.split("export async function getResumoAnalisesDoUsuario(")[1];
-    expect(personalSummary).toBeTruthy();
-    expect(personalSummary).toContain('.eq("empresa_id",empresaId)');
-    expect(personalSummary).toContain('.eq("responsavel_auth_user_id",authUserId)');
-    expect(personalSummary).not.toContain('from("tarefas_realizadas")');
+    // A função gerencial continua separada; a página individual usa apenas
+    // consultas limitadas (nenhuma varredura paginada completa dos 6 mil registros).
+    expect(page).not.toContain("await getResumoAnalisesDoUsuario(");
+    expect(page).toContain('const [analisesResult,tarefasResult,acoesResult,docsResult,replicasResult]=await Promise.all');
+    expect(page).toContain('head:true,count:"exact"');
+    expect(page).toContain("taskLimit=25");
+    expect(page).toContain("actionLimit=20");
+    expect(lib).toContain("getResumoAnalisesDaEmpresa");
   });
 
   it("Supervisor tem visão consolidada da empresa", () => {
