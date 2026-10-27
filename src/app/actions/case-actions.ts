@@ -231,6 +231,8 @@ export async function auditCaseCoreSystem(
   let djenOk = false;
   let datajudIssue: string | null = null;
   let djenIssue: string | null = null;
+  let datajudLatencyMs = 0;
+  let djenLatencyMs = 0;
 
   // Pré-busca paralela (both) — Sugerir resposta / auditoria
   let preDataJud: any = null;
@@ -239,38 +241,75 @@ export async function auditCaseCoreSystem(
   const protoSafe = digits.length === 20 ? digits : protocolo;
   if (mode === 'both') {
     const [djS, djenS] = await Promise.allSettled([
-      fetchDataJud(protoSafe, 1, { ...options, fast: options.fast !== false }),
-      fetchDjenComunicacoes(protoSafe, {
-        dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        cloudBudget: options.cloudBudget,
-      }),
+      (async () => {
+        const startedAt = Date.now();
+        try {
+          return await fetchDataJud(protoSafe, 1, { ...options, fast: options.fast !== false });
+        } finally {
+          datajudLatencyMs = Date.now() - startedAt;
+        }
+      })(),
+      (async () => {
+        const startedAt = Date.now();
+        try {
+          return await fetchDjenComunicacoes(protoSafe, {
+            dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            cloudBudget: options.cloudBudget,
+          });
+        } finally {
+          djenLatencyMs = Date.now() - startedAt;
+        }
+      })(),
     ]);
-    if (djS.status === 'fulfilled') preDataJud = djS.value;
-    if (djenS.status === 'fulfilled') preDjen = djenS.value;
+    if (djS.status === 'fulfilled') {
+      preDataJud = djS.value;
+      if (preDataJud?.error) datajudIssue = String(preDataJud.message || 'DataJud indisponível').slice(0, 180);
+    } else {
+      datajudIssue = djS.reason instanceof Error ? djS.reason.message.slice(0, 180) : 'DataJud indisponível';
+    }
+    if (djenS.status === 'fulfilled') {
+      preDjen = djenS.value;
+      if (!preDjen?.success) djenIssue = String(preDjen?.error || 'DJEN sem retorno confirmado').slice(0, 180);
+    } else {
+      djenIssue = djenS.reason instanceof Error ? djenS.reason.message.slice(0, 180) : 'DJEN indisponível';
+    }
     // Retry DJEN se falhou na paralela
     if ((!preDjen || preDjen.success === false) && !options.cloudBudget) {
+      const retryStartedAt = Date.now();
       try {
         await new Promise((r) => setTimeout(r, 800));
         preDjen = await fetchDjenComunicacoes(protoSafe, {
           dataInicio: options.djenSince || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         });
-      } catch {
-        /* */
+        djenIssue = preDjen?.success
+          ? null
+          : String(preDjen?.error || 'DJEN sem retorno confirmado').slice(0, 180);
+      } catch (error) {
+        djenIssue = error instanceof Error ? error.message.slice(0, 180) : 'DJEN indisponível';
+      } finally {
+        djenLatencyMs += Date.now() - retryStartedAt;
       }
     }
     // Retry DataJud se erro — attempt=2 fura o cache (attempt=1 só lê memória)
     if ((!preDataJud || preDataJud.error) && !options.cloudBudget) {
+      const retryStartedAt = Date.now();
       try {
         await new Promise((r) => setTimeout(r, 600));
         preDataJud = await fetchDataJud(protoSafe, 2, { ...options, fast: false });
-      } catch {
-        /* */
+        datajudIssue = preDataJud?.error
+          ? String(preDataJud?.message || 'DataJud indisponível').slice(0, 180)
+          : null;
+      } catch (error) {
+        datajudIssue = error instanceof Error ? error.message.slice(0, 180) : 'DataJud indisponível';
+      } finally {
+        datajudLatencyMs += Date.now() - retryStartedAt;
       }
     }
   }
 
   // --- BLOCO DATAJUD ---
   if (mode === 'datajud' || mode === 'both') {
+    const datajudStartedAt = Date.now();
     try {
       const dataJud =
         mode === 'both'
@@ -406,15 +445,18 @@ export async function auditCaseCoreSystem(
           eventResumo = upd.nomeUltimo || eventResumo;
         }
       }
-      if (!datajudOk) datajudIssue = String(dataJud?.message || 'DataJud sem retorno confirmado').slice(0,180);
+      if (!datajudOk) datajudIssue = datajudIssue || String(dataJud?.message || 'DataJud sem retorno confirmado').slice(0,180);
     } catch (e) {
       datajudIssue = e instanceof Error ? e.message.slice(0,180) : 'DataJud indisponível';
       console.error('[auditCaseCoreSystem] DataJud fail', protocolo, e);
+    } finally {
+      if (mode === 'datajud') datajudLatencyMs = Date.now() - datajudStartedAt;
     }
   }
 
   // --- BLOCO DJEN ---
   if (mode === 'djen' || mode === 'both') {
+    const djenStartedAt = Date.now();
     try {
       let djenRes =
         mode === 'both'
@@ -470,11 +512,13 @@ export async function auditCaseCoreSystem(
           }
         }
       } else {
-        djenIssue = String(djenRes?.error || 'DJEN sem retorno confirmado').slice(0, 180);
+        djenIssue = String(djenRes?.error || djenIssue || 'DJEN sem retorno confirmado').slice(0, 180);
       }
     } catch (e) {
       djenIssue = e instanceof Error ? e.message.slice(0, 180) : 'DJEN indisponível';
       console.error('[auditCaseCoreSystem] DJEN fail', protocolo, e);
+    } finally {
+      if (mode === 'djen') djenLatencyMs = Date.now() - djenStartedAt;
     }
   }
 
@@ -496,6 +540,29 @@ export async function auditCaseCoreSystem(
         comunicacoes = dj.items;
       }
     } catch { /* */ }
+  }
+
+  // Persistir telemetria de cada fonte, inclusive quando ambas falham.
+  // Os logs do Supabase são métricas de execução; não substituem os dados oficiais.
+  if (mode === 'datajud' || mode === 'both') {
+    await logScanMetric({
+      empresaId,
+      source: 'datajud',
+      success: datajudOk,
+      protocolo: protoSafe || protocolo,
+      latencyMs: Math.max(0, Math.round(datajudLatencyMs)),
+      errorCode: datajudOk ? undefined : String(datajudIssue || 'DATAJUD_UNCONFIRMED').replace(/\s+/g, ' ').slice(0, 120),
+    });
+  }
+  if (mode === 'djen' || mode === 'both') {
+    await logScanMetric({
+      empresaId,
+      source: 'djen',
+      success: djenOk,
+      protocolo: protoSafe || protocolo,
+      latencyMs: Math.max(0, Math.round(djenLatencyMs)),
+      errorCode: djenOk ? undefined : String(djenIssue || 'DJEN_UNCONFIRMED').replace(/\s+/g, ' ').slice(0, 120),
+    });
   }
 
   if (!datajudOk && !djenOk) {
@@ -925,12 +992,6 @@ export async function auditCaseCoreSystem(
         offline: !datajudOk && !djenOk,
       },
     });
-    if (datajudOk) {
-      await logScanMetric({ empresaId, source: 'datajud', success: true, protocolo: protoSafe || protocolo });
-    }
-    if (djenOk) {
-      await logScanMetric({ empresaId, source: 'djen', success: true, protocolo: protoSafe || protocolo });
-    }
     console.info(
       '[audit-detail]',
       JSON.stringify({
