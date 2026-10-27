@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
-import { getResumoAnalisesDaEmpresa } from "@/lib/analises-internas";
+import { getResumoAnalisesDoUsuario } from "@/lib/analises-internas";
 import { canViewCompanyAnalyses } from "@/lib/roles";
 
 export const dynamic="force-dynamic";
@@ -10,9 +10,9 @@ export default async function AnalisesInternasPage({searchParams}:{
   searchParams:Promise<{q?:string;cat?:string;pagina?:string}>
 }) {
   const ctx=await getUserContext();
-  // Toda conta autenticada vinculada a uma empresa pode consultar o histórico
-  // dessa mesma empresa. O middleware valida sessão/plano e as consultas abaixo
-  // preservam o filtro de empresa_id em todas as tabelas.
+  // A rota é acessível a todo colaborador autenticado, mas conteúdo e KPIs
+  // devem ser exclusivamente de sua autoria, sempre dentro da própria empresa.
+  // Nunca aceitar um ID de responsável via query string ou dados do navegador.
   if(!canViewCompanyAnalyses(ctx)) {
     return <main className="p-8 text-foreground"><h1 className="text-2xl font-bold">Acesso restrito</h1><p className="mt-2">Entre com uma conta vinculada a uma empresa para consultar as análises internas.</p><Link className="text-primary underline" href="/login">Entrar</Link></main>;
   }
@@ -22,16 +22,18 @@ export default async function AnalisesInternasPage({searchParams}:{
   const pagina=Math.min(99,Math.max(1,Number(param?.pagina||1)||1));
   const limit=100;
   const empresa=String(ctx.empresa_id);
+  const usuario=String(ctx.auth_id);
   const admin=await getSupabaseAdmin();
   let query=admin.from("registros_trabalho_analitico")
     .select("protocolo_ref,descricao,categoria,origem,data_atividade,nivel_conferencia,processo_id,responsavel_nome,contato_cliente_confirmado",{count:"exact"})
-    .eq("empresa_id",empresa);
+    .eq("empresa_id",empresa)
+    .eq("responsavel_auth_user_id",usuario);
   if(q)query=query.ilike("protocolo_ref",`%${q}%`);
   if(cat)query=query.eq("categoria",cat);
   const {data,error,count}=await query.order("data_atividade",{ascending:false})
     .order("categoria",{ascending:true})
     .range((pagina-1)*limit,pagina*limit-1);
-  const resumo=await getResumoAnalisesDaEmpresa(empresa);
+  const resumo=await getResumoAnalisesDoUsuario(empresa,usuario);
   const grupos=[
     ["","Todos"],["auditoria_sistemica","Auditoria sistêmica"],
     ["auditoria_documental","Auditoria documental"],
@@ -46,8 +48,8 @@ export default async function AnalisesInternasPage({searchParams}:{
   return <main className="mx-auto max-w-[1600px] space-y-6 px-4 py-8 text-foreground sm:px-8">
     <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">LexisPredict · Relatórios e Auditoria</p>
-      <h1 className="mt-2 text-3xl font-extrabold">Análises e investigações de Davi</h1>
-      <p className="mt-2 max-w-4xl text-sm text-slate-300">Produção interna atribuída a Davi Alves Figueredo, com CNJ, fonte e data. Contabilizada como atendimento interno/produção analítica; não equivale a contato do cliente ou validação de todo o processo no tribunal.</p>
+      <h1 className="mt-2 text-3xl font-extrabold">Minhas análises e investigações</h1>
+      <p className="mt-2 max-w-4xl text-sm text-slate-300">Registros de análises e auditorias atribuídos à sua conta, com CNJ, fonte e data. Não representam contato com o cliente ou validação integral dos autos no tribunal.</p>
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[[resumo.processosAnalisados,"Processos com registro"],[resumo.auditoriaDocumental,"Auditorias documentais"],[resumo.triagemReplicaProvas,"Réplica e provas"],[resumo.investigacoesExternas,"Investigações externas"]].map(([v,l])=>
           <div key={String(l)} className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl">{v}</strong><p className="mt-1 text-xs text-slate-300">{l}</p></div>)}
@@ -63,6 +65,7 @@ export default async function AnalisesInternasPage({searchParams}:{
       <Link href="/report" className="rounded-lg border border-border bg-card px-4 py-2 text-sm">Voltar ao relatório</Link>
     </form>
     {error?<p className="rounded-lg bg-red-100 p-4 text-red-800">Erro ao consultar o Supabase: {error.message}</p>:
+    !(data||[]).length?<p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Ainda não há análises registradas em seu nome nesta seleção.</p>:
     <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[980px] text-sm">
         <thead className="bg-slate-900 text-white"><tr>{["Cliente / processo","Atividade atribuída","Data","Fonte","Comprovação"].map(t=><th key={t} className="p-3 text-left">{t}</th>)}</tr></thead>
@@ -71,7 +74,7 @@ export default async function AnalisesInternasPage({searchParams}:{
           <td className="max-w-[310px] p-3 align-top"><b>{String(x.categoria).replace(/_/g," ")}</b><p className="mt-1 text-xs text-muted-foreground">{x.descricao}</p></td>
           <td className="p-3 align-top">{x.data_atividade}</td>
           <td className="max-w-[260px] break-words p-3 align-top text-xs">{x.origem}</td>
-          <td className="p-3 align-top text-xs"><b>Davi Alves Figueredo</b><p className="mt-1 text-muted-foreground">{String(x.nivel_conferencia).replace(/_/g," ")} · sem contato presumido</p></td>
+          <td className="p-3 align-top text-xs"><b>{x.responsavel_nome}</b><p className="mt-1 text-muted-foreground">{String(x.nivel_conferencia).replace(/_/g," ")} · sem contato presumido</p></td>
         </tr>)}</tbody>
       </table>
     </div>}
@@ -83,7 +86,7 @@ export default async function AnalisesInternasPage({searchParams}:{
       </div>
     </div>
     <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
-     Registros de auditoria sistêmica comprovam que o processo passou pela planilha de triagem coordenada por Davi, não leitura integral dos autos um a um. Erro, irregularidade, prazo perdido e responsabilidade profissional exigem conferência oficial adicional.
+     Registros de auditoria sistêmica podem indicar somente triagem de processos, sem leitura integral dos autos. Erros, irregularidades, prazos perdidos e responsabilidade profissional exigem conferência oficial adicional.
     </p>
   </main>;
 }
