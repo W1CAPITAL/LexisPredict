@@ -81,6 +81,23 @@ describe("commercial role contract", () => {
     expect(page).toContain('.eq("empresa_id",empresa)');
   });
 
+  it("P0: análises internas mostra somente os registros atribuídos ao usuário logado", () => {
+    const page = readFileSync(resolve(process.cwd(), "src/app/analises-internas/page.tsx"), "utf8");
+    const lib = readFileSync(resolve(process.cwd(), "src/lib/analises-internas.ts"), "utf8");
+    expect(page).toContain("const usuario=String(ctx.auth_id)");
+    expect(page).toContain('.eq("empresa_id",empresa)');
+    expect(page).toContain('.eq("responsavel_auth_user_id",usuario)');
+    expect(page).toContain("getResumoAnalisesDoUsuario(empresa,usuario)");
+    expect(page).toContain("{x.responsavel_nome}");
+    expect(page).not.toContain("Análises e investigações de Davi");
+    expect(page).not.toContain("<b>Davi Alves Figueredo</b>");
+    const personalSummary = lib.split("export async function getResumoAnalisesDoUsuario(")[1];
+    expect(personalSummary).toBeTruthy();
+    expect(personalSummary).toContain('.eq("empresa_id",empresaId)');
+    expect(personalSummary).toContain('.eq("responsavel_auth_user_id",authUserId)');
+    expect(personalSummary).not.toContain('from("tarefas_realizadas")');
+  });
+
   it("Supervisor tem visão consolidada da empresa", () => {
     expect(canSeeCompanyProcesses("Supervisor")).toBe(true);
     expect(canSuperviseCompany("Supervisor")).toBe(true);
