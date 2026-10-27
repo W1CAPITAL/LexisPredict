@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   canAccessSecurity,
   canAccessSuperadmin,
@@ -8,6 +10,7 @@ import {
   canSeeCompanyProcesses,
   canViewCompanyCaseList,
   canOperateCompanyCases,
+  canViewCompanyAnalyses,
   canSuperviseCompany,
   canUseAllOperationalFeatures,
   operatorRouteAllowed,
@@ -61,6 +64,21 @@ describe("commercial role contract", () => {
     // Exportações gerenciais NÃO se tornam públicas com a colaboração da carteira.
     expect(canExportOperationalData("Visualizador")).toBe(false);
     expect(canAccessSecurity("Operador")).toBe(false);
+  });
+
+  it("P0: /analises-internas é legível por todo cargo autenticado da empresa", () => {
+    for (const role of ["Operador", "Administrador", "Supervisor", "Superadmin", "Visualizador"]) {
+      expect(canViewCompanyAnalyses({ auth_id: "sessao-" + role, empresa_id: "empresa-123" })).toBe(true);
+    }
+    expect(canViewCompanyAnalyses({ auth_id: null, empresa_id: "empresa-123" })).toBe(false);
+    expect(canViewCompanyAnalyses({ auth_id: "sessao-validada", empresa_id: null })).toBe(false);
+    expect(operatorRouteAllowed("/analises-internas")).toBe(true);
+
+    // Proteção contra reintroduzir um ID fixo de responsável ou regra de supervisor.
+    const page = readFileSync(resolve(process.cwd(), "src/app/analises-internas/page.tsx"), "utf8");
+    expect(page).toContain("canViewCompanyAnalyses(ctx)");
+    expect(page).not.toMatch(/ctx\.isSupervisor|ctx\.isSuperAdmin|const davi=/);
+    expect(page).toContain('.eq("empresa_id",empresa)');
   });
 
   it("Supervisor tem visão consolidada da empresa", () => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { getResumoAnalisesDaEmpresa } from "@/lib/analises-internas";
+import { canViewCompanyAnalyses } from "@/lib/roles";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -9,9 +10,11 @@ export default async function AnalisesInternasPage({searchParams}:{
   searchParams:Promise<{q?:string;cat?:string;pagina?:string}>
 }) {
   const ctx=await getUserContext();
-  const davi=String(ctx?.auth_id||"")==="4581d2fe-c358-45f9-a1bd-f90f93dce0fc";
-  if(!ctx?.empresa_id || !(davi||ctx.isSupervisor||ctx.isSuperAdmin)) {
-    return <main className="p-8 text-foreground"><h1 className="text-2xl font-bold">Acesso restrito</h1><p className="mt-2">Disponível para o responsável da auditoria e para Supervisão.</p><Link className="text-primary underline" href="/report">Voltar aos relatórios</Link></main>;
+  // Toda conta autenticada vinculada a uma empresa pode consultar o histórico
+  // dessa mesma empresa. O middleware valida sessão/plano e as consultas abaixo
+  // preservam o filtro de empresa_id em todas as tabelas.
+  if(!canViewCompanyAnalyses(ctx)) {
+    return <main className="p-8 text-foreground"><h1 className="text-2xl font-bold">Acesso restrito</h1><p className="mt-2">Entre com uma conta vinculada a uma empresa para consultar as análises internas.</p><Link className="text-primary underline" href="/login">Entrar</Link></main>;
   }
   const param=await searchParams;
   const q=String(param?.q||"").replace(/[^0-9A-Za-z.\- ]/g,"").slice(0,80);

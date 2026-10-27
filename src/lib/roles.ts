@@ -125,6 +125,18 @@ export function canOperateCompanyCases(ctx: CompanyCaseActor): boolean {
   return Boolean(ctx.auth_id && ctx.empresa_id);
 }
 
+/**
+ * Leitura de /analises-internas: todos os colaboradores autenticados
+ * (inclusive Operador, Administrador e Visualizador) podem ver os registros
+ * da sua própria empresa. Não concede acesso a outras empresas, permissões de
+ * escrita nem às rotas de Supervisão ou Segurança.
+ *
+ * Usar somente com contexto confiável de getUserContext() no servidor.
+ */
+export function canViewCompanyAnalyses(ctx: CompanyCaseActor): boolean {
+  return Boolean(ctx.auth_id && ctx.empresa_id);
+}
+
 export type CaseScope = 'mine' | 'empresa';
 
 /**
