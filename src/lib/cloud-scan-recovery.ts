@@ -4,6 +4,7 @@
  */
 export type CloudSourceResult = {
   datajudError?: string | null;
+  djenError?: string | null;
   error?: string | null;
 };
 
@@ -21,7 +22,7 @@ export function shouldRetryPendingCloudSources(input: {
 }
 
 export function cloudSourceCooldownMs(items: readonly CloudSourceResult[]): number {
-  const errors = items.map((item) => `${item.datajudError || ''} ${item.error || ''}`).join(' ').toLowerCase();
+  const errors = items.map((item) => `${item.datajudError || ''} ${item.djenError || ''} ${item.error || ''}`).join(' ').toLowerCase();
   // Respeitar o limite do tribunal em vez de fazer outra consulta 5s depois.
   if (/429|rate.limit|limite de consultas|pediu pausa/.test(errors)) return 45_000;
   if (/shard|instável|503|502/.test(errors)) return 15_000;

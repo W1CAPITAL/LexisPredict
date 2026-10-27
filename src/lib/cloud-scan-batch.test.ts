@@ -46,4 +46,26 @@ describe('P0: cloud scan cannot claim success on failed official reads',()=>{
   expect(mock.queue).toHaveBeenCalledWith(1,'tenant-1',expect.objectContaining({scope:'full',mode:'both'}));
   expect(mock.audit).toHaveBeenCalledWith('1234567-00.2026.8.26.0001','tenant-1','both',expect.any(Object));
  });
+
+ it('processes a bounded batch concurrently and advances to the last selected ID',async()=>{
+  mock.queue.mockResolvedValue([
+   {id:1,db_id:'1',protocolo:'1234567-00.2026.8.26.0001'},
+   {id:2,db_id:'2',protocolo:'1234567-00.2026.8.26.0002'},
+   {id:3,db_id:'3',protocolo:'1234567-00.2026.8.26.0003'},
+  ]);
+  let active=0;
+  let maxActive=0;
+  mock.audit.mockImplementation(async()=>{
+   active+=1;
+   maxActive=Math.max(maxActive,active);
+   await new Promise(resolve=>setTimeout(resolve,10));
+   active-=1;
+   return {success:true,sourceStatus:{datajud:{ok:true},djen:{ok:true}}};
+  });
+  const result=await runCloudScanBatch(input);
+  expect(maxActive).toBe(3);
+  expect(result).toMatchObject({processed:3,successCount:3,failedCount:0,lastId:'3'});
+  expect(mock.queue).toHaveBeenCalledWith(3,'tenant-1',expect.objectContaining({scope:'full',mode:'both'}));
+ });
+
 });
