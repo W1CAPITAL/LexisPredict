@@ -12,10 +12,11 @@ export const maxDuration = 25;
 type Snapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
-  improcedentes:number; parciais:number; divergentesMerito:number; meritoDisponivel:boolean;
+  improcedentes:number; parciais:number; divergentesMerito:number; semIndicador:number;
+  cumprimentosPendentes:number; cumprimentosRevisar:number; cumprimentosSinalizados:number; cumprimentosEncerrados:number; meritoDisponivel:boolean;
   semRetorno30?:number; semRetornoNunca?:number; retornoDisponivel?:boolean;
 };
-const EMPTY: Snapshot = { total: 0, ativos: 0, encerrados: 0, vencidos: 0, baixas: 0, procedentes: 0, cumprimentos: 0, novidades: 0, improcedentes:0,parciais:0,divergentesMerito:0,meritoDisponivel:false,semRetorno30:undefined,semRetornoNunca:undefined,retornoDisponivel:false };
+const EMPTY: Snapshot = { total: 0, ativos: 0, encerrados: 0, vencidos: 0, baixas: 0, procedentes: 0, cumprimentos: 0, novidades: 0, improcedentes:0,parciais:0,divergentesMerito:0,semIndicador:0,cumprimentosPendentes:0,cumprimentosRevisar:0,cumprimentosSinalizados:0,cumprimentosEncerrados:0,meritoDisponivel:false,semRetorno30:undefined,semRetornoNunca:undefined,retornoDisponivel:false };
 const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'Vary': 'Cookie', 'X-Content-Type-Options': 'nosniff' };
 const safeInt = (raw: string | null, fallback: number, max: number) =>
   Math.max(0, Math.min(max, Number.isFinite(Number(raw)) && raw !== null ? Math.trunc(Number(raw)) : fallback));
@@ -81,6 +82,12 @@ export async function GET(request: NextRequest) {
       snapshot.improcedentes=Number(m.improcedentes||0);
       snapshot.parciais=Number(m.parciais||0);
       snapshot.divergentesMerito=Number(m.divergentes||0);
+      snapshot.semIndicador=Number(m.semIndicador||0);
+      snapshot.cumprimentos=Number(m.cumprimentosAtivos||0);
+      snapshot.cumprimentosPendentes=Number(m.cumprimentosPendentes||0);
+      snapshot.cumprimentosRevisar=Number(m.cumprimentosRevisar||0);
+      snapshot.cumprimentosSinalizados=Number(m.cumprimentosSinalizados||0);
+      snapshot.cumprimentosEncerrados=Number(m.cumprimentosEncerrados||0);
       snapshot.meritoDisponivel=true;
     } else if(withSummary){
       console.warn('[api/carteira/fast] mérito indisponível',meritoResult.error);

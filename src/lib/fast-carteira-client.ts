@@ -4,7 +4,8 @@ import {seedCarteiraPageClientCache} from '@/lib/carteira-fetch-client';
 export type CarteiraSnapshot = {
   total: number; ativos: number; encerrados: number; vencidos: number;
   baixas: number; procedentes: number; cumprimentos: number; novidades: number;
-  improcedentes?:number;parciais?:number;divergentesMerito?:number;meritoDisponivel?:boolean;
+  improcedentes:number;parciais:number;divergentesMerito:number;semIndicador:number;
+  cumprimentosPendentes:number;cumprimentosRevisar:number;cumprimentosSinalizados:number;cumprimentosEncerrados:number;meritoDisponivel:boolean;
   semRetorno30?:number;semRetornoNunca?:number;retornoDisponivel?:boolean;
 };
 export type FastCarteiraResponse = {
@@ -37,7 +38,7 @@ export async function fetchFastCarteira(
 }
 
 /** Cache de snapshot de listagem empresarial. Sempre particionado pelo login. */
-const FAST_KEY = 'lexis_fast_carteira_retorno_v3:';
+const FAST_KEY = 'lexis_fast_carteira_retorno_v4:';
 const FAST_TTL_MS = 5 * 60_000;
 type FastEntry = { at: number; data: FastCarteiraResponse };
 const fastMemory = new Map<string, FastEntry>();
