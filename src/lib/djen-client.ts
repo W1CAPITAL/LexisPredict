@@ -86,6 +86,7 @@ export async function djenBuscaProcesso(
     dataFim?: string;
     siglaTribunal?: string;
     itensPorPagina?: number;
+    fast?: boolean;
   }
 ): Promise<DjenClientResult> {
   const digits = String(opts.protocolo || "").replace(/\D/g, "");
@@ -117,7 +118,7 @@ export async function djenBuscaProcesso(
     const cancel = () => controller.abort();
     if (opts.signal?.aborted) controller.abort();
     opts.signal?.addEventListener("abort", cancel, { once: true });
-    const timeout = setTimeout(() => controller.abort(), 28000);
+    const timeout = setTimeout(() => controller.abort(), opts.fast ? 12_000 : 28_000);
 
     try {
       const res = await fetch(`${DJEN_URL}?${params.toString()}`, {

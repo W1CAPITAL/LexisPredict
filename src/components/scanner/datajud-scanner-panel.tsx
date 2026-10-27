@@ -197,7 +197,7 @@ export function DataJudScannerPanel() {
              <p className="text-[9px] font-medium text-amber-950/70 leading-snug">
                {scanScope === 'cumprimento'
                  ? 'LOCAL e NUVEM usam o mesmo filtro: procedentes, falta instaurar, já em cumprimento ou baixa no tribunal. Não varre a carteira inteira. Atualiza Ações Procedentes.'
-                 : 'Carteira completa (ativos + encerrados). Para honorários/cumprimento, escolha “Só cumprimento”.'}
+                 : 'Carteira completa (ativos + encerrados); reaproveita consultas oficiais recentes. Para honorários/cumprimento, escolha “Só cumprimento”.'}
              </p>
           </section>
 
@@ -245,7 +245,7 @@ export function DataJudScannerPanel() {
                  <p className="text-[8px] font-medium text-muted-foreground mt-1">
                    {scanScope === "cumprimento"
                      ? "Micro-lotes só de candidatos a cumprimento (respeita o botão Só cumprimento acima)."
-                     : "Rotação da carteira. Troque para Só cumprimento se quiser focar honorários."}
+                     : "Rotação da carteira em lotes paralelos. Troque para Só cumprimento se quiser focar honorários."}
                  </p>
                 </div>
              </div>
@@ -253,7 +253,7 @@ export function DataJudScannerPanel() {
              {status === 'idle' ? (
                <div className="space-y-4">
                   <p className="text-[9px] font-bold uppercase text-black/40 leading-relaxed">
-                    Auditoria assíncrona 3D via servidor. Agora varre Tribunal + DJEN simultaneamente.
+                    Lotes no servidor: até 3 CNJs em paralelo, com DataJud + DJEN simultâneos. Sem Cron.
                   </p>
                   <Button onClick={startCloudForUser} className="w-full h-11 rounded-xl bg-[#1f6fff] text-white font-black uppercase text-[10px] hover:bg-[#145de0] transition-all">
                     Escanear carteira na nuvem
@@ -301,7 +301,7 @@ export function DataJudScannerPanel() {
                 <p className="text-[8px] text-muted-foreground font-medium mt-0.5">
                   {scanScope === "cumprimento"
                     ? "Sincroniza carteira → filtra candidatos → DataJud+DJEN 1 a 1. Use BOTH para teor completo."
-                    : "Fila sequencial obtida da empresa inteira no Supabase."}
+                    : "Fila completa do Supabase; reaproveita consultas recentes e evita retries longos quando uma fonte falha."}
                 </p>
              </div>
 

@@ -99,11 +99,11 @@ interface DataJudScanState {
   addLog: (log: ScanLog) => void;
 }
 
-let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let cloudPollBusy = false;
 let consecutiveCloudFailures = 0;
 let cloudCooldownUntil = 0;
-const CLOUD_POLL_MS = 5000; // lote sequencial: cloudPollBusy previne sobreposicao
+const CLOUD_RETRY_DELAY_MS = 500; // agenda o próximo lote logo após o anterior terminar
 const CLOUD_CHECKPOINT_KEY = 'lexis_scan_cloud_checkpoint_v2:';
 function cloudKey(empresaId:string,userId:string) {return CLOUD_CHECKPOINT_KEY+empresaId+':'+userId;}
 function loadCloudCheckpoint(empresaId:string,userId:string):any|null {
@@ -279,16 +279,18 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       engine: 'Nuvem',
       source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
     });
-    if (pollTimer) clearInterval(pollTimer);
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
     void get().pollStatus();
-    pollTimer = setInterval(() => void get().pollStatus(), CLOUD_POLL_MS);
   },
 
   pauseCloudScan: () => {
     set({ status: 'paused' });
     persistCloudCheckpoint(get());
     if (pollTimer) {
-      clearInterval(pollTimer);
+      clearTimeout(pollTimer);
       pollTimer = null;
     }
   },
@@ -529,7 +531,6 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       });
     }
 
-    const forceFullPass = !resume && scope === 'full';
     let failStreak = 0;
     for (const c of cases) {
       if (get().manualStatus !== 'running') break;
@@ -554,7 +555,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           skip = false;
         }
       }
-      if (skip && !forceFullPass) {
+      if (skip) {
         set((s) => ({ manualDone: s.manualDone + 1 }));
         get().addLog({
           protocolo: c.protocolo,
@@ -587,7 +588,9 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         res = await scanInteractiveCase(c.protocolo, {
           mode,
           // DJEN tenta primeiro pelo navegador do operador; DataJud continua server-side.
+          // Uma tentativa oficial limitada evita repetir uma auditoria inteira por 60+ segundos.
           fast: scope === 'cumprimento' ? false : true,
+          cloudBudget: true,
           useClaudeAi: useClaude,
         });
       } catch (err: any) {
@@ -733,7 +736,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   resetScan: () => {
     clearCloudCheckpoint(get());
     if (pollTimer) {
-      clearInterval(pollTimer);
+      clearTimeout(pollTimer);
       pollTimer = null;
     }
     set({
@@ -835,20 +838,29 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
 
       const params = new URLSearchParams({ mode, scope, since });
       let metrics: any = {};
-      try {
-        const res = await fetch(`/api/datajud-status?${params.toString()}`, {
-          cache:'no-store',signal:AbortSignal.timeout(8000),
-        });
-        if (res.ok) metrics = await res.json();
-      } catch { /* KPIs opcionais: cursor e resultados do worker continuam válidos */ }
+      const shouldRefreshMetrics =
+        Number(st.cycles || 0) === 0 ||
+        (Number(st.cycles || 0) + 1) % 3 === 0 ||
+        Number(worker.processed || 0) === 0;
+      if (shouldRefreshMetrics) {
+        try {
+          const res = await fetch(`/api/datajud-status?${params.toString()}`, {
+            cache:'no-store',signal:AbortSignal.timeout(2500),
+          });
+          if (res.ok) metrics = await res.json();
+        } catch { /* KPIs opcionais: cursor e resultados do worker continuam válidos */ }
+      }
       const pendingForMode = metrics.pending == null || !Number.isFinite(Number(metrics.pending))
         ? null : Math.max(0, Number(metrics.pending));
-      const totalForMode = Number(metrics.total ?? 0);
+      const totalForMode = Number(metrics.total ?? st.total ?? 0);
       const attempted = st.cloudAttempts + Math.max(0, Number(worker.processed || 0));
       const visibleDone = Math.min(totalForMode > 0 ? totalForMode : attempted, attempted);
       const failures = st.cloudFailures + Number(worker.failedCount || 0);
       const partials = st.cloudPartials + Number(worker.partialCount || 0);
       const successes = st.cloudSuccesses + Number(worker.successCount || 0);
+      const pendingFallback = metrics.total != null
+        ? Math.max(0, totalForMode - visibleDone)
+        : st.pending;
 
       set({
         total: totalForMode,
@@ -858,10 +870,10 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
         cloudFailures: failures,
         cloudPartials: partials,
         cloudSuccesses: successes,
-        pending: pendingForMode ?? Math.max(0, totalForMode - visibleDone),
-        alerts: metrics.alerts ?? 0,
-        cloudDjenAlerts: metrics.djenAlerts ?? 0,
-        closed: metrics.closed ?? 0,
+        pending: pendingForMode ?? pendingFallback,
+        alerts: metrics.alerts ?? st.alerts,
+        cloudDjenAlerts: metrics.djenAlerts ?? st.cloudDjenAlerts,
+        closed: metrics.closed ?? st.closed,
       });
 
       persistCloudCheckpoint(get());
@@ -885,7 +897,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           return;
         }
         if (pollTimer) {
-          clearInterval(pollTimer);
+          clearTimeout(pollTimer);
           pollTimer = null;
         }
         set({ status: 'done', pending: pendingForMode ?? Math.max(0, totalForMode - visibleDone) });
@@ -900,7 +912,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
           source: mode === 'both' ? 'Both' : mode === 'datajud' ? 'DataJud' : 'DJEN',
         });
       } else if (consecutiveCloudFailures >= 3) {
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         set({ status: 'paused' });
         get().addLog({ protocolo: 'SISTEMA', message: 'Scanner pausado apos tres lotes sem sucesso. O cursor foi preservado.', latency: 0, success: false, type: 'error', engine: 'Nuvem' });
       } else if (Number(worker.failedCount || 0) > 0) {
@@ -913,7 +925,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       // Do not hammer Vercel/tribunals every 15s when a source is offline.
       if (consecutiveCloudFailures >= 3) {
         if (pollTimer) {
-          clearInterval(pollTimer);
+          clearTimeout(pollTimer);
           pollTimer = null;
         }
         set({ status: 'paused' });
@@ -934,6 +946,16 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
     } finally {
       cloudPollBusy = false;
       set({cloudBusy:false});
+      if (get().status === 'running') {
+        const failureBackoff = consecutiveCloudFailures > 0
+          ? Math.min(15_000, CLOUD_RETRY_DELAY_MS * 2 ** Math.min(consecutiveCloudFailures, 5))
+          : CLOUD_RETRY_DELAY_MS;
+        const waitMs = Math.max(failureBackoff, cloudCooldownUntil - Date.now());
+        pollTimer = setTimeout(() => {
+          pollTimer = null;
+          void get().pollStatus();
+        }, waitMs);
+      }
     }
   },
 }));
