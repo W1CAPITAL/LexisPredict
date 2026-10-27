@@ -230,6 +230,7 @@ export async function auditCaseCoreSystem(
   let datajudOk = false;
   let djenOk = false;
   let datajudIssue: string | null = null;
+  let djenIssue: string | null = null;
 
   // Pré-busca paralela (both) — Sugerir resposta / auditoria
   let preDataJud: any = null;
@@ -468,8 +469,11 @@ export async function auditCaseCoreSystem(
             eventResumo = resumoKw || eventResumo;
           }
         }
+      } else {
+        djenIssue = String(djenRes?.error || 'DJEN sem retorno confirmado').slice(0, 180);
       }
     } catch (e) {
+      djenIssue = e instanceof Error ? e.message.slice(0, 180) : 'DJEN indisponível';
       console.error('[auditCaseCoreSystem] DJEN fail', protocolo, e);
     }
   }
@@ -505,8 +509,8 @@ export async function auditCaseCoreSystem(
       error: 'Não foi possível consultar as fontes externas agora.',
       message: 'DataJud e DJEN ficaram indisponíveis nesta tentativa. Nenhum dado existente foi alterado.',
       sourceStatus: {
-        datajud: { requested: mode === 'datajud' || mode === 'both', ok: false },
-        djen: { requested: mode === 'djen' || mode === 'both', ok: false },
+        datajud: { requested: mode === 'datajud' || mode === 'both', ok: false, ...(datajudIssue ? { error: datajudIssue } : {}) },
+        djen: { requested: mode === 'djen' || mode === 'both', ok: false, ...(djenIssue ? { error: djenIssue } : {}) },
       },
       case: target,
       casePatch: {},
@@ -778,7 +782,7 @@ export async function auditCaseCoreSystem(
     // Claude/OmniRoute só se o operador ativar no Scanner (useClaudeAi)
     // ou SCAN_AI_FORCE=1 no ambiente
     const forceEnv = process.env.SCAN_AI_FORCE === '1' || process.env.SCAN_AI_FORCE === 'true';
-    const useClaude = !options.cloudBudget && (options.useClaudeAi === true || forceEnv);
+    const useClaude = options.useClaudeAi === true || (!options.cloudBudget && forceEnv);
     if (!useClaude) {
       // skip IA — heurística DataJud/DJEN já aplicada no patch
     } else {
@@ -949,7 +953,7 @@ export async function auditCaseCoreSystem(
     offline: false,
     sourceStatus: {
       datajud: { requested: mode === 'datajud' || mode === 'both', ok: datajudOk, ...(!datajudOk && datajudIssue ? {error:datajudIssue}: {}) },
-      djen: { requested: mode === 'djen' || mode === 'both', ok: djenOk },
+      djen: { requested: mode === 'djen' || mode === 'both', ok: djenOk, ...(!djenOk && djenIssue ? {error:djenIssue}: {}) },
     },
     casePatch: patch,
     case: updatedCase,
@@ -1170,7 +1174,7 @@ export async function applyBrowserDjenResultAction(
 
 export async function scanSingleCaseAction(
   protocolo: string,
-  options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean } = {}
+  options: { mode?: 'datajud' | 'djen' | 'both'; fast?: boolean; useClaudeAi?: boolean; cloudBudget?: boolean } = {}
 ) {
   const ctx = await getUserContext();
   const { empresa_id, auth_id } = ctx;
@@ -1223,12 +1227,12 @@ export async function scanSingleCaseAction(
     protocolo,
     safeEmpresaId,
     mode,
-    { fast: useFast, useClaudeAi: options.useClaudeAi === true }
+    { fast: useFast, useClaudeAi: options.useClaudeAi === true, cloudBudget: options.cloudBudget === true }
   );
 
   // Retry only when a requested source actually failed.
   // Empty successful result is a valid tribunal response and must not be retried as "offline".
-  if (!requestedSourcesOk(res) && useFast) {
+  if (!requestedSourcesOk(res) && useFast && options.cloudBudget !== true) {
     res = await auditCaseCoreSystem(
       protocolo,
       safeEmpresaId,

@@ -47,6 +47,7 @@ export async function scanInteractiveCase(
   options: {
     mode?: InteractiveScanMode;
     fast?: boolean;
+    cloudBudget?: boolean;
     useClaudeAi?: boolean;
     dataInicioDjen?: string;
   } = {}
@@ -59,7 +60,8 @@ export async function scanInteractiveCase(
     ? scanSingleCaseAction(protocolo, {
         mode: "datajud",
         fast: options.fast === true,
-        useClaudeAi: options.useClaudeAi === true,
+        cloudBudget: options.cloudBudget === true,
+         useClaudeAi: options.useClaudeAi === true,
       })
     : Promise.resolve(null);
 
@@ -67,6 +69,7 @@ export async function scanInteractiveCase(
     ? djenBuscaProcesso({
         protocolo,
         dataInicio: options.dataInicioDjen,
+         fast: options.fast === true,
       })
     : Promise.resolve(null);
 
@@ -86,7 +89,8 @@ export async function scanInteractiveCase(
   } else if (wantsDjen) {
     djenFallback = await scanSingleCaseAction(protocolo, {
       mode: "djen",
-      fast: false,
+      fast: options.fast === true,
+      cloudBudget: options.cloudBudget === true,
       useClaudeAi: false,
     });
   }
