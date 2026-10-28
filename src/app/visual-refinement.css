@@ -1,0 +1,214 @@
+/*
+ * LexisPredict · Refinamento visual transversal
+ * Apenas camada de apresentação. Não interfere em rotas, comportamentos, filtros,
+ * ações, estados de formulário ou regras de autorização.
+ * Mantém tokens semânticos, temas, papel de parede e preferências do usuário.
+ */
+
+/* Base compartilhada para todas as abas, incluindo telas não cobertas por hubs. */
+:root {
+  --lexis-polish-ease: cubic-bezier(.2,.65,.25,1);
+  --lexis-polish-shadow: 0 1px 2px rgb(16 24 40 / .04), 0 10px 30px rgb(16 24 40 / .045);
+  --lexis-polish-shadow-hover: 0 4px 12px rgb(16 24 40 / .075), 0 16px 32px rgb(16 24 40 / .055);
+}
+.dark {
+  --lexis-polish-shadow: 0 2px 18px rgb(0 0 0 / .15);
+  --lexis-polish-shadow-hover: 0 8px 26px rgb(0 0 0 / .22);
+}
+main :where(h1, h2, h3) {
+  text-wrap: balance;
+  font-feature-settings: "kern";
+}
+main :where(h1, h2) { letter-spacing: -.024em; }
+main :where(table) { font-variant-numeric: tabular-nums; }
+main :where(table th) { font-weight: 700; letter-spacing: .012em; }
+main :where(table td, table th) { overflow-wrap: break-word; }
+main :where(input, select, textarea, [role="combobox"]) {
+  transition: border-color 160ms var(--lexis-polish-ease), box-shadow 160ms var(--lexis-polish-ease), background-color 160ms var(--lexis-polish-ease);
+}
+main :where(button, a, [role="button"]) {
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 170ms var(--lexis-polish-ease), background-color 170ms var(--lexis-polish-ease), color 170ms var(--lexis-polish-ease), box-shadow 170ms var(--lexis-polish-ease), opacity 170ms var(--lexis-polish-ease);
+}
+:where(main, [data-lexis-sidebar], [data-lexis-desktop-dock])
+  :is(a, button, [role="button"], summary):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+:where(main) :is(input, select, textarea, [role="combobox"]):focus-visible {
+  outline-color: hsl(var(--ring));
+  outline-offset: 2px;
+}
+:where(main) :is(button, input, select, textarea):disabled { cursor: not-allowed; }
+:where([data-lexis-sidebar], [data-lexis-desktop-dock])
+  :is(nav a, nav button) {
+  transition: background-color 180ms var(--lexis-polish-ease), color 180ms var(--lexis-polish-ease), box-shadow 180ms var(--lexis-polish-ease);
+}
+
+/* Superfícies: melhorar a profundidade sem sobrescrever estilos personalizados de cartões. */
+html:not([data-lexis-card-style]) main :is(.rounded-xl.border.bg-card, .rounded-2xl.border.bg-card, .premium-card) {
+  box-shadow: var(--lexis-polish-shadow);
+  transition: box-shadow 180ms var(--lexis-polish-ease), border-color 180ms var(--lexis-polish-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-lexis-card-style]) main :is(.rounded-xl.border.bg-card, .rounded-2xl.border.bg-card, .premium-card):hover {
+    box-shadow: var(--lexis-polish-shadow-hover);
+  }
+}
+
+/* Central de Documentos: os cards existentes ganham uma linguagem visual única
+ * sem mudar a estrutura, rotas ou geradores.
+ */
+[data-lexis-visual="documents"] {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+[data-lexis-visual="documents"] > main > header {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--border));
+  box-shadow: 0 2px 14px rgb(16 24 40 / .035);
+}
+[data-lexis-visual="documents"] > main > header > div > div:first-child {
+  border-radius: 12px;
+  background: hsl(var(--primary));
+}
+[data-lexis-visual="documents"] > main > div.max-w-7xl > div.mb-6.rounded-lg {
+  border: 1px solid hsl(var(--border));
+  background: linear-gradient(125deg, hsl(var(--accent) / .9), hsl(var(--card)));
+  border-radius: 18px;
+  box-shadow: var(--lexis-polish-shadow);
+}
+[data-lexis-visual="documents"] > main > div.max-w-7xl > div.mb-6.rounded-lg h3 {
+  color: hsl(var(--foreground));
+  letter-spacing: -.018em;
+}
+[data-lexis-visual="documents"] > main > div.max-w-7xl > div.mb-6.rounded-lg a {
+  border-radius: 10px;
+  border-color: hsl(var(--border));
+  transition: background-color 160ms, border-color 160ms, box-shadow 160ms;
+}
+[data-lexis-visual="documents"] > main > div.max-w-7xl > div.mb-6.rounded-lg a:hover {
+  border-color: hsl(var(--primary) / .45);
+  box-shadow: 0 3px 10px rgb(0 0 0 / .07);
+}
+/* Atributo de classe identifica somente os cards do hub original. */
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"] {
+  border: 1px solid hsl(var(--border));
+  border-radius: 16px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: var(--lexis-polish-shadow);
+  transition: border-color 180ms var(--lexis-polish-ease), box-shadow 180ms var(--lexis-polish-ease), transform 180ms var(--lexis-polish-ease);
+}
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"]:hover {
+  border-color: hsl(var(--primary) / .45);
+  box-shadow: var(--lexis-polish-shadow-hover);
+  transform: translateY(-2px);
+}
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"] > div:first-child {
+  border-radius: 12px;
+  background: hsl(var(--primary));
+}
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"] :is(p, span)[class*="text-black"],
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"] :is(p, span)[class*="text-[#6f1d2b]"] {
+  color: hsl(var(--foreground));
+}
+[data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"] :is(p, span)[class*="text-black/"] {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Relatórios individuais: cabeçalho editorial, cartões consistentes e tabelas legíveis. */
+main[data-lexis-visual="analyses"] > header {
+  border: 1px solid rgb(173 202 255 / .16);
+  background: linear-gradient(117deg, #101b32 0%, #18345b 54%, #123d4b 100%);
+  box-shadow: 0 14px 35px rgb(17 34 60 / .16);
+}
+main[data-lexis-visual="analyses"] > header > .grid > div {
+  border-color: rgb(255 255 255 / .18);
+  background-color: rgb(255 255 255 / .09);
+  backdrop-filter: blur(8px);
+  border-radius: 14px;
+}
+main[data-lexis-visual="analyses"] > header strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.035em;
+}
+main[data-lexis-visual="analyses"] > form {
+  padding: 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 16px;
+  background: hsl(var(--card));
+  box-shadow: var(--lexis-polish-shadow);
+}
+main[data-lexis-visual="analyses"] > .flex.flex-wrap.gap-2 a {
+  border-radius: 10px;
+  min-height: 37px;
+  display: inline-flex;
+  align-items: center;
+}
+main[data-lexis-visual="analyses"] > section.rounded-2xl {
+  border-radius: 18px;
+  box-shadow: var(--lexis-polish-shadow);
+}
+main[data-lexis-visual="analyses"] :is(article, .overflow-x-auto.rounded-2xl, .overflow-x-auto.rounded-xl) {
+  box-shadow: var(--lexis-polish-shadow);
+}
+main[data-lexis-visual="analyses"] table th {
+  padding-block: 14px;
+}
+main[data-lexis-visual="analyses"] table tbody tr {
+  transition: background-color 150ms ease;
+}
+main[data-lexis-visual="analyses"] table tbody tr:hover {
+  background-color: hsl(var(--accent) / .85);
+}
+main[data-lexis-visual="analyses"] table tbody td {
+  border-bottom: 1px solid hsl(var(--border) / .5);
+}
+main[data-lexis-visual="analyses"] article {
+  transition: border-color 170ms var(--lexis-polish-ease), box-shadow 170ms var(--lexis-polish-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  main[data-lexis-visual="analyses"] article:hover {
+    border-color: hsl(var(--primary) / .35);
+    box-shadow: var(--lexis-polish-shadow-hover);
+  }
+}
+
+/* Modelos e produtividade seguem a mesma hierarquia visual do restante do app. */
+main[data-lexis-visual="models"] :is(h1, h2),
+main[data-lexis-visual="activities"] :is(h1, h2) { letter-spacing: -.028em; }
+main[data-lexis-visual="models"] :is(.rounded-xl.border, .rounded-2xl.border),
+main[data-lexis-visual="activities"] :is(.rounded-xl.border, .rounded-2xl.border) {
+  border-color: hsl(var(--border));
+}
+main[data-lexis-visual="activities"] > header {
+  background: linear-gradient(120deg, #101b32, #163653);
+  box-shadow: 0 12px 30px rgb(14 34 60 / .13);
+}
+main[data-lexis-visual="activities"] > .grid > section,
+main[data-lexis-visual="activities"] > section {
+  box-shadow: var(--lexis-polish-shadow);
+}
+
+/* Acessibilidade e compatibilidade com telas compactas e preferências do SO. */
+@media (max-width: 640px) {
+  [data-lexis-visual="documents"] > main > header { padding-inline: 1rem; }
+  [data-lexis-visual="documents"] > main > header h1 { font-size: 1rem; line-height: 1.3; }
+  main[data-lexis-visual="analyses"] > form input[type="search"] { min-width: 0; width: 100%; flex-basis: 100%; }
+  main[data-lexis-visual="analyses"] > form > button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  main :where(button, a, input, select, textarea),
+  [data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"],
+  main[data-lexis-visual="analyses"] article {
+    transition: none;
+  }
+  [data-lexis-visual="documents"] :is(a, button)[class*="shadow-[8px_8px_0px"]:hover {
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  main[data-lexis-visual="analyses"] > header > .grid > div { backdrop-filter: none; }
+}

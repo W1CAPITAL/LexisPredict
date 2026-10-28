@@ -289,7 +289,7 @@ export default function DocumentGenerator() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f3f2f2] font-sans text-black relative z-10 overflow-hidden">
+    <div data-lexis-visual="documents" className="flex h-screen bg-background font-sans text-foreground relative z-10 overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
@@ -307,21 +307,21 @@ export default function DocumentGenerator() {
           setIncludeProcessNumber(Boolean(item.cnj));
           setStep(2);
         }} />
-        <header className="h-16 border-b border-[#dddbda] bg-white flex items-center justify-between px-8 shrink-0 z-40">
+        <header className="min-h-16 border-b border-border bg-card flex items-center justify-between gap-3 px-4 py-3 sm:px-8 shrink-0 z-40">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-sm bg-black flex items-center justify-center">
               <Shield size={20} className="text-white" />
             </div>
-            <h1 className="font-black text-xl text-black uppercase tracking-tighter">Central de Documentos</h1>
+            <h1 className="font-black text-lg sm:text-xl text-foreground uppercase tracking-tight">Central de Documentos</h1>
           </div>
-          <Badge variant="outline" className="border-black border-2 text-black font-black uppercase text-[10px]">Cloud Repository</Badge>
+          <Badge variant="outline" className="border-border text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Cloud Repository</Badge>
         </header>
 
         {hub ? (
           <div className="flex-1 overflow-auto p-4 lg:p-8 max-w-7xl mx-auto w-full">
             <div className="mb-6">
-              <h2 className="text-2xl font-black uppercase tracking-tighter text-black">Central de Documentos</h2>
-              <p className="text-[10px] font-bold uppercase text-black/50 mt-1">
+              <h2 className="text-2xl font-black uppercase tracking-tight text-foreground">Central de Documentos</h2>
+              <p className="text-xs font-medium text-muted-foreground mt-1">
                 Gere e edite petições, procurações, substabelecimentos, recursos, MLE, notificações e cumprimento de sentença
               </p>
             </div>

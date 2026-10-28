@@ -76,7 +76,7 @@ export default async function AnalisesInternasPage({searchParams}:{
   const ids=[...new Set((data||[]).map(x=>x.protocolo_ref).filter(x=>/^\d{7}-/.test(x)))];
   const {data:names}=ids.length?await admin.from("processos").select("protocolo_ref,cliente").eq("empresa_id",empresa).in("protocolo_ref",ids):{data:[]};
   const nomePorCnj=new Map((names||[]).map(x=>[String(x.protocolo_ref),String(x.cliente||"")]));
-  return <main className="mx-auto max-w-[1600px] space-y-6 px-4 py-8 text-foreground sm:px-8">
+  return <main data-lexis-visual="analyses" className="mx-auto max-w-[1600px] space-y-6 px-4 py-8 text-foreground sm:px-8">
     <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">LexisPredict · Relatórios e Auditoria</p>
       <h1 className="mt-2 text-3xl font-extrabold">Minhas análises e atividades</h1>

@@ -11,7 +11,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
  const {data:atividades,error}=await db.from("tarefas_realizadas").select("id,titulo,descricao,categoria,data_realizacao,protocolo_ref,contato_cliente_confirmado").eq("empresa_id",ctx.empresa_id).eq("responsavel_auth_user_id",ctx.auth_id).order("data_realizacao",{ascending:false}).limit(100);
  const qs=await searchParams;
  const hoje=new Date().toLocaleDateString("en-CA",{timeZone:"America/Sao_Paulo"});
- return <main className="mx-auto max-w-[1250px] space-y-6 p-5 text-foreground sm:p-8">
+ return <main data-lexis-visual="activities" className="mx-auto max-w-[1250px] space-y-6 p-5 text-foreground sm:p-8">
   <header className="rounded-3xl bg-slate-950 p-8 text-white">
    <p className="text-xs uppercase tracking-widest text-sky-300">LexisPredict • Produtividade</p>
    <h1 className="mt-2 text-3xl font-extrabold">Minhas atividades realizadas</h1>

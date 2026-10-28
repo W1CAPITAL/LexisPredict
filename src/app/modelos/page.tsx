@@ -248,7 +248,7 @@ export default function ModelosPage() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <main className="flex-1 min-h-0 overflow-y-auto">
+        <main data-lexis-visual="models" className="flex-1 min-h-0 overflow-y-auto">
         <DocumentsCarteiraPicker onSelected={(item: DocumentCase) => {
           setCarteiraCase(item);
           setMeta(prev=>({...prev,...clientAsPecaMeta(item)}));
