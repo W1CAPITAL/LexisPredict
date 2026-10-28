@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { NavProgress } from "@/components/system/nav-progress";
+import { getVisualRouteGroup } from "@/lib/visual-route-groups";
 const ExperienceGate = dynamic(() => import('@/components/onboarding/experience-studio').then(m=>m.ExperienceGate),{ssr:false});
 const WhatsAppConnectionNotice=dynamic(()=>import('@/components/system/whatsapp-connection-notice').then(m=>m.WhatsAppConnectionNotice),{ssr:false});
 
@@ -83,6 +84,14 @@ const ChatNotifPermission = dynamic(
 export function ClientChrome() {
   const pathname = usePathname();
   const [scannerReady, setScannerReady] = useState(false);
+
+  // CSS-only route categorization. No layout duplication, navigation or data changes.
+  useEffect(() => {
+    document.body.dataset.lexisVisualGroup = getVisualRouteGroup(pathname);
+    return () => {
+      delete document.body.dataset.lexisVisualGroup;
+    };
+  }, [pathname]);
   const [agentReady, setAgentReady] = useState(false);
   const [tourReady, setTourReady] = useState(false);
   const [deferredReady, setDeferredReady] = useState(false);
