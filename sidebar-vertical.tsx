@@ -103,6 +103,8 @@ function buildNavItems(opts: {
     { label: "Finanças", href: "/financas", icon: Wallet },
     { label: "Cálculos", href: "/calculos", icon: Calculator },
     { label: "Documentos", href: "/documents", icon: FileText },
+    { label: "JurisPanel", href: "/jurispanel", icon: Gavel },
+    { label: "Timesheet", href: "/jurispanel/timesheet", icon: CalendarDays },
     { label: "Veredito", href: "/veredito", icon: Scale },
     { label: "Assistente", href: "/chat", icon: Bot },
     { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
