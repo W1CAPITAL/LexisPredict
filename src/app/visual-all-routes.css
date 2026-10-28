@@ -1,0 +1,268 @@
+/*
+ * LexisPredict | Cobertura visual de todas as rotas existentes
+ *
+ * Uma camada CSS por família: 105 páginas reais, incluindo rotas filhas.
+ * Seletores de baixa especificidade; mantêm Tailwind, preferências do usuário,
+ * acessibilidade, modo claro/escuro, wallpaper e fluxos operacionais existentes.
+ * Esta folha NÃO controla dados, estados, navegação, formulários ou permissões.
+ */
+body[data-lexis-visual-group] {
+  --lx-route-edge: hsl(var(--border) / .88);
+  --lx-route-faint: hsl(var(--muted) / .52);
+  --lx-route-accent-soft: hsl(var(--primary) / .13);
+  --lx-route-hover: hsl(var(--accent) / .58);
+  --lx-route-depth: 0 2px 5px rgb(14 27 43 / .035), 0 10px 26px rgb(14 27 43 / .045);
+  --lx-route-depth-hover: 0 3px 10px rgb(14 27 43 / .075), 0 16px 32px rgb(14 27 43 / .065);
+  --lx-route-control-radius: 10px;
+}
+html.dark body[data-lexis-visual-group] {
+  --lx-route-edge: hsl(var(--border) / .76);
+  --lx-route-hover: hsl(var(--accent) / .34);
+  --lx-route-depth: 0 4px 20px rgb(0 0 0 / .12);
+  --lx-route-depth-hover: 0 6px 28px rgb(0 0 0 / .19);
+}
+
+/* Estrutura visual comum: tabelas, cartões, formulários e navegação.
+ * Não toca larguras, posições, overflow dos shells nem cards de chat. */
+body[data-lexis-visual-group] main :where(h1, h2, h3) {
+  letter-spacing: -.025em;
+  text-wrap: pretty;
+}
+body[data-lexis-visual-group] main :where(h1) {
+  letter-spacing: -.035em;
+}
+body[data-lexis-visual-group] main :where(p, td, th, label) {
+  overflow-wrap: anywhere;
+}
+body[data-lexis-visual-group] main :where(.bg-card.border, .bg-card.border-border, .premium-card, [data-admin-card]) {
+  border-color: var(--lx-route-edge);
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group] main :where(.bg-card.border, .premium-card, [data-admin-card]) {
+  transition: box-shadow 170ms ease, border-color 170ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  body[data-lexis-visual-group] main :where(.bg-card.border, .premium-card, [data-admin-card]):hover {
+    box-shadow: var(--lx-route-depth-hover);
+  }
+}
+body[data-lexis-visual-group] main :where(table) {
+  font-variant-numeric: tabular-nums;
+}
+body[data-lexis-visual-group] main :where(table thead th) {
+  font-weight: 700;
+  letter-spacing: .012em;
+}
+body[data-lexis-visual-group] main :where(table tbody tr) {
+  transition: background-color 120ms ease;
+}
+body[data-lexis-visual-group] main :where(table tbody tr):hover {
+  background-color: var(--lx-route-hover);
+}
+body[data-lexis-visual-group] main :where(.overflow-x-auto, .lexis-table-wrap) {
+  scrollbar-color: hsl(var(--border)) transparent;
+  scrollbar-width: thin;
+}
+body[data-lexis-visual-group] main :where(input, select, textarea, [role="combobox"]):not([type="checkbox"]):not([type="radio"]) {
+  accent-color: hsl(var(--primary));
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+body[data-lexis-visual-group] main :where(input, select, textarea, [role="combobox"]):not([type="checkbox"]):not([type="radio"]):focus-visible {
+  outline: 2px solid hsl(var(--ring) / .48);
+  outline-offset: 1px;
+  border-color: hsl(var(--ring) / .64);
+}
+body[data-lexis-visual-group] main :where(button, a, [role="button"]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+body[data-lexis-visual-group] main :where(button[disabled], input[disabled], textarea[disabled]) {
+  opacity: .65;
+  cursor: not-allowed;
+}
+body[data-lexis-visual-group] main :where([role="tablist"]) {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+body[data-lexis-visual-group] main :where([role="tab"][data-state="active"]) {
+  box-shadow: 0 1px 4px rgb(0 0 0 / .06);
+}
+body[data-lexis-visual-group] main :where([role="dialog"], [role="alertdialog"]) {
+  border-color: var(--lx-route-edge);
+}
+body[data-lexis-visual-group] main :where(.rounded-lg, .rounded-xl, .rounded-2xl).border.bg-background {
+  border-color: var(--lx-route-edge);
+}
+
+/* Padrão de família para dashboards, indicadores e relatórios. */
+body[data-lexis-visual-group="workspace"] main :where(.lexis-metric, [data-efferd-kpi], .lexis-chart-card) {
+  border-color: var(--lx-route-edge);
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="workspace"] main :where(.lexis-metric, [data-efferd-kpi]):focus-within {
+  border-color: hsl(var(--primary) / .5);
+}
+body[data-lexis-visual-group="workspace"] main :where(.recharts-responsive-container, .recharts-wrapper) {
+  min-width: 0;
+}
+body[data-lexis-visual-group="workspace"] main :where(.grid) > :where(.min-w-0) {
+  isolation: isolate;
+}
+
+/* Processos, casos, scanners, revisões e jurídico. */
+body[data-lexis-visual-group="cases"] main :where(.bg-card.border, .border.bg-background) {
+  border-color: var(--lx-route-edge);
+}
+body[data-lexis-visual-group="cases"] main :where(.bg-card.border):focus-within {
+  border-color: hsl(var(--primary) / .38);
+}
+body[data-lexis-visual-group="cases"] main :where(.font-mono) {
+  font-variant-numeric: tabular-nums;
+}
+body[data-lexis-visual-group="cases"] main :where([data-status]) {
+  text-decoration-thickness: 1px;
+}
+
+/* Documentos e peças: não altera a cor do papel ou editores imprimíveis. */
+body[data-lexis-visual-group="documents"] main :where(.bg-card.border, .premium-card) {
+  border-color: var(--lx-route-edge);
+}
+body[data-lexis-visual-group="documents"] main :where(textarea, [contenteditable="true"]) {
+  line-height: 1.65;
+}
+body[data-lexis-visual-group="documents"] main :where(.bg-card.border):focus-within {
+  border-color: hsl(var(--primary) / .38);
+}
+
+/* CRM, clientes, contatos, financeiro e áreas comerciais. */
+body[data-lexis-visual-group="crm"] main :where(.bg-card.border, .premium-card) {
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="crm"] main :where(.bg-card.border, .premium-card):focus-within {
+  border-color: hsl(var(--primary) / .38);
+}
+body[data-lexis-visual-group="crm"] main :where([role="tablist"]) {
+  border-radius: var(--lx-route-control-radius);
+}
+body[data-lexis-visual-group="crm"] main :where(table tbody tr:hover) {
+  background-color: var(--lx-route-hover);
+}
+
+/* Agenda, tarefas, notificações, auditoria e operações. */
+body[data-lexis-visual-group="operations"] main :where(.bg-card.border, .premium-card, .lexis-metric) {
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="operations"] main :where(.bg-card.border, .premium-card):focus-within {
+  border-color: hsl(var(--primary) / .38);
+}
+body[data-lexis-visual-group="operations"] main :where([role="status"]) {
+  border-radius: 10px;
+}
+body[data-lexis-visual-group="operations"] main :where([type="date"], [type="datetime-local"]) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Conversas, WhatsApp, mensageria: preserva bolhas, scroll e modo navegador. */
+body[data-lexis-visual-group="communication"] main :where(textarea, input[type="text"], input[type="search"]) {
+  border-color: var(--lx-route-edge);
+}
+body[data-lexis-visual-group="communication"] main :where(textarea):focus-visible {
+  box-shadow: 0 0 0 3px var(--lx-route-accent-soft);
+}
+body[data-lexis-visual-group="communication"] main :where([role="tablist"]) {
+  scrollbar-width: none;
+}
+
+/* Agentes, laboratórios e painéis IA. Sem filtros ou efeitos de GPU. */
+body[data-lexis-visual-group="ai"] main :where(.bg-card.border, .premium-card, .glass-panel) {
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="ai"] main :where(pre, code) {
+  font-variant-ligatures: none;
+}
+body[data-lexis-visual-group="ai"] main :where(pre) {
+  scrollbar-color: hsl(var(--border)) transparent;
+  scrollbar-width: thin;
+}
+
+/* Configurações, segurança, equipe e administração. */
+body[data-lexis-visual-group="admin"] main :where(.bg-card.border, .premium-card) {
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="admin"] main :where([role="switch"], input[type="checkbox"]) {
+  accent-color: hsl(var(--primary));
+}
+body[data-lexis-visual-group="admin"] main :where([role="tablist"]) {
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* Conversores, cálculos e ferramentas isoladas. */
+body[data-lexis-visual-group="utilities"] main :where(.bg-card.border, .premium-card) {
+  box-shadow: var(--lx-route-depth);
+}
+body[data-lexis-visual-group="utilities"] main :where(pre, code, output) {
+  font-variant-numeric: tabular-nums;
+}
+body[data-lexis-visual-group="utilities"] main :where(pre) {
+  overflow-wrap: anywhere;
+}
+
+/* Entrada/termos mantêm suas identidades visuais, com formulários acessíveis. */
+body[data-lexis-visual-group="auth"] main :where(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0 3px var(--lx-route-accent-soft);
+}
+body[data-lexis-visual-group="auth"] main :where(.bg-card.border) {
+  box-shadow: var(--lx-route-depth);
+}
+
+/* Corrige superfícies legadas explicitamente brancas no modo escuro de
+ * dashboards/CRM/operações, mas nunca em documentos, chats ou login
+ * (que podem conter páginas imprimíveis ou superfícies intencionalmente brancas).
+ */
+html.dark body:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) main :is(section, article, div).bg-white.border {
+  background-color: hsl(var(--card));
+  border-color: hsl(var(--border));
+}
+html.dark body:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) main :is(section, article, div).bg-white.border :where(.text-black) {
+  color: hsl(var(--card-foreground));
+}
+
+/* Acessibilidade e toque: não causa deslocamentos de layout ou novos elementos. */
+@media (max-width: 767px) {
+  body[data-lexis-visual-group] main {
+    min-width: 0;
+  }
+  body[data-lexis-visual-group] main > :where(.grid, .flex) {
+    min-width: 0;
+  }
+  body[data-lexis-visual-group] main :where(input[type="search"]) {
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-lexis-visual-group] main :where(input, select, textarea, button, a, [role="button"]),
+  body[data-lexis-visual-group] main :where(.bg-card.border, .premium-card) {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  body[data-lexis-visual-group] main :where(.glass-panel, .premium-card) {
+    backdrop-filter: none;
+  }
+}
