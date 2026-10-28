@@ -89,12 +89,12 @@ export async function deleteJurisTimeAction(id:string) {
 }
 export async function listJurisTemplatesAction() {
   try{
-    const {empresaId}=await reader(),db=await getSupabaseAdmin();
+    const {empresaId,userId}=await reader(),db=await getSupabaseAdmin();
     const {data,error}=await db.from('juris_modelos_autorais')
       .select('id,titulo,categoria,corpo,autor_auth_user_id,atualizado_em')
       .eq('empresa_id',empresaId).order('atualizado_em',{ascending:false}).limit(200);
     if(error)throw new Error('Falha ao carregar modelos');
-    return {success:true as const,rows:(data||[]) as JurisTemplate[]};
+    return {success:true as const,rows:(data||[]).map(row=>({...row,editavel:row.autor_auth_user_id===userId})) as (JurisTemplate & {editavel:boolean})[]};
   }catch(e){return {...err(e),rows:[] as JurisTemplate[]};}
 }
 export async function saveJurisTemplateAction(input:{id?:string;titulo:string;categoria:string;corpo:string}) {
