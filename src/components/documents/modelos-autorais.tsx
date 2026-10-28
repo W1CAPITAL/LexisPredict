@@ -1,7 +1,6 @@
 'use client';
 import React,{useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
-import { Sidebar } from '@/components/layout/sidebar';
 import {JURISPANEL_TIPOS,JURISPANEL_TIPOS_LISTA,criarEstruturaAutoral,preencherModeloAutor} from '@/lib/jurispanel-templates';
 import {listJurisTemplatesAction,saveJurisTemplateAction,deleteJurisTemplateAction,findJurisProcessAction,type JurisTemplate} from '@/app/actions/jurispanel-actions';
 import {gerarPecaTextoPDFAction} from '@/app/actions/document-actions';
@@ -14,7 +13,7 @@ function download(name:string,blob:Blob){
  const url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
 }
-export default function JurisModelos(){
+export function JurisModelosIntegrados(){
  const [rows,setRows]=useState<Shared[]>([]);
  const [id,setId]=useState(''),[editavel,setEditavel]=useState(true);
  const [titulo,setTitulo]=useState('Petição Inicial'),[categoria,setCategoria]=useState('Cível'),[corpo,setCorpo]=useState(initial);
@@ -67,9 +66,8 @@ export default function JurisModelos(){
    download(slug(titulo)+'.docx',await zip.generateAsync({type:'blob'}));
   }catch{setMsg('Erro ao exportar DOCX.');}setBusy(false);
  };
- return <div className="flex min-h-screen bg-background text-foreground"><Sidebar/>
-  <main className="min-w-0 flex-1 space-y-5 p-4 lg:p-8">
-   <header><Link href="/jurispanel" className="text-sm text-primary underline">Central jurídica</Link><h1 className="mt-2 text-3xl font-extrabold">Modelos autorais e 46 tipos de minutas</h1>
+ return <div className="space-y-5 rounded-xl border border-border bg-card p-4 text-foreground sm:p-6">
+   <header><h2 className="mt-2 text-xl font-extrabold">Modelos autorais e 46 tipos de minutas</h2>
    <p className="mt-2 text-sm text-muted-foreground">Estruturas editáveis, não 46 peças validadas para protocolo. O proprietário edita o modelo, colegas podem utilizá-lo.</p></header>
    <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
     <aside className="space-y-4">
@@ -116,6 +114,5 @@ export default function JurisModelos(){
      {msg?<p role="status" className="rounded border bg-card p-3 text-sm">{msg}</p>:null}
     </div>
    </div>
-  </main>
  </div>;
 }

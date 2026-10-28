@@ -426,7 +426,7 @@ export default function DocumentGenerator() {
                   <Library size={22} />
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-widest mb-1">Modelos & Peças</p>
-                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Biblioteca reutilizável de peças e petições</p>
+                <p className="text-[10px] font-bold uppercase text-black/40 mb-3">Modelos existentes + 46 tipos de minutas autorais, biblioteca da empresa e exportação PDF/DOCX/TXT</p>
                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-black group-hover:text-[#15803d]">
                   Abrir gerador <ArrowRight size={12} />
                 </span>

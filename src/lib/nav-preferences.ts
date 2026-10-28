@@ -142,8 +142,6 @@ export const NAV_CATALOG: {
   { href: '/financas', label: 'Finanças', group: 'Ferramentas', moreTools: true },
   // Peças/modelos ficam dentro da Central de documentos (não no menu lateral).
   { href: '/documents', label: 'Central de documentos', group: 'Ferramentas', moreTools: true },
-  { href: '/jurispanel', label: 'JurisPanel — Central Jurídica', group: 'Ferramentas', moreTools: true },
-  { href: '/jurispanel/timesheet', label: 'Timesheet', group: 'Ferramentas', moreTools: true },
   { href: '/veredito', label: 'Veredito', group: 'Ferramentas', moreTools: true },
   { href: '/chat', label: 'Assistente', group: 'Ferramentas', moreTools: true },
   { href: '/whatsapp', label: 'WhatsApp', group: 'Ferramentas', moreTools: true },

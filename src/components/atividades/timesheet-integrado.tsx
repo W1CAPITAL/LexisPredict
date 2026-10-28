@@ -1,7 +1,6 @@
 'use client';
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import { Sidebar } from '@/components/layout/sidebar';
 import { listJurisTimesheetAction, saveJurisTimeAction, deleteJurisTimeAction, type JurisTimeEntry } from '@/app/actions/jurispanel-actions';
 import { Clock3, Download, Play, Save, Trash2, Square, RefreshCcw } from 'lucide-react';
 
@@ -12,7 +11,7 @@ function cell(raw:unknown) {
  const safe=/^[=+\-@\t\r]/.test(s)? "'"+s:s;
  return '"'+safe.replace(/"/g,'""')+'"';
 }
-export default function JurisTimesheetPage(){
+export function JurisTimesheetIntegrado(){
  const [rows,setRows]=useState<JurisTimeEntry[]>([]);
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
@@ -78,10 +77,9 @@ export default function JurisTimesheetPage(){
   const a=document.createElement('a');a.href=url;a.download='lexispredict-timesheet.csv';a.click();
   URL.revokeObjectURL(url);
  };
- return <div className="flex min-h-screen bg-background text-foreground"><Sidebar/>
-  <main className="min-w-0 flex-1 space-y-6 p-4 lg:p-8">
+ return <div className="space-y-6 rounded-xl border border-border bg-card p-4 text-foreground sm:p-6">
    <div className="flex flex-wrap items-center justify-between gap-3">
-    <div><Link href="/jurispanel" className="text-sm text-primary underline">Central jurídica</Link><h1 className="mt-2 text-3xl font-extrabold">Timesheet jurídico</h1><p className="mt-1 text-sm text-muted-foreground">Registro real por usuário e CNJ; não cria honorários automaticamente.</p></div>
+    <div><h2 className="mt-2 text-xl font-extrabold">Registro de tempo de trabalho</h2><p className="mt-1 text-sm text-muted-foreground">Registro real por usuário e CNJ; não cria honorários automaticamente.</p></div>
     <button onClick={exportCsv} disabled={rows.length===0} className="flex gap-2 rounded-lg border px-4 py-2 text-sm disabled:opacity-40"><Download size={17}/> Exportar CSV</button>
    </div>
    <div className="grid gap-4 md:grid-cols-3">
@@ -118,6 +116,21 @@ export default function JurisTimesheetPage(){
      </article>)}</div>}
    </section>
    <p className="text-xs text-muted-foreground">O cronômetro funciona enquanto o navegador está aberto. Pode ser retomado após atualizar a aba no mesmo navegador; não constitui monitoramento 24h nem prova de tempo efetivamente trabalhado.</p>
-  </main>
  </div>;
+}
+
+/** O histórico de atividades continua sendo a página principal; o cronômetro só monta quando solicitado. */
+export function JurisTimesheetSection() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5">
+      <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 text-left">
+        <span><strong className="block text-lg">Cronômetro e controle de horas</strong>
+        <span className="mt-1 block text-sm text-muted-foreground">Registre a duração das suas atividades e vincule à carteira, sem abrir outra aba.</span></span>
+        <span className="shrink-0 rounded-lg border px-3 py-2 text-sm">{expanded ? 'Recolher' : 'Abrir'}</span>
+      </button>
+      {expanded ? <div className="mt-5"><JurisTimesheetIntegrado /></div> : null}
+    </section>
+  );
 }

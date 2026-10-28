@@ -1,5 +1,6 @@
 "use client";
 import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import { JurisModelosIntegrados } from "@/components/documents/modelos-autorais";
 import type { DocumentCase } from "@/app/actions/document-case-actions";
 import { clientAsParte } from "@/lib/documents/document-case-prefill";
 import { clientAsPecaMeta } from "@/lib/documents/document-case-prefill";
@@ -87,6 +88,7 @@ const CAMPOS_LABEL: Record<keyof PecaMeta, string> = {
 };
 
 export default function ModelosPage() {
+  const [mostrarAutorais, setMostrarAutorais] = useState(false);
   const { profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [categoria, setCategoria] = useState<CategoriaPeca | "Todas">("Todas");
@@ -262,6 +264,17 @@ export default function ModelosPage() {
               </p>
             </div>
 
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="text-sm font-bold">Modelos autorais e novas estruturas de minuta</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">46 categorias, biblioteca compartilhada com a empresa e exportação em PDF, DOCX ou TXT. Sem sair de Modelos & Peças.</p>
+                </div>
+                <Button metal={false} variant={mostrarAutorais ? "secondary" : "default"} onClick={() => setMostrarAutorais(x => !x)}>
+                  {mostrarAutorais ? "Voltar aos modelos existentes" : "Abrir modelos autorais"}
+                </Button>
+              </div>
+            </div>
+            {mostrarAutorais ? <JurisModelosIntegrados /> : null}
             <div className="flex flex-wrap gap-1.5">
               {(["Todas", ...CATEGORIAS] as const).map((c) => (
                 <button

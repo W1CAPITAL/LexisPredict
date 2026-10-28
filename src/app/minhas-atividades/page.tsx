@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { registrarTarefaRealizadaAction } from "@/app/actions/tarefas-realizadas-actions";
+import { JurisTimesheetSection } from "@/components/atividades/timesheet-integrado";
 export const dynamic="force-dynamic";
 const categorias=[["atendimento","Atendimento"],["analise_processual","Análise de processo"],["auditoria","Auditoria"],["dossie","Dossiê"],["investigacao","Investigação"],["planilha","Planilha"],["sistema","Sistema"],["automacao","Automação"],["outro","Outra"]];
 export default async function MinhasAtividades({searchParams}:{searchParams:Promise<{salvo?:string;erro?:string}>}){
@@ -44,5 +45,6 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
     </article>)}</div>
    </section>
   </div>
+  <JurisTimesheetSection />
  </main>;
 }
