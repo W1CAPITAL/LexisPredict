@@ -71,7 +71,7 @@ export default function NotificationsPage() {
 
   // Esta página utiliza long polling enquanto estiver visível. O servidor
   // entrega snapshots somente quando mudam; não dispara scanner ou sync pesado.
-  useNotificationLongPolling(Boolean(authId), (rows) => setItems(rows));
+  useNotificationLongPolling(Boolean(authId), (rows) => setItems(rows), authId);
 
   const filtered = useMemo(() => items.filter((item) => {
     if (filter === "todas") return true;

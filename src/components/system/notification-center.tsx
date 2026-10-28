@@ -135,7 +135,7 @@ export function NotificationCenter() {
   // Enquanto o popover está aberto, a reconciliação cobre eventos perdidos.
   useNotificationLongPolling(Boolean(authId) && (open || !realtimeHealthy), (rows) => {
     setItems(rows.slice(0, 50));
-  });
+  }, authId);
 
   useEffect(() => {
     if (!authId) return;

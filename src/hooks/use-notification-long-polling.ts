@@ -55,6 +55,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export function useNotificationLongPolling(
   enabled: boolean,
   onUpdate: (notifications: LexisNotification[]) => void,
+  sessionKey = "",
 ) {
   const callback = useRef(onUpdate);
   callback.current = onUpdate;
@@ -118,5 +119,5 @@ export function useNotificationLongPolling(
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("offline", onVisibility);
     };
-  }, [enabled]);
+  }, [enabled, sessionKey]);
 }
