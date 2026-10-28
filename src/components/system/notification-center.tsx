@@ -16,6 +16,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useNotificationLongPolling } from "@/hooks/use-notification-long-polling";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -97,6 +98,7 @@ export function NotificationCenter() {
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [realtimeHealthy, setRealtimeHealthy] = useState(false);
   const [noticeMode,setNoticeMode]=useState<ExperiencePreferences['notifications']>('important');
   const prefRef = useRef(prefs);
   const modeRef=useRef(noticeMode);
@@ -128,6 +130,12 @@ export function NotificationCenter() {
     if (!authId) return;
     void load();
   }, [authId, load]);
+
+  // Realtime é a fonte primária. Se cair, long polling mantém o alerta vivo.
+  // Enquanto o popover está aberto, a reconciliação cobre eventos perdidos.
+  useNotificationLongPolling(Boolean(authId) && (open || !realtimeHealthy), (rows) => {
+    setItems(rows.slice(0, 50));
+  });
 
   useEffect(() => {
     if (!authId) return;
@@ -170,12 +178,15 @@ export function NotificationCenter() {
             if (payload.eventType === "INSERT" && (modeRef.current==='all'||(modeRef.current==='important'&&['critica','alta'].includes(row.prioridade)))) browserNotify(row, prefRef.current);
           }
         )
-        .subscribe();
+        .subscribe((status: string) => {
+          setRealtimeHealthy(status === "SUBSCRIBED");
+        });
     } catch {
       /* Realtime unavailable: bootstrap still works */
     }
 
     return () => {
+      setRealtimeHealthy(false);
       try {
         if (supabase && channel) void supabase.removeChannel(channel);
       } catch {

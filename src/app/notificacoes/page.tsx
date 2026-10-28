@@ -17,7 +17,7 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/supabase/client";
+import { useNotificationLongPolling } from "@/hooks/use-notification-long-polling";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
 import {
@@ -69,36 +69,9 @@ export default function NotificationsPage() {
     if (authId) void load();
   }, [authId, load]);
 
-  useEffect(() => {
-    if (!authId) return;
-    let sb: ReturnType<typeof createClient> | null = null;
-    let ch: any = null;
-    try {
-      sb = createClient();
-      ch = sb
-        .channel("lexis-notification-inbox:" + authId)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "notificacoes", filter: "recipient_user_id=eq." + authId },
-          (payload: any) => {
-            const row = payload?.new || payload?.old;
-            if (!row?.id) return;
-            if (payload.eventType === "DELETE") {
-              setItems((old) => old.filter((item) => item.id !== row.id));
-              return;
-            }
-            setItems((old) => [row, ...old.filter((item) => item.id !== row.id)]
-              .sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()));
-          }
-        )
-        .subscribe();
-    } catch {
-      /* bootstrap continues to work */
-    }
-    return () => {
-      try { if (sb && ch) void sb.removeChannel(ch); } catch { /* */ }
-    };
-  }, [authId]);
+  // Esta página utiliza long polling enquanto estiver visível. O servidor
+  // entrega snapshots somente quando mudam; não dispara scanner ou sync pesado.
+  useNotificationLongPolling(Boolean(authId), (rows) => setItems(rows));
 
   const filtered = useMemo(() => items.filter((item) => {
     if (filter === "todas") return true;
