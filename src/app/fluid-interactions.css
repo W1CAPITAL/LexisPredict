@@ -1,0 +1,116 @@
+/*
+ * LexisPredict Fluid Interactions — baseado na referência visual fornecida:
+ * troca claro/escuro em círculo, navegação responsiva e microinterações curtas.
+ * Somente CSS; sem WebGL/3D, sem loops permanentes nem elementos decorativos.
+ */
+:root {
+  --lexis-motion-ease: cubic-bezier(.22,1,.36,1);
+  --lexis-motion-ease-standard: cubic-bezier(.2,.7,.25,1);
+  --lexis-motion-short: 170ms;
+  --lexis-motion-medium: 290ms;
+}
+
+/* Circular reveal dos temas — somente com View Transitions API ativa.
+ * O tema anterior não perde a legibilidade durante a transição.
+ */
+@keyframes lexis-circular-theme-reveal {
+  from { clip-path: circle(0px at var(--lexis-reveal-x) var(--lexis-reveal-y)); }
+  to { clip-path: circle(var(--lexis-reveal-radius) at var(--lexis-reveal-x) var(--lexis-reveal-y)); }
+}
+html[data-lexis-theme-reveal="1"]::view-transition-old(lexis-theme) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-lexis-theme-reveal="1"]::view-transition-new(lexis-theme) {
+  animation: lexis-circular-theme-reveal 430ms var(--lexis-motion-ease) both;
+  mix-blend-mode: normal;
+}
+html[data-lexis-theme-reveal="1"]::view-transition-group(lexis-theme) {
+  animation-duration: 430ms;
+}
+
+/* Ao concluir uma navegação, somente título/cabeçalho aparecem suavemente.
+ * Não faz transform no main, tabelas ou formulários em edição.
+ */
+@keyframes lexis-soft-arrival {
+  from { opacity: .72; transform: translate3d(0,5px,0); }
+  to { opacity: 1; transform: translate3d(0,0,0); }
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+  main > :is(header:not(.fixed):not(.sticky),h1,.admin-page-header) {
+  animation: lexis-soft-arrival 290ms var(--lexis-motion-ease) both;
+}
+
+/* Barra que começa ao clicar, em vez de simular progresso após a troca. */
+[data-lexis-nav-progress] {
+  background: linear-gradient(90deg,hsl(var(--primary) / .82),hsl(var(--primary)),hsl(var(--ring)));
+  box-shadow: 0 1px 10px hsl(var(--primary) / .35);
+  border-radius: 0 99px 99px 0;
+}
+
+/* Elementos compartilhados: respostas discretas, sem "all" nem saltos. */
+@media (hover:hover) and (pointer:fine) {
+  html[data-lexis-motion="full"] body[data-lexis-visual-group] main
+    :is(.lexis-metric,.premium-card,[data-efferd-kpi]):not([data-no-motion]) {
+    transition: transform var(--lexis-motion-medium) var(--lexis-motion-ease),
+      box-shadow var(--lexis-motion-medium) var(--lexis-motion-ease-standard),
+      border-color var(--lexis-motion-short) ease;
+  }
+  html[data-lexis-motion="full"] body[data-lexis-visual-group] main
+    :is(.lexis-metric,.premium-card,[data-efferd-kpi]):not([data-no-motion]):hover {
+    transform: translate3d(0,-2px,0);
+  }
+  html[data-lexis-motion="full"] [data-lexis-sidebar] nav a,
+  html[data-lexis-motion="full"] [data-lexis-desktop-dock] a {
+    transition: color 160ms ease,background-color 160ms ease,border-color 160ms ease,box-shadow 160ms ease;
+  }
+  html[data-lexis-motion="full"] body[data-lexis-visual-group] main [role="tab"] {
+    transition: background-color 180ms ease, color 180ms ease,box-shadow 180ms ease;
+  }
+}
+html[data-lexis-motion="full"] [data-lexis-sidebar] nav a[aria-current="page"] {
+  box-shadow: inset 3px 0 0 hsl(var(--primary) / .7);
+}
+
+/* Indicadores e gráficos aparecem imediatamente; apenas opacidade da
+ * linha dos gráficos, nunca anima os milhares de pontos ou eixos.
+ */
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] main
+  .dashboard-grid > .lexis-metric:nth-child(-n+4) {
+  animation: lexis-soft-arrival 320ms var(--lexis-motion-ease) both;
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] main
+  .dashboard-grid > .lexis-metric:nth-child(2) { animation-delay: 30ms; }
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] main
+  .dashboard-grid > .lexis-metric:nth-child(3) { animation-delay: 60ms; }
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] main
+  .dashboard-grid > .lexis-metric:nth-child(4) { animation-delay: 90ms; }
+
+/* Modo leve para PC fraco, economizador de dados e mobile modesto:
+ * remove efeitos decorativos contínuos, mantém a UX e o tema escolhidos.
+ * Não desativa o glass quando foi escolhido pelo usuário.
+ */
+html[data-lexis-motion="lite"] :is(
+  .animate-float,.animate-shimmer,.animate-pulse-subtle,.lex-hover-bounce,
+  .lex-hover-pulse,.lex-hover-wiggle,.lex-hover-shake,.lexis-card-motion
+) {
+  animation: none !important;
+}
+html[data-lexis-motion="lite"] :is(.badge-glow::after,.lex-status-dot::after) {
+  animation: none !important;
+}
+html[data-lexis-motion="lite"] .particles-layer { display: none !important; }
+html[data-lexis-motion="lite"] [data-lexis-nav-progress] {
+  transition-duration: 120ms;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-lexis-theme-reveal="1"]::view-transition-old(lexis-theme),
+  html[data-lexis-theme-reveal="1"]::view-transition-new(lexis-theme) {
+    animation-duration: .01ms !important;
+  }
+  body[data-lexis-route-arrival="1"] main > :is(header,h1,.admin-page-header) {
+    animation: none !important;
+  }
+  [data-lexis-nav-progress] { box-shadow: none; }
+}

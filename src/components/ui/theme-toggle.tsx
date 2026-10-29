@@ -93,7 +93,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     return () => window.removeEventListener("lexis-theme-picked", onPick);
   }, []);
 
-  async function chooseMode(next: LexisThemeMode) {
+  async function chooseMode(next: LexisThemeMode, anchor?: HTMLElement | null) {
     const run = () => {
       setMode(next);
       setDarkMode(applyLexisThemeMode(next));
@@ -101,12 +101,36 @@ export function ThemeToggle({ className }: { className?: string }) {
       applyExperiencePrefs({...p,mode:next});
       void updateExperienceAppearanceAction({mode:next});
     };
-    if (document.startViewTransition) {
-      document.documentElement.style.viewTransitionName = "theme-transition";
-      await document.startViewTransition(run).finished;
-      document.documentElement.style.viewTransitionName = "";
-    } else {
+    const currentDark = document.documentElement.classList.contains("dark");
+    const nextDark = next === "dark" || (next === "system" && resolveSystemDark());
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Reveal do vídeo: apenas para mudança de luminosidade, navegador compatível
+    // e dispositivo capaz. Para os demais, mudança imediata e acessível.
+    if (currentDark === nextDark || reduced || document.documentElement.dataset.lexisMotion !== "full" || !document.startViewTransition) {
       run();
+      return;
+    }
+    const root = document.documentElement;
+    const rect = anchor?.getBoundingClientRect();
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    const previousName = root.style.viewTransitionName;
+    root.style.setProperty("--lexis-reveal-x", x + "px");
+    root.style.setProperty("--lexis-reveal-y", y + "px");
+    root.style.setProperty("--lexis-reveal-radius", Math.ceil(radius) + "px");
+    root.style.viewTransitionName = "lexis-theme";
+    root.dataset.lexisThemeReveal = "1";
+    try {
+      await document.startViewTransition(run).finished;
+    } catch {
+      // Mesmo que o browser cancele a animação, a troca de tema permanece feita.
+    } finally {
+      root.style.viewTransitionName = previousName;
+      delete root.dataset.lexisThemeReveal;
+      root.style.removeProperty("--lexis-reveal-x");
+      root.style.removeProperty("--lexis-reveal-y");
+      root.style.removeProperty("--lexis-reveal-radius");
     }
   }
 
@@ -159,7 +183,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             return (
               <button
                 key={m}
-                onClick={() => chooseMode(m)}
+                onClick={(event) => void chooseMode(m, event.currentTarget)}
                 className={cn(
                   "flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors",
                   mode === m
