@@ -53,11 +53,22 @@ function NavProgressInner() {
       if (isInternalNavigation(event)) begin();
     };
     const onBack = () => begin();
+    const onProgrammaticStart = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+      try {
+        const target = new URL(href, window.location.href);
+        if (target.origin === window.location.origin &&
+          target.pathname + target.search !== window.location.pathname + window.location.search) begin();
+      } catch { /* endereço inválido: não inicia o indicador */ }
+    };
     document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", onBack);
+    window.addEventListener("lexis-navigation-start", onProgrammaticStart);
     return () => {
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", onBack);
+      window.removeEventListener("lexis-navigation-start", onProgrammaticStart);
       clearTimers();
     };
   }, []);

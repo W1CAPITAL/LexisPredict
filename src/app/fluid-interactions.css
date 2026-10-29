@@ -119,3 +119,20 @@ html[data-lexis-motion="lite"] [data-lexis-nav-progress] {
   }
   [data-lexis-nav-progress] { box-shadow: none; }
 }
+
+
+/* Navegação contínua: o shell e a sidebar permanecem montados; apenas o
+ * conteúdo recebe uma transição breve de opacidade, sem deslocar tabelas.
+ */
+@keyframes lexis-content-arrival {
+  from { opacity: .88; }
+  to { opacity: 1; }
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] {
+  animation: lexis-content-arrival 150ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-lexis-route-arrival="1"] [data-lexis-route-content] {
+    animation: none !important;
+  }
+}

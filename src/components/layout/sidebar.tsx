@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { PersistentSidebarContext } from "./persistent-sidebar-context";
 import { SidebarDock } from "./sidebar-dock";
 import { SidebarVertical } from "./sidebar-vertical";
 import {
@@ -14,7 +15,7 @@ import {
  * - desktop respeita a preferência Vertical ou Dock Horizontal.
  * A preferência é aplicada imediatamente pelo evento lexis-nav-layout.
  */
-export function Sidebar() {
+function SidebarContent() {
   const [mode, setMode] = useState<NavLayoutMode>("vertical");
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -51,4 +52,16 @@ export function Sidebar() {
   }
 
   return mode === "dock" ? <SidebarDock /> : <SidebarVertical />;
+}
+
+
+/**
+ * Las páginas antiguas siguen declarando <Sidebar />. Cuando el shell global
+ * ya está montado, esas instancias se convierten en no-op y no duplican ni
+ * desmontan la navegación al cambiar de ruta.
+ */
+export function Sidebar({ persistentRoot = false }: { persistentRoot?: boolean }) {
+  const inPersistentShell = useContext(PersistentSidebarContext);
+  if (inPersistentShell && !persistentRoot) return null;
+  return <SidebarContent />;
 }
