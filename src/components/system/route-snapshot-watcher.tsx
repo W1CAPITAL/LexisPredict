@@ -23,6 +23,8 @@ export function RouteSnapshotWatcher() {
 
     const run = () => {
       if (cancelled || document.visibilityState !== "visible") return;
+      // Miniaturas fazem leitura de DOM; não competem com interações em PC modesto.
+      if (document.documentElement.dataset.lexisMotion === "lite") return;
       void captureCurrentRoute(pathname);
     };
 
