@@ -96,8 +96,13 @@ html[data-lexis-motion="lite"] :is(
 ) {
   animation: none !important;
 }
-html[data-lexis-motion="lite"] :is(.badge-glow::after,.lex-status-dot::after) {
+html[data-lexis-motion="lite"] .badge-glow::after,
+html[data-lexis-motion="lite"] .lex-status-dot::after {
   animation: none !important;
+}
+html[data-lexis-motion="lite"] .lexis-card-motion:hover {
+  transform: none;
+  box-shadow: inherit;
 }
 html[data-lexis-motion="lite"] .particles-layer { display: none !important; }
 html[data-lexis-motion="lite"] [data-lexis-nav-progress] {
