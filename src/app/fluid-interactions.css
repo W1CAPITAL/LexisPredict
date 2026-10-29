@@ -136,3 +136,16 @@ html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-ro
     animation: none !important;
   }
 }
+
+/* Shimmer do carregamento: animação CSS leve, também no modo de baixo consumo. */
+@keyframes lexis-skeleton-shimmer { 0% { background-position:100% 0; } 100% { background-position:-100% 0; } }
+.lexis-skeleton { background:linear-gradient(100deg,hsl(var(--muted)) 20%,hsl(var(--muted-foreground) / .16) 42%,hsl(var(--muted)) 64%);background-size:220% 100%;animation:lexis-skeleton-shimmer 1.45s linear infinite; }
+.lexis-loading-track { height:4px;overflow:hidden;border-radius:999px;background:hsl(var(--muted)); }
+.lexis-loading-track>span { display:block;width:34%;height:100%;border-radius:inherit;background:hsl(var(--primary));animation:lexis-loading-sweep 1.15s var(--lexis-motion-ease) infinite; }
+@keyframes lexis-loading-sweep { from { transform:translateX(-115%); } to { transform:translateX(315%); } }
+@keyframes lexis-lite-arrival { from { opacity:.92; } to { opacity:1; } }
+html[data-lexis-motion="lite"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] { animation:lexis-lite-arrival 150ms ease-out both; }
+@media (prefers-reduced-motion:reduce) {
+ .lexis-skeleton,.lexis-loading-track>span { animation:none!important; }
+ body[data-lexis-route-arrival="1"] [data-lexis-route-content] { animation:none!important; }
+}
