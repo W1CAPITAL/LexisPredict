@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { NavProgress } from "@/components/system/nav-progress";
+import { FluidMotionController } from "@/components/system/fluid-motion-controller";
 import { getVisualRouteGroup } from "@/lib/visual-route-groups";
 const ExperienceGate = dynamic(() => import('@/components/onboarding/experience-studio').then(m=>m.ExperienceGate),{ssr:false});
 const WhatsAppConnectionNotice=dynamic(()=>import('@/components/system/whatsapp-connection-notice').then(m=>m.WhatsAppConnectionNotice),{ssr:false});
@@ -140,6 +141,7 @@ export function ClientChrome() {
 
   return (
     <>
+      <FluidMotionController />
       <NavProgress />
       <ExperienceGate />
 
