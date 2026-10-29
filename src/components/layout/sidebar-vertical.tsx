@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -102,6 +102,17 @@ export function SidebarVertical() {
   const [navOpened,setNavOpened]=useState(true);
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const routePrefetchAt = useRef(new Map<string, number>());
+
+  // Prefetch só com intenção real (hover/foco/toque), evitando N consultas de
+  // sessão/tenant para todas as rotas apenas porque o menu está visível.
+  const prefetchRoute = (href: string) => {
+    const now = Date.now();
+    const last = routePrefetchAt.current.get(href) || 0;
+    if (now - last < 15_000) return;
+    routePrefetchAt.current.set(href, now);
+    try { router.prefetch(href); } catch { routePrefetchAt.current.delete(href); }
+  };
 
   const allowed = (item: NavItem) => {
     if (item.superadmin && !isSuperAdmin) return false;
@@ -315,10 +326,10 @@ export function SidebarVertical() {
     }
     setNavigatingTo(href);
     if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => router.push(href));
-    } else {
-      router.push(href);
+      window.dispatchEvent(new CustomEvent("lexis-navigation-start", { detail: { href } }));
     }
+    // router.push já agenda a navegação; não atrasar um frame artificialmente.
+    router.push(href);
   };
 
   const openToolsMenu = () => {
@@ -394,9 +405,11 @@ export function SidebarVertical() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
+                onMouseEnter={() => prefetchRoute(item.href)}
+                onFocus={() => prefetchRoute(item.href)}
+                onTouchStart={() => prefetchRoute(item.href)}
                 aria-current={isActive?'page':undefined}
-               
-                
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
                   isActive
@@ -496,6 +509,7 @@ export function SidebarVertical() {
       >
         <button
           type="button"
+          onPointerDown={() => prefetchRoute("/")}
           onClick={() => navigateMobile("/")}
           aria-label="Ir para o início"
           className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]"
@@ -508,6 +522,7 @@ export function SidebarVertical() {
         </div>
         <button
           type="button"
+          onPointerDown={() => prefetchRoute("/settings")}
           onClick={() => navigateMobile("/settings")}
           aria-label="Configurações e notificações"
           className="relative mr-1 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#d8eaff]"
@@ -548,6 +563,7 @@ export function SidebarVertical() {
               key={item.href}
               type="button"
               data-mobile-nav-action
+              onPointerDown={() => prefetchRoute(item.href)}
               onClick={() => navigateMobile(item.href)}
               className={cn(
                 "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
@@ -576,6 +592,7 @@ export function SidebarVertical() {
         <button
           type="button"
           data-mobile-nav-action
+          onPointerDown={() => prefetchRoute("/whatsapp")}
           onClick={() => navigateMobile("/whatsapp")}
           className={cn(
             "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
@@ -606,6 +623,7 @@ export function SidebarVertical() {
             <p className="mt-1 text-xs leading-relaxed text-[#6d7f9b]">Encontre pelo que você quer fazer, não pelo nome do módulo.</p>
             <button
               type="button"
+              onPointerDown={() => prefetchRoute("/onboarding")}
               onClick={() => navigateMobile("/onboarding")}
               className="mt-3 flex h-11 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] px-3 text-left text-sm font-bold text-[#145bd7]"
             >
@@ -614,6 +632,7 @@ export function SidebarVertical() {
             </button>
             <button
               type="button"
+              onPointerDown={() => prefetchRoute("/dossies")}
               onClick={() => navigateMobile("/dossies")}
               className="mt-2 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#b9d2ff] bg-[linear-gradient(135deg,#eef5ff,#f8fbff)] px-3 py-2 text-left text-[#174f9d] shadow-sm"
             >
@@ -650,6 +669,7 @@ export function SidebarVertical() {
                       <button
                         type="button"
                         key={item.href}
+                        onPointerDown={() => prefetchRoute(item.href)}
                         onClick={() => navigateMobile(item.href)}
                         className="flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#25466f] active:bg-[#eef5ff]"
                       >
@@ -699,6 +719,7 @@ export function SidebarVertical() {
                             <button
                               type="button"
                               key={item.href}
+                              onPointerDown={() => prefetchRoute(item.href)}
                               onClick={() => navigateMobile(item.href)}
                               className="flex min-h-13 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left active:bg-[#eef5ff]"
                             >

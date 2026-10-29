@@ -21,6 +21,7 @@ import { MotionRoot } from "@/components/providers/motion-root";
 import { LexisErrorBoundary } from "@/components/system/error-boundary";
 import { MetalPrefsApplier } from "@/components/ui/metal-prefs-applier";
 import { ClientChrome } from "@/components/system/client-chrome";
+import { PersistentAppShell } from "@/components/layout/persistent-app-shell";
 import { RouteSnapshotWatcher } from "@/components/system/route-snapshot-watcher";
 import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
@@ -234,7 +235,7 @@ export default function RootLayout({
             <LexisErrorBoundary>
               <>
               <ViewerModeBanner />
-              <SessionGuard><PlanLockGate><MotionRoot>{children}</MotionRoot></PlanLockGate></SessionGuard>
+              <SessionGuard><PlanLockGate><PersistentAppShell><MotionRoot>{children}</MotionRoot></PersistentAppShell></PlanLockGate></SessionGuard>
             </>
             </LexisErrorBoundary>
             </div>

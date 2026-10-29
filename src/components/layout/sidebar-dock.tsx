@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ListTodo, Briefcase, FolderOpen, PauseCircle, ShieldAlert,
   Gavel, Hash, MessageCircle, CalendarDays, FileText, BarChart3, Users,
@@ -58,6 +58,15 @@ const more = [
 
 export function SidebarDock() {
   const pathname = usePathname();
+  const router = useRouter();
+  const routePrefetchAt = useRef(new Map<string, number>());
+  const prefetchRoute = (href: string) => {
+    const now = Date.now();
+    const last = routePrefetchAt.current.get(href) || 0;
+    if (now - last < 15_000) return;
+    routePrefetchAt.current.set(href, now);
+    try { router.prefetch(href); } catch { routePrefetchAt.current.delete(href); }
+  };
   const { profile, signOut } = useAuth();
   const { role, isSupervisor, isSuperAdmin, canScan, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
@@ -147,6 +156,9 @@ export function SidebarDock() {
                 href={item.href}
                 aria-current={active?'page':undefined}
                 prefetch={false}
+                onMouseEnter={() => prefetchRoute(item.href)}
+                onFocus={() => prefetchRoute(item.href)}
+                onTouchStart={() => prefetchRoute(item.href)}
                 className={cn(
                   "flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition",
                   active ? "bg-[#1769ff] text-white shadow-[0_8px_20px_rgba(23,105,255,.28)]" : "text-[#d4e4f5] hover:bg-white/10 hover:text-white",
@@ -186,6 +198,10 @@ export function SidebarDock() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={false}
+                      onMouseEnter={() => prefetchRoute(item.href)}
+                      onFocus={() => prefetchRoute(item.href)}
+                      onTouchStart={() => prefetchRoute(item.href)}
                       onClick={() => setOpen(false)}
                       className={cn(
                         "mb-0.5 flex h-10 items-center gap-2 rounded-lg px-3 text-sm",
