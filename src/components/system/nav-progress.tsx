@@ -8,7 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 function isInternalNavigation(event: MouseEvent) {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
-  const source = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  const source = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
   if (!source || source.hasAttribute("download") || source.getAttribute("aria-disabled") === "true") return false;
   if (source.target && source.target !== "_self") return false;
   try {
