@@ -3,6 +3,7 @@ import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {ReportTeamSummaryPdf} from "@/components/pdf/report-team-summary-pdf";
 import type {EquipeRelatorio} from "@/components/report/team-report";
 import {getReportAccess} from "@/lib/security/report-access";
+import {getAtividadesRegistradasPorResponsavel} from "@/lib/atividades-registradas";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -23,18 +24,29 @@ export async function GET(request:Request){
   const scope=access.scope==="meus"?"Minha carteira":"Empresa inteira";
   const owner=scope==="Minha carteira"?ctx.auth_id:null;
   const db=await getSupabaseAdmin();
-  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult]=await Promise.all([
+  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult,activityStatsResult]=await Promise.all([
     db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
     db.rpc("lexis_portfolio_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_merito_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_retorno_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner,p_dias:30}),
     db.rpc("lexis_atividade_kpis_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
+    getAtividadesRegistradasPorResponsavel(String(ctx.empresa_id),owner).catch(()=>null),
   ]);
   if(teamResult.error||!teamResult.data||!Array.isArray(teamResult.data.pessoas)){
     return Response.json({error:"Não foi possível consultar a equipe para exportação."},{status:503,headers:{"Cache-Control":"no-store"}});
   }
   const rawTeam=teamResult.data as EquipeRelatorio;
-  const team:EquipeRelatorio=owner?{...rawTeam,pessoas:rawTeam.pessoas.filter(p=>p.userId===String(owner))}:rawTeam;
+  const activityStats=activityStatsResult||null;
+  const teamPeople=rawTeam.pessoas.filter(p=>!owner||p.userId===String(owner)).map(p=>{
+   const total=activityStats?.[p.userId];
+   return {...p,atividades:{...p.atividades,
+    registrosTotal:total?.registros??null,
+    processosTotal:total?.processos??null,
+    contatosMarcadosTotal:total?.contatosMarcados??null,
+    semReferenciaTotal:total?.semReferencia??null
+   }};
+  });
+  const team:EquipeRelatorio={...rawTeam,pessoas:teamPeople};
   const snap=Array.isArray(snapshotResult.data)?snapshotResult.data[0]:null;
   const merito=meritoResult.data?.oficial;
   const ret=retornoResult.data;

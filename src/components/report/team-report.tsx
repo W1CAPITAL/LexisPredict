@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useMemo,useState} from "react";
 import {Activity,ArrowRight,BookOpenCheck,BriefcaseBusiness,CheckCircle2,ChevronDown,ClipboardCheck,FileClock,FilePenLine,FolderKanban,Layers3,Search,ShieldCheck,UsersRound} from "lucide-react";
 
@@ -12,11 +13,11 @@ export type EquipeMembro={
  atendimentos:{processos:number;eventos:number};
  edicoes:{processos:number;eventos:number};
  encerramentos:{processos:number;eventos:number};
- atividades:{registros:number;contato:number;contatosDeclarados:number;internas:number;processos:number;categorias:EquipeCategoria[];recentes:EquipeAtividade[]};
+ atividades:{registros:number;contato:number;contatosDeclarados:number;internas:number;processos:number;categorias:EquipeCategoria[];recentes:EquipeAtividade[];registrosTotal:number|null;processosTotal:number|null;contatosMarcadosTotal:number|null;semReferenciaTotal:number|null};
  trabalho:{registros:number;processos:number;entregas:number;verificacoesLote:number;categorias:EquipeCategoria[];entregasRecentes:EquipeEntrega[]};
 };
 export type EquipeRelatorio={periodo:string;inicio:string;fim:string;pessoas:EquipeMembro[];nota?:string};
-const n=(value?:number|null)=>Number(value||0).toLocaleString("pt-BR");
+const n=(value?:number|null)=>value==null?"—":Number(value).toLocaleString("pt-BR");
 const d=(value?:string)=>value&&/^\d{4}-\d{2}-\d{2}$/.test(value)?value.slice(8,10)+"/"+value.slice(5,7)+"/"+value.slice(0,4):value||"";
 const labelCategoria:Record<string,string>={
  atendimento:"Atendimento ao cliente",analise_processual:"Análise processual",auditoria:"Auditoria",dossie:"Dossiê",investigacao:"Investigação",planilha:"Planilha",sistema:"Desenvolvimento de sistemas",automacao:"Automação",outro:"Outra atividade",
@@ -29,7 +30,7 @@ const labelCategoria:Record<string,string>={
  investigacao_externa:"Investigação externa",
 };
 function nomeCategoria(s:string){return labelCategoria[s]||s.replace(/_/g," ");}
-function Stat({title,value,explain}:{title:string;value:number;explain:string}){
+function Stat({title,value,explain}:{title:string;value:number|null;explain:string}){
  return <div className="report-team-stat rounded-2xl border border-border/70 bg-background/70 px-4 py-4">
   <p className="report-team-muted text-xs font-semibold text-muted-foreground">{title}</p>
   <p className="report-team-stat-value mt-1 text-2xl font-extrabold tabular-nums">{n(value)}</p>
@@ -74,23 +75,25 @@ function resumoPessoa(x:EquipeMembro){
  if(x.atendimentos.processos)parts.push("Atendimento a "+n(x.atendimentos.processos)+" processos, com "+n(x.atendimentos.eventos)+" registros auditados.");
  if(x.edicoes.processos)parts.push("Edição registrada em "+n(x.edicoes.processos)+" processos.");
  if(x.encerramentos.processos)parts.push(n(x.encerramentos.processos)+" processos tiveram encerramento manual registrado sob seu usuário.");
- if(x.atividades.registros)parts.push(n(x.atividades.registros)+" atividades cadastradas com descrição ou referência.");
+ if(x.atividades.registrosTotal!=null)parts.push(n(x.atividades.registrosTotal)+" atividades cadastradas no histórico completo.");
+ else if(x.atividades.registros)parts.push(n(x.atividades.registros)+" atividades cadastradas no período consultado.");
  if(x.trabalho.registros)parts.push(n(x.trabalho.registros)+" registros de análises e auditorias; "+n(x.trabalho.verificacoesLote)+" deles são verificações sistêmicas em lote.");
  return parts.length?parts.join(" "):"Não há ações individuais identificadas nas fontes consultadas dentro deste período. Isso não equivale a afirmar que a pessoa não trabalhou.";
 }
-export function TeamReport({data}:{data:EquipeRelatorio|null}){
- const [selected,setSelected]=useState<string|null>(null);
+export function TeamReport({data,currentUserId}:{data:EquipeRelatorio|null;currentUserId?:string|null}){
+ const [selected,setSelected]=useState<string|null>(currentUserId||null);
  const [search,setSearch]=useState("");
- const [scope,setScope]=useState<"todos"|"com-atividade">("todos");
+ const [scope,setScope]=useState<"todos"|"com-atividade">("com-atividade");
  const pessoas=data?.pessoas||[];
- const visible=useMemo(()=>pessoas.filter(x=>x.nome.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")) && (scope==="todos"||x.atendimentos.eventos+x.edicoes.eventos+x.encerramentos.eventos+x.atividades.registros+x.trabalho.registros>0)),[pessoas,scope,search]);
+ const visible=useMemo(()=>pessoas.filter(x=>x.nome.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")) && (scope==="todos"||(x.atividades.registrosTotal??0)>0)),[pessoas,scope,search]);
  const current=visible.find(x=>x.userId===selected)||visible[0];
- const logged=(x:EquipeMembro)=>x.atendimentos.eventos+x.edicoes.eventos+x.encerramentos.eventos+x.atividades.registros+x.trabalho.registros;
+ const activityCountsAvailable=pessoas.some(x=>x.atividades.registrosTotal!==null);
+ const activityOwners=useMemo(()=>pessoas.filter(x=>(x.atividades.registrosTotal??0)>0).sort((a,b)=>(b.atividades.registrosTotal||0)-(a.atividades.registrosTotal||0)),[pessoas]);
  const cards=[
-  {label:"Pessoas cadastradas",val:pessoas.length,icon:UsersRound},
-  {label:"Com registros no período",val:pessoas.filter(x=>logged(x)>0).length,icon:Activity},
-  {label:"Registros de atendimento",val:pessoas.reduce((s,x)=>s+x.atendimentos.eventos,0),icon:ClipboardCheck},
-  {label:"Atividades descritivas",val:pessoas.reduce((s,x)=>s+x.atividades.registros,0),icon:BookOpenCheck},
+  {label:"Pessoas com atividades",val:activityCountsAvailable?activityOwners.length:null,icon:UsersRound},
+  {label:"Atividades cadastradas · histórico",val:activityCountsAvailable?activityOwners.reduce((s,x)=>s+(x.atividades.registrosTotal||0),0):null,icon:BookOpenCheck},
+  {label:"Atendimentos registrados · período",val:pessoas.reduce((s,x)=>s+x.atendimentos.eventos,0),icon:ClipboardCheck},
+  {label:"Atividades registradas · período",val:pessoas.reduce((s,x)=>s+x.atividades.registros,0),icon:Activity},
  ];
  return <section id="equipe" aria-labelledby="team-report-title" className="report-team-section space-y-5">
   <div className="report-team-hero rounded-[1.65rem] border p-6 shadow-sm sm:p-7">
@@ -102,9 +105,14 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
   </div>
   {!data?<div role="alert" className="rounded-2xl border border-amber-500/30 bg-card p-5 text-sm text-muted-foreground">Não foi possível carregar o detalhamento individual nesta consulta. Os números não foram estimados. Os outros painéis continuam disponíveis.</div>:<>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(c=><div key={c.label} className="report-team-stat-card rounded-2xl border border-border/70 bg-card p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground"><span>{c.label}</span><c.icon className="h-4 w-4 text-indigo-500"/></div><p className="report-team-stat-value mt-2 text-2xl font-extrabold tabular-nums">{n(c.val)}</p></div>)}</div>
+   <section className="report-team-panel space-y-3 rounded-2xl border border-border/70 bg-card p-5">
+    <div><h3 className="font-extrabold">Atividades cadastradas por responsável</h3><p className="mt-1 text-xs text-muted-foreground">Histórico completo, todas as datas. Só aparecem pessoas com pelo menos uma atividade salva; registros de auditoria e tarefas em lote não são somados aqui.</p></div>
+    {!activityCountsAvailable?<p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">Não foi possível carregar a contagem histórica por responsável.</p>:!activityOwners.length?<p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">Nenhuma atividade manual registrada para os usuários desta empresa.</p>:<div className="overflow-x-auto rounded-xl border border-border/70"><table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/70"><tr><th className="p-3 text-left">Responsável</th><th className="p-3 text-right">Atividades</th><th className="p-3 text-right">Referências de processo</th><th className="p-3 text-right">Contatos marcados</th><th className="p-3 text-right">Sem referência</th></tr></thead><tbody>{activityOwners.map(x=><tr key={x.userId} className="border-t border-border/70"><td className="p-3 font-semibold">{x.nome}</td><td className="p-3 text-right font-extrabold tabular-nums">{n(x.atividades.registrosTotal)}</td><td className="p-3 text-right tabular-nums">{n(x.atividades.processosTotal)}</td><td className="p-3 text-right tabular-nums">{n(x.atividades.contatosMarcadosTotal)}</td><td className="p-3 text-right tabular-nums">{n(x.atividades.semReferenciaTotal)}</td></tr>)}</tbody></table></div>}
+    <p className="text-[11px] text-muted-foreground">“Contatos marcados” reproduz o campo declarado no registro; não é confirmação independente do conteúdo da conversa.</p>
+   </section>
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="relative w-full sm:w-72"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input type="search" aria-label="Pesquisar colaborador" placeholder="Buscar colaborador" value={search} onChange={e=>setSearch(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/></div>
-    <div className="flex gap-2">{([{id:"todos",title:"Toda a equipe"},{id:"com-atividade",title:"Com registros"}] as const).map(x=><button type="button" key={x.id} onClick={()=>setScope(x.id)} aria-pressed={scope===x.id} className={"rounded-full border px-3 py-2 text-xs font-bold "+(scope===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card")}>{x.title}</button>)}</div>
+    <div className="flex gap-2">{([{id:"todos",title:"Ver todos os colaboradores"},{id:"com-atividade",title:"Com atividades"}] as const).map(x=><button type="button" key={x.id} onClick={()=>setScope(x.id)} aria-pressed={scope===x.id} className={"rounded-full border px-3 py-2 text-xs font-bold "+(scope===x.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card")}>{x.title}</button>)}</div>
    </div>
    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
     {visible.map(x=><button type="button" key={x.userId} onClick={()=>setSelected(x.userId)} aria-pressed={current?.userId===x.userId} className={"report-team-person w-full rounded-2xl border p-4 text-left shadow-sm transition-colors "+(current?.userId===x.userId?"is-selected border-indigo-400 bg-indigo-500/10 dark:border-indigo-400/60":"border-border/70 bg-card hover:border-indigo-300")}>
@@ -113,7 +121,7 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/60 pt-3">
       <div><p className="text-lg font-black tabular-nums">{n(x.atendimentos.processos)}</p><p className="text-[10px] text-muted-foreground">Atendidos</p></div>
       <div><p className="text-lg font-black tabular-nums">{n(x.edicoes.processos)}</p><p className="text-[10px] text-muted-foreground">Editados</p></div>
-      <div><p className="text-lg font-black tabular-nums">{n(x.atividades.registros)}</p><p className="text-[10px] text-muted-foreground">Atividades</p></div>
+      <div><p className="text-lg font-black tabular-nums">{n(x.atividades.registrosTotal)}</p><p className="text-[10px] text-muted-foreground">Atividades · total</p></div>
      </div>
     </button>)}
    </div>
@@ -130,7 +138,7 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
       <Stat title="Clientes/processos atendidos" value={current.atendimentos.processos} explain={n(current.atendimentos.eventos)+" registros no CRM no período"}/>
       <Stat title="Processos editados" value={current.edicoes.processos} explain={n(current.edicoes.eventos)+" ações de edição auditadas"}/>
       <Stat title="Encerramentos manuais" value={current.encerramentos.processos} explain={n(current.encerramentos.eventos)+" ações, sem testes administrativos"}/>
-      <Stat title="Atividades registradas" value={current.atividades.registros} explain={n(current.atividades.internas)+" internas; "+n(current.atividades.contatosDeclarados)+" contatos declarados"}/>
+      <Stat title="Atividades · histórico completo" value={current.atividades.registrosTotal} explain={n(current.atividades.registros)+" no período; "+n(current.atividades.processosTotal)+" referências de processo no histórico"}/>
      </div>
      <div className="grid gap-4 lg:grid-cols-2">
       <div className="report-team-panel rounded-2xl border border-border/70 p-5"><div className="mb-4 flex items-center gap-2"><FilePenLine className="h-5 w-5 text-indigo-500"/><h4 className="font-extrabold">O que foi registrado como atividade</h4></div><Highlights entries={current.atividades.categorias||[]} empty="Sem atividades cadastradas na tabela de tarefas neste período."/></div>
@@ -141,7 +149,7 @@ export function TeamReport({data}:{data:EquipeRelatorio|null}){
      </div>
      <div className="grid gap-4 lg:grid-cols-2">
       <section className="report-team-panel rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FolderKanban className="h-5 w-5 text-violet-500"/> Entregas e trabalhos descritos</h4><p className="mb-4 text-xs text-muted-foreground">Dossiês, investigações, projetos e triagens com identificação própria. Mostra entregas distintas registradas no período, sem repetir cada linha de um levantamento em lote.</p><DeliveryList items={current.trabalho.entregasRecentes||[]}/></section>
-      <section className="report-team-panel rounded-2xl border border-border/70 p-5"><h4 className="mb-1 flex items-center gap-2 font-extrabold"><FileClock className="h-5 w-5 text-indigo-500"/> Histórico das atividades cadastradas</h4><p className="mb-4 text-xs text-muted-foreground">Descrições recentes salvas em “Minhas atividades”; são registros próprios, não ações presumidas. A lista é uma amostra.</p><ActivityList items={current.atividades.recentes||[]}/></section>
+      <section className="report-team-panel rounded-2xl border border-border/70 p-5"><div className="mb-1 flex flex-wrap items-center justify-between gap-2"><h4 className="flex items-center gap-2 font-extrabold"><FileClock className="h-5 w-5 text-indigo-500"/> Histórico das atividades cadastradas</h4>{currentUserId&&current.userId===currentUserId?<Link href="/minhas-atividades" className="text-xs font-semibold text-primary underline">Abrir histórico completo</Link>:null}</div><p className="mb-4 text-xs text-muted-foreground">Descrições recentes salvas em “Minhas atividades”; são registros próprios, não ações presumidas. A lista abaixo é uma amostra do período selecionado. O histórico completo do usuário autenticado fica na página de atividades, com os dados do processo vinculado.</p><ActivityList items={current.atividades.recentes||[]}/></section>
      </div>
      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-2"><ShieldCheck className="h-4 w-4 text-emerald-600"/> Atendimento só com registro atribuído ao executor</span>

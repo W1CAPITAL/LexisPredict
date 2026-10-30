@@ -9,7 +9,7 @@ import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-
 import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
 import {ReportExecutiveDashboard} from "@/components/report/report-executive-dashboard";
-import {getAtividadesRegistradasCount} from "@/lib/atividades-registradas";
+import {getAtividadesRegistradasCount,getAtividadesRegistradasPorResponsavel} from "@/lib/atividades-registradas";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -45,7 +45,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult,atividadesPorResponsavelResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
@@ -54,7 +54,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
-  getAtividadesRegistradasCount(empresaId,owner)
+  getAtividadesRegistradasCount(empresaId,owner),
+  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null)
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -70,6 +71,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const dr=desfechosResult.status==="fulfilled"?desfechosResult.value:null;
  const desfechos=dr&&!dr.error&&dr.data&&typeof dr.data==="object"?dr.data as Record<string,number>:null;
  const atividadesRegistradas=atividadesRegistradasResult.status==="fulfilled"?atividadesRegistradasResult.value:null;
+ const atividadesPorResponsavel=atividadesPorResponsavelResult.status==="fulfilled"?atividadesPorResponsavelResult.value:null;
  const rr=retornoResult.status==="fulfilled"?retornoResult.value:null;
  const retorno=rr&&!rr.error&&rr.data&&typeof rr.data==="object"?rr.data as Record<string,number>:null;
  const cr=closuresResult.status==="fulfilled"?closuresResult.value:null;
@@ -79,7 +81,19 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const trabalho:TrabalhoInternoResumo|null=tr&&!tr.error&&tr.data&&typeof tr.data==="object"?
    tr.data as TrabalhoInternoResumo:null;
  const er=teamResult.status==="fulfilled"?teamResult.value:null;
- const teamReport:EquipeRelatorio|null=er&&!er.error&&er.data&&typeof er.data==="object"&&Array.isArray((er.data as any).pessoas)?er.data as EquipeRelatorio:null;
+ const teamReportBase:EquipeRelatorio|null=er&&!er.error&&er.data&&typeof er.data==="object"&&Array.isArray((er.data as any).pessoas)?er.data as EquipeRelatorio:null;
+ const teamReport:EquipeRelatorio|null=teamReportBase?{
+   ...teamReportBase,
+   pessoas:teamReportBase.pessoas.map(p=>{
+     const total=atividadesPorResponsavel?.[p.userId];
+     return {...p,atividades:{...p.atividades,
+       registrosTotal:total?.registros??null,
+       processosTotal:total?.processos??null,
+       contatosMarcadosTotal:total?.contatosMarcados??null,
+       semReferenciaTotal:total?.semReferencia??null
+     }};
+   })
+ }:null;
  const totals=[
   {title:"Processos atendidos",value:hist?.processos,help:"Distintos no período, empresa inteira"},
   {title:"Atendimentos registrados",value:hist?.eventos,help:"Eventos feitos por pessoas"},
@@ -119,7 +133,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       equipe={(teamReport?.pessoas??[]).filter(x=>!somenteMinhaCarteira||x.userId===ctx.auth_id).map(x=>({
         id:x.userId,nome:x.nome,carteira:x.carteira.total,
         atendimentos:x.atendimentos.eventos,encerramentos:x.encerramentos.processos,
-        edicoes:x.edicoes.processos,atividades:x.atividades.registros
+        edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??0
       }))}
     />
     {!canViewTeam && <p className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm text-slate-200">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
@@ -127,7 +141,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
     <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="cursor-pointer text-sm font-bold text-foreground">Abrir detalhamento individual da equipe e perguntas ao relatório</summary>
       <div className="mt-5 space-y-6">
-    <TeamReport data={teamReport}/>
+    <TeamReport data={teamReport} currentUserId={ctx.auth_id}/>
     <ReportSmartOverview
       periodLabel={choices.find(x=>x.id===periodo)?.name||"Mês atual"}
       scopeLabel={somenteMinhaCarteira?"Minha carteira":"Empresa inteira"}
