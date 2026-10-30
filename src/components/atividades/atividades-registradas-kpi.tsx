@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { ClipboardList } from "lucide-react";
-import { getAtividadesRegistradasCountAction } from "@/app/actions/atividades-registradas-actions";
+import { getAtividadesRegistradasCountAction, type AtividadeResponsavelKpi } from "@/app/actions/atividades-registradas-actions";
 import { cn } from "@/lib/utils";
 
 export function AtividadesRegistradasKpi({ className = "" }: { className?: string }) {
   const [count, setCount] = useState<number | null>(null);
+  const [responsaveis, setResponsaveis] = useState<AtividadeResponsavelKpi[]>([]);
   const [error, setError] = useState(false);
+  const maxCount = Math.max(1, ...responsaveis.map(item => item.registros));
 
   useEffect(() => {
     let active = true;
@@ -20,6 +22,7 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
         if (!active) return;
         if (result.ok) {
           setCount(result.count);
+          setResponsaveis(result.responsaveis);
           setError(false);
         } else {
           setError(true);
@@ -51,8 +54,8 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
 
   return (
     <section
-      aria-label="Total de atividades cadastradas no LexisPredict"
-      className={cn("w-full max-w-[340px] rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm transition-colors hover:border-primary/30", className)}
+      aria-label="Total de atividades cadastradas no LexisPredict por responsável"
+      className={cn("w-full max-w-[380px] rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm transition-colors hover:border-primary/30", className)}
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-black uppercase tracking-[.12em] text-muted-foreground">
@@ -64,8 +67,28 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
         {count === null ? "—" : count.toLocaleString("pt-BR")}
       </p>
       <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-        Registros salvos em Minhas atividades · empresa inteira
+        Total da empresa · separado por quem cadastrou · somente usuários com registros
       </p>
+      {responsaveis.length > 0 ? (
+        <div className="mt-3 max-h-64 space-y-3 overflow-y-auto border-t border-border/70 pt-3">
+          {responsaveis.map(item => (
+            <div key={item.userId} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-xs font-bold text-foreground" title={item.nome}>{item.nome}</span>
+                <span className="shrink-0 text-sm font-black tabular-nums text-foreground">{item.registros.toLocaleString("pt-BR")}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: (item.registros / maxCount * 100) + "%" }} />
+              </div>
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {item.processos.toLocaleString("pt-BR")} referências de processo · {item.contatosMarcados.toLocaleString("pt-BR")} contatos marcados · {item.semReferencia.toLocaleString("pt-BR")} sem referência
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : count === 0 ? (
+        <p className="mt-3 border-t border-border/70 pt-3 text-[11px] text-muted-foreground">Nenhuma atividade cadastrada nesta empresa.</p>
+      ) : null}
       {error && count === null ? (
         <p className="mt-2 text-[10px] text-amber-600 dark:text-amber-400">
           Contagem temporariamente indisponível.
