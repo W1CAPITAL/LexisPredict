@@ -52,7 +52,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    .eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario)
    .order("data_realizacao",{ascending:false}).order("created_at",{ascending:false})
    .range((pagina-1)*PAGE_SIZE,pagina*PAGE_SIZE-1),
-  getAtividadesRegistradasPorResponsavel(empresa).catch(()=>({} as Record<string,AtividadesResponsavelResumo>))
+  getAtividadesRegistradasPorResponsavel(empresa,usuario).catch(()=>({} as Record<string,AtividadesResponsavelResumo>))
  ]);
  const rows=atividades||[];
  const processIds=[...new Set(rows.map(a=>a.processo_id).filter((id):id is number=>id!=null))];
