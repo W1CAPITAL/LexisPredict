@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { registrarTarefaRealizadaAction } from "@/app/actions/tarefas-realizadas-actions";
 import { JurisTimesheetSection } from "@/components/atividades/timesheet-integrado";
-import { getAtividadesRegistradasPorResponsavel } from "@/lib/atividades-registradas";
+import { getAtividadesRegistradasPorResponsavel, type AtividadesResponsavelResumo } from "@/lib/atividades-registradas";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -45,14 +45,14 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
  const db=await getSupabaseAdmin();
  const empresa=String(ctx.empresa_id);
  const usuario=String(ctx.auth_id);
- const [{data:perfil},{data:atividades,error,count}]=await Promise.all([
+ const [{data:perfil},{data:atividades,error,count},activityStatsByUser]=await Promise.all([
   db.from("usuarios").select("nome").eq("empresa_id",empresa).eq("auth_user_id",usuario).maybeSingle(),
   db.from("tarefas_realizadas")
    .select("id,titulo,descricao,categoria,data_realizacao,protocolo_ref,processo_id,contato_cliente_confirmado,created_at",{count:"exact"})
    .eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario)
    .order("data_realizacao",{ascending:false}).order("created_at",{ascending:false})
    .range((pagina-1)*PAGE_SIZE,pagina*PAGE_SIZE-1),
-  getAtividadesRegistradasPorResponsavel(empresa).catch(()=>({}))
+  getAtividadesRegistradasPorResponsavel(empresa).catch(()=>({} as Record<string,AtividadesResponsavelResumo>))
  ]);
  const rows=atividades||[];
  const processIds=[...new Set(rows.map(a=>a.processo_id).filter((id):id is number=>id!=null))];
