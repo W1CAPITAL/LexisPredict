@@ -81,7 +81,7 @@ function resumoPessoa(x:EquipeMembro){
  return parts.length?parts.join(" "):"Não há ações individuais identificadas nas fontes consultadas dentro deste período. Isso não equivale a afirmar que a pessoa não trabalhou.";
 }
 export function TeamReport({data,currentUserId}:{data:EquipeRelatorio|null;currentUserId?:string|null}){
- const [selected,setSelected]=useState<string|null>(null);
+ const [selected,setSelected]=useState<string|null>(currentUserId||null);
  const [search,setSearch]=useState("");
  const [scope,setScope]=useState<"todos"|"com-atividade">("com-atividade");
  const pessoas=data?.pessoas||[];
