@@ -9,6 +9,7 @@ import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-
 import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
 import {ReportExecutiveDashboard} from "@/components/report/report-executive-dashboard";
+import {getAtividadesRegistradasCount} from "@/lib/atividades-registradas";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -44,7 +45,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
@@ -52,7 +53,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner})
+  db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  getAtividadesRegistradasCount(empresaId,owner)
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -67,6 +69,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const meritoOficial=(merito as any)?.oficial as Record<string,number>|undefined;
  const dr=desfechosResult.status==="fulfilled"?desfechosResult.value:null;
  const desfechos=dr&&!dr.error&&dr.data&&typeof dr.data==="object"?dr.data as Record<string,number>:null;
+ const atividadesRegistradas=atividadesRegistradasResult.status==="fulfilled"?atividadesRegistradasResult.value:null;
  const rr=retornoResult.status==="fulfilled"?retornoResult.value:null;
  const retorno=rr&&!rr.error&&rr.data&&typeof rr.data==="object"?rr.data as Record<string,number>:null;
  const cr=closuresResult.status==="fulfilled"?closuresResult.value:null;
@@ -98,6 +101,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       meus={somenteMinhaCarteira}
       canViewTeam={canViewTeam}
       canExport={access.canExport}
+      atividadesRegistradas={atividadesRegistradas}
       total={snapshot?.total??null}
       ativos={snapshot?.ativos??null}
       encerrados={snapshot?.encerrados??null}
