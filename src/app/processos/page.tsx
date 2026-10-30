@@ -6,6 +6,7 @@ import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { CaseGlassList } from '@/components/cases/case-glass-list';
 import { ProcessosCommandCenter } from '@/components/processos/processos-command-center';
 import {AtendimentosEquipeDiarios} from '@/components/atendimentos/atendimentos-equipe-diarios';
+import {AtividadesRegistradasKpi} from '@/components/atividades/atividades-registradas-kpi';
 import type {AtendimentosHistorico} from '@/lib/historico-atendimentos';
 
 /**
@@ -838,6 +839,7 @@ export default function ProcessosEmpresaPage() {
             {statusFilter==="vencido"?<span className="self-center text-[11px] text-muted-foreground">A lista desta aba pode estar parcialmente carregada; a central consulta todos os vencidos diretamente.</span>:null}
           </div>
           <AtendimentosEquipeDiarios historico={historicoEquipeSrv} variant="today" />
+          <div className="px-5 pb-3"><AtividadesRegistradasKpi /></div>
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}
