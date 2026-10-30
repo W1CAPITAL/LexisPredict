@@ -68,10 +68,20 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    :Promise.resolve({data:[],error:null})
  ]);
  const byId=new Map<number,ProcessoResumo>(((byIdResult.data||[]) as ProcessoResumo[]).map(p=>[Number(p.id),p] as const));
- const byCnj=new Map<string,ProcessoResumo>(((byCnjResult.data||[]) as ProcessoResumo[]).map(p=>[String(p.protocolo_ref||""),p] as const));
- const processoDaAtividade=(a:(typeof rows)[number])=>
-  (a.processo_id!=null?byId.get(Number(a.processo_id)):null)
-  ||(a.protocolo_ref?byCnj.get(String(a.protocolo_ref)):null);
+ const byCnj=new Map<string,ProcessoResumo>();
+ const cnjsAmbiguos=new Set<string>();
+ for(const processo of (byCnjResult.data||[]) as ProcessoResumo[]){
+  const cnj=String(processo.protocolo_ref||"");
+  if(!cnj||cnjsAmbiguos.has(cnj))continue;
+  if(byCnj.has(cnj)){byCnj.delete(cnj);cnjsAmbiguos.add(cnj);}
+  else byCnj.set(cnj,processo);
+ }
+ const processoDaAtividade=(a:(typeof rows)[number])=>{
+  const byProcessId=a.processo_id!=null?byId.get(Number(a.processo_id)):null;
+  if(byProcessId)return byProcessId;
+  const cnj=String(a.protocolo_ref||"");
+  return cnj&&!cnjsAmbiguos.has(cnj)?byCnj.get(cnj)||null:null;
+ };
  const processError=byIdResult.error||byCnjResult.error;
  const total=count||0;
  const totalPaginas=Math.max(1,Math.ceil(total/PAGE_SIZE));
@@ -128,7 +138,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
         <p className="text-[10px] font-black uppercase tracking-wider text-primary">Dados do processo relacionado</p>
         {processo?<div className="mt-2 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
          <div className="sm:col-span-2"><span className="text-muted-foreground">Cliente</span><p className="font-semibold">{processo.cliente||"Não informado no cadastro"}</p></div>
-         <div className="sm:col-span-2"><span className="text-muted-foreground">CNJ</span><p className="break-all font-mono">{processo.protocolo_ref||a.protocolo_ref||"Não cadastrado"}</p></div>
+         <div className="sm:col-span-2"><span className="text-muted-foreground">CNJ</span><p className="break-all font-mono">{processo.protocolo_ref||a.protocolo_ref||"Não cadastrado"}</p>{a.protocolo_ref&&processo.protocolo_ref&&a.protocolo_ref!==processo.protocolo_ref?<p className="mt-1 break-all text-[10px] text-amber-700 dark:text-amber-300">CNJ informado na atividade diverge do cadastro: {a.protocolo_ref}</p>:null}</div>
          <div><span className="text-muted-foreground">Advogado</span><p className="font-semibold">{processo.advogado||"Não atribuído"}</p></div>
          <div><span className="text-muted-foreground">Escritório</span><p className="font-semibold">{processo.escritorio||"Não informado"}</p></div>
          <div><span className="text-muted-foreground">Situação no CRM</span><p className="font-semibold">{situacao}</p></div>
@@ -142,7 +152,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
          <div><span className="text-muted-foreground">Último retorno</span><p className="font-semibold">{dataBr(processo.ultimo_retorno)}</p></div>
          <div><span className="text-muted-foreground">Próximo retorno</span><p className="font-semibold">{dataBr(processo.proximo_retorno)}</p></div>
          <div><span className="text-muted-foreground">Próximo prazo</span><p className="font-semibold">{dataBr(processo.proximo_prazo)}</p></div>
-        </div>:a.processo_id||a.protocolo_ref?<div className="mt-2 text-xs text-amber-700 dark:text-amber-300"><p>Há referência de processo neste registro, mas o cadastro correspondente não foi localizado com segurança.</p>{a.protocolo_ref?<p className="mt-1 break-all font-mono">CNJ informado na atividade: {a.protocolo_ref}</p>:null}{a.processo_id?<p className="mt-1">ID do processo: {a.processo_id}</p>:null}</div>:<p className="mt-2 text-xs text-muted-foreground">Esta atividade não possui processo vinculado.</p>}
+        </div>:a.processo_id||a.protocolo_ref?<div className="mt-2 text-xs text-amber-700 dark:text-amber-300"><p>{a.protocolo_ref&&cnjsAmbiguos.has(String(a.protocolo_ref))?"Há mais de um processo cadastrado com este CNJ; o sistema não escolheu um vínculo automaticamente.":"Há referência de processo neste registro, mas o cadastro correspondente não foi localizado com segurança."}</p>{a.protocolo_ref?<p className="mt-1 break-all font-mono">CNJ informado na atividade: {a.protocolo_ref}</p>:null}{a.processo_id?<p className="mt-1">ID do processo: {a.processo_id}</p>:null}</div>:<p className="mt-2 text-xs text-muted-foreground">Esta atividade não possui processo vinculado.</p>}
        </div>
       </article>;
      })}
