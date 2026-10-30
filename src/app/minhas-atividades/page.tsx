@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { registrarTarefaRealizadaAction } from "@/app/actions/tarefas-realizadas-actions";
 import { JurisTimesheetSection } from "@/components/atividades/timesheet-integrado";
+import { getAtividadesRegistradasPorResponsavel } from "@/lib/atividades-registradas";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -21,6 +22,10 @@ type ProcessoResumo={
  ultimo_retorno:string|null;
  proximo_retorno:string|null;
  proximo_prazo:string|null;
+ datajud_ultimo_nome:string|null;
+ datajud_ultimo_movimento:string|null;
+ djen_ultima_data:string|null;
+ djen_ultimo_resumo:string|null;
  tribunal:string|null;
  classe_acao:string|null;
  parte_passiva:string|null;
@@ -46,12 +51,14 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    .select("id,titulo,descricao,categoria,data_realizacao,protocolo_ref,processo_id,contato_cliente_confirmado,created_at",{count:"exact"})
    .eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario)
    .order("data_realizacao",{ascending:false}).order("created_at",{ascending:false})
-   .range((pagina-1)*PAGE_SIZE,pagina*PAGE_SIZE-1)
+   .range((pagina-1)*PAGE_SIZE,pagina*PAGE_SIZE-1),
+  getAtividadesRegistradasPorResponsavel(empresa).catch(()=>({}))
  ]);
  const rows=atividades||[];
  const processIds=[...new Set(rows.map(a=>a.processo_id).filter((id):id is number=>id!=null))];
  const cnjs=[...new Set(rows.map(a=>String(a.protocolo_ref||"").trim()).filter(Boolean))];
- const processColumns="id,protocolo_ref,cliente,advogado,escritorio,status,status_interno,risco,ultima_movimentacao,ultimo_retorno,proximo_retorno,proximo_prazo,tribunal,classe_acao,parte_passiva,dados";
+ const activitySummary=activityStatsByUser[usuario]||null;
+ const processColumns="id,protocolo_ref,cliente,advogado,escritorio,status,status_interno,risco,ultima_movimentacao,ultimo_retorno,proximo_retorno,proximo_prazo,datajud_ultimo_nome,datajud_ultimo_movimento,djen_ultima_data,djen_ultimo_resumo,tribunal,classe_acao,parte_passiva,dados";
  const [byIdResult,byCnjResult]=await Promise.all([
   processIds.length
    ?db.from("processos").select(processColumns).eq("empresa_id",empresa).in("id",processIds)
@@ -77,9 +84,11 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    <p className="text-xs uppercase tracking-widest text-sky-300">LexisPredict • Produtividade</p>
    <h1 className="mt-2 text-3xl font-extrabold">Minhas atividades realizadas</h1>
    <p className="mt-2 text-sm text-slate-300">Responsável: <strong>{responsavel}</strong>. Registros separados por executor, com os dados do processo vinculado quando houver correspondência segura.</p>
-   <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{total.toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-300">Atividades cadastradas</p></div>
-    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{rows.length.toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-300">Nesta página</p></div>
+   <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{(activitySummary?.registros??total).toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-300">Atividades cadastradas</p></div>
+    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{activitySummary?.processos?.toLocaleString("pt-BR")??"—"}</strong><p className="mt-1 text-xs text-slate-300">Processos relacionados</p></div>
+    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{activitySummary?.contatosMarcados?.toLocaleString("pt-BR")??"—"}</strong><p className="mt-1 text-xs text-slate-300">Contatos marcados</p></div>
+    <div className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl tabular-nums">{activitySummary?.semReferencia?.toLocaleString("pt-BR")??"—"}</strong><p className="mt-1 text-xs text-slate-300">Sem referência de processo</p></div>
     <div className="col-span-2 rounded-xl border border-white/20 bg-white/10 p-3 sm:col-span-1"><strong className="text-2xl tabular-nums">{pagina.toLocaleString("pt-BR")} / {totalPaginas.toLocaleString("pt-BR")}</strong><p className="mt-1 text-xs text-slate-300">Página do histórico</p></div>
    </div>
   </header>
@@ -128,6 +137,8 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
          <div><span className="text-muted-foreground">Classe</span><p className="font-semibold">{processo.classe_acao||"Não informada"}</p></div>
          <div><span className="text-muted-foreground">Parte contrária</span><p className="font-semibold">{processo.parte_passiva||"Não informada"}</p></div>
          <div><span className="text-muted-foreground">Última movimentação cadastrada</span><p className="font-semibold">{dataBr(processo.ultima_movimentacao)}</p></div>
+         <div><span className="text-muted-foreground">Último movimento DataJud</span><p className="font-semibold">{processo.datajud_ultimo_nome||"Não informado"} · {dataBr(processo.datajud_ultimo_movimento)}</p></div>
+         <div><span className="text-muted-foreground">Última publicação DJEN</span><p className="font-semibold">{processo.djen_ultimo_resumo||"Não informada"} · {dataBr(processo.djen_ultima_data)}</p></div>
          <div><span className="text-muted-foreground">Último retorno</span><p className="font-semibold">{dataBr(processo.ultimo_retorno)}</p></div>
          <div><span className="text-muted-foreground">Próximo retorno</span><p className="font-semibold">{dataBr(processo.proximo_retorno)}</p></div>
          <div><span className="text-muted-foreground">Próximo prazo</span><p className="font-semibold">{dataBr(processo.proximo_prazo)}</p></div>
