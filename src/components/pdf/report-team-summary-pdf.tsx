@@ -89,7 +89,7 @@ const st=StyleSheet.create({
 const n=(x:number|null|undefined)=>x==null?"—":x.toLocaleString("pt-BR");
 const d=(x?:string)=>x&&/^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+"/"+x.slice(5,7)+"/"+x.slice(0,4):x||"—";
 const name=(x:string)=>({atendimento:"Atendimento",analise_processual:"Análise processual",auditoria:"Auditoria",dossie:"Dossiê",investigacao:"Investigação",auditoria_sistemica:"Auditoria sistêmica em lote",auditoria_documental:"Revisão documental",triagem_replica_provas:"Triagem de réplica e provas",dossie_individual:"Dossiê individual",entrega_projeto:"Entrega de projeto",investigacao_get:"Investigação GET",investigacao_externa:"Investigação externa"} as Record<string,string>)[x]||x.replaceAll("_"," ");
-const evidence=(x:EquipeMembro)=>x.atendimentos.eventos+x.edicoes.eventos+x.encerramentos.eventos+x.atividades.registros+x.trabalho.registros+(x.atividades.registrosTotal||0);
+const evidence=(x:EquipeMembro)=>x.atendimentos.eventos+x.edicoes.eventos+x.encerramentos.eventos+Math.max(x.atividades.registros,x.atividades.registrosTotal||0)+x.trabalho.registros;
 function Footer(){return <View fixed style={st.footer}><Text style={st.footerText}>LEXISPREDICT  /  RELATÓRIO GERENCIAL  •  USO INTERNO</Text><Text style={st.footerText} render={({pageNumber,totalPages})=>pageNumber+" / "+totalPages}/></View>}
 function Kpi({label,value,note,color}:{label:string;value:number|null;note:string;color:string}){return <View style={[st.kpi,{borderLeftColor:color}]}><Text style={st.kpiLabel}>{label}</Text><Text style={st.kpiNumber}>{n(value)}</Text><Text style={st.kpiNote}>{note}</Text></View>}
 function Trend({data}:{data:ReportPdfDay[]}){
@@ -125,7 +125,7 @@ function Member({person:p}:{person:EquipeMembro}){
  </View>
 }
 export function ReportTeamSummaryPdf({data,overview,scope,trend=[]}:{data:EquipeRelatorio;overview:ReportPdfOverview;scope:string;trend?:ReportPdfDay[]}){
- const people=data.pessoas||[],active=people.filter(x=>evidence(x)>0).sort((a,b)=>evidence(b)-evidence(a)),quiet=people.filter(x=>evidence(x)===0),activityOwners=people.filter(x=>(x.atividades.registrosTotal||0)>0);
+ const people=data.pessoas||[],active=people.filter(x=>evidence(x)>0).sort((a,b)=>evidence(b)-evidence(a)),activityOwners=people.filter(x=>(x.atividades.registrosTotal||0)>0).sort((a,b)=>(b.atividades.registrosTotal||0)-(a.atividades.registrosTotal||0));
  const sum=(f:(x:EquipeMembro)=>number)=>people.reduce((a,x)=>a+f(x),0);
  const max=Math.max(1,...active.map(x=>x.atendimentos.eventos));
  return <Document title="LexisPredict - Relatório Gerencial" author="LexisPredict" subject="Diagnóstico executivo da carteira e equipe">
@@ -160,17 +160,16 @@ export function ReportTeamSummaryPdf({data,overview,scope,trend=[]}:{data:Equipe
   <View style={st.topbar}><Text style={st.brand}>L E X I S P R E D I C T    /    E Q U I P E</Text><Text style={st.topbarTitle}>Produtividade e distribuição</Text><Text style={st.topbarSub}>Comparação por executor registrado, não somente por proprietário atual da carteira.</Text></View>
   <View style={st.body}><Text style={st.eyebrow}>04  /  COLABORADORES</Text><Text style={st.title}>Resumo comparativo</Text><View style={st.summaryCards}>
    {[["Pessoas com atividades",activityOwners.length],["Atividades · histórico completo",activityOwners.reduce((s,x)=>s+(x.atividades.registrosTotal||0),0)],["Eventos de atendimento · período",sum(x=>x.atendimentos.eventos)]].map(([title,value])=><View key={String(title)} style={st.summaryCard}><Text style={st.summaryLabel}>{title}</Text><Text style={st.summaryNumber}>{n(value as number)}</Text></View>)}
-  </View><Text style={[st.subtitle,{marginTop:15}]}>Carteira = situação atual; atendimentos, edições, encerramentos e atividades = evidências do período. Não some métricas de natureza diferente.</Text>
+  </View><Text style={[st.subtitle,{marginTop:15}]}>Carteira = situação atual. Atendimentos, edições, encerramentos e atividades no período são evidências do recorte; Ativ. hist. mostra atividades manuais em todas as datas. Não some métricas de natureza diferente.</Text>
   <View style={st.table}><View style={[st.tableRow,st.tableHeader]}>
    {["Responsável","Carteira","Atend.","Edições","Encerr.","Ativ. hist."].map((x,i)=><Text key={x} style={i===0?st.nameCell:st.numberCell}>{x}</Text>)}
-  </View>{people.map((x,i)=><View wrap={false} key={x.userId||i} style={[st.tableRow,{backgroundColor:i%2===0?"#FFF":K.off}]}>
+  </View>{activityOwners.map((x,i)=><View wrap={false} key={x.userId||i} style={[st.tableRow,{backgroundColor:i%2===0?"#FFF":K.off}]}>
    <Text style={st.nameCell}>{x.nome}</Text><Text style={st.numberCell}>{n(x.carteira.total)}</Text><Text style={st.numberCell}>{n(x.atendimentos.eventos)}</Text><Text style={st.numberCell}>{n(x.edicoes.processos)}</Text><Text style={st.numberCell}>{n(x.encerramentos.processos)}</Text><Text style={st.numberCell}>{n(x.atividades.registrosTotal)}</Text>
   </View>)}</View>
   <View style={st.compare}><Text style={st.boxTitle}>EVENTOS DE ATENDIMENTO POR EXECUTOR</Text>
    {active.slice(0,8).map((x,i)=><View key={x.userId||i} style={st.compareRow}><Text style={st.compareName}>{x.nome}</Text><View style={st.compareTrack}><View style={{width:100*x.atendimentos.eventos/max+"%",height:9,borderRadius:4,backgroundColor:[K.violet,K.blue,K.pink,K.green][i%4]}}/></View><Text style={st.compareN}>{n(x.atendimentos.eventos)}</Text></View>)}
    {!active.length?<Text style={st.subtitle}>Sem registros individuais disponíveis neste período.</Text>:null}
   </View>
-  {quiet.length?<View wrap={false} style={st.quiet}><Text style={st.quietTitle}>Perfis sem registros nas fontes consultadas</Text><Text style={st.subtitle}>{quiet.map(x=>x.nome).join(" • ")}</Text><Text style={[st.subtitle,{marginTop:5}]}>Ficam em resumo, sem ocupar páginas individuais vazias. Ausência de registro não comprova ausência de trabalho.</Text></View>:null}
   <View wrap={false} style={st.callout}><Text style={st.calloutText}>Os eventos são atribuídos ao usuário que registrou cada ação. Registros importados e verificações em lote não são contabilizados como contatos humanos confirmados. Este relatório não usa percentuais de desempenho arbitrários.</Text></View>
   <Text style={[st.subtitle,{marginTop:17}]}>A seguir: detalhamento das pessoas com registros, com datas, títulos, categorias e descrições das entregas disponíveis.</Text>
   </View><Footer/>
