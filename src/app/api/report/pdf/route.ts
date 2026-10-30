@@ -30,7 +30,7 @@ export async function GET(request:Request){
     db.rpc("lexis_merito_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_retorno_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner,p_dias:30}),
     db.rpc("lexis_atividade_kpis_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
-    getAtividadesRegistradasPorResponsavel(String(ctx.empresa_id)).catch(()=>null),
+    getAtividadesRegistradasPorResponsavel(String(ctx.empresa_id),owner).catch(()=>null),
   ]);
   if(teamResult.error||!teamResult.data||!Array.isArray(teamResult.data.pessoas)){
     return Response.json({error:"Não foi possível consultar a equipe para exportação."},{status:503,headers:{"Cache-Control":"no-store"}});
