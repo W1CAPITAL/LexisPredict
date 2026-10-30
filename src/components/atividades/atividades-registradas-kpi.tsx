@@ -42,7 +42,7 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
     window.addEventListener("lexis-carteira-updated", onRefresh);
     window.addEventListener("lexis-atividade-registrada", onRefresh);
     document.addEventListener("visibilitychange", onRefresh);
-    const timer = window.setInterval(onRefresh, 60_000);
+    const timer = window.setInterval(onRefresh, 300_000);
     return () => {
       active = false;
       window.clearInterval(timer);
