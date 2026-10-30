@@ -35,7 +35,8 @@ export async function getAtividadesRegistradasCount(
  * Processo é deduplicado pelo ID; quando não existe ID, usa o CNJ normalizado.
  */
 export async function getAtividadesRegistradasPorResponsavel(
-  empresaId: string
+  empresaId: string,
+  responsavelAuthUserId?: string | null
 ): Promise<Record<string, AtividadesResponsavelResumo>> {
   if (!empresaId) return {};
   const db = await getSupabaseAdmin();
@@ -45,10 +46,12 @@ export async function getAtividadesRegistradasPorResponsavel(
   let offset = 0;
 
   while (true) {
-    const { data, error } = await db
+    let query = db
       .from("tarefas_realizadas")
       .select("responsavel_auth_user_id,processo_id,protocolo_ref,contato_cliente_confirmado")
-      .eq("empresa_id", empresaId)
+      .eq("empresa_id", empresaId);
+    if (responsavelAuthUserId) query = query.eq("responsavel_auth_user_id", responsavelAuthUserId);
+    const { data, error } = await query
       .order("id", { ascending: true })
       .range(offset, offset + pageSize - 1);
 
