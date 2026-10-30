@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {useMemo,useState} from "react";
 import {ReportPdfExportButton} from "@/components/report/report-pdf-export-button";
-import {Activity,AlertTriangle,ArrowUpRight,BarChart3,BellRing,BriefcaseBusiness,CheckCircle2,ChevronRight,Clock3,FileClock,FileText,Filter,MessageCircle,RefreshCw,ShieldAlert,Sparkles,Users,Wallet} from "lucide-react";
+import {Activity,AlertTriangle,ArrowUpRight,BarChart3,BellRing,BriefcaseBusiness,CheckCircle2,ChevronRight,ClipboardList,Clock3,FileClock,FileText,Filter,MessageCircle,RefreshCw,ShieldAlert,Sparkles,Users,Wallet} from "lucide-react";
 import {CartesianGrid,Cell,Line,LineChart,Pie,PieChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 
 type Person={id:string;nome:string;carteira:number;atendimentos:number;encerramentos:number;edicoes:number;atividades:number};
@@ -13,6 +13,7 @@ type Props={
  canViewTeam:boolean;canExport:boolean;
  total:number|null;ativos:number|null;encerrados:number|null;novidades:number|null;vencidos:number|null;
  semRetorno:number|null;atendidos:number|null;eventos:number|null;meritoPendente:number|null;
+ atividadesRegistradas:number|null;
  equipe:Person[];dias:Day[];
 };
 const format=(x:number|null|undefined)=>x==null?"—":x.toLocaleString("pt-BR");
@@ -78,13 +79,14 @@ export function ReportExecutiveDashboard(p:Props){
     <label className="block text-[11px] text-slate-400">Comparar na equipe<select className="mt-1 block h-9 w-full rounded-lg border border-[#3b4861] bg-[#19253b] px-2 text-xs text-white" value={metric} onChange={e=>setMetric(e.target.value as "carteira"|"atendimentos")}><option value="carteira">Carteira atribuída</option><option value="atendimentos">Registros de atendimento</option></select></label>
     <div className="flex flex-wrap items-end gap-2"><Link href={pathname("mes",!p.canViewTeam)} className={linkClass}><Filter className="h-4 w-4"/>Limpar</Link><Link href="/report" className={linkClass}><RefreshCw className="h-4 w-4"/>Atualizar</Link></div>
    </nav>
-   <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 2xl:grid-cols-6">
+   <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-3 2xl:grid-cols-7">
     <Stat title="Carteira total" value={p.total} help="Snapshot atual" Icon={Wallet} tone="border-violet-700 bg-gradient-to-br from-violet-900/75 to-[#141b39] text-violet-300"/>
     <Stat title="Ativos" value={p.ativos} help="Status atual no CRM" Icon={Users} tone="border-blue-800 bg-gradient-to-br from-blue-900/70 to-[#10203a] text-blue-300"/>
     <Stat title="Encerrados" value={p.encerrados} help="Encerrados no CRM, não mérito" Icon={CheckCircle2} tone="border-emerald-800 bg-gradient-to-br from-emerald-900/60 to-[#102527] text-emerald-300"/>
     <Stat title="Com novidade" value={p.novidades} help="Novidade identificada na carteira" Icon={MessageCircle} tone="border-fuchsia-800 bg-gradient-to-br from-fuchsia-900/65 to-[#28172f] text-fuchsia-300"/>
     <Stat title="Sem retorno 30d+" value={p.semRetorno} help="Ativos com retorno antigo ou ausente" Icon={Clock3} tone="border-amber-800 bg-gradient-to-br from-amber-900/55 to-[#28202b] text-amber-300"/>
     <Stat title="Atendimentos" value={p.eventos} help="Eventos registrados no período" Icon={Activity} tone="border-indigo-700 bg-gradient-to-br from-indigo-900/70 to-[#161b3c] text-indigo-300"/>
+    <Stat title="Atividades cadastradas" value={p.atividadesRegistradas} help={p.meus?"Total salvo por você · todas as datas":"Total salvo na empresa · todas as datas"} Icon={ClipboardList} tone="border-cyan-700 bg-gradient-to-br from-cyan-900/70 to-[#102b3b] text-cyan-300"/>
    </div>
    <div className="grid gap-3 lg:grid-cols-12">
     <div className={panel+" p-4 lg:col-span-6"}>

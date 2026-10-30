@@ -48,6 +48,8 @@ export async function registrarTarefaRealizadaAction(formData:FormData):Promise<
   });
   if(error){console.error("[tarefas_realizadas] insert failed",error);redirect("/minhas-atividades?erro=salvar");}
   revalidatePath("/minhas-atividades");
+  revalidatePath("/");
+  revalidatePath("/processos");
   revalidatePath("/report");
   revalidatePath("/supervisao");
   redirect("/minhas-atividades?salvo=1");
