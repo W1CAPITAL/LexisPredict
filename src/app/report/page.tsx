@@ -55,7 +55,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
   getAtividadesRegistradasCount(empresaId,owner),
-  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve({})
+  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null)
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
