@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ClipboardList } from "lucide-react";
 import { getAtividadesRegistradasCountAction, type AtividadeResponsavelKpi } from "@/app/actions/atividades-registradas-actions";
@@ -89,6 +90,7 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
       ) : count === 0 ? (
         <p className="mt-3 border-t border-border/70 pt-3 text-[11px] text-muted-foreground">Nenhuma atividade cadastrada nesta empresa.</p>
       ) : null}
+      <Link href="/minhas-atividades" className="mt-3 inline-flex text-[11px] font-semibold text-primary underline underline-offset-2">Abrir meu histórico completo com dados dos processos</Link>
       {error && count === null ? (
         <p className="mt-2 text-[10px] text-amber-600 dark:text-amber-400">
           Contagem temporariamente indisponível.
