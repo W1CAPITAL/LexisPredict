@@ -25,7 +25,7 @@ export async function getAtividadesRegistradasCountAction(): Promise<
       : { data: [], error: null };
     if (error) throw new Error("Falha ao carregar nomes dos responsáveis: " + error.message);
 
-    const names = new Map((profiles || []).map(p => [String(p.auth_user_id), String(p.nome || "Usuário sem nome")]));
+    const names = new Map<string, string>((profiles || []).map(p => [String(p.auth_user_id), String(p.nome || "Usuário sem nome")] as const));
     const responsaveis: AtividadeResponsavelKpi[] = ids
       .map(userId => ({
         userId,
