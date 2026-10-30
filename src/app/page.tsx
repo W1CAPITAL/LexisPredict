@@ -2,6 +2,7 @@
 
 import { EncerrarKpisStrip } from "@/components/dashboard/encerrar-kpis-strip";
 import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
+import {AtividadesRegistradasKpi} from "@/components/atividades/atividades-registradas-kpi";
 import {getAtendimentosHistoricoAction} from "@/app/actions/atendimentos-historico-actions";
 import type {AtendimentosHistorico} from "@/lib/historico-atendimentos";
 import {
@@ -365,6 +366,7 @@ export default function Dashboard() {
               </div>
             )}
             <AtendimentosEquipeDiarios historico={historicoEquipe} variant="full" />
+            <div className="mb-4"><AtividadesRegistradasKpi /></div>
             {isEmpty && (
               <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-border/30 rounded-2xl space-y-6 text-center animate-in fade-in duration-500 bg-card/30">
                 <div className="w-20 h-20 rounded-2xl bg-black text-white flex items-center justify-center shadow-[10px_10px_0px_#00D1FF]">
