@@ -67,8 +67,8 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    ?db.from("processos").select(processColumns).eq("empresa_id",empresa).in("protocolo_ref",cnjs)
    :Promise.resolve({data:[],error:null})
  ]);
- const byId=new Map<number,ProcessoResumo>(((byIdResult.data||[]) as ProcessoResumo[]).map(p=>[Number(p.id),p]));
- const byCnj=new Map<string,ProcessoResumo>(((byCnjResult.data||[]) as ProcessoResumo[]).map(p=>[String(p.protocolo_ref||""),p]));
+ const byId=new Map<number,ProcessoResumo>(((byIdResult.data||[]) as ProcessoResumo[]).map(p=>[Number(p.id),p] as const));
+ const byCnj=new Map<string,ProcessoResumo>(((byCnjResult.data||[]) as ProcessoResumo[]).map(p=>[String(p.protocolo_ref||""),p] as const));
  const processoDaAtividade=(a:(typeof rows)[number])=>
   (a.processo_id!=null?byId.get(Number(a.processo_id)):null)
   ||(a.protocolo_ref?byCnj.get(String(a.protocolo_ref)):null);
