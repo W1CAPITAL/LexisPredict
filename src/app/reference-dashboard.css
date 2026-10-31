@@ -695,3 +695,61 @@ html.dark [data-lexis-crm-lane-header] p.text-muted-foreground {
 @media (prefers-reduced-motion:reduce) {
   [data-lexis-crm-deal] { transition:none !important; transform:none !important; }
 }
+
+
+/* Light video reference also changes the app chrome, not merely the cards.
+ * Keep the charcoal mobile shell on dark themes and on sensitive workflows. */
+@media(max-width:767px) {
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-topbar] {
+    background:linear-gradient(112deg,#f5f1ff,#f3f7ff) !important;
+    border-color:#e5e4f3 !important;
+    color:#26253b !important;
+    box-shadow:0 4px 17px rgb(76 65 120 / .06) !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-topbar] [data-lexis-mobile-brand] {
+    color:#272638 !important;
+    background:#fff !important;
+    border-color:#e9e6f4 !important;
+    box-shadow:0 3px 10px rgb(80 70 105 / .06) !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-heading] > p:first-child { color:#29283b !important; }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-heading] > p:last-child { color:#777391 !important; }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-topbar] button[aria-label="Abrir configurações"] {
+    border-color:#e8e5f2 !important;
+    background:#fff !important;
+    color:#39374a !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-topbar] [data-lexis-mobile-menu-trigger] {
+    background:#2c293c !important;
+    color:#fff !important;
+    box-shadow:0 6px 16px rgb(41 36 64 / .13) !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-bottom-nav] {
+    background:rgb(255 255 255 / .98) !important;
+    border-color:#e5e3ef !important;
+    box-shadow:0 -7px 26px rgb(61 59 105 / .07) !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] {
+    background:#2c293c !important;
+    color:#fff !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] svg {
+    color:#fff !important;
+  }
+  html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
+    border-color:#fff !important;
+    background:linear-gradient(145deg,#fa916b,#f46d3c) !important;
+    color:#fff !important;
+    box-shadow:0 5px 18px rgb(240 124 80 / .17) !important;
+  }
+}
