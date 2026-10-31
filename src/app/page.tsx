@@ -369,7 +369,7 @@ export default function Dashboard() {
             <DashboardVisualOverview
               total={portfolioSummary?.total ?? null}
               ativos={portfolioSummary?.ativos ?? null}
-              vencidos={portfolioSummary?.vencidos ?? null}
+              vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}
               hoje={metrics.countHoje}
               loading={loading}
               series={historicoEquipe?.dias?.map((d) => ({
@@ -434,12 +434,9 @@ export default function Dashboard() {
             </div>
 
               <section data-lexis-home-stat-grid className={ui.metrics5}>
-                <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} />
-                <StatCard title={t.statusVencido} value={loading ? "..." : portfolioSummary?.vencidos ?? metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
                 <StatCard title="Andamentos" value={loading ? "..." : portfolioSummary?.novidades ?? metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
                 <StatCard title="Baixas tribunal" value={loading ? "..." : portfolioSummary?.baixas ?? metrics.countEncerradoTribunal} icon={<Gavel />} color="success" />
                 <StatCard title="Encerrados carteira" value={loading ? "..." : portfolioSummary?.encerrados ?? metrics.countEncerradoCarteira} icon={<Gavel />} color="success" />
-                <StatCard title="Risco Global" value={`${metrics.riskScore}%`} icon={<Scale />} color="primary" />
               </section>
 
               
