@@ -1,0 +1,597 @@
+/**
+ * LexisPredict / Reference dashboard composition
+ *
+ * Reference A: charcoal translucent CRM, warm lighting, lime action accents.
+ * Reference B: pale lavender/blue SaaS canvas, white rounded cards,
+ *              editorial typography, vivid orange focus tile.
+ * CodeXR/Topmate is a visual reference, not a source-code dependency.
+ *
+ * All metrics and the area chart come from existing application sources.
+ * Only home/CRM shell and explicitly marked elements are restyled here.
+ */
+[data-lexis-dashboard-home] {
+  --lx-reference-foreground: #202238;
+  --lx-reference-muted: #777c98;
+  --lx-reference-border: #e9e6f6;
+  --lx-reference-card-border: #ebe9f4;
+  --lx-reference-paper: #fff;
+  --lx-reference-tooltip: #fff;
+  --lx-reference-chart-color: #9a8acb;
+  --lx-reference-chart-muted: #9892b1;
+  --lx-reference-chart-grid: #ece9f6;
+  --lx-reference-shadow: 0 10px 32px rgb(90 78 151 / .065), 0 2px 7px rgb(80 76 124 / .026);
+  --lx-reference-radius: 23px;
+  min-width: 0;
+}
+html.dark [data-lexis-dashboard-home] {
+  --lx-reference-foreground: #f5f3ed;
+  --lx-reference-muted: #a6afac;
+  --lx-reference-border: #3c4541;
+  --lx-reference-card-border: #3e4741;
+  --lx-reference-paper: #272d2a;
+  --lx-reference-tooltip: #252b28;
+  --lx-reference-chart-color: #d5fa78;
+  --lx-reference-chart-muted: #a3ada7;
+  --lx-reference-chart-grid: #414942;
+  --lx-reference-shadow: 0 14px 34px rgb(0 0 0 / .13), inset 0 1px 0 rgb(255 255 255 / .035);
+}
+html:not(.dark):not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
+  background:
+    radial-gradient(ellipse 65% 40% at 94% 2%,rgb(192 207 255 / .37),transparent 76%),
+    radial-gradient(ellipse 68% 45% at -14% 20%,rgb(253 220 243 / .27),transparent 78%),
+    #f7f6fe !important;
+}
+html.dark:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
+  background:
+    radial-gradient(ellipse 70% 54% at 78% -10%,rgb(111 121 110 / .17),transparent 80%),
+    linear-gradient(142deg,#1a201e 0%,#121816 100%) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] {
+  background: transparent !important;
+  border-bottom: 0 !important;
+  padding-top: 27px;
+  padding-bottom: 11px;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] > div:first-child {
+  min-width: 0;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
+  color: #8e7db7 !important;
+  letter-spacing: .16em;
+  font-size: 10px !important;
+}
+html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
+  color: #c7ee91 !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] h1 {
+  color: var(--lx-reference-foreground) !important;
+  font-size: clamp(25px,2.65vw,40px);
+  font-weight: 850;
+  letter-spacing: -.054em;
+  line-height: 1.09;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] h1 + p {
+  color: var(--lx-reference-muted) !important;
+  letter-spacing: -.015em;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] :is(a,button) {
+  border-radius: 999px !important;
+  border: 1px solid var(--lx-reference-border) !important;
+  color: var(--lx-reference-foreground) !important;
+  background: var(--lx-reference-paper) !important;
+  box-shadow: var(--lx-reference-shadow);
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-tab-shell] {
+  border: 0 !important;
+  padding-top: 5px;
+  padding-bottom: 10px;
+  background: transparent !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] {
+  height: auto !important;
+  gap: 4px !important;
+  padding: 4px !important;
+  background: var(--lx-reference-paper) !important;
+  border: 1px solid var(--lx-reference-card-border) !important;
+  box-shadow: 0 2px 10px rgb(70 62 110 / .045);
+  border-radius: 999px;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"] {
+  flex-shrink: 0;
+  height: 33px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 0 15px !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+  text-transform: none !important;
+  letter-spacing: .01em !important;
+  background: transparent !important;
+  color: var(--lx-reference-muted) !important;
+  transition: background-color 150ms ease, color 150ms ease !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
+  background: #282937 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgb(18 21 38 / .12) !important;
+}
+html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
+  background: #d5fa78 !important;
+  color: #1b2815 !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] {
+  padding-top: 10px;
+  padding-bottom: 34px;
+}
+
+/* NEW: Real-time portfolio showcase. Actual content is rendered in React,
+ * but visual geometry follows the supplied recordings instead of generic
+ * Tailwind cards. */
+[data-lexis-reference-overview] {
+  padding: clamp(16px,2.1vw,27px);
+  border: 1px solid var(--lx-reference-border);
+  border-radius: 29px;
+  background:
+    radial-gradient(ellipse 45% 80% at 100% 0%,rgb(204 196 255 / .17),transparent 85%),
+    rgb(255 255 255 / .56);
+  box-shadow: 0 17px 40px rgb(110 97 161 / .045);
+  color: var(--lx-reference-foreground);
+  min-width: 0;
+}
+html.dark [data-lexis-reference-overview] {
+  background:
+    radial-gradient(ellipse 75% 90% at 100% 0%,rgb(138 117 86 / .16),transparent 80%),
+    linear-gradient(145deg,#272f2b,#1d2421);
+  border-color: #3c4540;
+  box-shadow: 0 22px 50px rgb(0 0 0 / .18);
+}
+.lx-reference-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 21px;
+}
+.lx-reference-heading { min-width: 0; }
+.lx-reference-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8d82b1;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+html.dark .lx-reference-eyebrow { color: #c5dcac; }
+.lx-reference-eyebrow-mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f47445;
+  box-shadow: 0 0 0 4px rgb(244 116 69 / .12);
+}
+html.dark .lx-reference-eyebrow-mark {
+  background: #d5fa78;
+  box-shadow: 0 0 0 4px rgb(213 250 120 / .1);
+}
+.lx-reference-heading h2 {
+  margin: 8px 0 6px;
+  font-size: clamp(22px,2.5vw,34px);
+  font-weight: 850;
+  letter-spacing: -.05em;
+  line-height: 1.1;
+  color: var(--lx-reference-foreground);
+}
+.lx-reference-heading-dot { color: #f47445; }
+html.dark .lx-reference-heading-dot { color: #d5fa78; }
+.lx-reference-heading > p {
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 420px;
+  color: var(--lx-reference-muted);
+}
+.lx-reference-report-link {
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--lx-reference-paper);
+  color: var(--lx-reference-foreground);
+  border: 1px solid var(--lx-reference-border);
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+}
+.lx-reference-report-link:focus-visible,
+.lx-reference-metric:focus-visible,
+.lx-reference-chart-footer:focus-visible {
+  outline: 2px solid var(--lx-reference-chart-color);
+  outline-offset: 3px;
+}
+.lx-reference-layout {
+  display: grid;
+  grid-template-columns: minmax(0,.92fr) minmax(0,1.08fr);
+  gap: 14px;
+  min-width: 0;
+}
+.lx-reference-metrics {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 11px;
+  min-width: 0;
+}
+.lx-reference-metric {
+  --lx-metric-bg: #f4f1ff;
+  --lx-metric-fg: #282539;
+  --lx-metric-sub: #6e6b86;
+  --lx-metric-icon: rgb(255 255 255 / .75);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  min-height: 154px;
+  padding: clamp(13px,1.6vw,20px);
+  background: var(--lx-metric-bg);
+  color: var(--lx-metric-fg);
+  border: 1px solid rgb(30 31 49 / .035);
+  border-radius: 21px;
+  overflow: hidden;
+  transition: transform 180ms cubic-bezier(.22,1,.36,1),box-shadow 180ms ease;
+}
+.lx-reference-metric[data-kind="active"] { --lx-metric-bg:#ecf2ff; }
+.lx-reference-metric[data-kind="today"] {
+  --lx-metric-bg:#f46d3c;
+  --lx-metric-fg:#fff;
+  --lx-metric-sub:#fff1e9;
+  --lx-metric-icon:rgb(255 255 255 / .18);
+}
+.lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#f4ecf5; }
+html.dark .lx-reference-metric {
+  --lx-metric-bg: #303934;
+  --lx-metric-fg: #eff7ed;
+  --lx-metric-sub: #bbc8bd;
+  --lx-metric-icon: rgb(255 255 255 / .08);
+  border-color: #454f47;
+}
+html.dark .lx-reference-metric[data-kind="active"] { --lx-metric-bg:#3b4840; }
+html.dark .lx-reference-metric[data-kind="today"] {
+  --lx-metric-bg:#d5fa78;
+  --lx-metric-fg:#243015;
+  --lx-metric-sub:#516737;
+  --lx-metric-icon:rgb(31 49 17 / .09);
+  border-color: #d5fa78;
+}
+html.dark .lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#38332f; }
+.lx-reference-metric-top { display:flex; align-items:flex-start; justify-content:space-between; gap:6px; }
+.lx-reference-metric-label {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+  color: var(--lx-metric-fg);
+}
+.lx-reference-metric-icon {
+  display: inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex: 0 0 33px;
+  width: 33px;
+  height: 33px;
+  border-radius: 11px;
+  background: var(--lx-metric-icon);
+  color: var(--lx-metric-fg);
+}
+.lx-reference-metric-bottom { min-width: 0; }
+.lx-reference-metric-value {
+  display:block;
+  font-size: clamp(26px,3.15vw,39px);
+  line-height: 1;
+  font-weight: 850;
+  letter-spacing: -.07em;
+  color: var(--lx-metric-fg);
+  font-variant-numeric: tabular-nums;
+}
+.lx-reference-metric-detail {
+  display:block;
+  font-size: 10px;
+  line-height:1.4;
+  font-weight: 600;
+  margin-top: 7px;
+  color: var(--lx-metric-sub);
+}
+.lx-reference-metric-arrow {
+  position: absolute;
+  bottom: 13px;
+  right: 12px;
+  color: var(--lx-metric-fg);
+  opacity: .5;
+}
+.lx-reference-chart-card {
+  min-width:0;
+  min-height:320px;
+  padding: clamp(15px,1.7vw,22px);
+  border-radius:22px;
+  background: var(--lx-reference-paper);
+  border: 1px solid var(--lx-reference-card-border);
+  box-shadow: var(--lx-reference-shadow);
+  display:flex;
+  flex-direction:column;
+}
+.lx-reference-chart-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+}
+.lx-reference-chart-overline {
+  color:var(--lx-reference-muted);
+  font-size:9px;
+  letter-spacing:.15em;
+  font-weight:800;
+}
+.lx-reference-chart-header h3 {
+  margin-top:5px;
+  color:var(--lx-reference-foreground);
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:-.025em;
+}
+.lx-reference-chart-header p {
+  margin-top:3px;
+  color:var(--lx-reference-muted);
+  font-size:11px;
+}
+.lx-reference-chart-icon {
+  width:36px;
+  height:36px;
+  flex: 0 0 36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:12px;
+  color:var(--lx-reference-chart-color);
+  background:rgb(156 139 202 / .10);
+}
+html.dark .lx-reference-chart-icon { background:rgb(213 250 120 / .10); }
+.lx-reference-chart-total {
+  display:flex;
+  align-items:baseline;
+  gap:9px;
+  margin-top:12px;
+  font-size:32px;
+  line-height:1.1;
+  font-weight:850;
+  letter-spacing:-.05em;
+  color:var(--lx-reference-foreground);
+  font-variant-numeric:tabular-nums;
+}
+.lx-reference-chart-total span {
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0;
+  color:var(--lx-reference-muted);
+}
+.lx-reference-chart-frame {
+  flex:1;
+  min-height:146px;
+  width:100%;
+  overflow:hidden;
+  margin-top:11px;
+}
+.lx-reference-no-chart {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:100%;
+  min-height:146px;
+  border:1px dashed var(--lx-reference-border);
+  border-radius:14px;
+  padding:16px;
+  font-size:12px;
+  color:var(--lx-reference-muted);
+  text-align:center;
+}
+.lx-reference-chart-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  min-height:32px;
+  border-top:1px solid var(--lx-reference-border);
+  padding-top:10px;
+  font-size:10px;
+  font-weight:750;
+  color:var(--lx-reference-foreground);
+}
+/* Align the rest of the existing home with the two references. */
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] > :where(section,div,article) {
+  min-width: 0;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] :where(.premium-card, .lexis-metric, [data-efferd-kpi]) {
+  border-radius: 20px !important;
+  border-color: var(--lx-reference-card-border) !important;
+  box-shadow: var(--lx-reference-shadow) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] {
+  border-left-width:1px !important;
+  background: var(--lx-reference-paper) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] [data-efferd-label] {
+  color: var(--lx-reference-muted) !important;
+  letter-spacing: .03em;
+  text-transform: none;
+  font-weight: 700;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] [data-efferd-value] {
+  color: var(--lx-reference-foreground) !important;
+  letter-spacing:-.045em;
+}
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] :where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
+  background:rgb(152 139 197 / .13) !important;
+  color:#8a77ba !important;
+}
+html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] :where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
+  background:rgb(213 250 120 / .09) !important;
+  color:#d5fa78 !important;
+}
+[data-lexis-dashboard-home] [data-lexis-home-dark-panel] {
+  border:1px solid var(--lx-reference-card-border) !important;
+  border-radius:23px !important;
+  background:var(--lx-reference-paper) !important;
+  color:var(--lx-reference-foreground) !important;
+  box-shadow:var(--lx-reference-shadow) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-home-dark-panel] :is(h3,p,span) {
+  color:inherit;
+}
+[data-lexis-dashboard-home] [data-lexis-home-brutalist-panel] {
+  border:1px solid var(--lx-reference-card-border) !important;
+  border-radius:23px !important;
+  background:var(--lx-reference-paper) !important;
+  color:var(--lx-reference-foreground) !important;
+  box-shadow:var(--lx-reference-shadow) !important;
+  animation:none !important;
+}
+[data-lexis-dashboard-home] [data-lexis-home-stat-grid] .lexis-metric {
+  background:var(--lx-reference-paper) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-home-stat-grid] .lexis-metric h3,
+[data-lexis-dashboard-home] [data-lexis-home-stat-grid] .lexis-metric p {
+  color:var(--lx-reference-foreground) !important;
+}
+[data-lexis-dashboard-home] [data-lexis-home-stat-grid] .lexis-metric p {
+  color:var(--lx-reference-muted) !important;
+}
+/* CRM: compact segmented navigation from the reference instead of links that
+ * look like old-style report filters. Existing hrefs and permissions remain. */
+[data-lexis-crm-shell] {
+  --lx-crm-focus: #f47644;
+}
+html.dark [data-lexis-crm-shell] {
+  --lx-crm-focus:#d5fa78;
+}
+[data-lexis-crm-shell] [data-lexis-crm-header] {
+  background:hsl(var(--card) / .72) !important;
+  border-bottom:1px solid hsl(var(--border) / .55);
+}
+[data-lexis-crm-shell] [data-lexis-crm-nav] {
+  display:flex;
+  gap:5px;
+  max-width:100%;
+  padding:5px;
+  border-radius:999px;
+  background:hsl(var(--muted) / .48);
+  border:1px solid hsl(var(--border) / .4);
+  scrollbar-width:none;
+}
+[data-lexis-crm-shell] [data-lexis-crm-nav] > a {
+  min-height:33px;
+  padding:8px 12px;
+  border-radius:999px;
+  text-transform:none;
+  font-size:11px;
+  letter-spacing:0;
+  line-height:1;
+  box-shadow:none;
+  white-space:nowrap;
+}
+[data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
+  background:var(--lx-crm-focus) !important;
+  color:#252626 !important;
+  border-color:transparent !important;
+  box-shadow:0 2px 8px rgb(0 0 0 / .09);
+}
+html:not(.dark) [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
+  background:#292638 !important;
+  color:#fff !important;
+}
+/* Mobile geometry: genuine two-up metric tiles, a full-width area chart and
+ * a navigable horizontal pill list; no horizontally stretched desktop graph. */
+@media(max-width:950px) {
+  .lx-reference-layout { grid-template-columns:minmax(0,1fr); }
+  .lx-reference-metric { min-height:135px; }
+}
+@media(max-width:767px) {
+  [data-lexis-dashboard-home] [data-lexis-dashboard-header] {
+    padding:16px 16px 10px !important;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-header] h1 {
+    font-size:26px !important;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-header] h1 + p {
+    font-size:12px;
+    line-height:1.5;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-tab-shell] {
+    padding:3px 12px 9px !important;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"] {
+    height:36px !important;
+    padding:0 13px !important;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-content] {
+    padding:8px 12px 28px !important;
+  }
+  [data-lexis-reference-overview] {
+    padding:14px;
+    border-radius:23px;
+  }
+  .lx-reference-header { margin-bottom:17px; }
+  .lx-reference-heading h2 { font-size:23px; }
+  .lx-reference-heading > p { font-size:11px; }
+  .lx-reference-report-link { padding:8px 10px; font-size:10px; }
+  .lx-reference-layout { gap:10px; }
+  .lx-reference-metrics { gap:9px; }
+  .lx-reference-metric { min-height:136px; padding:13px; gap:13px; border-radius:18px; }
+  .lx-reference-metric-label { font-size:10px; line-height:1.25; }
+  .lx-reference-metric-icon { flex-basis:29px; height:29px; width:29px; border-radius:10px; }
+  .lx-reference-metric-value { font-size:30px; }
+  .lx-reference-metric-detail { font-size:9px; padding-right:12px; line-height:1.3; }
+  .lx-reference-chart-card { min-height:290px; padding:15px; border-radius:19px; }
+  .lx-reference-chart-frame { min-height:132px; }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] {
+    min-height:110px;
+    padding:13px;
+  }
+  [data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] [data-efferd-value] {
+    font-size:27px !important;
+  }
+  [data-lexis-dashboard-home] [data-lexis-home-dark-panel],
+  [data-lexis-dashboard-home] [data-lexis-home-brutalist-panel] {
+    padding:18px !important;
+  }
+  [data-lexis-crm-shell] [data-lexis-crm-nav] {
+    padding:4px;
+  }
+  [data-lexis-crm-shell] [data-lexis-crm-nav] > a {
+    min-height:38px;
+    font-size:11px;
+  }
+}
+@media (max-width:360px) {
+  .lx-reference-heading h2 { font-size:20px; }
+  .lx-reference-report-link { padding:8px; font-size:9px; }
+  .lx-reference-metric { padding:11px; min-height:128px; }
+  .lx-reference-metric-value { font-size:26px; }
+  .lx-reference-metric-icon { flex-basis:26px; width:26px; height:26px; }
+}
+@media (hover:hover) and (pointer:fine) {
+  .lx-reference-metric:hover {
+    transform:translateY(-3px);
+    box-shadow:0 9px 24px rgb(50 43 66 / .09);
+  }
+  .lx-reference-report-link:hover,
+  .lx-reference-chart-footer:hover { text-decoration:underline; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .lx-reference-metric,
+  [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"],
+  [data-lexis-crm-shell] [data-lexis-crm-nav] > a {
+    transition:none !important;
+    transform:none !important;
+  }
+}
