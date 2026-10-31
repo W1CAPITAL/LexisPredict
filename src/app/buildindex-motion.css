@@ -189,8 +189,6 @@
 }
 /* A few first metrics enter on navigation. No stagger on 2700 table rows. */
 html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
- [data-lexis-reference-overview] [data-lexis-reference-overview] {animation:none;}
-html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
  [data-lexis-reference-overview] .lx-reference-metric {
   animation:lx-build-kpi-appear 260ms var(--lx-build-ease) both;
 }
