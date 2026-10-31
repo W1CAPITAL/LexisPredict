@@ -1,0 +1,682 @@
+/**
+ * LexisPredict — application-wide CodeXR-inspired visual system
+ * UI-only layer over ALL existing App Router page groups.
+ * Reference A: charcoal / olive neon / pill controls / crisp low-cost motion.
+ * Reference B: lavender-white / rounded islands / vivid coral action accents.
+ *
+ * Do not change document paper, chat bubbles, contenteditable, print,
+ * z-index of sheets/dialogs, or source-of-truth metrics.
+ */
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"]) {
+  --lx-xr-canvas: #f6f5fc;
+  --lx-xr-card: #ffffff;
+  --lx-xr-mute: #85819a;
+  --lx-xr-border: #eae7f3;
+  --lx-xr-ink: #28253b;
+  --lx-xr-accent: #f47445;
+  --lx-xr-accent-soft: rgb(244 116 69 / .11);
+  --lx-xr-hover: #f2effa;
+  --lx-xr-shadow: 0 3px 11px rgb(57 47 90 / .032),0 16px 39px rgb(54 43 88 / .045);
+  --lx-xr-shadow-hover: 0 7px 24px rgb(57 47 90 / .082);
+  --lx-xr-radius: 20px;
+}
+html.dark body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"]) {
+  --lx-xr-canvas: #171d1a;
+  --lx-xr-card: #28302b;
+  --lx-xr-mute: #a8b4ab;
+  --lx-xr-border: #3e4942;
+  --lx-xr-ink: #f2f6ed;
+  --lx-xr-accent: #d5fa78;
+  --lx-xr-accent-soft: rgb(213 250 120 / .10);
+  --lx-xr-hover: #303a32;
+  --lx-xr-shadow: 0 4px 21px rgb(0 0 0 / .17);
+  --lx-xr-shadow-hover: 0 8px 28px rgb(0 0 0 / .23);
+}
+/* New visual treatment over existing routes — no tab duplication or hard-coded data. */
+html:not(.dark):not(.lexis-wallpaper-active)
+ body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] {
+  background:
+    radial-gradient(ellipse 72% 45% at 96% 0%, rgb(191 194 249 / .20), transparent 83%),
+    radial-gradient(ellipse 67% 45% at -17% 30%, rgb(248 213 234 / .19), transparent 83%),
+    var(--lx-xr-canvas) !important;
+}
+html.dark:not(.lexis-wallpaper-active)
+ body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] {
+  background:
+    radial-gradient(ellipse 68% 44% at 92% -4%, rgb(143 157 112 / .10), transparent 82%),
+    var(--lx-xr-canvas) !important;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main {
+  min-width: 0;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  .premium-card, .lexis-metric, .lexis-chart-card, [data-efferd-kpi],
+  [data-slot="card"], [data-admin-card], .glass-panel,
+  .bg-card.border, .border.bg-card
+ ):not([data-lexis-document-paper]) {
+  border-radius: var(--lx-xr-radius) !important;
+  border-color: var(--lx-xr-border);
+  box-shadow: var(--lx-xr-shadow);
+  transition: border-color 170ms ease, box-shadow 170ms ease;
+}
+@media (hover:hover) and (pointer:fine) {
+  body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+   [data-lexis-route-content] main :where(
+    .premium-card, .lexis-metric, [data-admin-card], .border.bg-card
+   ):hover {
+    box-shadow: var(--lx-xr-shadow-hover);
+  }
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  button:not([role="switch"]),a[role="button"],[role="tab"],[role="combobox"]
+ ) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  input[type="search"], input[type="text"], select, [role="combobox"]
+ ):not([data-lexis-document-paper] *) {
+  border-radius: 12px;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  [role="tablist"],[data-slot="tabs-list"]
+ ) {
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 999px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  [role="tab"][data-state="active"]
+ ) {
+  border-radius: 999px;
+  box-shadow: 0 2px 9px rgb(29 25 48 / .095);
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  .lexis-table-wrap, .overflow-x-auto
+ ) {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  table thead
+ ) {
+  font-variant-numeric: tabular-nums;
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(
+  h1,h2,h3
+ ) {
+  letter-spacing: -.032em;
+  text-wrap: pretty;
+}
+/* Keep high stakes: printing and legal document editors should not be colored
+ * like dashboards or affected by interaction transforms. */
+@media print {
+  body[data-lexis-visual-group] [data-lexis-route-content],
+  body[data-lexis-visual-group] [data-lexis-route-content] main {
+    background: white !important;
+    box-shadow: none !important;
+  }
+}
+
+/* /processos — first-class CRM workbench, not a legacy table on dark blue. */
+[data-lexis-processos-workspace] {
+  --lx-process-bg: #f8f7fd;
+  --lx-process-panel: #fff;
+  --lx-process-line: #e9e6f2;
+  --lx-process-ink: #26243a;
+  --lx-process-muted: #77778d;
+  --lx-process-tint: #f3f0fa;
+  --lx-process-accent: #f27548;
+  --lx-process-accent-ink: #fff;
+  --lx-process-selected: #f1eaff;
+  --lx-process-shadow: 0 2px 7px rgb(37 32 71 / .028), 0 11px 35px rgb(52 42 89 / .052);
+  min-width: 0;
+  background:
+    radial-gradient(ellipse 65% 31% at 90% 0%,rgb(199 194 250 / .20),transparent 84%),
+    var(--lx-process-bg) !important;
+  color: var(--lx-process-ink);
+}
+html.dark [data-lexis-processos-workspace] {
+  --lx-process-bg: #151c19;
+  --lx-process-panel: #27302b;
+  --lx-process-line: #3d4840;
+  --lx-process-ink: #f3f8ef;
+  --lx-process-muted: #afbbb0;
+  --lx-process-tint: #303a33;
+  --lx-process-accent: #d5fa78;
+  --lx-process-accent-ink: #27351b;
+  --lx-process-selected: #3b4a39;
+  --lx-process-shadow: 0 8px 29px rgb(0 0 0 / .14);
+  background:
+    radial-gradient(ellipse 61% 28% at 95% -1%,rgb(149 161 114 / .16),transparent 88%),
+    var(--lx-process-bg) !important;
+}
+[data-lexis-processos-scroll] {
+  padding: 17px clamp(10px,2vw,27px) 28px;
+  overscroll-behavior-y: contain;
+}
+[data-lexis-processos-scope] {
+  display: block;
+  margin-bottom: 13px;
+  padding: 12px 15px !important;
+  border:1px solid var(--lx-process-line);
+  border-radius: 15px;
+  background: var(--lx-process-panel);
+  color: var(--lx-process-muted) !important;
+  box-shadow: var(--lx-process-shadow);
+  font-size: 11px !important;
+  line-height: 1.55;
+}
+[data-lexis-processos-scope] strong { color:var(--lx-process-ink); }
+[data-lexis-processos-quicklinks] {
+  padding: 0 0 12px !important;
+  gap: 8px;
+}
+[data-lexis-processos-quicklinks] :is(a,button) {
+  min-height: 39px;
+  padding: 9px 14px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--lx-process-line) !important;
+  background: var(--lx-process-panel) !important;
+  color: var(--lx-process-ink) !important;
+  font-size: 11px;
+  font-weight: 750;
+  transition: background-color 145ms ease,color 145ms ease;
+}
+[data-lexis-processos-quicklinks] button[aria-pressed="true"] {
+  background: var(--lx-process-accent) !important;
+  color: var(--lx-process-accent-ink) !important;
+  border-color: var(--lx-process-accent) !important;
+}
+[data-lexis-processos-team] {
+  margin: 0 0 12px !important;
+  border: 1px solid var(--lx-process-line);
+  border-radius: 17px;
+  background: var(--lx-process-panel);
+  box-shadow: var(--lx-process-shadow);
+  overflow: hidden;
+}
+[data-lexis-processos-team] > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 17px;
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--lx-process-ink);
+  list-style-position: inside;
+}
+[data-lexis-processos-team] > summary > span {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 550;
+  color: var(--lx-process-muted);
+}
+[data-lexis-processos-team-content] {
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  gap: 11px;
+  padding: 11px;
+  border-top: 1px solid var(--lx-process-line);
+}
+[data-lexis-processos-team-content] > section,
+[data-lexis-processos-team-content] > div {
+  width: 100%;
+  max-width: 100% !important;
+  min-width: 0;
+}
+[data-processos-center] {
+  background: transparent !important;
+  color: var(--lx-process-ink) !important;
+  overflow: clip;
+  border: 1px solid var(--lx-process-line);
+  border-radius: 26px;
+  box-shadow: var(--lx-process-shadow);
+}
+[data-lexis-processos-hero] {
+  background:
+    radial-gradient(ellipse 55% 120% at 95% 0%,rgb(210 197 244 / .17),transparent 75%),
+    var(--lx-process-panel) !important;
+  border-color: var(--lx-process-line) !important;
+  padding: clamp(15px,2.5vw,26px) !important;
+}
+html.dark [data-lexis-processos-hero] {
+  background:
+    radial-gradient(ellipse 55% 140% at 95% 0%,rgb(162 172 113 / .12),transparent 80%),
+    var(--lx-process-panel) !important;
+}
+[data-lexis-processos-hero] h1 {
+  color: var(--lx-process-ink);
+  font-size: clamp(25px,2.5vw,36px) !important;
+  letter-spacing:-.045em !important;
+  line-height:1;
+}
+[data-lexis-processos-hero] :where(p.text-slate-600) {
+  color: var(--lx-process-muted) !important;
+  font-size: 11px !important;
+}
+[data-lexis-processos-hero] :where(svg.text-blue-400) {color:var(--lx-process-accent) !important;}
+[data-lexis-processos-hero] :where(button,[role="button"],a) {
+  min-height: 39px;
+  height: auto;
+  padding: 9px 12px;
+  border-radius: 999px !important;
+  font-weight: 760;
+  transition: background-color 150ms ease,transform 150ms ease;
+}
+[data-lexis-processos-hero] :where(button.bg-blue-600,button.bg-violet-600,a.bg-violet-600) {
+  background: var(--lx-process-accent) !important;
+  color: var(--lx-process-accent-ink) !important;
+  border-color: transparent !important;
+}
+[data-lexis-processos-hero] :where(button.border-slate-200,button.border-white\/15) {
+  background: var(--lx-process-tint) !important;
+  color: var(--lx-process-ink) !important;
+  border-color: var(--lx-process-line) !important;
+}
+[data-lexis-processos-kpis] {
+  gap: clamp(7px,1vw,13px) !important;
+  margin-top: 18px !important;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+}
+@media(min-width:768px) {
+  [data-lexis-processos-kpis] { grid-template-columns: repeat(5,minmax(0,1fr)) !important; }
+}
+[data-lexis-processos-kpi] {
+  min-width: 0;
+  min-height: 124px;
+  padding: 15px !important;
+  border: 1px solid var(--lx-process-line) !important;
+  border-radius: 19px !important;
+  background: var(--lx-process-tint) !important;
+  box-shadow:none !important;
+  color:var(--lx-process-ink) !important;
+}
+[data-lexis-processos-kpi]:nth-child(2) {
+  background: #ebefff !important;
+}
+[data-lexis-processos-kpi]:nth-child(4) {
+  background: #fbefef !important;
+}
+[data-lexis-processos-kpi]:nth-child(5) {
+  background: #f47745 !important;
+  border-color: #f47745 !important;
+  color: #fff !important;
+}
+html.dark [data-lexis-processos-kpi] {
+  background:#343e36 !important;
+  border-color:#4a564b !important;
+}
+html.dark [data-lexis-processos-kpi]:nth-child(2) {background:#35443a !important;}
+html.dark [data-lexis-processos-kpi]:nth-child(4) {background:#453c34 !important;}
+html.dark [data-lexis-processos-kpi]:nth-child(5) {
+  background:#d5fa78 !important;
+  border-color:#d5fa78 !important;
+  color:#263719 !important;
+}
+[data-lexis-processos-kpi] p {
+  color:inherit !important;
+  overflow-wrap:anywhere;
+}
+[data-lexis-processos-kpi] p:first-child {
+  font-size:10px !important;
+  letter-spacing:.035em !important;
+  text-transform:none !important;
+  font-weight:760;
+}
+[data-lexis-processos-kpi] p:nth-child(2) {
+  font-size:clamp(25px,2.5vw,39px) !important;
+  line-height:1;
+  letter-spacing:-.05em;
+  color:inherit !important;
+}
+[data-lexis-processos-kpi] p:last-child {font-size:9px !important;opacity:.8;line-height:1.4;}
+[data-lexis-processos-kpi] svg {color:inherit !important;}
+[data-lexis-processos-extra-metrics] {
+  padding:12px 0 0;
+  border-top:1px solid var(--lx-process-line);
+}
+[data-lexis-processos-extra-metrics] > .grid > div {
+  border-radius:13px !important;
+  background:var(--lx-process-tint) !important;
+  border-color:var(--lx-process-line) !important;
+  min-width:0;
+}
+[data-lexis-processos-layout] {
+  min-height: 0 !important;
+  background: var(--lx-process-panel);
+  grid-template-columns: minmax(0,1fr);
+}
+@media(min-width:1280px) {
+  [data-lexis-processos-layout] {
+    grid-template-columns:minmax(0,1fr) minmax(300px,27%) !important;
+  }
+}
+[data-lexis-processos-layout] > div:first-child {
+  min-width:0;
+  border-color:var(--lx-process-line) !important;
+}
+[data-lexis-processos-filters] {
+  padding: 16px !important;
+  background:var(--lx-process-panel) !important;
+  border-color:var(--lx-process-line) !important;
+}
+[data-lexis-processos-filters] :where(span.text-slate-600,p.text-slate-500) {
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-filters] :where(button,input,select,[type="date"]) {
+  min-height: 39px;
+  border-radius: 12px !important;
+}
+[data-lexis-processos-filters] input:not([type="checkbox"]),
+[data-lexis-processos-filters] select {
+  min-width: 0;
+  border:1px solid var(--lx-process-line) !important;
+  background:var(--lx-process-panel) !important;
+  color:var(--lx-process-ink) !important;
+}
+[data-lexis-processos-filters] input::placeholder {
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-pills] {
+  gap:7px !important;
+  padding:1px 1px 7px;
+  scrollbar-width:none;
+}
+[data-lexis-processos-pills] > button {
+  min-height:38px;
+  padding:7px 13px;
+  border-radius:999px !important;
+  border:1px solid var(--lx-process-line) !important;
+  background:var(--lx-process-tint) !important;
+  color:var(--lx-process-ink) !important;
+  font-size:10px;
+}
+[data-lexis-processos-pills] > button:has(.bg-slate-200) {color:var(--lx-process-ink);}
+[data-lexis-processos-pills] > button.bg-blue-500\/15 {
+  background:var(--lx-process-accent) !important;
+  border-color:var(--lx-process-accent) !important;
+  color:var(--lx-process-accent-ink) !important;
+}
+[data-lexis-processos-table-wrap] {
+  min-width:0;
+  max-width:100%;
+  border-block:1px solid var(--lx-process-line);
+  background:var(--lx-process-panel);
+  scrollbar-color:var(--lx-process-line) transparent;
+}
+[data-lexis-processos-table] {
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+  color:var(--lx-process-ink);
+  min-width: 990px !important;
+}
+[data-lexis-processos-table] thead {
+  background:var(--lx-process-tint) !important;
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-table] th {
+  padding:12px 12px !important;
+  border-color:var(--lx-process-line) !important;
+  font-size:10px;
+  font-weight:790;
+  letter-spacing:.025em;
+  text-transform:none;
+}
+[data-lexis-processos-table] tbody tr {
+  min-height:49px;
+  background:var(--lx-process-panel);
+  border-color:var(--lx-process-line) !important;
+  transition:background-color 120ms ease;
+}
+[data-lexis-processos-table] tbody tr:nth-child(even) {
+  background:color-mix(in srgb,var(--lx-process-panel),var(--lx-process-tint) 33%);
+}
+[data-lexis-processos-table] tbody tr[data-selected="true"] {
+  background:var(--lx-process-selected) !important;
+  box-shadow:inset 3px 0 0 var(--lx-process-accent);
+}
+[data-lexis-processos-table] td {
+  border-color:var(--lx-process-line) !important;
+  padding:12px 12px !important;
+  color:var(--lx-process-ink);
+  font-size:11px;
+  line-height:1.35;
+}
+[data-lexis-processos-table] td.font-mono {
+  color:var(--lx-process-ink) !important;
+  font-weight:800;
+}
+[data-lexis-processos-table] td.text-slate-600,
+[data-lexis-processos-table] td.text-slate-700,
+[data-lexis-processos-table] td.text-slate-800 {
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-table] tbody tr:focus-visible {
+  outline:2px solid var(--lx-process-accent);
+  outline-offset:-2px;
+}
+[data-lexis-processos-charts] {
+  padding: 14px !important;
+  gap: 11px;
+  background:var(--lx-process-tint) !important;
+}
+[data-lexis-processos-charts] > div {
+  border-radius:17px !important;
+  background:var(--lx-process-panel) !important;
+  border-color:var(--lx-process-line) !important;
+  box-shadow:var(--lx-process-shadow);
+}
+[data-lexis-processos-inspector] {
+  background:var(--lx-process-tint) !important;
+  border-color:var(--lx-process-line) !important;
+  min-width:0;
+  padding:13px !important;
+}
+[data-lexis-processos-inspector] > div > div {
+  background:var(--lx-process-panel) !important;
+  border-color:var(--lx-process-line) !important;
+  border-radius:16px !important;
+  box-shadow:0 3px 13px rgb(32 34 39 / .028);
+}
+[data-lexis-processos-inspector-tabs] {
+  background:var(--lx-process-panel) !important;
+  border-color:var(--lx-process-line) !important;
+  border-radius:999px !important;
+  padding:4px;
+  gap:2px;
+  min-width:0;
+}
+[data-lexis-processos-inspector-tabs] > button {
+  border-radius:999px !important;
+  font-size:10px;
+  min-width:0;
+  padding:9px 1px;
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-inspector-tabs] > button.bg-blue-600 {
+  background:var(--lx-process-accent) !important;
+  color:var(--lx-process-accent-ink) !important;
+}
+[data-lexis-processos-inspector] :where(.text-slate-500,.text-slate-600,.text-slate-700) {
+  color:var(--lx-process-muted) !important;
+}
+[data-lexis-processos-inspector] :where(.text-slate-900,.text-slate-800) {
+  color:var(--lx-process-ink) !important;
+}
+[data-lexis-processos-inspector] button.bg-blue-600 {
+  background:var(--lx-process-accent) !important;
+  color:var(--lx-process-accent-ink) !important;
+}
+[data-lexis-processos-inspector] :where(button) {
+  min-height:35px;
+  border-radius:10px;
+}
+@media(min-width:1280px) {
+  [data-lexis-processos-inspector] > div {top:10px;}
+}
+@media(max-width:767px) {
+  [data-lexis-processos-scroll] { padding:9px 9px 21px; }
+  [data-lexis-processos-scope] { padding:10px 12px !important;font-size:10px !important; }
+  [data-lexis-processos-hero] {padding:13px !important;}
+  [data-lexis-processos-hero] h1 {font-size:24px !important;}
+  [data-lexis-processos-hero] > div:first-child {gap:12px;}
+  [data-lexis-processos-hero] > div:first-child > div:last-child {gap:5px;}
+  [data-lexis-processos-hero] :where(button,a) {min-height:37px;padding:7px 10px;}
+  [data-lexis-processos-kpis] {grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:7px !important;}
+  [data-lexis-processos-kpi] {padding:12px !important;min-height:112px;}
+  [data-lexis-processos-kpi] p:nth-child(2) {font-size:28px !important;}
+  [data-lexis-processos-kpi]:last-child:nth-child(odd) {grid-column:span 2;}
+  [data-lexis-processos-filters] {padding:12px !important;}
+  [data-lexis-processos-filters] .relative.min-w-\[220px\] {min-width:min(220px,100%);}
+  [data-lexis-processos-table] {min-width:920px !important;}
+  [data-lexis-processos-inspector] {padding:10px !important;}
+  [data-lexis-processos-inspector] > div {position:static !important;}
+  [data-processos-center] {border-radius:19px;}
+  [data-lexis-processos-team] > summary {padding:10px 12px;gap:7px;}
+  [data-lexis-processos-team] > summary > span {font-size:9px;}
+  [data-lexis-processos-inspector-tabs] > button {font-size:9px;}
+}
+@media(max-width:390px) {
+  [data-lexis-processos-hero] > div:first-child > div:last-child {display:flex;max-width:100%;}
+  [data-lexis-processos-kpi] p:nth-child(2) {font-size:24px !important;}
+  [data-lexis-processos-kpi] p:first-child {font-size:9px !important;}
+}
+@media(hover:hover) and (pointer:fine) {
+  [data-lexis-processos-table] tbody tr:hover {background:var(--lx-process-selected);}
+  [data-lexis-processos-quicklinks] button:hover,
+  [data-lexis-processos-quicklinks] a:hover {
+    background:var(--lx-process-tint) !important;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  [data-lexis-processos-hero] :where(button,a),
+  [data-lexis-processos-table] tbody tr,
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .premium-card,.lexis-metric,[data-slot="card"],[data-admin-card]
+  ) {
+    transition:none !important;
+    transform:none !important;
+  }
+}
+/* The native printing of legal documents/financial reports is never overpainted. */
+@media print {
+ [data-lexis-processos-workspace],[data-processos-center],
+ [data-lexis-processos-table-wrap] {background:#fff !important;box-shadow:none !important;}
+}
+
+
+/* Unified page mastheads: tasks, personal cases, supervision, CRM and
+ * all future registered route groups receive the same typographic hierarchy.
+ * Only direct page headers, not modal headers or conversation message rows. */
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main > header {
+  min-width:0;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header :where(h1) {
+  color:var(--lx-xr-ink) !important;
+  letter-spacing:-.05em !important;
+  font-weight:850;
+  line-height:1.13;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header > div:first-child > p:first-child {
+  color:var(--lx-xr-accent) !important;
+  letter-spacing:.13em;
+  font-size:10px;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header > div:first-child > h1 + p {
+  color:var(--lx-xr-mute) !important;
+  font-weight:540;
+  line-height:1.5;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header :where(button, a[role="button"], a.inline-flex) {
+  border-radius:999px !important;
+  min-height:40px;
+}
+html:not(.lexis-wallpaper-active)
+ body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(.premium-card,[data-slot="card"],[data-admin-card]) {
+  background-color:var(--lx-xr-card);
+  color:var(--lx-xr-ink);
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(.premium-card,[data-slot="card"]) :where(h2,h3) {
+  letter-spacing:-.035em;
+}
+/* Other card layouts have their own genuine data models. This layer can align
+ * their shape, not merge unrelated metrics or override semantic risk colors. */
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .recharts-responsive-container,.recharts-wrapper
+) {
+  min-width:0;
+  max-width:100%;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  a,button,input,textarea,select,[role="tab"],[role="combobox"]
+):focus-visible {
+  outline:2px solid hsl(var(--ring));
+  outline-offset:2px;
+}
+@media(max-width:767px) {
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header {
+    gap:12px;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header h1 {
+    font-size:clamp(24px,6.6vw,30px) !important;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header
+   :where(button,a.inline-flex) {
+    min-height:42px;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .premium-card,.lexis-metric,[data-slot="card"]
+  ) {
+    max-width:100%;
+    min-width:0;
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { AlertTriangle, ArrowRight, BarChart3, BrainCircuit, CheckCircle2, ChevronRight, CircleHelp, FileCheck2, Loader2, MessageSquareText, ShieldCheck, Sparkles, Square, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, BrainCircuit, ChevronRight, CircleHelp, Loader2, MessageSquareText, ShieldCheck, Sparkles, Square } from "lucide-react";
 import {stopBrowserLocalLLM} from "@/lib/ai/browser-local-llm";
 import {responderRelatorioPergunta, type IndicadoresRelatorio} from "@/lib/report/report-instant-answer";
 
@@ -28,19 +28,7 @@ type Props = {
   semMeritoOficial: number | null;
   dias: Day[];
 };
-type Kpi = { title: string; count: number | null; hint: string; icon: typeof BarChart3; accent: string };
-
 const fmt = (value: number | null) => value == null ? "—" : value.toLocaleString("pt-BR");
-function Info({ title, count, hint, icon: Icon, accent }: Kpi) {
-  return <div className="relative overflow-hidden rounded-[1.35rem] border border-border/70 bg-card px-5 py-5 shadow-sm">
-    <div className="flex items-start justify-between gap-2">
-      <span className="text-sm font-semibold text-muted-foreground">{title}</span>
-      <span className={"rounded-xl p-2.5 " + accent}><Icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
-    </div>
-    <p className="mt-2 text-3xl font-black tracking-tight tabular-nums text-foreground sm:text-4xl">{fmt(count)}</p>
-    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{hint}</p>
-  </div>;
-}
 function Highlight({ amount, label, description, tone }: { amount: number | null; label: string; description: string; tone: string }) {
   return <div className="flex items-center gap-4 rounded-2xl border border-border/70 bg-background/70 p-4">
     <div className={"flex h-12 w-16 shrink-0 items-center justify-center rounded-xl text-xl font-black tabular-nums " + tone}>{fmt(amount)}</div>
@@ -59,12 +47,6 @@ export function ReportSmartOverview(props: Props) {
   const activePct = props.total && props.ativos != null ? Math.max(0,Math.min(100,Math.round(100*props.ativos/props.total))) : null;
   const closedPct = activePct == null ? null : 100-activePct;
   const maxDaily = Math.max(1,...props.dias.map(d=>d.atendimentos || 0));
-  const cards: Kpi[] = [
-    {title:"Processos na carteira",count:props.total,hint:"Total atual no sistema",icon:FileCheck2,accent:"bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"},
-    {title:"Em andamento",count:props.ativos,hint:"Processos ativos, independentemente do período",icon:CheckCircle2,accent:"bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"},
-    {title:"Atendidos no período",count:props.atendidos,hint:"Processos diferentes com atendimento registrado",icon:Users,accent:"bg-violet-500/10 text-violet-600 dark:text-violet-300"},
-    {title:"Vencidos no CRM",count:props.vencidos,hint:"Status cadastrado; retornos atrasados por data são outra métrica",icon:AlertTriangle,accent:"bg-orange-500/10 text-orange-600 dark:text-orange-300"},
-  ];
   const questions = ["O que Davi realizou?", "Compare os atendimentos de Davi, Kris e Adriana", "Quais dossiês e projetos foram registrados?", "Quais atividades precisam de conferência?"];
   const facts = {
     periodo: props.periodLabel,
@@ -124,9 +106,9 @@ export function ReportSmartOverview(props: Props) {
         </div>
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(c=><Info key={c.title} {...c}/>)}
-    </div>
+    {/* Duplicate portfolio/attendance summary cards were removed: the newer
+        ReportExecutiveDashboard above already renders these exact snapshot and
+        period metrics. Keep the merit and Q&A drill-downs below. */}
     <section className="rounded-[1.35rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="report-merit-overview">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div><h3 id="report-merit-overview" className="text-base font-extrabold">O que aconteceu nos processos?</h3><p className="mt-1 text-xs text-muted-foreground">Identificações de mérito a partir de movimentações oficiais. Não confirmam trânsito em julgado nem encerramento definitivo.</p></div>

@@ -820,12 +820,12 @@ export default function ProcessosEmpresaPage() {
         className="fixed bottom-16 right-4 z-40 max-w-sm rounded-xl border border-destructive/30 bg-background px-3 py-2 text-xs text-destructive shadow">
         {carteiraError || searchError}
       </div>}
-      <main className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main data-lexis-processos-workspace className="lexis-main-pad flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Scanner UI is lazy-mounted globally only on user request. */}
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div data-lexis-processos-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {totalCount > 0 && (
-            <p className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
+            <p data-lexis-processos-scope className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
               Carteira de toda a empresa: <strong>{totalCount.toLocaleString('pt-BR')}</strong> processos de todos os responsáveis ·
               {' '}{cases.length.toLocaleString('pt-BR')} carregados nesta aba. A busca consulta também os demais registros.
               {indicadoresAtualizadosEm?<span className="ml-2">· Indicadores consultados em {new Date(indicadoresAtualizadosEm).toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>:null}
@@ -833,13 +833,21 @@ export default function ProcessosEmpresaPage() {
               {atendidosSemanaSrv!==null ? <> · <strong>{atendidosSemanaSrv}</strong> processos com atendimento humano registrado na semana (todos os responsáveis)</> : null}
             </p>
           )}
-          <div className="flex flex-wrap gap-2 px-5 pb-3 pt-2">
+          <div data-lexis-processos-quicklinks className="flex flex-wrap gap-2 px-5 pb-3 pt-2">
             <button type="button" onClick={()=>setStatusFilter(statusFilter==="vencido"?"":"vencido")} aria-pressed={statusFilter==="vencido"} className={"rounded-xl border px-4 py-2 text-xs font-bold "+(statusFilter==="vencido"?"border-rose-500 bg-rose-600 text-white":"border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-200")}>{statusFilter==="vencido"?"Remover filtro de vencidos":"Filtrar vencidos"}</button>
             <Link href="/vencidos" prefetch={false} className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:text-primary">Central de vencidos · carteira inteira</Link>
             {statusFilter==="vencido"?<span className="self-center text-[11px] text-muted-foreground">A lista desta aba pode estar parcialmente carregada; a central consulta todos os vencidos diretamente.</span>:null}
           </div>
-          <AtendimentosEquipeDiarios historico={historicoEquipeSrv} variant="today" />
-          <div className="px-5 pb-3"><AtividadesRegistradasKpi /></div>
+          {/* These operational details are different measures from the portfolio
+              overview; keep both, but do not force the user to scroll through a
+              second KPI wall before reaching the process table. */}
+          <details data-lexis-processos-team className="mx-3 mb-3 sm:mx-5">
+            <summary className="cursor-pointer select-none">Atendimento e atividades da equipe <span>Indicadores detalhados</span></summary>
+            <div data-lexis-processos-team-content>
+              <AtendimentosEquipeDiarios historico={historicoEquipeSrv} variant="today" />
+              <AtividadesRegistradasKpi />
+            </div>
+          </details>
           <ProcessosCommandCenter
             items={filtered}
             totalCount={totalCount || cases.length}

@@ -276,7 +276,7 @@ function KpiCard({ label, value, hint, kind = "blue", icon }: {
   icon: React.ReactNode;
 }) {
   return (
-    <div className={cn(
+    <div data-lexis-processos-kpi data-tone={kind} className={cn(
       "rounded-xl border bg-gradient-to-br p-3 shadow-sm",
       kpiTone(kind)
     )}>
@@ -647,7 +647,7 @@ export function ProcessosCommandCenter(props: Props) {
 
   return (
     <section data-processos-center className="min-h-full bg-slate-50 dark:bg-[#050b18] text-slate-900 dark:text-slate-100">
-      <div className="border-b border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-[#071326] px-4 py-3 sm:px-5">
+      <div data-lexis-processos-hero className="border-b border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-[#071326] px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -681,7 +681,7 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <div data-lexis-processos-kpis className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
           <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
           <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
           <KpiCard icon={<ShieldCheck size={15}/>} label="Encerrados" value={props.indicadoresLoading ? "…" : props.encerradosCount} hint="estado atual no Supabase" />
@@ -694,7 +694,7 @@ export function ProcessosCommandCenter(props: Props) {
           {metricsOpen ? "Ocultar indicadores adicionais" : "Ver indicadores adicionais"}
         </button>
         {metricsOpen && (
-          <div className="space-y-2">
+          <div data-lexis-processos-extra-metrics className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <KpiCard icon={<FileClock size={15}/>} label="Sem andamento" value={props.loading ? "…" : noMovementCount} hint="nos processos carregados" kind="amber" />
               <KpiCard icon={<CalendarClock size={15}/>} label="Silêncio +45d" value={props.loading ? "…" : silenceCount} hint="nos processos carregados" kind="amber" />
@@ -714,9 +714,9 @@ export function ProcessosCommandCenter(props: Props) {
         )}
       </div>
 
-      <div className="grid min-h-[calc(100vh-172px)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <div data-lexis-processos-layout className="grid min-h-[calc(100vh-172px)] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0 border-r border-slate-200 dark:border-white/8">
-          <div className="border-b border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
+          <div data-lexis-processos-filters className="border-b border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Filtrar carteira</span>
               <button type="button" aria-expanded={advancedFiltersOpen} onClick={() => setAdvancedFiltersOpen((v) => !v)}
@@ -724,7 +724,7 @@ export function ProcessosCommandCenter(props: Props) {
                 <Filter size={12} className="mr-1 inline" />{advancedFiltersOpen ? "Menos filtros" : "Mais filtros"}
               </button>
             </div>
-            <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+            <div data-lexis-processos-pills className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
               {([
                 ["all","Todos",loaded,Rows3],
                 ["urgent","Urgentes",focusCounts.urgent,ShieldAlert],
@@ -815,8 +815,8 @@ export function ProcessosCommandCenter(props: Props) {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-[900px] w-full border-collapse text-left">
+          <div data-lexis-processos-table-wrap className="overflow-x-auto">
+            <table data-lexis-processos-table className="min-w-[900px] w-full border-collapse text-left">
               <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-[#081427] text-[10px] uppercase tracking-[.08em] text-slate-500">
                 <tr>
                   {["Número CNJ","Cliente","Tribunal","Última atualização","Último movimento","Dias sem movimentação","Situação","Risco","Responsável","Próximo retorno"].map((h) => (
@@ -837,7 +837,7 @@ export function ProcessosCommandCenter(props: Props) {
                   const priority = riskLabel(c);
                   const situacaoAtual=statusEfetivo(c);
                   return (
-                    <tr key={id} onClick={() => { setSelectedId(id); setTab("overview"); }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
+                    <tr key={id} data-selected={selectedRow ? "true" : undefined} tabIndex={0} aria-label={`Abrir detalhes de ${c.cliente || fmtCnj(c.protocolo)}`} onClick={() => { setSelectedId(id); setTab("overview"); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(id); setTab("overview"); } }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
                       <td className="px-2 py-2 font-mono font-bold text-cyan-700 dark:text-cyan-300">{fmtCnj(c.protocolo)}</td>
                       <td className="max-w-[150px] truncate px-2 py-2 font-semibold text-slate-800 dark:text-slate-200" title={c.cliente}>{c.cliente || "—"}</td>
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{c.tribunal || "—"}</td>
@@ -876,7 +876,7 @@ export function ProcessosCommandCenter(props: Props) {
             <BarChart3 size={13} className="mr-1 inline" />{insightsOpen ? "Ocultar gráficos" : "Mostrar análises e gráficos"}
           </button>
           {insightsOpen && (
-          <div className="grid gap-2 bg-slate-50 dark:bg-[#050b18] p-2 lg:grid-cols-3">
+          <div data-lexis-processos-charts className="grid gap-2 bg-slate-50 dark:bg-[#050b18] p-2 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] p-3">
               <p className="mb-2 text-[11px] font-bold text-slate-700 dark:text-slate-300">Distribuição por tribunal</p>
               <div className="h-[180px]">
@@ -917,7 +917,7 @@ export function ProcessosCommandCenter(props: Props) {
           )}
         </div>
 
-        <aside className="bg-white dark:bg-[#071120] p-3">
+        <aside data-lexis-processos-inspector className="bg-white dark:bg-[#071120] p-3">
           {selected ? (
             <div className="sticky top-0 space-y-2">
               <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0a1729] p-3">
@@ -947,7 +947,7 @@ export function ProcessosCommandCenter(props: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-6 rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0a1729] p-1">
+              <div data-lexis-processos-inspector-tabs className="grid grid-cols-6 rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0a1729] p-1">
                 {([
                   ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
