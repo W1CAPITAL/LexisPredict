@@ -204,3 +204,120 @@ html.dark .report-completo-shell :is(.report-outline-button,.report-premium-butt
 @media(prefers-reduced-motion:reduce) {
   .report-completo-shell :is(a,button,.lexis-report-sheet,details) {transition:none !important;transform:none !important;}
 }
+
+
+/* Executive dashboard: calm portfolio/report design instead of black/purple.
+ * All primary accents follow the selected app theme (custom brand colors too). */
+.report-completo-shell [data-lexis-report-executive] {
+  border:1px solid var(--lx-report-line) !important;
+  border-radius:26px !important;
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-ink) !important;
+  box-shadow:var(--lx-report-shadow) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-panel,
+.report-completo-shell [data-lexis-report-executive] .report-exec-mini,
+.report-completo-shell [data-lexis-report-executive] .report-exec-filters {
+  border-color:var(--lx-report-line) !important;
+  color:var(--lx-report-ink) !important;
+  box-shadow:none !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-panel {
+  background:var(--lx-report-paper) !important;
+  border-radius:20px !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-mini,
+.report-completo-shell [data-lexis-report-executive] .report-exec-filters {
+  background:var(--lx-report-subtle) !important;
+  border-radius:16px !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-brand {
+  background:var(--lx-report-accent) !important;
+  color:var(--lx-report-on-accent) !important;
+  box-shadow:none !important;
+}
+.report-completo-shell [data-lexis-report-executive] :is(.report-exec-brand svg,.report-exec-brand .text-primary-foreground) {
+  color:var(--lx-report-on-accent) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat {
+  min-height:134px;
+  background:var(--lx-report-soft) !important;
+  color:var(--lx-report-ink) !important;
+  border-color:var(--lx-report-line) !important;
+  box-shadow:none !important;
+  transition:border-color 160ms ease,box-shadow 160ms ease;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat .text-foreground {
+  color:var(--lx-report-ink) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat .text-muted-foreground {
+  color:var(--lx-report-muted) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat > div:first-child > span:first-child {
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-accent) !important;
+  box-shadow:0 1px 6px rgb(0 0 0 / .035);
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat[data-report-stat="closed"] {
+  background:color-mix(in srgb,#2c9d7d 8%,var(--lx-report-paper)) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat[data-report-stat="overdue"] {
+  background:color-mix(in srgb,#d59537 10%,var(--lx-report-paper)) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat[data-report-stat="updates"] {
+  background:color-mix(in srgb,var(--lx-report-chart-2) 9%,var(--lx-report-paper)) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat[data-report-stat="contacts"] {
+  background:var(--lx-report-subtle) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-stat[data-report-stat="activities"] {
+  background:color-mix(in srgb,var(--lx-report-chart-3) 9%,var(--lx-report-paper)) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-filters :is(a,select) {
+  min-height:38px;
+  border-radius:10px;
+  border-color:var(--lx-report-line) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-filters a[aria-current="page"] {
+  background:var(--lx-report-accent) !important;
+  color:var(--lx-report-on-accent) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .report-exec-filters a:not([aria-current="page"]) {
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-ink) !important;
+}
+.report-completo-shell [data-lexis-report-executive] :is(table,table thead,table tbody) {
+  color:var(--lx-report-ink);
+}
+.report-completo-shell [data-lexis-report-executive] table thead {
+  background:var(--lx-report-subtle) !important;
+}
+.report-completo-shell [data-lexis-report-executive] .recharts-cartesian-axis-tick text {
+  fill:var(--lx-report-muted);
+}
+.report-completo-shell [data-lexis-report-executive] .recharts-tooltip-wrapper {
+  color:var(--lx-report-ink) !important;
+}
+.report-completo-shell [data-lexis-report-smart] .report-smart-hero {
+  background:linear-gradient(125deg,var(--lx-report-paper),var(--lx-report-soft)) !important;
+  color:var(--lx-report-ink) !important;
+  border-color:var(--lx-report-line) !important;
+}
+.report-completo-shell [data-lexis-report-smart] :is(.bg-primary,.text-primary) {
+  border-radius:inherit;
+}
+@media(hover:hover) and (pointer:fine) {
+  .report-completo-shell [data-lexis-report-executive] .report-exec-stat:hover {
+    border-color:color-mix(in srgb,var(--lx-report-accent) 25%,var(--lx-report-line)) !important;
+    box-shadow:0 8px 18px rgb(20 35 30 / .045) !important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  .report-completo-shell [data-lexis-report-executive] .report-exec-stat {transition:none !important;}
+}
+@media print {
+  .report-completo-shell [data-lexis-report-executive],
+  .report-completo-shell [data-lexis-report-executive] :is(.report-exec-stat,.report-exec-panel,.report-exec-mini,.report-exec-filters) {
+    background:#fff !important;color:#111 !important;box-shadow:none !important;border-color:#ccc !important;
+  }
+}
