@@ -56,6 +56,21 @@ describe("CodeXR visual parity and safe card consolidation", () => {
     expect(home).toContain('StatCard title="Baixas tribunal"');
   });
 
+  it("deduplicates report KPIs with identical backend fields without deleting merits or Q&A", () => {
+    const executive = source("src/components/report/report-executive-dashboard.tsx");
+    const olderSmart = source("src/components/report/report-smart-overview.tsx");
+    expect(executive).toContain('Stat title="Com novidade" value={p.novidades}');
+    expect(executive).toContain('Stat title="Sem retorno 30d+" value={p.semRetorno}');
+    expect(executive).toContain('Stat title="Atendimentos" value={p.eventos}');
+    expect(executive).not.toContain('MiniStat title="Com novidade" value={p.novidades}');
+    expect(executive).not.toContain('MiniStat title="Sem retorno 30d+" value={p.semRetorno}');
+    expect(executive).not.toContain('MiniStat title="Registros" value={p.eventos}');
+    expect(executive).not.toContain('MiniStat title="Mensagens" value={null}');
+    expect(olderSmart).not.toContain('cards.map(c=><Info');
+    expect(olderSmart).toContain('report-merit-overview');
+    expect(olderSmart).toContain('responderRelatorioPergunta(');
+  });
+
   it("does not hide or infer different indicators as duplicates", () => {
     expect(commandCenter).toContain('label="Processos"');
     expect(commandCenter).toContain('label="Ativos"');
