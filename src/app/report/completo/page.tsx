@@ -488,7 +488,7 @@ export default function UnifiedReport() {
 
   if (!mounted || authLoading) {
     return (
-      <div className="report-completo-shell min-h-screen flex flex-col items-center justify-center space-y-6 bg-[#080f1e] text-slate-100">
+      <div data-lexis-report-page="complete" className="report-completo-shell min-h-screen flex flex-col items-center justify-center space-y-6 bg-[#080f1e] text-slate-100">
         <Loader2 className="w-12 h-12 text-foreground animate-spin" />
         <p className="font-black tracking-[0.4em] text-[10px] text-foreground uppercase">Consolidando Dossiê Authority...</p>
         <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-widest">Carregando carteira e atendimentos da semana…</p>
@@ -506,7 +506,7 @@ export default function UnifiedReport() {
       {label:"Processos editados",value:h?.edicoes?.processos??"…",desc:"Edições manuais registradas"},
       {label:"Carteira da empresa",value:portfolioResumo?.total??"…",desc:"Empresa inteira, obtido direto do Supabase"},
     ];
-    return <main className="report-completo-shell min-h-screen p-4 text-slate-100 sm:p-7">
+    return <main data-lexis-report-page="complete" className="report-completo-shell min-h-screen p-4 text-slate-100 sm:p-7">
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="report-detail-heading p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -572,7 +572,7 @@ export default function UnifiedReport() {
   }
 
   return (
-    <div className="report-completo-shell min-h-screen font-sans text-slate-100">
+    <div data-lexis-report-page="complete" className="report-completo-shell min-h-screen font-sans text-slate-100">
       {!dataComplete&&<div role="status" className="print:hidden border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
         {loadError||'Exibindo dados parciais enquanto consolida o restante da carteira. Exportações ficam suspensas até terminar.'}
       </div>}
