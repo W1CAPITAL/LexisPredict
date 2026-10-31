@@ -837,7 +837,7 @@ export function ProcessosCommandCenter(props: Props) {
                   const priority = riskLabel(c);
                   const situacaoAtual=statusEfetivo(c);
                   return (
-                    <tr key={id} onClick={() => { setSelectedId(id); setTab("overview"); }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
+                    <tr key={id} data-selected={selectedRow ? "true" : undefined} tabIndex={0} aria-label={`Abrir detalhes de ${c.cliente || fmtCnj(c.protocolo)}`} onClick={() => { setSelectedId(id); setTab("overview"); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(id); setTab("overview"); } }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
                       <td className="px-2 py-2 font-mono font-bold text-cyan-700 dark:text-cyan-300">{fmtCnj(c.protocolo)}</td>
                       <td className="max-w-[150px] truncate px-2 py-2 font-semibold text-slate-800 dark:text-slate-200" title={c.cliente}>{c.cliente || "—"}</td>
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{c.tribunal || "—"}</td>
