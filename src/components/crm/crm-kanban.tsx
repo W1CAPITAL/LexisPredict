@@ -35,16 +35,18 @@ export function CrmKanban({
   busyId?: string | null;
 }) {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 min-h-[420px]">
+    <div data-lexis-crm-board className="flex gap-3 overflow-x-auto pb-4 min-h-[420px]" aria-label="Quadro de negócios por etapa">
       {STAGE_ORDER.map((stage) => {
         const list = byStatus[stage] || [];
         const total = stageValueSum(list);
         return (
           <div
             key={stage}
+            data-lexis-crm-lane
+            data-stage={stage}
             className="w-[260px] shrink-0 flex flex-col rounded-xl border border-border bg-muted/20"
           >
-            <div className="p-2.5 border-b border-border/60 sticky top-0 bg-card/90 backdrop-blur rounded-t-xl">
+            <div data-lexis-crm-lane-header className="p-2.5 border-b border-border/60 sticky top-0 bg-card/90 backdrop-blur rounded-t-xl">
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[10px] font-black uppercase tracking-wide">
                   {CRM_FUNIL_LABELS[stage]}
@@ -65,6 +67,7 @@ export function CrmKanban({
                 return (
                   <div
                     key={n.id}
+                    data-lexis-crm-deal
                     className={cn(
                       "rounded-lg border border-border bg-card p-2.5 shadow-sm hover:border-primary/40 transition-colors",
                       busyId === n.id && "opacity-60"
@@ -93,7 +96,7 @@ export function CrmKanban({
                         ) : null}
                       </div>
                     </button>
-                    <div className="flex gap-1 mt-2">
+                    <div data-lexis-crm-deal-actions className="flex gap-1 mt-2">
                       <Button
                         type="button"
                         size="sm"
