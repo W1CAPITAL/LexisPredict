@@ -374,7 +374,9 @@ export function SidebarVertical() {
     setToolsOpen(false);
   };
 
-  const SidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
+  // Render as a function, not a nested React component: keeps scroll position
+  // and DOM identity stable when navigation or search state changes.
+  const renderSidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
       <div className="flex h-[82px] shrink-0 items-center border-b border-white/10 px-5">
         <Link href="/"  className="flex items-center gap-3">
@@ -496,7 +498,7 @@ export function SidebarVertical() {
         data-lexis-commercial-sidebar
         className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-border transition-transform duration-200 md:block"
       >
-        <SidebarBody />
+        {renderSidebarBody({})}
       </aside>
 
       <CommercialTopbar />
