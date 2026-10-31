@@ -536,6 +536,7 @@ export function SidebarVertical() {
           aria-label="Abrir menu"
           aria-expanded={toolsOpen}
           aria-controls="lexis-mobile-menu"
+          data-lexis-mobile-menu-trigger
           className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
         >
           <Menu className="h-[18px] w-[18px]" />
@@ -669,7 +670,7 @@ export function SidebarVertical() {
           <div data-lexis-mobile-drawer-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {query.trim() ? (
               <div className="space-y-1">
-                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#8a9bb1]">
+                <p data-lexis-mobile-menu-label className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#8a9bb1]">
                   Resultados
                 </p>
                 {mobileMenuItems.length ? (
@@ -696,7 +697,7 @@ export function SidebarVertical() {
                     );
                   })
                 ) : (
-                  <p className="rounded-xl bg-[#f7f9fc] p-4 text-center text-xs text-[#6d7f9b]">
+                  <p data-lexis-mobile-menu-empty className="rounded-xl bg-[#f7f9fc] p-4 text-center text-xs text-[#6d7f9b]">
                     Não encontrei essa ação. Tente descrever com outras palavras.
                   </p>
                 )}
