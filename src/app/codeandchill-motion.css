@@ -488,3 +488,39 @@ html[data-lexis-motion="lite"] [data-lexis-magnetic-sidebar] * {
     animation:none !important;
   }
 }
+
+
+/* The previous Sales CRM light theme uses high-specificity !important rules.
+ * Make the new single moving capsule authoritative for light navigation only. */
+@media(max-width:767px) {
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav] {
+    background:rgba(249,250,251,.98) !important;
+    border-color:rgb(216 225 225 / .85) !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-action][data-mobile-nav-active="true"] {
+    background:transparent !important;
+    color:#fff !important;
+    box-shadow:none !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-action][data-mobile-nav-active="true"] > svg {
+    color:currentColor !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-scanner] > span:first-child {
+    background:linear-gradient(150deg,#bfff8e,#48bb82) !important;
+    color:#123e2a !important;
+    border-color:#fff !important;
+    border-radius:50% !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-scanner] > span:last-child {
+    color:#173d30 !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-menu][aria-expanded="true"] {
+    background:transparent !important;
+    color:#fff !important;
+  }
+}
