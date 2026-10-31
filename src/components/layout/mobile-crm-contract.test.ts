@@ -44,6 +44,6 @@ describe("Sales CRM mobile regression contract", () => {
     expect(mobileCss).toContain("safe-area-inset-bottom");
     expect(mobileCss).toContain("prefers-reduced-motion: reduce");
     expect(mobileCss).toContain('data-lexis-motion="lite"');
-    expect(mobileCss).not.toMatch(/animation:\\s*infinite/);
+    expect(mobileCss).not.toMatch(/animation:\s*[^;]*\binfinite\b/);
   });
 });
