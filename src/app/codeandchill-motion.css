@@ -35,6 +35,18 @@
  * POST /api/auth/login, guest option, signup steps and legal/tenant flows stay.
  * Login is cream-left, forest-right; signup inverts on the next route. */
 [data-lexis-auth-screen] {
+  color-scheme:light;
+  --background: 45 42% 96%;
+  --foreground: 151 37% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 151 37% 14%;
+  --muted: 143 19% 93%;
+  --muted-foreground: 146 14% 39%;
+  --border: 148 17% 84%;
+  --input: 148 17% 84%;
+  --primary: 155 78% 26%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 155 69% 32%;
   min-height:100dvh;
   padding:clamp(9px,1.5vw,22px) !important;
   background:
@@ -44,7 +56,7 @@
   color:#162a21;
 }
 [data-lexis-auth-layout] {
-  min-height:calc(100dvh - 2*clamp(9px,1.5vw,22px));
+  min-height:calc(100dvh - 44px);
   border:1px solid rgb(12 62 42 / .09) !important;
   border-radius:clamp(20px,3vw,35px) !important;
   box-shadow:0 24px 88px rgb(3 41 27 / .15),0 3px 12px rgb(3 41 27 / .06) !important;
@@ -307,6 +319,9 @@
   [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-menu] {
     color:#fff !important;
   }
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-action][data-mobile-nav-active="true"]:not([data-mobile-nav-menu]) {
+    color:#667d70 !important;
+  }
   [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] {
     z-index:2;
     background:transparent !important;
@@ -340,6 +355,9 @@
   html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][data-mobile-nav-active="true"],
   html.dark [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-menu] {
     color:#1e3021 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-action][data-mobile-nav-active="true"]:not([data-mobile-nav-menu]) {
+    color:#b0c4b7 !important;
   }
   html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
     border-color:#101e18 !important;
