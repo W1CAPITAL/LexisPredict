@@ -1349,7 +1349,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
 
 function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, onEdit, onScan, onSuggest }: { group: TaskGroup, isFocus?: boolean, isKbFocus?: boolean, onMarkContacted: () => void, onEdit:()=>void, onScan: (protocolo: string) => void, onSuggest: () => void }) {
   return (
-    <div className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
+    <div data-lexis-buildindex-task-card data-keyboard-focus={isKbFocus ? "true" : undefined} data-task-urgency={group.hasBA ? "ba" : group.hasClosedCourt ? "closed" : "normal"} className={cn("premium-card p-4 sm:p-6 bg-white flex flex-col transition-all group border-l-4", isKbFocus ? "ring-2 ring-primary border-l-primary shadow-md" : isFocus ? "border-l-primary shadow-md" : "border-l-slate-200 shadow-sm", group.hasBA && "border-l-red-600 bg-red-50/10", group.hasClosedCourt && "border-l-black bg-slate-50/50")}>
       <div className="flex justify-between items-start mb-6">
         <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all", group.hasBA ? "bg-red-600 text-white" : group.hasClosedCourt ? "bg-black text-white" : "bg-slate-50 text-slate-400 group-hover:bg-primary group-hover:text-white")}>
           {group.hasBA ? <ShieldAlert size={24} /> : group.hasClosedCourt ? <Gavel size={24} /> : <UserCheck size={24} />}
