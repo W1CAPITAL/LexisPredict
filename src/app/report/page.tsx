@@ -136,7 +136,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??0
       }))}
     />
-    {!canViewTeam && <p className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm text-slate-200">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
+    {!canViewTeam && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
     {canViewTeam && <>
     <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="cursor-pointer text-sm font-bold text-foreground">Abrir detalhamento individual da equipe e perguntas ao relatório</summary>
