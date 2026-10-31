@@ -1,0 +1,267 @@
+/**
+ * BuildIndex-inspired motion patterns for LexisPredict (original implementation)
+ * Public references: Kanbo spring board / tab selection, Orbit command palette,
+ * Dealflow sales-funnel geometry. No third-party template source or demo data.
+ * Scope is deliberately narrow: existing CRM, task and home elements only.
+ * Large tables, document editors, chat transcripts and scanner stay still.
+ */
+:root {
+  --lx-build-ease:cubic-bezier(.2,1,.3,1);
+  --lx-build-spring:cubic-bezier(.19,1.35,.28,1);
+  --lx-build-fast:170ms;
+  --lx-build-medium:260ms;
+}
+@keyframes lx-build-palette-enter {
+  from {opacity:0;transform:translate3d(0,9px,0) scale(.987);}
+  to {opacity:1;transform:translate3d(0,0,0) scale(1);}
+}
+@keyframes lx-build-backdrop-enter {
+  from {opacity:0;}
+  to {opacity:1;}
+}
+@keyframes lx-build-board-arrival {
+  0% {opacity:.25;transform:translate3d(0,10px,0) scale(.966);}
+  65% {opacity:1;transform:translate3d(0,-2px,0) scale(1.006);}
+  100% {opacity:1;transform:translate3d(0,0,0) scale(1);}
+}
+@keyframes lx-build-active-pill {
+  from {opacity:.5;transform:scaleX(.38);}
+  74% {opacity:1;transform:scaleX(1.07);}
+  to {opacity:1;transform:scaleX(1);}
+}
+@keyframes lx-build-kpi-appear {
+  from {opacity:.7;transform:translate3d(0,6px,0);}
+  to {opacity:1;transform:translate3d(0,0,0);}
+}
+@keyframes lx-build-focus {
+  from {outline-offset:0;}
+  to {outline-offset:3px;}
+}
+/* The already-connected Cmd/Ctrl+K palette gets a deliberate entrance,
+ * a visible keyboard selection and short feedback on hover. */
+[data-lexis-buildindex-palette-backdrop] {
+  background:rgb(13 20 26 / .50) !important;
+  animation:lx-build-backdrop-enter 150ms ease-out both;
+}
+[data-lexis-buildindex-palette] {
+  width:min(520px,100%);
+  border-radius:23px !important;
+  border:1px solid hsl(var(--border) / .8) !important;
+  background:hsl(var(--card)) !important;
+  box-shadow:0 34px 80px rgb(6 17 19 / .23),0 4px 14px rgb(6 17 19 / .1) !important;
+  animation:lx-build-palette-enter 270ms var(--lx-build-ease) both;
+  isolation:isolate;
+}
+[data-lexis-buildindex-palette] [role="combobox"] {
+  font-size:16px;
+  min-width:0;
+  color:hsl(var(--foreground));
+  caret-color:hsl(var(--primary));
+  outline:none;
+}
+[data-lexis-buildindex-palette] [role="combobox"]:focus-visible {
+  outline:none;
+}
+[data-lexis-buildindex-palette] [role="listbox"] {
+  padding:7px;
+  min-width:0;
+  scrollbar-width:thin;
+  overscroll-behavior:contain;
+}
+[data-lexis-buildindex-option] {
+  display:flex;
+  position:relative;
+  border:1px solid transparent;
+  min-height:43px;
+  border-radius:12px;
+  color:hsl(var(--foreground));
+  transition:background-color 130ms ease,color 130ms ease,
+    border-color 130ms ease,transform var(--lx-build-fast) var(--lx-build-ease);
+}
+[data-lexis-buildindex-option][data-active="true"] {
+  background:linear-gradient(115deg,hsl(var(--primary) / .13),hsl(var(--primary) / .045)) !important;
+  border-color:hsl(var(--primary) / .16);
+  transform:translate3d(2px,0,0);
+}
+[data-lexis-buildindex-option][data-active="true"]::before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:9px;
+  bottom:9px;
+  width:3px;
+  background:hsl(var(--primary));
+  border-radius:999px;
+  pointer-events:none;
+}
+[data-lexis-buildindex-option]:focus-visible {
+  outline:2px solid hsl(var(--ring)) !important;
+  outline-offset:1px;
+}
+[data-lexis-buildindex-option] svg {
+  transition:transform var(--lx-build-fast) var(--lx-build-ease),color var(--lx-build-fast) ease;
+}
+[data-lexis-buildindex-option][data-active="true"] svg {
+  transform:scale(1.09);
+  color:hsl(var(--primary));
+}
+[data-lexis-buildindex-palette-footer] {
+  color:hsl(var(--muted-foreground));
+  background:hsl(var(--muted) / .20);
+  font-variant-numeric:tabular-nums;
+}
+/* Kanbo-inspired spring arrival only when an existing deal really changed
+ * status in byStatus. The first fetch NEVER animates as a move. */
+[data-lexis-crm-board] [data-lexis-crm-deal] {
+  transform-origin:center top;
+  min-width:0;
+  transition:box-shadow 180ms ease,border-color 180ms ease !important;
+}
+[data-lexis-crm-board] [data-lexis-crm-deal][data-lexis-buildindex-arrival="true"] {
+  animation:lx-build-board-arrival 360ms var(--lx-build-spring) both;
+}
+[data-lexis-crm-board] [data-lexis-crm-deal][data-lexis-crm-deal-busy="true"] {
+  border-color:hsl(var(--primary) / .48) !important;
+  opacity:.7;
+  cursor:progress;
+}
+[data-lexis-crm-board] [data-lexis-crm-lane] {
+  scroll-margin-inline:10px;
+  transition:border-color 180ms ease;
+}
+[data-lexis-buildindex-deal-pending] {
+  color:hsl(var(--muted-foreground)) !important;
+}
+[data-lexis-crm-board] [data-lexis-crm-deal-actions] > button {
+  touch-action:manipulation;
+  transition:transform 150ms var(--lx-build-ease),background-color 150ms ease !important;
+}
+[data-lexis-crm-board] [data-lexis-crm-deal-actions] > button:not(:disabled):active {
+  transform:scale(.94);
+}
+[data-lexis-crm-board] [data-lexis-crm-lane-header] {
+  position:sticky;
+  z-index:1;
+}
+[data-lexis-crm-board] [data-lexis-crm-lane-header] [class*="tabular-nums"] {
+  font-variant-numeric:tabular-nums;
+}
+/* Kanbo's elastic current-tab feedback, scoped to the real existing tabs. */
+[data-lexis-dashboard-tablist] [role="tab"],
+[data-lexis-crm-nav] > a,
+[data-lexis-processos-inspector-tabs] > button {
+  position:relative;
+}
+[data-lexis-dashboard-tablist] [role="tab"][data-state="active"]::after,
+[data-lexis-crm-nav] > a[aria-current="page"]::after,
+[data-lexis-processos-inspector-tabs] > button.bg-blue-600::after {
+  content:"";
+  position:absolute;
+  left:calc(50% - 9px);
+  bottom:3px;
+  width:18px;
+  height:2px;
+  background:currentColor;
+  opacity:.5;
+  border-radius:999px;
+  pointer-events:none;
+  transform-origin:center center;
+  animation:lx-build-active-pill 250ms var(--lx-build-spring) both;
+}
+/* Real task cases can be focused with keyboard. Never pulse a risk flag
+ * continuously or animate a long task list every refresh. */
+[data-lexis-buildindex-task-card] {
+  min-width:0;
+  transition:border-color 180ms ease,box-shadow 180ms ease !important;
+}
+[data-lexis-buildindex-task-card][data-keyboard-focus="true"] {
+  outline:2px solid hsl(var(--primary) / .48);
+  outline-offset:3px;
+  animation:lx-build-focus 170ms var(--lx-build-ease) both;
+}
+[data-lexis-buildindex-task-card][data-task-urgency="ba"] {
+  /* Preserve the true critical state; animation does not turn a danger red
+     into a misleading positive status. */
+  --lx-build-task-trim: hsl(var(--destructive));
+}
+[data-lexis-buildindex-task-card][data-task-urgency="closed"] {
+  --lx-build-task-trim: hsl(var(--muted-foreground));
+}
+/* A few first metrics enter on navigation. No stagger on 2700 table rows. */
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-reference-overview] [data-lexis-reference-overview] {animation:none;}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-reference-overview] .lx-reference-metric {
+  animation:lx-build-kpi-appear 260ms var(--lx-build-ease) both;
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-reference-overview] .lx-reference-metric:nth-child(2) {animation-delay:25ms;}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-reference-overview] .lx-reference-metric:nth-child(3) {animation-delay:45ms;}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-reference-overview] .lx-reference-metric:nth-child(4) {animation-delay:65ms;}
+@media(hover:hover) and (pointer:fine) {
+  [data-lexis-crm-board] [data-lexis-crm-deal]:not([data-lexis-crm-deal-busy="true"]):hover {
+    box-shadow:0 10px 22px rgb(20 29 23 / .09) !important;
+    border-color:hsl(var(--primary) / .35) !important;
+  }
+  [data-lexis-buildindex-task-card]:hover {
+    box-shadow:0 14px 32px rgb(30 28 53 / .085) !important;
+  }
+  [data-lexis-buildindex-option]:hover:not([data-active="true"]) {
+    background:hsl(var(--muted) / .52);
+  }
+}
+/* A 320px phone or low-end computer must remain responsive. */
+@media(max-width:767px) {
+  [data-lexis-buildindex-palette-backdrop] {
+    padding-top:max(55px,env(safe-area-inset-top)) !important;
+    padding-inline:12px !important;
+  }
+  [data-lexis-buildindex-palette] {
+    border-radius:19px !important;
+    max-height:calc(90dvh - env(safe-area-inset-top));
+  }
+  [data-lexis-buildindex-palette] [role="listbox"] {
+    max-height: min(52dvh,320px);
+  }
+  [data-lexis-crm-board] [data-lexis-crm-deal] {
+    animation-duration:220ms;
+  }
+}
+/* No perpetual idle loops; the only spinner is when busyId is real. */
+html[data-lexis-motion="lite"] [data-lexis-buildindex-palette],
+html[data-lexis-motion="lite"] [data-lexis-buildindex-palette-backdrop],
+html[data-lexis-motion="lite"] [data-lexis-crm-board] [data-lexis-crm-deal],
+html[data-lexis-motion="lite"] [data-lexis-buildindex-task-card] {
+  animation:none !important;
+  transition:none !important;
+  transform:none !important;
+}
+@media(prefers-reduced-motion:reduce) {
+  [data-lexis-buildindex-palette-backdrop],
+  [data-lexis-buildindex-palette],
+  [data-lexis-buildindex-option],
+  [data-lexis-buildindex-option] svg,
+  [data-lexis-crm-board] [data-lexis-crm-deal],
+  [data-lexis-crm-board] [data-lexis-crm-deal-actions] > button,
+  [data-lexis-dashboard-tablist] [role="tab"][data-state="active"]::after,
+  [data-lexis-crm-nav] > a[aria-current="page"]::after,
+  [data-lexis-processos-inspector-tabs] > button.bg-blue-600::after,
+  [data-lexis-buildindex-task-card],
+  [data-lexis-reference-overview] .lx-reference-metric {
+    animation:none !important;
+    transition:none !important;
+    transform:none !important;
+  }
+}
+@media print {
+  [data-lexis-buildindex-palette-backdrop] {display:none !important;}
+  [data-lexis-crm-board] [data-lexis-crm-deal],
+  [data-lexis-buildindex-task-card],
+  [data-lexis-reference-overview] .lx-reference-metric {
+    animation:none !important;
+    transform:none !important;
+    box-shadow:none !important;
+  }
+}
