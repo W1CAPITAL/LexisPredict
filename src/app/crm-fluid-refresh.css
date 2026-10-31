@@ -43,7 +43,7 @@ html.dark:not(.lexis-wallpaper-active) body:has([data-lexis-app-shell]) [data-le
     radial-gradient(ellipse 70% 38% at 80% -7%, var(--lx-sales-canvas-glow), transparent 80%),
     hsl(var(--background));
 }
-[data-lexis-route-content] { isolation: isolate; min-width: 0; }
+[data-lexis-route-content] { min-width: 0; }
 /* Sidebar: compact rounded rows, rich inactive/active states and a stable
  * navigation frame. Native scrolling, access rules and custom docking stay. */
 [data-lexis-commercial-sidebar] {
@@ -54,7 +54,8 @@ html.dark:not(.lexis-wallpaper-active) body:has([data-lexis-app-shell]) [data-le
   background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
   color: var(--lx-sales-nav-fg) !important;
 }
-html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] > div:first-child {
+html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] > div:first-child,
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-lexis-sidebar] > div:first-child {
   background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
 }
 [data-lexis-commercial-sidebar] > div:first-child > div:first-child {
