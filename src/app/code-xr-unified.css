@@ -577,3 +577,106 @@ html.dark [data-lexis-processos-kpi]:nth-child(5) {
  [data-lexis-processos-workspace],[data-processos-center],
  [data-lexis-processos-table-wrap] {background:#fff !important;box-shadow:none !important;}
 }
+
+
+/* Unified page mastheads: tasks, personal cases, supervision, CRM and
+ * all future registered route groups receive the same typographic hierarchy.
+ * Only direct page headers, not modal headers or conversation message rows. */
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main > header {
+  min-width:0;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header :where(h1) {
+  color:var(--lx-xr-ink) !important;
+  letter-spacing:-.05em !important;
+  font-weight:850;
+  line-height:1.13;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header > div:first-child > p:first-child {
+  color:var(--lx-xr-accent) !important;
+  letter-spacing:.13em;
+  font-size:10px;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header > div:first-child > h1 + p {
+  color:var(--lx-xr-mute) !important;
+  font-weight:540;
+  line-height:1.5;
+}
+body[data-lexis-visual-group]:is(
+  [data-lexis-visual-group="workspace"],
+  [data-lexis-visual-group="cases"],
+  [data-lexis-visual-group="operations"],
+  [data-lexis-visual-group="crm"],
+  [data-lexis-visual-group="admin"],
+  [data-lexis-visual-group="ai"],
+  [data-lexis-visual-group="utilities"]
+) [data-lexis-route-content] main > header :where(button, a[role="button"], a.inline-flex) {
+  border-radius:999px !important;
+  min-height:40px;
+}
+html:not(.lexis-wallpaper-active)
+ body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(.premium-card,[data-slot="card"],[data-admin-card]) {
+  background-color:var(--lx-xr-card);
+  color:var(--lx-xr-ink);
+}
+body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
+ [data-lexis-route-content] main :where(.premium-card,[data-slot="card"]) :where(h2,h3) {
+  letter-spacing:-.035em;
+}
+/* Other card layouts have their own genuine data models. This layer can align
+ * their shape, not merge unrelated metrics or override semantic risk colors. */
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .recharts-responsive-container,.recharts-wrapper
+) {
+  min-width:0;
+  max-width:100%;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  a,button,input,textarea,select,[role="tab"],[role="combobox"]
+):focus-visible {
+  outline:2px solid hsl(var(--ring));
+  outline-offset:2px;
+}
+@media(max-width:767px) {
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header {
+    gap:12px;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header h1 {
+    font-size:clamp(24px,6.6vw,30px) !important;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main > header
+   :where(button,a.inline-flex) {
+    min-height:42px;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .premium-card,.lexis-metric,[data-slot="card"]
+  ) {
+    max-width:100%;
+    min-width:0;
+  }
+}
