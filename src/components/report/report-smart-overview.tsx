@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { AlertTriangle, ArrowRight, BarChart3, BrainCircuit, ChevronRight, CircleHelp, Loader2, MessageSquareText, ShieldCheck, Sparkles, Square } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, ChevronRight, CircleHelp, Loader2, MessageSquareText, ShieldCheck, Sparkles, Square } from "lucide-react";
 import {stopBrowserLocalLLM} from "@/lib/ai/browser-local-llm";
 import {responderRelatorioPergunta, type IndicadoresRelatorio} from "@/lib/report/report-instant-answer";
 
@@ -86,22 +86,22 @@ export function ReportSmartOverview(props: Props) {
     setQuestion(input);setLastQuestion(input);setAnswer(text);
   }
   const canAsk=question.trim().length>0;
-  return <div className="space-y-5">
-    <div className="relative overflow-hidden rounded-[1.75rem] border border-indigo-200/60 bg-gradient-to-br from-indigo-50 via-violet-50 to-rose-50 p-5 shadow-sm dark:border-indigo-400/20 dark:from-indigo-950/60 dark:via-violet-950/30 dark:to-slate-950 sm:p-7">
-      <div className="pointer-events-none absolute -right-14 -top-24 h-72 w-72 rounded-full bg-violet-400/10 blur-3xl" />
+  return <div data-lexis-report-smart className="space-y-5">
+    <div className="report-smart-hero relative overflow-hidden rounded-[1.75rem] border border-border bg-card p-5 shadow-sm sm:p-7">
+      
       <div className="relative flex flex-wrap items-start justify-between gap-5">
         <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/80 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-200">
-            <Sparkles className="h-3.5 w-3.5" /> Visão inteligente da carteira
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold text-primary">
+            <BarChart3 className="h-3.5 w-3.5" /> Análise operacional
           </div>
-          <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">Visão geral da operação</h2>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">Depois da análise individual da equipe, consulte os indicadores e obtenha respostas imediatas sem carregar um modelo pesado.</p>
-          <div className="mt-4 inline-flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-            <span className="rounded-lg bg-white/85 px-3 py-2 dark:bg-white/10">{props.periodLabel}</span>
-            <span className="rounded-lg bg-white/85 px-3 py-2 dark:bg-white/10">{props.scopeLabel}</span>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-foreground sm:text-3xl">Visão geral da operação</h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">Depois da análise individual da equipe, consulte os indicadores e obtenha respostas imediatas sem carregar um modelo pesado.</p>
+          <div className="mt-4 inline-flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span className="rounded-lg bg-muted/50 px-3 py-2">{props.periodLabel}</span>
+            <span className="rounded-lg bg-muted/50 px-3 py-2">{props.scopeLabel}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-sm font-semibold text-indigo-800 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-indigo-200">
+        <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold text-foreground">
           <ShieldCheck className="h-5 w-5" /> Dados da carteira, sem estimativas
         </div>
       </div>
@@ -134,33 +134,33 @@ export function ReportSmartOverview(props: Props) {
         <div className="space-y-2">
           <Highlight amount={props.semRetorno30} label="Ativos sem contato recente" description="Sem registro de retorno nos últimos 30 dias, incluindo os nunca registrados." tone="bg-amber-500/10 text-amber-700 dark:text-amber-300"/>
           <Highlight amount={props.encerradosEmCumprimento} label="Encerrados com indício de cumprimento" description="Verificar a fase judicial antes de considerar o caso finalizado." tone="bg-rose-500/10 text-rose-700 dark:text-rose-300"/>
-          <Highlight amount={props.meritoPendente} label="Resultado judicial a esclarecer" description="Classificação ainda inconclusiva nos dados oficiais disponíveis." tone="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"/>
+          <Highlight amount={props.meritoPendente} label="Resultado judicial a esclarecer" description="Classificação ainda inconclusiva nos dados oficiais disponíveis." tone="bg-primary/10 text-primary"/>
         </div>
       </section>
       <section className="rounded-[1.35rem] border border-border/70 bg-card p-5 shadow-sm sm:p-6" aria-labelledby="report-activity-heading">
         <div className="mb-4 flex items-center gap-3">
-          <span className="rounded-xl bg-violet-500/10 p-2 text-violet-600 dark:text-violet-300"><BarChart3 className="h-5 w-5"/></span>
+          <span className="rounded-xl bg-primary/10 p-2 text-primary"><BarChart3 className="h-5 w-5"/></span>
           <div><h3 id="report-activity-heading" className="text-base font-extrabold">A carteira em um olhar</h3><p className="text-xs text-muted-foreground">Carteira atual e atendimento no período</p></div>
         </div>
         <div className="flex items-end justify-between gap-3 text-sm"><span className="font-semibold">Ativos <span className="text-muted-foreground">{fmt(props.ativos)}</span></span><span className="font-semibold">Encerrados <span className="text-muted-foreground">{fmt(props.encerrados)}</span></span></div>
         <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={activePct===null?"Distribuição indisponível":activePct+"% ativos, "+closedPct+"% demais"}>
-          {activePct!==null?<><div style={{width:activePct+"%"}} className="bg-indigo-500"/><div style={{width:closedPct+"%"}} className="bg-violet-300 dark:bg-violet-800"/></>:null}
+          {activePct!==null?<><div style={{width:activePct+"%"}} className="bg-primary"/><div style={{width:closedPct+"%"}} className="bg-muted-foreground/30"/></>:null}
         </div>
         <div className="mt-6 flex items-center justify-between text-sm"><strong>Atendimentos por dia</strong><span className="text-xs text-muted-foreground">{fmt(props.eventos)} registros da equipe no período</span></div>
         {props.dias.length?<div className="mt-4 flex h-28 items-end gap-1.5 overflow-x-auto pb-1 sm:gap-2">
           {props.dias.map(d=><div key={d.ymd} className="group flex min-w-[14px] flex-1 flex-col items-center justify-end gap-1" title={d.ymd+": "+fmt(d.atendimentos)+" processos"}>
             <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">{d.atendimentos || ""}</span>
-            <div className="w-full max-w-9 rounded-t-md bg-gradient-to-t from-indigo-500 to-violet-400" style={{height:Math.max(3,Math.round(66*(d.atendimentos||0)/maxDaily))+"px"}} />
+            <div className="w-full max-w-9 rounded-t-md bg-primary" style={{height:Math.max(3,Math.round(66*(d.atendimentos||0)/maxDaily))+"px"}} />
             <span className="text-[9px] text-muted-foreground">{d.ymd.slice(8,10)}</span>
           </div>)}
         </div>:<p className="mt-5 text-sm text-muted-foreground">Histórico diário indisponível.</p>}
         <p className="mt-3 text-xs text-muted-foreground">Os registros representam eventos; um processo pode ter mais de um atendimento.</p>
       </section>
     </div>
-    <section className="overflow-hidden rounded-[1.5rem] border border-indigo-300/40 bg-card shadow-sm dark:border-violet-400/20" aria-labelledby="report-llm-heading">
-      <div className="flex items-center gap-3 border-b border-border/70 bg-gradient-to-r from-indigo-500/5 via-violet-500/5 to-transparent px-5 py-5 sm:px-6">
-        <span className="rounded-2xl bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-300"><BrainCircuit className="h-6 w-6"/></span>
-        <div className="min-w-0"><h3 id="report-llm-heading" className="text-lg font-extrabold">Pergunte ao relatório</h3><p className="text-xs text-muted-foreground">Análise instantânea dos registros · sem carregamento de modelos pesados</p></div>
+    <section className="overflow-hidden rounded-[1.5rem] border border-border bg-card shadow-sm" aria-labelledby="report-llm-heading">
+      <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-5 py-5 sm:px-6">
+        <span className="rounded-2xl bg-primary/10 p-3 text-primary"><BarChart3 className="h-6 w-6"/></span>
+        <div className="min-w-0"><h3 id="report-llm-heading" className="text-lg font-extrabold">Consultar os dados do relatório</h3><p className="text-xs text-muted-foreground">Análise instantânea dos registros · sem carregamento de modelos pesados</p></div>
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         <div className="flex flex-wrap gap-2">
@@ -171,8 +171,8 @@ export function ReportSmartOverview(props: Props) {
           <input id="report-intelligence-question" maxLength={260} value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ex.: O que cada colaborador realizou neste mês?" className="min-h-12 w-full min-w-0 flex-1 rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"/>
           <button type="submit" disabled={!canAsk} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"><MessageSquareText className="h-4 w-4"/> Responder agora<ArrowRight className="h-4 w-4"/></button>
         </form>
-        {answer?<div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/60 p-5 dark:border-indigo-400/20 dark:bg-indigo-400/5">
-          <p className="mb-2 flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300"><Sparkles className="h-4 w-4"/> Análise dos dados · {lastQuestion}</p>
+        {answer?<div className="rounded-2xl border border-border bg-muted/30 p-5">
+          <p className="mb-2 flex items-center gap-2 text-xs font-bold text-primary"><Sparkles className="h-4 w-4"/> Análise dos dados · {lastQuestion}</p>
           <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{answer}</p>
           <p className="mt-4 text-xs text-muted-foreground">Resposta calculada diretamente dos registros, sem modelo pesado.</p>
         </div>:null}

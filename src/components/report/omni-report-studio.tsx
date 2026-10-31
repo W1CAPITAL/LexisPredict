@@ -196,25 +196,25 @@ export function OmniReportStudio() {
   };
 
   return (
-    <section className="print:hidden overflow-hidden rounded-3xl border border-[#cfdcf0] bg-card shadow-[0_18px_60px_rgba(22,60,105,.10)]">
-      <div className="border-b border-border bg-[linear-gradient(135deg,#061d35,#0b4777)] p-5 text-white sm:p-7">
+    <section className="print:hidden overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-muted/40 p-5 text-foreground sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-[#9fd3ff]">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-primary">
               <Sparkles className="h-4 w-4" />
               OmniReport
             </div>
             <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
               Diga o que você precisa. O Lexis monta o dossiê.
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#cae2f6]">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               Cole mensagens, teor do processo, anotações ou apenas um CNJ.
               Também aceita PDF, DOCX, planilhas, CSV, TXT, JSON, HTML e imagens.
               No modo gratuito cruza os registros da carteira já sincronizados. A consulta ao tribunal em tempo real e a análise neural exigem selecionar o modo online.
             </p>
           </div>
 
-          <div className="grid min-w-[220px] grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
+          <div className="grid min-w-[220px] grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1">
             {[
               ["normal", "Rápido"],
               ["profundo", "Profundo"],
@@ -227,8 +227,8 @@ export function OmniReportStudio() {
                 className={
                   "rounded-xl px-2 py-2 text-[10px] font-black uppercase transition " +
                   (detail === id
-                    ? "bg-white text-[#0b3457]"
-                    : "text-[#b9d4ea] hover:bg-white/10")
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted")
                 }
               >
                 {label}
@@ -410,13 +410,13 @@ export function OmniReportStudio() {
         <div className="border-t border-border bg-[#f5f8fc] p-4 sm:p-6">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-black text-[#102447]">{generated.title}</p>
-              <p className="mt-1 text-[10px] text-[#6d7f9b]">
+              <p className="text-sm font-black text-foreground">{generated.title}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
                 {generated.stats.inputChars.toLocaleString("pt-BR")} caracteres ·{" "}
                 {generated.stats.chunks} blocos · {generated.stats.sections} seções ·{" "}
                 {generated.stats.cnjs} CNJ(s)
               </p>
-              <p className="mt-1 max-w-3xl truncate text-[9px] text-[#8a9bb1]">
+              <p className="mt-1 max-w-3xl truncate text-[9px] text-muted-foreground">
                 Motores: {generated.stats.engines.join(" · ")}
               </p>
             </div>

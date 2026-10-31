@@ -488,7 +488,7 @@ export default function UnifiedReport() {
 
   if (!mounted || authLoading) {
     return (
-      <div className="report-completo-shell min-h-screen flex flex-col items-center justify-center space-y-6 bg-[#080f1e] text-slate-100">
+      <div data-lexis-report-page="complete" className="report-completo-shell min-h-screen flex flex-col items-center justify-center space-y-6 bg-background text-foreground">
         <Loader2 className="w-12 h-12 text-foreground animate-spin" />
         <p className="font-black tracking-[0.4em] text-[10px] text-foreground uppercase">Consolidando Dossiê Authority...</p>
         <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-widest">Carregando carteira e atendimentos da semana…</p>
@@ -506,13 +506,13 @@ export default function UnifiedReport() {
       {label:"Processos editados",value:h?.edicoes?.processos??"…",desc:"Edições manuais registradas"},
       {label:"Carteira da empresa",value:portfolioResumo?.total??"…",desc:"Empresa inteira, obtido direto do Supabase"},
     ];
-    return <main className="report-completo-shell min-h-screen p-4 text-slate-100 sm:p-7">
+    return <main data-lexis-report-page="complete" className="report-completo-shell min-h-screen p-4 text-foreground sm:p-7">
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="report-detail-heading p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">LexisPredict · Relatório operacional</p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatórios Inteligentes</h1>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-foreground sm:text-3xl">Relatórios operacionais</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Visão completa da operação jurídica, equipe e auditoria. Os indicadores disponíveis vêm do histórico do Supabase, mesmo enquanto a carteira termina de carregar.</p>
             </div>
             <div className="flex flex-wrap items-start gap-2">
@@ -523,7 +523,7 @@ export default function UnifiedReport() {
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {PERIODO_OPCOES.map(op=><button key={op.id} type="button" title={op.hint} onClick={()=>setPeriodo(op.id)}
-              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition",periodo===op.id?"border-violet-500 bg-violet-600 text-white":"border-[#34435e] bg-[#141f34] text-slate-300 hover:border-violet-400")}>{op.label}</button>)}
+              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition",periodo===op.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:border-primary")}>{op.label}</button>)}
           </div>
         </header>
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Indicadores rápidos">
@@ -572,7 +572,7 @@ export default function UnifiedReport() {
   }
 
   return (
-    <div className="report-completo-shell min-h-screen font-sans text-slate-100">
+    <div data-lexis-report-page="complete" className="report-completo-shell min-h-screen font-sans text-foreground">
       {!dataComplete&&<div role="status" className="print:hidden border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
         {loadError||'Exibindo dados parciais enquanto consolida o restante da carteira. Exportações ficam suspensas até terminar.'}
       </div>}
@@ -581,8 +581,8 @@ export default function UnifiedReport() {
           <div className="flex items-center gap-6">
             <Link href="/report" className="report-outline-button"><ArrowLeft size={15}/> Visão executiva</Link>
             <div className="min-w-[170px]">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-violet-300">LEXISPREDICT / REPORT</p>
-              <h1 className="text-base font-black tracking-tight text-white">Relatórios Inteligentes</h1>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-primary">LEXISPREDICT / REPORT</p>
+              <h1 className="text-base font-black tracking-tight text-foreground">Relatórios operacionais</h1>
               <p className="text-[10px] text-slate-400">Detalhamento completo da operação</p>
             </div>
             <Badge className="bg-primary text-primary-foreground font-black uppercase text-[10px] px-4 rounded-lg h-8">{dataComplete?'Carteira consolidada':'Atualizando carteira'}</Badge>
@@ -646,27 +646,27 @@ export default function UnifiedReport() {
           </div>
         </div>
       </div>
-      {pdfError?<div role="alert" className="mx-auto mt-3 max-w-7xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">{pdfError}</div>:null}
+      {pdfError?<div role="alert" className="mx-auto mt-3 max-w-7xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-700 dark:text-rose-300">{pdfError}</div>:null}
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 print:py-0 space-y-6">
 
         <OmniReportStudio />
 
         <section className="report-detail-heading relative overflow-hidden rounded-2xl p-5 sm:p-7 break-inside-avoid">
-          <div className="pointer-events-none absolute -right-12 -top-16 text-violet-400 opacity-[0.07]"><Layers size={250}/></div>
+          <div className="pointer-events-none absolute -right-12 -top-16 text-primary opacity-[0.07]"><Layers size={250}/></div>
           <div className="relative z-10 flex flex-wrap items-center justify-between gap-5">
             <div className="flex min-w-0 items-center gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-800 text-white shadow-lg shadow-violet-900/30"><Layers size={24}/></span>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm"><Layers size={24}/></span>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-300">LEXISPREDICT / RELATÓRIO COMPLETO</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">Relatório operacional completo</h2>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary">LEXISPREDICT / RELATÓRIO COMPLETO</p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground sm:text-3xl">Relatório operacional completo</h2>
                 <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-300">Carteira, produtividade, auditoria judicial, atividades internas e evidências em uma única visão detalhada.</p>
               </div>
             </div>
             <div className="flex flex-col gap-1 sm:items-end">
               <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Relatório preparado por</span>
-              <span className="text-sm font-bold text-white">{profile?.nome||"—"}</span>
-              <Badge variant="outline" className="mt-1 border-[#3b4861] bg-[#141f34] px-3 text-[9px] font-bold text-slate-200">{metrics.semanaLabel} · {new Date().toLocaleDateString("pt-BR")}</Badge>
+              <span className="text-sm font-bold text-foreground">{profile?.nome||"—"}</span>
+              <Badge variant="outline" className="mt-1 border-border bg-muted px-3 text-[9px] font-bold text-slate-200">{metrics.semanaLabel} · {new Date().toLocaleDateString("pt-BR")}</Badge>
             </div>
           </div>
         </section>

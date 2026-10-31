@@ -77,7 +77,7 @@ export function ReportPdfExportButton({
       onClick={exportPdf}
       disabled={loading||disabled}
       aria-busy={loading}
-      className={className||"inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-500 bg-gradient-to-r from-blue-600 to-violet-700 px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"}
+      className={className||"inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary bg-primary px-4 text-xs font-bold text-primary-foreground transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"}
     >
       {loading?<LoaderCircle className="h-4 w-4 animate-spin"/>:<Download className="h-4 w-4"/>}
       {loading?"Gerando PDF…":label}
