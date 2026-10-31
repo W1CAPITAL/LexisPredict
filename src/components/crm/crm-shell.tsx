@@ -44,10 +44,10 @@ export function CrmShell({
 }) {
   const path = usePathname();
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div data-lexis-crm-shell className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="shrink-0 border-b border-border/60 bg-card/40 backdrop-blur-md px-4 sm:px-6 py-3">
+        <header data-lexis-crm-header className="shrink-0 border-b border-border/60 bg-card/40 backdrop-blur-md px-4 sm:px-6 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
@@ -64,7 +64,7 @@ export function CrmShell({
             </div>
             <div className="flex flex-wrap items-center gap-2">{actions}</div>
           </div>
-          <nav className="mt-3 flex gap-1 overflow-x-auto pb-1">
+          <nav data-lexis-crm-nav className="mt-3 flex gap-1 overflow-x-auto pb-1" aria-label="Seções do CRM">
             {NAV.map((item) => {
               const active = path === item.href || (item.href !== "/crm" && path?.startsWith(item.href));
               const Icon = item.icon;
@@ -72,6 +72,7 @@ export function CrmShell({
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-colors",
                     active
