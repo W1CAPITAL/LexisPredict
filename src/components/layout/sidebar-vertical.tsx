@@ -565,19 +565,21 @@ export function SidebarVertical() {
           { label: "Processos", href: "/cases", icon: Briefcase },
         ].map((item) => {
           const Icon = item.icon;
+          const isCurrentMobile = active(item.href) ||
+            (item.href === "/cases" && (pathname === "/processos" || pathname?.startsWith("/processos/")));
           return (
             <button
               key={item.href}
               type="button"
               data-mobile-nav-action
-              data-mobile-nav-active={active(item.href) ? "true" : "false"}
+              data-mobile-nav-active={isCurrentMobile ? "true" : "false"}
               data-mobile-nav-pending={navigatingTo === item.href ? "true" : undefined}
-              aria-current={active(item.href) ? "page" : undefined}
+              aria-current={isCurrentMobile ? "page" : undefined}
               onPointerDown={() => prefetchRoute(item.href)}
               onClick={() => navigateMobile(item.href)}
               className={cn(
                 "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
-                active(item.href) ? "text-[#1769ff]" : "text-[#6f8098]"
+                isCurrentMobile ? "text-[#1769ff]" : "text-[#6f8098]"
               )}
             >
               <Icon className="h-5 w-5" />
