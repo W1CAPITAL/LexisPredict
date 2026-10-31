@@ -1,13 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CrmNegocio } from "@/lib/crm-types";
 import { CRM_FUNIL_LABELS, type CrmFunilStatus } from "@/lib/crm-types";
 import { stageValueSum } from "@/lib/crm-pipeline";
-import { ChevronLeft, ChevronRight, Phone, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, Phone, FileText, LoaderCircle } from "lucide-react";
 
 function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,8 +34,34 @@ export function CrmKanban({
   onSelect?: (n: CrmNegocio) => void;
   busyId?: string | null;
 }) {
+  const priorStages = useRef<Map<string, string> | null>(null);
+  const [arriving, setArriving] = useState<ReadonlySet<string>>(new Set());
+  const [moveAnnouncement, setMoveAnnouncement] = useState("");
+
+  // Motion is attached to an actual backend-reflected stage change.
+  // The initial fetch, list refetches and local filters do not fake moves.
+  useEffect(() => {
+    const next = new Map<string, string>();
+    for (const [stage, deals] of Object.entries(byStatus)) {
+      for (const deal of deals || []) next.set(deal.id, stage);
+    }
+    const before = priorStages.current;
+    priorStages.current = next;
+    if (!before) return;
+    const changes: string[] = [];
+    for (const [id, stage] of next) {
+      if (before.has(id) && before.get(id) !== stage) changes.push(id);
+    }
+    if (changes.length === 0) return;
+    setArriving(new Set(changes));
+    const last = changes[changes.length - 1];
+    const stage = next.get(last) as CrmFunilStatus;
+    setMoveAnnouncement(`Negócio atualizado para ${CRM_FUNIL_LABELS[stage]}.`);
+  }, [byStatus]);
+
   return (
     <div data-lexis-crm-board className="flex gap-3 overflow-x-auto pb-4 min-h-[420px]" aria-label="Quadro de negócios por etapa">
+      <span role="status" aria-live="polite" className="sr-only">{moveAnnouncement}</span>
       {STAGE_ORDER.map((stage) => {
         const list = byStatus[stage] || [];
         const total = stageValueSum(list);
@@ -68,6 +94,9 @@ export function CrmKanban({
                   <div
                     key={n.id}
                     data-lexis-crm-deal
+                    data-lexis-buildindex-arrival={arriving.has(n.id) ? "true" : undefined}
+                    data-lexis-crm-deal-busy={busyId === n.id ? "true" : undefined}
+                    aria-busy={busyId === n.id}
                     className={cn(
                       "rounded-lg border border-border bg-card p-2.5 shadow-sm hover:border-primary/40 transition-colors",
                       busyId === n.id && "opacity-60"
@@ -83,6 +112,12 @@ export function CrmKanban({
                         {n.servico_nome || "Sem serviço"}
                       </p>
                       <p className="text-xs font-black tabular-nums mt-1.5">{brl(Number(n.valor_total) || 0)}</p>
+                      {busyId === n.id ? (
+                        <span data-lexis-buildindex-deal-pending className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground" role="status">
+                          <LoaderCircle className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" />
+                          Atualizando etapa…
+                        </span>
+                      ) : null}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {n.protocolo_cnj ? (
                           <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground">
