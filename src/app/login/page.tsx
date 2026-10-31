@@ -204,9 +204,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-5">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.08fr_.92fr]">
-        <section className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
+    <div data-lexis-auth-screen="login" className="min-h-screen bg-background p-3 sm:p-5">
+      <div data-lexis-auth-layout className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.08fr_.92fr]">
+        <section data-lexis-auth-aside className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
           <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-cyan-400/15 blur-[120px]" />
           <div className="absolute -bottom-28 right-0 h-[28rem] w-[28rem] rounded-full bg-violet-500/20 blur-[140px]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,.08),transparent_35%)]" />
@@ -257,7 +257,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <main className="relative flex items-center justify-center bg-white p-5 text-slate-950 sm:p-8 lg:p-12">
+        <main data-lexis-auth-form className="relative flex items-center justify-center bg-white p-5 text-slate-950 sm:p-8 lg:p-12">
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-primary/5 blur-3xl" />
           <div className="relative w-full max-w-md">
             <div className="mb-8 lg:hidden">
@@ -287,7 +287,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form data-lexis-auth-fields onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-xs font-bold">E-mail</Label>
                 <div className="group relative">
@@ -325,6 +325,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting || authLoading}
+                data-lexis-auth-submit
                 className="h-12 w-full rounded-xl bg-slate-950 font-bold text-white hover:bg-slate-800"
               >
                 {isSubmitting ? (
@@ -368,7 +369,7 @@ export default function LoginPage() {
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     Crie o tenant, escolha o plano e conclua a ativação comercial pelo fluxo de cadastro.
                   </p>
-                  <Link href="/signup" className="mt-3 inline-flex items-center text-xs font-bold text-sky-600 hover:underline">
+                  <Link data-lexis-auth-switch href="/signup" className="mt-3 inline-flex items-center text-xs font-bold text-sky-600 hover:underline">
                     Criar conta empresarial
                     <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                   </Link>
