@@ -523,7 +523,7 @@ export default function UnifiedReport() {
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {PERIODO_OPCOES.map(op=><button key={op.id} type="button" title={op.hint} onClick={()=>setPeriodo(op.id)}
-              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition",periodo===op.id?"border-violet-500 bg-violet-600 text-white":"border-[#34435e] bg-[#141f34] text-slate-300 hover:border-violet-400")}>{op.label}</button>)}
+              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition",periodo===op.id?"border-primary bg-primary text-primary-foreground":"border-border bg-background text-foreground hover:border-primary")}>{op.label}</button>)}
           </div>
         </header>
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Indicadores rápidos">
