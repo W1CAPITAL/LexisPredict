@@ -29,9 +29,10 @@ describe("Dashboard visual reference contract", () => {
     expect(home).toContain("data-testid=\"merit-counters\"");
     expect(home).toContain("<BiCompliancePanel");
     expect(home).toContain('value="connectivity"');
-    for (const path of ["/cases", "/tarefas", "/vencidos", "/report"]) {
+    for (const path of ["/cases", "/tarefas", "/vencidos"]) {
       expect(overview).toContain(`href: "${path}"`);
     }
+    expect(overview).toContain('href="/report"');
   });
 
   it("styles dark charcoal and lavender/orange light references without another route", () => {
