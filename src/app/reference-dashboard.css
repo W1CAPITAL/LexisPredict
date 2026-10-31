@@ -595,3 +595,103 @@ html:not(.dark) [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="pa
     transform:none !important;
   }
 }
+
+
+/* Column groups deliberately mirror the stage-by-stage compact CRM video,
+ * while retaining the original move/select button callbacks and scroll. */
+[data-lexis-crm-board] {
+  gap: 11px;
+  min-width: 0;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+[data-lexis-crm-lane] {
+  --lx-stage-accent: #8b87ab;
+  --lx-stage-tint: rgb(154 149 187 / .12);
+  width: min(272px,calc(100vw - 46px));
+  scroll-snap-align: start;
+  border-radius: 18px !important;
+  background: hsl(var(--muted) / .42) !important;
+  border: 1px solid hsl(var(--border) / .65) !important;
+  overflow: hidden;
+}
+[data-lexis-crm-lane][data-stage="lead"] { --lx-stage-accent:#6f9db9; --lx-stage-tint:rgb(100 161 197 / .13); }
+[data-lexis-crm-lane][data-stage="proposta"] { --lx-stage-accent:#bc8bc0; --lx-stage-tint:rgb(184 135 191 / .13); }
+[data-lexis-crm-lane][data-stage="contrato"] { --lx-stage-accent:#81a68d; --lx-stage-tint:rgb(136 194 149 / .13); }
+[data-lexis-crm-lane][data-stage="execucao"] { --lx-stage-accent:#d19a80; --lx-stage-tint:rgb(206 142 110 / .14); }
+[data-lexis-crm-lane][data-stage="concluido"] { --lx-stage-accent:#94b55c; --lx-stage-tint:rgb(157 192 92 / .15); }
+[data-lexis-crm-lane][data-stage="inadimplente"] { --lx-stage-accent:#d18e69; --lx-stage-tint:rgb(220 130 89 / .14); }
+[data-lexis-crm-lane][data-stage="cancelado"] { --lx-stage-accent:#9fa8ad; --lx-stage-tint:rgb(158 167 172 / .12); }
+[data-lexis-crm-lane-header] {
+  border-bottom: 1px solid hsl(var(--border) / .48) !important;
+  border-top: 3px solid var(--lx-stage-accent);
+  padding: 12px 13px !important;
+  background: linear-gradient(150deg,var(--lx-stage-tint),hsl(var(--card) / .92)) !important;
+  backdrop-filter: none !important;
+}
+[data-lexis-crm-lane-header] span:first-child {
+  letter-spacing: .01em !important;
+  font-size: 11px !important;
+}
+[data-lexis-crm-lane-header] [data-slot="badge"],
+[data-lexis-crm-lane-header] .rounded-full {
+  background: var(--lx-stage-tint) !important;
+  color: hsl(var(--foreground)) !important;
+}
+[data-lexis-crm-deal] {
+  border-radius: 14px !important;
+  border: 1px solid hsl(var(--border) / .62) !important;
+  border-left: 3px solid var(--lx-stage-accent) !important;
+  background: hsl(var(--card)) !important;
+  box-shadow: 0 3px 9px rgb(12 24 29 / .035) !important;
+  padding: 13px !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+[data-lexis-crm-deal] > button:first-child p:first-child {
+  font-size: 12px;
+  letter-spacing: -.01em;
+  line-height: 1.4;
+}
+[data-lexis-crm-deal] > button:first-child p:nth-child(3) {
+  font-size: 15px;
+  letter-spacing: -.025em;
+}
+[data-lexis-crm-deal-actions] > button {
+  min-height: 35px;
+  border-radius: 11px;
+  border-color: hsl(var(--border) / .67);
+  background: var(--lx-stage-tint) !important;
+}
+html.dark [data-lexis-crm-lane] {
+  background: #1d2422 !important;
+  border-color: #3a4640 !important;
+}
+html.dark [data-lexis-crm-lane-header] {
+  background: linear-gradient(135deg,var(--lx-stage-tint),#27312c) !important;
+  border-bottom-color: #434b44 !important;
+}
+html.dark [data-lexis-crm-deal] {
+  background: #2b322e !important;
+  border-color: #454f48 !important;
+  border-left-color: var(--lx-stage-accent) !important;
+  color: #f1f5ee !important;
+}
+html.dark [data-lexis-crm-deal] p.text-muted-foreground,
+html.dark [data-lexis-crm-lane-header] p.text-muted-foreground {
+  color: #b9c3b9 !important;
+}
+@media (max-width:767px) {
+  [data-lexis-crm-board] { gap:9px; padding-right:10px; padding-bottom:12px; }
+  [data-lexis-crm-lane] { width:min(262px,calc(100vw - 48px)); }
+}
+@media (hover:hover) and (pointer:fine) {
+  [data-lexis-crm-deal]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 18px rgb(12 24 29 / .075) !important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  [data-lexis-crm-deal] { transition:none !important; transform:none !important; }
+}
