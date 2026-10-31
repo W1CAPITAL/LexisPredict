@@ -410,13 +410,13 @@ export function OmniReportStudio() {
         <div className="border-t border-border bg-[#f5f8fc] p-4 sm:p-6">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-black text-[#102447]">{generated.title}</p>
-              <p className="mt-1 text-[10px] text-[#6d7f9b]">
+              <p className="text-sm font-black text-foreground">{generated.title}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
                 {generated.stats.inputChars.toLocaleString("pt-BR")} caracteres ·{" "}
                 {generated.stats.chunks} blocos · {generated.stats.sections} seções ·{" "}
                 {generated.stats.cnjs} CNJ(s)
               </p>
-              <p className="mt-1 max-w-3xl truncate text-[9px] text-[#8a9bb1]">
+              <p className="mt-1 max-w-3xl truncate text-[9px] text-muted-foreground">
                 Motores: {generated.stats.engines.join(" · ")}
               </p>
             </div>
