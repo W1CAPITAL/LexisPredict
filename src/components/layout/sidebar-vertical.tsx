@@ -400,7 +400,6 @@ export function SidebarVertical() {
           {primaryItems.map((item) => {
             const Icon = item.icon;
             const isActive = active(item.href);
-            const showBadge = item.href === "/tarefas";
             return (
               <Link
                 key={item.href}
@@ -409,6 +408,8 @@ export function SidebarVertical() {
                 onMouseEnter={() => prefetchRoute(item.href)}
                 onFocus={() => prefetchRoute(item.href)}
                 onTouchStart={() => prefetchRoute(item.href)}
+                onClick={() => { if (!isActive) setNavigatingTo(item.href); }}
+                data-nav-pending={navigatingTo === item.href ? "true" : undefined}
                 aria-current={isActive?'page':undefined}
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
@@ -419,9 +420,6 @@ export function SidebarVertical() {
               >
                 <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-[#cfe5ff]" : "text-[#a9c3dc] group-hover:text-white")} />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {showBadge ? (
-                  <span className="rounded-full bg-[#ff4d4f] px-2 py-0.5 text-[9px] font-black text-white">12</span>
-                ) : null}
               </Link>
             );
           })}
