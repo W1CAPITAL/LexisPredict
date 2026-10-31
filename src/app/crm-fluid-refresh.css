@@ -1,0 +1,343 @@
+/**
+ * LexisPredict / Sales CRM visual refresh
+ * Design references: dark compact CRM and pastel/lavender dashboard.
+ * CSS-only, scoped to the persistent app shell. No data, routes, or ACL changes.
+ * Motion budget: transform + opacity only on small interactive elements;
+ * expensive filters are static and reduced-motion/save-data remain respected.
+ */
+:root {
+  --lx-sales-ease: cubic-bezier(.22,1,.36,1);
+  --lx-sales-speed: 210ms;
+  --lx-sales-pill: 999px;
+  --lx-sales-panel: 20px;
+  --lx-sales-panel-line: hsl(var(--border) / .78);
+  --lx-sales-panel-shadow: 0 3px 9px rgb(15 23 42 / .025), 0 18px 48px rgb(15 23 42 / .04);
+  --lx-sales-canvas-glow: rgb(176 152 255 / .14);
+  --lx-sales-highlight: #fa7b4e;
+  --lx-sales-nav-bg: #141b20;
+  --lx-sales-nav-fg: #e7edf0;
+  --lx-sales-nav-soft: #aebdc3;
+  --lx-sales-nav-selected: #d5fa78;
+}
+html.dark {
+  --lx-sales-panel-line: hsl(var(--border) / .64);
+  --lx-sales-panel-shadow: 0 8px 24px rgb(0 0 0 / .11);
+  --lx-sales-canvas-glow: rgb(121 133 148 / .075);
+  --lx-sales-highlight: #d5fa78;
+  --lx-sales-nav-bg: #14191b;
+  --lx-sales-nav-fg: #edf2f0;
+  --lx-sales-nav-soft: #9eada9;
+}
+/* The route surface is never removed during navigation. Keep the active
+ * theme/wallpaper visible beneath skeletons and incoming React content. */
+body:has([data-lexis-app-shell]):not(.lexis-wallpaper-active) [data-lexis-app-shell] {
+  background: hsl(var(--background));
+}
+html:not(.lexis-wallpaper-active) body:has([data-lexis-app-shell]) [data-lexis-route-content] {
+  background:
+    radial-gradient(ellipse 74% 42% at 86% 0%, var(--lx-sales-canvas-glow), transparent 80%),
+    hsl(var(--background));
+}
+html.dark:not(.lexis-wallpaper-active) body:has([data-lexis-app-shell]) [data-lexis-route-content] {
+  background:
+    radial-gradient(ellipse 70% 38% at 80% -7%, var(--lx-sales-canvas-glow), transparent 80%),
+    hsl(var(--background));
+}
+[data-lexis-route-content] { min-width: 0; }
+/* Sidebar: compact rounded rows, rich inactive/active states and a stable
+ * navigation frame. Native scrolling, access rules and custom docking stay. */
+[data-lexis-commercial-sidebar] {
+  border-right: 1px solid rgb(255 255 255 / .08) !important;
+  box-shadow: 6px 0 28px rgb(7 17 25 / .08);
+}
+[data-lexis-commercial-sidebar] > div:first-child {
+  background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
+  color: var(--lx-sales-nav-fg) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] > div:first-child,
+html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-lexis-sidebar] > div:first-child {
+  background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
+}
+[data-lexis-commercial-sidebar] > div:first-child > div:first-child {
+  border-bottom-color: rgb(255 255 255 / .08) !important;
+  background: rgb(255 255 255 / .015);
+}
+[data-lexis-commercial-sidebar] nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(222 234 230 / .16) transparent;
+  overscroll-behavior-y: contain;
+}
+[data-lexis-commercial-sidebar] nav a {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 13px !important;
+  min-height: 43px;
+  transition:
+    background-color var(--lx-sales-speed) ease,
+    border-color var(--lx-sales-speed) ease,
+    color var(--lx-sales-speed) ease,
+    transform var(--lx-sales-speed) var(--lx-sales-ease) !important;
+}
+[data-lexis-commercial-sidebar] nav a:not([aria-current="page"]) {
+  color: var(--lx-sales-nav-soft) !important;
+}
+[data-lexis-commercial-sidebar] nav a:not([aria-current="page"]) svg {
+  color: var(--lx-sales-nav-soft) !important;
+}
+[data-lexis-commercial-sidebar] nav a[aria-current="page"] {
+  background: var(--lx-sales-nav-selected) !important;
+  border-color: rgb(255 255 255 / .24) !important;
+  color: #1c2620 !important;
+  box-shadow: 0 5px 18px rgb(174 224 91 / .13) !important;
+}
+html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"],
+html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg),
+[data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg) {
+  color: #19241a !important;
+}
+[data-lexis-commercial-sidebar] nav a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 11px;
+  left: -7px;
+  width: 3px;
+  border-radius: var(--lx-sales-pill);
+  background: var(--lx-sales-nav-selected);
+}
+[data-lexis-commercial-sidebar] nav a[data-nav-pending="true"]::after {
+  content: "";
+  position: absolute;
+  width: 6px; height: 6px;
+  right: 9px; top: calc(50% - 3px);
+  border-radius: var(--lx-sales-pill);
+  background: currentColor;
+  animation: lx-sales-nav-indicate 650ms ease-in-out infinite alternate;
+}
+@keyframes lx-sales-nav-indicate { to { opacity: .35; transform: scale(.8); } }
+@media (hover:hover) and (pointer:fine) {
+  [data-lexis-commercial-sidebar] nav a:not([aria-current="page"]):hover {
+    background: rgb(255 255 255 / .075) !important;
+    border-color: rgb(255 255 255 / .06);
+    color: var(--lx-sales-nav-fg) !important;
+    transform: translate3d(2px,0,0);
+  }
+  [data-lexis-commercial-sidebar] nav a:not([aria-current="page"]):hover :is(span,svg) {
+    color: var(--lx-sales-nav-fg) !important;
+  }
+}
+[data-lexis-commercial-sidebar] nav :is(a,button):focus-visible,
+[data-lexis-desktop-dock] :is(a,button):focus-visible {
+  outline: 2px solid var(--lx-sales-nav-selected);
+  outline-offset: 2px;
+}
+[data-lexis-commercial-sidebar] nav > div > button {
+  border-radius: 14px !important;
+}
+[data-lexis-commercial-sidebar] nav + div > div:first-child {
+  background: rgb(255 255 255 / .045) !important;
+  border-color: rgb(255 255 255 / .09) !important;
+  border-radius: 17px;
+}
+/* CRM topbar: soft glass appearance without blur on the data tables. */
+[data-lexis-commercial-topbar] {
+  border-bottom: 1px solid hsl(var(--border) / .6) !important;
+  background: hsl(var(--card) / .92) !important;
+  box-shadow: 0 5px 22px rgb(17 25 43 / .035);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+[data-lexis-commercial-topbar] form input,
+[data-lexis-commercial-topbar] button {
+  border-radius: 999px !important;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 190ms var(--lx-sales-ease) !important;
+}
+[data-lexis-commercial-topbar] form input {
+  background: hsl(var(--muted) / .55) !important;
+  border-color: hsl(var(--border) / .65) !important;
+  color: hsl(var(--foreground)) !important;
+}
+[data-lexis-commercial-topbar] form input::placeholder {
+  color: hsl(var(--muted-foreground)) !important;
+}
+[data-lexis-commercial-topbar] form input:focus {
+  border-color: hsl(var(--primary) / .55) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / .11);
+}
+[data-lexis-desktop-dock] {
+  background: linear-gradient(160deg,#263135 0%,#151a1d 95%) !important;
+  border-color: rgb(255 255 255 / .11) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 16px 44px rgb(4 8 12 / .24) !important;
+}
+[data-lexis-desktop-dock] nav a {
+  border-radius: 999px !important;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms var(--lx-sales-ease) !important;
+}
+[data-lexis-desktop-dock] nav a[aria-current="page"] {
+  color: #1b2417 !important;
+  background: var(--lx-sales-nav-selected) !important;
+  box-shadow: none !important;
+}
+@media (hover:hover) and (pointer:fine) {
+  [data-lexis-desktop-dock] nav a:not([aria-current="page"]):hover {
+    background: rgb(255 255 255 / .1) !important;
+    transform: translate3d(0,-1px,0);
+  }
+}
+/* Cards, tabs, charts and tables: polished shared foundation. The original
+ * data visuals remain functional, including long lists and document editors. */
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .premium-card, .lexis-metric, .lexis-chart-card, [data-slot="card"], [data-admin-card],
+  [data-efferd-kpi], .bg-card.border
+) {
+  border-radius: var(--lx-sales-panel);
+  border-color: var(--lx-sales-panel-line);
+  box-shadow: var(--lx-sales-panel-shadow);
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  [role="tablist"], .tabs-list
+) {
+  border-radius: var(--lx-sales-pill);
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  [role="tab"], [role="tablist"] button, .tabs-trigger
+) {
+  border-radius: var(--lx-sales-pill);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease !important;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  button:not([role="switch"]):not([data-state]), [role="button"]
+):not([data-no-motion]):active {
+  transform: translate3d(0,1px,0);
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .lexis-metric, [data-efferd-kpi], .premium-card
+) {
+  overflow-wrap: anywhere;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  input[type="search"], input[type="text"], select
+):not([data-no-motion]) {
+  transition: border-color 150ms ease, box-shadow 150ms ease !important;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .recharts-cartesian-grid line
+) { stroke-opacity: .45; }
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .recharts-tooltip-wrapper
+) { z-index: 5; }
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  table
+) {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  table tbody tr
+) { transition: background-color 115ms ease; }
+/* Scope the light lavender/orange visual reference to non-wallpaper pages,
+ * without changing user-picked primary colors or themed contrast tokens. */
+html:not(.dark):not(.lexis-wallpaper-active) body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .premium-card, .lexis-metric, .lexis-chart-card, [data-slot="card"], [data-admin-card], [data-efferd-kpi]
+) {
+  background-image: linear-gradient(155deg,rgb(255 255 255 / .12),transparent 58%);
+}
+html.dark body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+  .premium-card, .lexis-metric, .lexis-chart-card, [data-slot="card"], [data-admin-card], [data-efferd-kpi]
+) {
+  box-shadow: 0 8px 26px rgb(0 0 0 / .11);
+}
+/* Section headers remain instant; only small summary cards gently enter.
+ * Content with focus, tables, long lists and charts are never translated. */
+@keyframes lx-sales-card-enter {
+  from { opacity: .5; transform: translate3d(0,8px,0); }
+  to { opacity: 1; transform: translate3d(0,0,0); }
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] main
+ :is(.dashboard-grid, [data-lexis-kpi-grid]) > :nth-child(-n+6) {
+  animation: lx-sales-card-enter 260ms var(--lx-sales-ease) both;
+}
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] main
+ :is(.dashboard-grid, [data-lexis-kpi-grid]) > :nth-child(2) { animation-delay: 25ms; }
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] main
+ :is(.dashboard-grid, [data-lexis-kpi-grid]) > :nth-child(3) { animation-delay: 50ms; }
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-route-content] main
+ :is(.dashboard-grid, [data-lexis-kpi-grid]) > :nth-child(4) { animation-delay: 75ms; }
+/* Preserve legibility while asynchronously streaming a route. */
+[data-lexis-route-content] [data-lexis-page-skeleton] {
+  width: 100%;
+  min-height: min(68vh,680px);
+  padding: clamp(16px,3vw,32px);
+  background: transparent;
+}
+[data-lexis-page-skeleton] .lx-skeleton-block {
+  background: linear-gradient(
+    100deg,hsl(var(--muted)) 12%,hsl(var(--muted-foreground) / .13) 39%,hsl(var(--muted)) 66%
+  );
+  background-size: 220% 100%;
+  border-radius: 14px;
+  animation: lx-sales-skeleton 1.5s linear infinite;
+}
+@keyframes lx-sales-skeleton {
+  from { background-position: 150% 0; }
+  to { background-position: -90% 0; }
+}
+[data-lexis-page-skeleton] .lx-skeleton-frame {
+  background: hsl(var(--card));
+  border: 1px solid var(--lx-sales-panel-line);
+  border-radius: var(--lx-sales-panel);
+  box-shadow: var(--lx-sales-panel-shadow);
+}
+/* Mobile remains fully usable; safe areas and touch controls take priority
+ * over desktop decoration. */
+[data-lexis-mobile-topbar] {
+  background: linear-gradient(100deg,#242e32,#171e21) !important;
+  border-color: rgb(255 255 255 / .10) !important;
+}
+[data-lexis-mobile-bottom-nav] {
+  background: hsl(var(--card) / .98) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border) / .68) !important;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -7px 30px rgb(15 23 42 / .09);
+}
+[data-lexis-mobile-bottom-nav] [data-mobile-nav-action] {
+  transition: background-color 150ms ease, transform 160ms var(--lx-sales-ease);
+  border-radius: 13px;
+}
+[data-lexis-mobile-bottom-nav] [data-mobile-nav-action]:active { transform: scale(.96); }
+[data-lexis-mobile-drawer] { border-radius: 0 22px 22px 0; }
+@media (max-width:767px) {
+  [data-lexis-page-skeleton] .lx-skeleton-narrow-hide { display: none; }
+  [data-lexis-commercial-topbar] { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lexis-commercial-sidebar] nav a,
+  [data-lexis-desktop-dock] nav a,
+  [data-lexis-commercial-topbar] :is(input,button),
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] {
+    transition: none !important;
+    transform: none !important;
+  }
+  [data-lexis-commercial-sidebar] nav a[data-nav-pending="true"]::after,
+  [data-lexis-page-skeleton] .lx-skeleton-block,
+  body[data-lexis-route-arrival="1"] main .dashboard-grid > * {
+    animation: none !important;
+  }
+}
+html[data-lexis-motion="lite"] [data-lexis-commercial-sidebar] nav a,
+html[data-lexis-motion="lite"] [data-lexis-desktop-dock] nav a {
+  transition: background-color 100ms ease, color 100ms ease !important;
+  transform: none !important;
+}
+html[data-lexis-motion="lite"] [data-lexis-page-skeleton] .lx-skeleton-block {
+  animation: none !important;
+}
+@media (prefers-reduced-transparency:reduce) {
+  [data-lexis-commercial-topbar] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: hsl(var(--card)) !important;
+  }
+}
