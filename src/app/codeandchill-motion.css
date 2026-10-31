@@ -524,3 +524,24 @@ html[data-lexis-motion="lite"] [data-lexis-magnetic-sidebar] * {
     color:#fff !important;
   }
 }
+
+
+/* When the menu sheet is open, the indicator transfers to "Menu"; the
+ * underlying current route remains semantically current (aria-current) but
+ * its icon must not be white without a highlighted capsule. */
+@media(max-width:767px) {
+  html:not(.dark) body[data-lexis-visual-group]
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"]
+  [data-mobile-nav-action][data-mobile-nav-active="true"]:not([data-mobile-nav-menu]) {
+    color:#667d70 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"]
+  [data-mobile-nav-action][data-mobile-nav-active="true"]:not([data-mobile-nav-menu]) {
+    color:#b0c4b7 !important;
+  }
+  html:not(.dark) body[data-lexis-visual-group]
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"]
+  [data-mobile-nav-action][data-mobile-nav-active="true"]:not([data-mobile-nav-menu]) > svg {
+    color:inherit !important;
+  }
+}
