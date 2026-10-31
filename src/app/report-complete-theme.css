@@ -1,282 +1,206 @@
-/* Report / report completo: identidade visual única do painel executivo. */
+/* LexisPredict reports /report and /report/completo
+ * Corporate editorial treatment. Color tokens come from the selected app
+ * theme: --background, --card, --foreground, --border, --primary.
+ * No local purple/black theme and no hard-coded customer data.
+ */
 .report-completo-shell {
+  --lx-report-canvas: hsl(var(--background));
+  --lx-report-paper: hsl(var(--card));
+  --lx-report-ink: hsl(var(--foreground));
+  --lx-report-muted: hsl(var(--muted-foreground));
+  --lx-report-line: hsl(var(--border));
+  --lx-report-accent: hsl(var(--primary));
+  --lx-report-on-accent: hsl(var(--primary-foreground));
+  --lx-report-soft: color-mix(in srgb, var(--lx-report-accent) 8%, var(--lx-report-paper));
+  --lx-report-subtle: color-mix(in srgb, var(--lx-report-paper) 83%, var(--lx-report-canvas));
+  --lx-report-chart-1: var(--lx-report-accent);
+  --lx-report-chart-2: #168d82;
+  --lx-report-chart-3: #dcaa5a;
+  --lx-report-shadow: 0 3px 11px rgb(38 51 49 / .035),0 16px 36px rgb(34 48 43 / .045);
   min-height: 100vh !important;
-  color: #e7edf8 !important;
-  background: #080f1e !important;
-  background-image: none !important;
+  color: var(--lx-report-ink) !important;
+  background: radial-gradient(ellipse 70% 25% at 100% 0%,color-mix(in srgb,var(--lx-report-accent) 7%,transparent),transparent 85%),var(--lx-report-canvas) !important;
+  background-image: radial-gradient(ellipse 70% 25% at 100% 0%,color-mix(in srgb,var(--lx-report-accent) 7%,transparent),transparent 85%) !important;
 }
-.report-completo-shell .lexis-report-root {
-  color: #e7edf8 !important;
-  background: #080f1e !important;
-  background-image: none !important;
+html.dark .report-completo-shell {
+  --lx-report-chart-2:#67c3ad;
+  --lx-report-chart-3:#e0b977;
+  --lx-report-shadow:0 5px 22px rgb(0 0 0 / .16);
 }
-.report-completo-shell .lexis-report-sheet,
-.report-completo-shell .lexis-kpi-card,
-.report-completo-shell .bg-card,
-.report-completo-shell [class*="bg-card/"] {
-  color: #e7edf8 !important;
-  background-color: #0f192b !important;
-  border-color: #27344d !important;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .16) !important;
+.report-completo-shell .lexis-report-root {color:var(--lx-report-ink) !important;background:transparent !important;}
+.report-completo-shell :is(
+  .lexis-report-sheet,.lexis-kpi-card,.bg-card,[class*="bg-card/"],
+  .report-team-stat-card,.report-team-stat,.report-team-panel,
+  .report-team-detail,.report-team-person,.report-team-entry
+) {
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-ink) !important;
+  border-color:var(--lx-report-line) !important;
+  box-shadow:var(--lx-report-shadow);
+  background-image:none !important;
 }
-.report-completo-shell .bg-background,
-.report-completo-shell [class~="bg-background/60"] {
-  color: #e7edf8 !important;
-  background-color: #111b2e !important;
+.report-completo-shell :is(
+ .bg-background,[class*="bg-background/"],.bg-muted,.bg-slate-100,.bg-slate-50,
+ .bg-gray-100,.bg-gray-50,.bg-neutral-50,.bg-zinc-50,
+ [class*="bg-muted/"],[class*="bg-white/"]
+) {
+  background:var(--lx-report-subtle) !important;
+  color:var(--lx-report-ink) !important;
 }
-.report-completo-shell [class~="bg-background/90"] {
-  background-color: rgba(8, 15, 30, .94) !important;
-  backdrop-filter: blur(18px);
+.report-completo-shell .bg-white {background:var(--lx-report-paper) !important;color:var(--lx-report-ink) !important;}
+.report-completo-shell :is(
+  .text-foreground,.text-black,.text-slate-900,.text-slate-800,
+  .text-gray-900,.text-gray-800,.text-slate-100,.text-slate-200
+) {color:var(--lx-report-ink) !important;}
+.report-completo-shell :is(
+  .text-muted-foreground,.text-slate-600,.text-slate-500,.text-slate-400,
+  .text-slate-300,.text-gray-600,.text-gray-500
+) {color:var(--lx-report-muted) !important;}
+.report-completo-shell .text-primary {color:var(--lx-report-accent) !important;}
+.report-completo-shell .text-primary-foreground {color:var(--lx-report-on-accent) !important;}
+.report-completo-shell .bg-primary {background:var(--lx-report-accent) !important;}
+.report-completo-shell .border-primary {border-color:var(--lx-report-accent) !important;}
+.report-completo-shell :is(.border-border,.border-slate-200,.border-gray-200,[class*="border-border/"]) {
+  border-color:var(--lx-report-line) !important;
 }
-.report-completo-shell [class~="bg-background/70"],
-.report-completo-shell [class~="bg-background/80"] {
-  background-color: rgba(17, 27, 46, .82) !important;
+.report-completo-shell :is(input,select,textarea) {
+  border:1px solid var(--lx-report-line) !important;
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-ink) !important;
+  border-radius:11px;
 }
-.report-completo-shell [class~="bg-muted/30"],
-.report-completo-shell [class~="bg-muted/40"],
-.report-completo-shell [class~="bg-muted/50"],
-.report-completo-shell [class~="bg-muted/60"] {
-  background-color: #17243a !important;
+.report-completo-shell :is(input,select,textarea)::placeholder {color:var(--lx-report-muted) !important;}
+.report-completo-shell :is(input,select,textarea,a,button):focus-visible {
+  outline:2px solid var(--lx-report-accent);
+  outline-offset:2px;
 }
-.report-completo-shell .bg-muted,
-.report-completo-shell .bg-slate-100,
-.report-completo-shell .bg-gray-100,
-.report-completo-shell [class~="bg-muted/50"] {
-  background-color: #1a263d !important;
-}
-.report-completo-shell .bg-white,
-.report-completo-shell [class~="bg-white/70"],
-.report-completo-shell [class~="bg-white/80"],
-.report-completo-shell [class~="bg-white/85"],
-.report-completo-shell .bg-slate-50,
-.report-completo-shell .bg-gray-50,
-.report-completo-shell .bg-zinc-50,
-.report-completo-shell .bg-neutral-50 {
-  background-color: #151f33 !important;
-  color: #e7edf8 !important;
-}
-.report-completo-shell .text-foreground,
-.report-completo-shell .text-black,
-.report-completo-shell .text-slate-900,
-.report-completo-shell .text-slate-800,
-.report-completo-shell .text-gray-900,
-.report-completo-shell .text-gray-800 {
-  color: #e7edf8 !important;
-}
-.report-completo-shell .text-muted-foreground,
-.report-completo-shell .text-slate-600 {
-  color: #9ba9c0 !important;
-}
-.report-completo-shell .text-primary {
-  color: #b9a5ff !important;
-}
-.report-completo-shell .text-primary-foreground {
-  color: #fff !important;
-}
-.report-completo-shell .text-destructive {
-  color: #fb7185 !important;
-}
-.report-completo-shell .border-border,
-.report-completo-shell [class~="border-white/70"],
-.report-completo-shell .border-slate-200,
-.report-completo-shell .border-gray-200,
-.report-completo-shell [class*="border-border/"] {
-  border-color: #293750 !important;
-}
-.report-completo-shell .bg-primary {
-  background-color: #7048dc !important;
-}
-.report-completo-shell .border-primary {
-  border-color: #8b5cf6 !important;
-}
-.report-completo-shell .lexis-kpi-card .lexis-kpi-label {
-  color: #9ba9c0 !important;
-}
-.report-completo-shell .lexis-kpi-card .lexis-kpi-value {
-  color: #f8fafc !important;
-}
-.report-completo-shell input,
-.report-completo-shell select,
-.report-completo-shell textarea {
-  color: #e7edf8 !important;
-  background-color: #111b2e !important;
-  border-color: #34435e !important;
-}
-.report-completo-shell input::placeholder,
-.report-completo-shell textarea::placeholder {
-  color: #8190a9 !important;
-}
-.report-completo-shell button:disabled {
-  opacity: .55;
-}
+.report-completo-shell :is(button,a) { -webkit-tap-highlight-color:transparent; }
+.report-completo-shell button:disabled {opacity:.55;}
+.report-completo-shell .lexis-kpi-card .lexis-kpi-label {color:var(--lx-report-muted) !important;}
+.report-completo-shell .lexis-kpi-card .lexis-kpi-value {color:var(--lx-report-ink) !important;}
 .report-completo-shell .report-detail-heading {
-  border: 1px solid #293750;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(27, 39, 65, .98), rgba(13, 21, 39, .98));
-  box-shadow: 0 12px 34px rgba(0, 0, 0, .2);
+  border:1px solid var(--lx-report-line) !important;
+  border-radius:22px;
+  background:linear-gradient(135deg,var(--lx-report-paper),var(--lx-report-subtle)) !important;
+  box-shadow:var(--lx-report-shadow);
+  color:var(--lx-report-ink);
+}
+.report-completo-shell .report-detail-heading :is(h1,h2,h3,.text-white) {color:var(--lx-report-ink) !important;}
+.report-completo-shell .report-detail-heading :is(p,.text-slate-300,.text-slate-400) {color:var(--lx-report-muted) !important;}
+.report-completo-shell .report-detail-heading :is(.text-violet-300,.text-violet-400) {color:var(--lx-report-accent) !important;}
+.report-completo-shell .report-detail-heading [class*="from-violet-"],
+.report-completo-shell .report-detail-heading [class*="to-indigo-"] {
+  background:var(--lx-report-accent) !important;
+  box-shadow:none !important;
+}
+.report-completo-shell .report-detail-heading [class*="from-violet-"] svg {color:var(--lx-report-on-accent) !important;}
+.report-completo-shell .report-premium-button,
+.report-completo-shell .report-outline-button {
+  display:inline-flex;
+  min-height:40px;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  border-radius:999px !important;
+  padding:9px 15px;
+  font-size:11px;
+  font-weight:800;
+  transition:background-color 150ms ease,border-color 150ms ease,filter 150ms ease;
 }
 .report-completo-shell .report-premium-button {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid #6d5be8;
-  border-radius: 11px;
-  padding: 9px 14px;
-  background: linear-gradient(110deg, #2563eb, #7048dc);
-  color: #fff !important;
-  font-size: 11px;
-  font-weight: 800;
-  transition: filter .15s ease, transform .15s ease;
-}
-.report-completo-shell .report-premium-button:hover {
-  filter: brightness(1.12);
-  transform: translateY(-1px);
+  border:1px solid var(--lx-report-accent) !important;
+  background:var(--lx-report-accent) !important;
+  color:var(--lx-report-on-accent) !important;
+  box-shadow:0 5px 15px color-mix(in srgb,var(--lx-report-accent) 18%,transparent);
 }
 .report-completo-shell .report-outline-button {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid #34435e;
-  border-radius: 11px;
-  padding: 9px 14px;
-  background: #141f34;
-  color: #dbe5f7 !important;
-  font-size: 11px;
-  font-weight: 800;
+  border:1px solid var(--lx-report-line) !important;
+  background:var(--lx-report-paper) !important;
+  color:var(--lx-report-ink) !important;
 }
+.report-completo-shell :is(.report-outline-button,.report-premium-button):not(:disabled):hover {
+  filter:brightness(.96);
+}
+html.dark .report-completo-shell :is(.report-outline-button,.report-premium-button):hover {filter:brightness(1.1);}
 .report-completo-shell .report-kpi-accent {
-  border-color: #3d3474 !important;
-  background: linear-gradient(145deg, #171d3c, #101a2d) !important;
+  background:var(--lx-report-soft) !important;
+  border-color:color-mix(in srgb,var(--lx-report-accent) 22%,var(--lx-report-line)) !important;
 }
-@media (max-width: 700px) {
-  .report-completo-shell .report-detail-heading {
-    border-radius: 13px;
-  }
-}
-@media print {
-  .report-completo-shell {
-    background: #fff !important;
-    color: #000 !important;
-  }
-}
-
-
-/* High-contrast pass for the detailed team report and activity evidence. */
-.report-completo-shell .report-team-section {
-  color: #e8eef9 !important;
-}
-.report-completo-shell .report-team-hero {
-  border-color: #3a4968 !important;
-  background: linear-gradient(135deg, #192541 0%, #121d32 58%, #211c3c 100%) !important;
-  color: #f8fafc !important;
-}
-.report-completo-shell .report-team-hero h2,
-.report-completo-shell .report-team-detail h3,
-.report-completo-shell .report-team-panel h4 {
-  color: #f8fafc !important;
-}
-.report-completo-shell .report-team-eyebrow,
-.report-completo-shell .report-team-section .text-indigo-700,
-.report-completo-shell .report-team-section .text-violet-700 {
-  color: #d2c6ff !important;
-}
-.report-completo-shell .report-team-description,
-.report-completo-shell .report-team-section .text-muted-foreground,
-.report-completo-shell .report-team-muted,
-.report-completo-shell .report-team-meta,
-.report-completo-shell .report-team-meta > span:not(.report-team-badge),
-.report-completo-shell .report-team-entry-meta,
-.report-completo-shell .report-team-section .text-slate-500,
-.report-completo-shell .report-team-section .text-slate-600,
-.report-completo-shell .report-team-section .text-gray-500,
-.report-completo-shell .report-team-section .text-gray-600 {
-  color: #c2cde1 !important;
-}
-.report-completo-shell .report-team-date {
-  border-color: #465574 !important;
-  background: #202d47 !important;
-  color: #e4eaff !important;
-}
-.report-completo-shell .report-team-stat-card,
-.report-completo-shell .report-team-stat,
-.report-completo-shell .report-team-panel,
-.report-completo-shell .report-team-detail,
-.report-completo-shell .report-team-person {
-  border-color: #34435e !important;
-  background-color: #111b2e !important;
-  color: #e8eef9 !important;
-}
-.report-completo-shell .report-team-stat-card .text-muted-foreground,
-.report-completo-shell .report-team-stat .text-muted-foreground {
-  color: #c2cde1 !important;
-}
-.report-completo-shell .report-team-stat-value,
-.report-completo-shell .report-team-person .text-lg,
-.report-completo-shell .report-team-person .text-sm,
-.report-completo-shell .report-team-panel h4,
-.report-completo-shell .report-team-detail-heading h3 {
-  color: #f8fafc !important;
-}
-.report-completo-shell .report-team-person:hover,
-.report-completo-shell .report-team-person.is-selected {
-  border-color: #8875f3 !important;
-  background: #1b2944 !important;
-}
+/* The detailed team report and audit remain readable in both modes. */
+.report-completo-shell .report-team-section,
+.report-completo-shell .report-team-hero,
 .report-completo-shell .report-team-detail-heading {
-  background: linear-gradient(110deg, #192541, #151e35 65%, #211c3c) !important;
-  border-color: #34435e !important;
+  color:var(--lx-report-ink) !important;
 }
-.report-completo-shell .report-team-entry {
-  border-color: #52627e !important;
-  background: #29364d !important;
-  color: #f1f5fb !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+.report-completo-shell .report-team-hero,
+.report-completo-shell .report-team-detail-heading {
+  background:linear-gradient(135deg,var(--lx-report-paper),var(--lx-report-soft)) !important;
+  border-color:var(--lx-report-line) !important;
 }
-.report-completo-shell .report-team-entry-title {
-  color: #ffffff !important;
-  font-weight: 750 !important;
+.report-completo-shell .report-team-section :is(h2,h3,h4,.report-team-stat-value,.report-team-entry-title) {
+  color:var(--lx-report-ink) !important;
 }
-.report-completo-shell .report-team-entry-description,
-.report-completo-shell .report-team-entry-meta,
-.report-completo-shell .report-team-entry-meta span,
-.report-completo-shell .report-team-entry .text-muted-foreground {
-  color: #d1dced !important;
+.report-completo-shell :is(
+  .report-team-description,.report-team-muted,.report-team-meta,.report-team-entry-meta,
+  .report-team-entry-description,.report-team-section .text-muted-foreground,
+  .report-team-section .text-slate-500,.report-team-section .text-slate-600,
+  .report-team-section .text-gray-500,.report-team-section .text-gray-600
+) {color:var(--lx-report-muted) !important;}
+.report-completo-shell :is(.report-team-eyebrow,.report-team-section .text-indigo-700,.report-team-section .text-violet-700) {
+  color:var(--lx-report-accent) !important;
+}
+.report-completo-shell .report-team-date,
+.report-completo-shell .report-team-empty {
+  border:1px solid var(--lx-report-line) !important;
+  background:var(--lx-report-subtle) !important;
+  color:var(--lx-report-ink) !important;
+}
+.report-completo-shell :is(.report-team-person:hover,.report-team-person.is-selected) {
+  border-color:var(--lx-report-accent) !important;
+  background:var(--lx-report-soft) !important;
 }
 .report-completo-shell .report-team-badge {
-  border: 1px solid #7969b9 !important;
-  background: #3a2e63 !important;
-  color: #e7ddff !important;
+  border:1px solid color-mix(in srgb,var(--lx-report-accent) 30%,var(--lx-report-line)) !important;
+  background:var(--lx-report-soft) !important;
+  color:var(--lx-report-ink) !important;
 }
-.report-completo-shell .report-team-empty {
-  border: 1px solid #3c4b66 !important;
-  background: #1a2740 !important;
-  color: #d2dced !important;
+.report-completo-shell .report-team-section summary {color:var(--lx-report-ink) !important;}
+.report-completo-shell .report-team-section :is(.border-t,.border-b) {border-color:var(--lx-report-line) !important;}
+/* Neutral editor-like secondary panels, without glass/neon effects. */
+.report-completo-shell details {
+  border-color:var(--lx-report-line) !important;
+  background:var(--lx-report-paper);
+  color:var(--lx-report-ink);
+  box-shadow:var(--lx-report-shadow);
 }
-.report-completo-shell .report-team-section .text-emerald-600 {
-  color: #86efac !important;
+.report-completo-shell details summary {color:var(--lx-report-ink);}
+.report-completo-shell :is(.lexis-report-sheet,.report-detail-heading,details) {
+  transition:border-color 150ms ease;
 }
-.report-completo-shell .report-team-section input {
-  border-color: #465574 !important;
-  background: #111b2e !important;
-  color: #f8fafc !important;
+@media(max-width:700px) {
+  .report-completo-shell .report-detail-heading {border-radius:15px;}
+  .report-completo-shell :is(.report-team-panel,.report-team-entry) {border-radius:13px !important;}
 }
-.report-completo-shell .report-team-section input::placeholder {
-  color: #aebbd1 !important;
-}
-.report-completo-shell .report-team-section summary {
-  color: #e0d7ff !important;
-}
-.report-completo-shell .report-team-section .border-t,
-.report-completo-shell .report-team-section .border-b {
-  border-color: #34435e !important;
-}
-@media (max-width: 700px) {
-  .report-completo-shell .report-team-panel,
-  .report-completo-shell .report-team-entry {
-    border-radius: 12px !important;
+/* Printing exports text-first, even when the current app theme is dark. */
+@media print {
+  .report-completo-shell,
+  .report-completo-shell .lexis-report-root,
+  .report-completo-shell :is(.lexis-report-sheet,.lexis-kpi-card,.report-detail-heading,
+    .report-team-panel,.report-team-entry,.report-team-hero,details) {
+    background:#fff !important;
+    background-image:none !important;
+    color:#111 !important;
+    box-shadow:none !important;
+    border-color:#ddd !important;
   }
+  .report-completo-shell :is(.text-foreground,.text-muted-foreground,.text-slate-100,.text-slate-200,.text-slate-300,.text-white,h1,h2,h3,h4,p) {
+    color:#111 !important;
+  }
+  .report-completo-shell .lexis-report-band {
+    background:#f1f3f5 !important;
+    color:#111 !important;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .report-completo-shell :is(a,button,.lexis-report-sheet,details) {transition:none !important;transform:none !important;}
 }
