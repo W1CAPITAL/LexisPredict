@@ -59,9 +59,9 @@ describe("CodeXR visual parity and safe card consolidation", () => {
   it("deduplicates report KPIs with identical backend fields without deleting merits or Q&A", () => {
     const executive = source("src/components/report/report-executive-dashboard.tsx");
     const olderSmart = source("src/components/report/report-smart-overview.tsx");
-    expect(executive).toContain('Stat title="Com novidade" value={p.novidades}');
-    expect(executive).toContain('Stat title="Sem retorno 30d+" value={p.semRetorno}');
-    expect(executive).toContain('Stat title="Atendimentos" value={p.eventos}');
+    expect(executive).toContain('label: "Com novidade", value: p.novidades');
+    expect(executive).toContain('label: "Sem retorno 30d+", value: p.semRetorno');
+    expect(executive).toContain('label: "Eventos de atendimento", value: p.eventos');
     expect(executive).not.toContain('MiniStat title="Com novidade" value={p.novidades}');
     expect(executive).not.toContain('MiniStat title="Sem retorno 30d+" value={p.semRetorno}');
     expect(executive).not.toContain('MiniStat title="Registros" value={p.eventos}');

@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
     // Fontes padrão do PDFKit usam require() dinâmico para chunks de métricas/glyphs.
     // A Vercel não descobre estes chunks somente pelo tracing estático.
     "/*": [
+      "./public/fonts/report/*.ttf",
       "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/**/*.cjs",
       "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/*.cjs",
       "./node_modules/pdfkit/js/standard-fonts/**/*.cjs",

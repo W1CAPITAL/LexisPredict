@@ -26,7 +26,7 @@ const labelCategoria:Record<string,string>={
  historico_atendimento_id_davi:"Histórico revisado de atendimentos",auditoria_por_perfil_davi:"Auditorias por perfil",
  edicao_por_nome_davi:"Edições identificadas",historico_edicao_id_davi:"Histórico de edições",
  historico_encerramento_lote_id_davi:"Histórico de encerramentos",entrega_projeto:"Projeto / entrega",
- dossie_individual:"Dossiê individual",investigacao_get:"Investigação GET",
+ dossie_individual:"Dossiê individual",investigacao_get:"Investigação interna",
  investigacao_externa:"Investigação externa",
 };
 function nomeCategoria(s:string){return labelCategoria[s]||s.replace(/_/g," ");}

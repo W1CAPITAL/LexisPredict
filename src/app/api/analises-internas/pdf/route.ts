@@ -1,4 +1,5 @@
 import React from "react";
+import { getReportIdentity } from "@/lib/report/report-identity";
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { canViewCompanyAnalyses } from "@/lib/roles";
 import { AnalisesPessoaisPdf } from "@/components/pdf/analises-internas-pdf";
@@ -72,7 +73,9 @@ export async function GET(request: Request) {
       return Response.json({ error: "Não foi possível reunir os registros deste relatório." }, { status: 503, headers });
     }
 
+    const identity = await getReportIdentity();
     const report: AnalisesPessoaisPdfData = {
+      empresa: identity.company,
       nome: String(ctx.nome || "Colaborador"),
       geradoEm: new Date().toISOString(),
       filtros: { busca: q, categoria: cat },

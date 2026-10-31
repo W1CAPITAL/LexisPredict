@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {getReportIdentity} from "@/lib/report/report-identity";
 import {redirect} from "next/navigation";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {getReportAccess} from "@/lib/security/report-access";
@@ -45,7 +46,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
- const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult,atividadesPorResponsavelResult]=await Promise.allSettled([
+ const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult,atividadesPorResponsavelResult,identityResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
   db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
@@ -55,7 +56,8 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
   getAtividadesRegistradasCount(empresaId,owner),
-  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null)
+  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null),
+  getReportIdentity()
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
  const res=snapshotResult.status==="fulfilled"?snapshotResult.value:null;
@@ -108,9 +110,10 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
    {title:"Novidades",value:snapshot?.novidades},
    {title:"Baixas tribunal",value:snapshot?.baixas},
  ];
- return <main className="report-completo-shell min-h-screen px-4 py-7 text-slate-100 sm:px-8">
+ return <main data-report-surface="report" className="min-h-screen px-4 py-7 text-foreground sm:px-8">
    <div className="mx-auto max-w-[1400px] space-y-6">
     <ReportExecutiveDashboard
+      company={identityResult.status==="fulfilled"?identityResult.value.company:undefined}
       periodo={periodo}
       meus={somenteMinhaCarteira}
       canViewTeam={canViewTeam}
@@ -133,7 +136,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
       equipe={(teamReport?.pessoas??[]).filter(x=>!somenteMinhaCarteira||x.userId===ctx.auth_id).map(x=>({
         id:x.userId,nome:x.nome,carteira:x.carteira.total,
         atendimentos:x.atendimentos.eventos,encerramentos:x.encerramentos.processos,
-        edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??0
+        edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??null
       }))}
     />
     {!canViewTeam && <p className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm text-slate-200">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
@@ -178,7 +181,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
           <h2 id="merito-oficial-title" className="mt-1 text-xl font-extrabold">Resultado dos processos encerrados</h2>
           <p className="mt-1 max-w-4xl text-xs text-muted-foreground">Movimentos oficiais identificados no DataJud (TPU). O tipo de sentença registrado não confirma trânsito em julgado nem eventual reforma por recurso. Quando aparecer “—”, a fonte estruturada de TPU não está disponível no registro; isso não significa zero resultados. Encerrado no CRM é situação administrativa, não julgamento.</p>
         </div>
-        <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary underline">Consultar processo, advogado e movimento na planilha</a>
+        <a href="/processos" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary underline">Conferir processo e movimentação na carteira</a>
       </div>
       {meritoOficial?<div className="mt-4 space-y-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -210,7 +213,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-3 text-xs">
           <p className="font-bold">Justificativas individualizadas dos processos ainda sem resultado conclusivo</p>
           <p className="mt-1 text-muted-foreground">Os casos com resultado divergente, não localizado ou indeterminado receberam o motivo registrado, sua origem, trecho do histórico e verificação necessária. São indícios, não decisões judiciais definitivas.</p>
-          <a href="https://docs.google.com/spreadsheets/d/1ZIiMHQDg2IsFqZQWBSybV116Bbw7oXIqFzV5Mzl_3Hc/edit" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold text-primary underline">Ver aba “Pendências de mérito — 799” por processo e advogado</a>
+          <a href="/processos" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold text-primary underline">Conferir pendências de mérito por processo e advogado</a>
         </div>
         {desfechos ? <div className="space-y-2">
           <p className="text-xs font-bold text-foreground">Outros desfechos contabilizados — sem presumir recebimento</p>

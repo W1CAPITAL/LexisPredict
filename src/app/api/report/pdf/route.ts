@@ -1,4 +1,5 @@
 import React from "react";
+import {getReportIdentity} from "@/lib/report/report-identity";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {ReportTeamSummaryPdf} from "@/components/pdf/report-team-summary-pdf";
 import type {EquipeRelatorio} from "@/components/report/team-report";
@@ -24,13 +25,14 @@ export async function GET(request:Request){
   const scope=access.scope==="meus"?"Minha carteira":"Empresa inteira";
   const owner=scope==="Minha carteira"?ctx.auth_id:null;
   const db=await getSupabaseAdmin();
-  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult,activityStatsResult]=await Promise.all([
+  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult,activityStatsResult,identity]=await Promise.all([
     db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
     db.rpc("lexis_portfolio_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_merito_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_retorno_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner,p_dias:30}),
     db.rpc("lexis_atividade_kpis_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
     getAtividadesRegistradasPorResponsavel(String(ctx.empresa_id),owner).catch(()=>null),
+    getReportIdentity(),
   ]);
   if(teamResult.error||!teamResult.data||!Array.isArray(teamResult.data.pessoas)){
     return Response.json({error:"Não foi possível consultar a equipe para exportação."},{status:503,headers:{"Cache-Control":"no-store"}});
@@ -47,10 +49,10 @@ export async function GET(request:Request){
    }};
   });
   const team:EquipeRelatorio={...rawTeam,pessoas:teamPeople};
-  const snap=Array.isArray(snapshotResult.data)?snapshotResult.data[0]:null;
-  const merito=meritoResult.data?.oficial;
-  const ret=retornoResult.data;
-  const hist=histResult.data;
+  const snap=!snapshotResult.error&&Array.isArray(snapshotResult.data)?snapshotResult.data[0]:null;
+  const merito=!meritoResult.error?meritoResult.data?.oficial:null;
+  const ret=!retornoResult.error?retornoResult.data:null;
+  const hist=!histResult.error?histResult.data:null;
   const overview={
    total:val(snap?.total),ativos:val(snap?.ativos),encerrados:val(snap?.encerrados),
    vencidos:val(snap?.vencidos),novidades:val(snap?.novidades),
@@ -67,7 +69,8 @@ export async function GET(request:Request){
    atendimentos:owner?Number((hist.porUsuarioDia||[]).filter((x:{userId:string;ymd:string})=>x.userId===String(owner)&&x.ymd===day.ymd).reduce((acc:number,x:{eventos:number})=>acc+Number(x.eventos||0),0)):Number(day.atendimentos||0),
    encerramentos:Number((hist.porUsuarioDia||[]).filter((x:{userId:string;ymd:string})=>x.ymd===day.ymd&&(!owner||x.userId===String(owner))).reduce((acc:number,x:{encerramentos:number})=>acc+Number(x.encerramentos||0),0))
   })): [];
-  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend});
+  const daily=Array.isArray(hist?.porUsuarioDia)?hist.porUsuarioDia.filter((x:{userId:string})=>!owner||x.userId===String(owner)):[];
+  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend,daily,company:identity.company});
   // O componente retorna <Document>, embora os props do componente não sejam DocumentProps.
   const buffer=await renderToBuffer(doc as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>);
   const name="LexisPredict-Relatorio-Gerencial-"+periodo+".pdf";
