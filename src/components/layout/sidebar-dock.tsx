@@ -141,12 +141,13 @@ export function SidebarDock() {
         data-nav-open={dockVisible?'true':'false'}
         aria-hidden={dockVisible?'false':'true'}
         data-lexis-desktop-dock
+        data-lexis-magnetic-dock
         className="fixed bottom-4 left-1/2 z-50 hidden h-16 max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-1.5 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(180deg,rgba(8,35,61,.96),rgba(5,25,46,.98))] px-2 text-white shadow-[0_20px_50px_rgba(4,20,38,.30),inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-xl md:flex"
       >
         <Link href="/" className="flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[.05] px-2" aria-label="Painel">
           <img src="/logo.png" alt="" className="h-7 w-7 rounded-md object-contain" />
         </Link>
-        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
+        <nav data-lexis-dock-items className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
           {main.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
