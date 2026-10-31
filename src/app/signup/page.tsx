@@ -186,9 +186,9 @@ export default function SignupPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-5">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[.78fr_1.22fr]">
-        <aside className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
+    <div data-lexis-auth-screen="signup" className="min-h-screen bg-background p-3 sm:p-5">
+      <div data-lexis-auth-layout className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[30px] border bg-card shadow-2xl lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[.78fr_1.22fr]">
+        <aside data-lexis-auth-aside className="relative hidden overflow-hidden border-r bg-[#07111f] p-10 !text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
           <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-cyan-400/15 blur-[120px]" />
           <div className="absolute -bottom-32 right-0 h-[26rem] w-[26rem] rounded-full bg-violet-500/20 blur-[130px]" />
 
@@ -237,7 +237,7 @@ export default function SignupPage() {
           </div>
         </aside>
 
-        <main className="flex items-center justify-center p-4 sm:p-7 lg:p-10 xl:p-14">
+        <main data-lexis-auth-form className="flex items-center justify-center p-4 sm:p-7 lg:p-10 xl:p-14">
           <div className="w-full max-w-3xl">
             <div className="mb-7 lg:hidden">
               <div className="flex items-center gap-3">
@@ -265,7 +265,7 @@ export default function SignupPage() {
                     {step === 6 ? "Cadastro recebido" : STEPS[step - 1]}
                   </h2>
                 </div>
-                <Link href="/login" className="text-xs font-bold text-muted-foreground hover:text-primary">
+                <Link data-lexis-auth-switch href="/login" className="text-xs font-bold text-muted-foreground hover:text-primary">
                   Já tenho conta
                 </Link>
               </div>
@@ -297,7 +297,7 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="rounded-[24px] border bg-card p-5 shadow-sm sm:p-7">
+            <div data-lexis-auth-steps className="rounded-[24px] border bg-card p-5 shadow-sm sm:p-7">
               {step === 1 && (
                 <div className="animate-in fade-in space-y-5">
                   <div>

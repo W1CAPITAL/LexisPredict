@@ -23,7 +23,7 @@ describe("Sales CRM mobile regression contract", () => {
     expect(sidebar).toContain('id="lexis-mobile-menu"');
     expect(sidebar).toContain('aria-controls="lexis-mobile-menu"');
     expect(sidebar).toContain("aria-expanded={toolsOpen}");
-    expect(sidebar).toContain('data-mobile-nav-active={active(item.href) ? "true" : "false"}');
+    expect(sidebar).toContain('data-mobile-nav-active={isCurrentMobile ? "true" : "false"}');
     expect(sidebar).toContain('data-mobile-nav-pending={navigatingTo === item.href ? "true" : undefined}');
     expect(sidebar).toContain("setToolsOpen(false)");
   });

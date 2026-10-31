@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -362,6 +362,12 @@ export function SidebarVertical() {
       "Operação"
   );
   const firstName = displayName.trim().split(/\s+/)[0] || "Operação";
+  // One shared floating indicator moves between the five existing destinations.
+  // Scanner (middle) remains a real action, never an active page.
+  const mobileActiveIndex = toolsOpen ? 4 : pathname === "/" ? 0
+    : pathname === "/cases" || pathname?.startsWith("/cases/") || pathname === "/processos" || pathname?.startsWith("/processos/") ? 1
+    : pathname === "/whatsapp" || pathname?.startsWith("/whatsapp/") ? 3 : 4;
+
   const mobileSection =
     [...mainItems, ...extraItems].find((item) => active(item.href))?.label ||
     "Operação jurídica";
@@ -496,6 +502,7 @@ export function SidebarVertical() {
         data-lexis-sidebar
         data-nav-open={navOpened?'true':'false'}
         data-lexis-commercial-sidebar
+        data-lexis-magnetic-sidebar
         className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-border transition-transform duration-200 md:block"
       >
         {renderSidebarBody({})}
@@ -548,6 +555,8 @@ export function SidebarVertical() {
           duplicate floating handle covering the central scanner action. */}
       <nav
         data-lexis-mobile-bottom-nav
+        data-lexis-mobile-active-index={mobileActiveIndex}
+        style={{ "--lx-mobile-active-index": mobileActiveIndex } as CSSProperties}
         className="fixed inset-x-0 bottom-0 z-[70] grid h-[76px] grid-cols-5 border-t border-[#dfe7f2] bg-white px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.12)] md:hidden"
         aria-label="Navegação principal móvel"
       >
@@ -556,19 +565,21 @@ export function SidebarVertical() {
           { label: "Processos", href: "/cases", icon: Briefcase },
         ].map((item) => {
           const Icon = item.icon;
+          const isCurrentMobile = active(item.href) ||
+            (item.href === "/cases" && (pathname === "/processos" || pathname?.startsWith("/processos/")));
           return (
             <button
               key={item.href}
               type="button"
               data-mobile-nav-action
-              data-mobile-nav-active={active(item.href) ? "true" : "false"}
+              data-mobile-nav-active={isCurrentMobile ? "true" : "false"}
               data-mobile-nav-pending={navigatingTo === item.href ? "true" : undefined}
-              aria-current={active(item.href) ? "page" : undefined}
+              aria-current={isCurrentMobile ? "page" : undefined}
               onPointerDown={() => prefetchRoute(item.href)}
               onClick={() => navigateMobile(item.href)}
               className={cn(
                 "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
-                active(item.href) ? "text-[#1769ff]" : "text-[#6f8098]"
+                isCurrentMobile ? "text-[#1769ff]" : "text-[#6f8098]"
               )}
             >
               <Icon className="h-5 w-5" />
