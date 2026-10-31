@@ -62,6 +62,11 @@
     color: #bdc9c5 !important;
     letter-spacing: .11em;
   }
+  [data-lexis-mobile-topbar] [data-lexis-mobile-menu-trigger] {
+    background: #d5fa78 !important;
+    color: #1b291b !important;
+    box-shadow: 0 3px 13px rgb(134 170 52 / .18) !important;
+  }
   [data-lexis-mobile-topbar] button[aria-expanded="true"] {
     color: #19271a !important;
     background: #d5fa78 !important;
@@ -176,6 +181,13 @@
     letter-spacing: -.025em;
   }
   [data-lexis-mobile-menu-description] {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-label] {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-empty] {
+    background: hsl(var(--muted) / .7) !important;
     color: hsl(var(--muted-foreground)) !important;
   }
   [data-lexis-mobile-menu-feature] {
