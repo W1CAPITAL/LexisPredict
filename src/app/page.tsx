@@ -24,6 +24,7 @@ import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { StatCard } from '@/components/dashboard/stat-card'
+import { DashboardVisualOverview } from '@/components/dashboard/dashboard-visual-overview';
 import { BiCompliancePanel } from '@/components/dashboard/bi-compliance-panel';
 
 const EfferdPanel = memo(EfferdPanelRaw);
@@ -309,8 +310,8 @@ export default function Dashboard() {
   return (
     <div className="ops-ui admin-ui flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
-        <header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
+      <main data-lexis-dashboard-home className={cn("flex-1 flex flex-col h-screen overflow-hidden texture-bg", ui.main)}>
+        <header data-lexis-dashboard-header className="admin-page-header relative flex shrink-0 items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
           <div>
             <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
               <LayoutDashboard size={14} /> Painel
@@ -337,10 +338,10 @@ export default function Dashboard() {
 
         
 
-<Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
+<Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden" data-lexis-home-tabs>
+          <div data-lexis-dashboard-tab-shell className="px-4 sm:px-10 py-2 border-b border-border/30 bg-card/40 flex items-center justify-between shrink-0">
              <ScrollArea className="w-full">
-                <TabsList className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">
+                <TabsList data-lexis-dashboard-tablist className="bg-transparent h-10 border-none gap-6 sm:gap-8 w-max">
                    <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 font-semibold uppercase text-[11px] tracking-wider h-full text-muted-foreground transition-all">Visão da Carteira</TabsTrigger>
                    <TabsTrigger value="connectivity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 font-semibold uppercase text-[11px] tracking-wider h-full text-muted-foreground transition-all">Rede Judicial</TabsTrigger>
                 </TabsList>
@@ -349,7 +350,7 @@ export default function Dashboard() {
           </div>
 
           <ScrollArea className="flex-1 overflow-auto">
-            <TabsContent value="overview" className="p-3 sm:p-5 space-y-5 m-0 max-w-[1600px] mx-auto w-full">
+            <TabsContent data-lexis-dashboard-content value="overview" className="p-3 sm:p-5 space-y-5 m-0 max-w-[1600px] mx-auto w-full">
             {carteiraError && (
               <div role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">
                 Falha ao consultar a carteira no Supabase: {carteiraError}
@@ -365,6 +366,17 @@ export default function Dashboard() {
                 {' '}<Link className="underline font-bold" href="/cases">Abrir minha carteira completa</Link>
               </div>
             )}
+            <DashboardVisualOverview
+              total={portfolioSummary?.total ?? null}
+              ativos={portfolioSummary?.ativos ?? null}
+              vencidos={portfolioSummary?.vencidos ?? null}
+              hoje={metrics.countHoje}
+              loading={loading}
+              series={historicoEquipe?.dias?.map((d) => ({
+                day: d.day,
+                atendimentos: d.atendimentos,
+              }))}
+            />
             <AtendimentosEquipeDiarios historico={historicoEquipe} variant="full" />
             <div className="mb-4"><AtividadesRegistradasKpi /></div>
             {isEmpty && (
@@ -421,7 +433,7 @@ export default function Dashboard() {
               </section>
             </div>
 
-              <section className={ui.metrics5}>
+              <section data-lexis-home-stat-grid className={ui.metrics5}>
                 <StatCard title={t.statusHoje} value={loading ? "..." : metrics.countHoje} icon={<Clock />} color={metrics.countHoje > 0 ? "warning" : "primary"} />
                 <StatCard title={t.statusVencido} value={loading ? "..." : portfolioSummary?.vencidos ?? metrics.countVencido} icon={<ShieldAlert />} color="destructive" />
                 <StatCard title="Andamentos" value={loading ? "..." : portfolioSummary?.novidades ?? metrics.countNovoAndamento} icon={<Activity />} color={metrics.countNovoAndamento > 0 ? "warning" : "success"} />
@@ -489,7 +501,7 @@ export default function Dashboard() {
               
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 pb-10">
                 <div className="xl:col-span-8 space-y-8">
-                   <section className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
+                   <section data-lexis-home-dark-panel className="bg-black text-white p-6 sm:p-8 border-4 border-black rounded-none shadow-[10px_10px_0px_#00D1FF]">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-white/10 pb-4 gap-4">
                         <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-3">
                            <Zap className="text-primary animate-pulse" size={16}/> Andamentos e publicações
@@ -593,7 +605,7 @@ export default function Dashboard() {
 
                 <div className="xl:col-span-4 space-y-8">
                    {iaInsights && (
-                     <section className="bg-white border-2 border-black p-6 sm:p-8 rounded-none shadow-[8px_8px_0px_#000] space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                     <section data-lexis-home-brutalist-panel className="bg-white border-2 border-black p-6 sm:p-8 rounded-none shadow-[8px_8px_0px_#000] space-y-6 animate-in fade-in zoom-in-95 duration-500">
                         <div className="flex items-center justify-between border-b-2 border-black/5 pb-4">
                            <div className="flex items-center gap-3">
                               <BrainCircuit className="text-primary" size={20} />
