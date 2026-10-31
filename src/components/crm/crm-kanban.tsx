@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { CrmNegocio } from "@/lib/crm-types";
 import { CRM_FUNIL_LABELS, type CrmFunilStatus } from "@/lib/crm-types";
 import { stageValueSum } from "@/lib/crm-pipeline";
+import { indexCrmStages, findConfirmedCrmMoves } from "@/lib/crm-stage-motion";
 import { ChevronLeft, ChevronRight, Phone, FileText, LoaderCircle } from "lucide-react";
 
 function brl(n: number) {
@@ -41,17 +42,9 @@ export function CrmKanban({
   // Motion is attached to an actual backend-reflected stage change.
   // The initial fetch, list refetches and local filters do not fake moves.
   useEffect(() => {
-    const next = new Map<string, string>();
-    for (const [stage, deals] of Object.entries(byStatus)) {
-      for (const deal of deals || []) next.set(deal.id, stage);
-    }
-    const before = priorStages.current;
+    const next = indexCrmStages(byStatus);
+    const changes = findConfirmedCrmMoves(priorStages.current, next);
     priorStages.current = next;
-    if (!before) return;
-    const changes: string[] = [];
-    for (const [id, stage] of next) {
-      if (before.has(id) && before.get(id) !== stage) changes.push(id);
-    }
     if (changes.length === 0) return;
     setArriving(new Set(changes));
     const last = changes[changes.length - 1];
