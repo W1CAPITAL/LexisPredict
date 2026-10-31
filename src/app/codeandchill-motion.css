@@ -1,0 +1,472 @@
+/**
+ * LexisPredict — Code & Chill / CodeXR motion language, original implementation.
+ *
+ * Reference video 69752: magnetic floating/capsule mobile docks.
+ * Reference video 69754: VERSO-inspired cream/dark forest split auth screen.
+ * Motion: opacity/transform on tiny elements only, 150–360ms.
+ * No always-running gradients, no animated backdrop blur or 3D canvas.
+ * Scoped to persistent navigation and explicitly identified auth screens.
+ */
+:root {
+  --lx-chill-ease:cubic-bezier(.21,1,.31,1);
+  --lx-chill-forest:#083d2c;
+  --lx-chill-deep:#03271c;
+  --lx-chill-cream:#f9f6ed;
+  --lx-chill-gold:#cda76b;
+  --lx-chill-duration:230ms;
+}
+@keyframes lx-chill-appear {
+  from {opacity:0;transform:translate3d(0,13px,0) scale(.986);}
+  to {opacity:1;transform:translate3d(0,0,0) scale(1);}
+}
+@keyframes lx-chill-mark-in {
+  from {opacity:0;transform:scaleY(.1);}
+  to {opacity:1;transform:scaleY(1);}
+}
+@keyframes lx-chill-panel-slide {
+  from {opacity:.82;transform:translate3d(24px,0,0);}
+  to {opacity:1;transform:translate3d(0,0,0);}
+}
+@keyframes lx-chill-form-in {
+  from {opacity:0;transform:translate3d(-16px,0,0);}
+  to {opacity:1;transform:translate3d(0,0,0);}
+}
+/* Auth: split surface inspired by the diagonal VERSO clip, but the existing
+ * POST /api/auth/login, guest option, signup steps and legal/tenant flows stay.
+ * Login is cream-left, forest-right; signup inverts on the next route. */
+[data-lexis-auth-screen] {
+  min-height:100dvh;
+  padding:clamp(9px,1.5vw,22px) !important;
+  background:
+    radial-gradient(ellipse 58% 43% at 82% 16%,rgb(33 128 89 / .11),transparent 85%),
+    radial-gradient(ellipse 50% 40% at 10% 94%,rgb(214 182 112 / .12),transparent 80%),
+    #e9ede4 !important;
+  color:#162a21;
+}
+[data-lexis-auth-layout] {
+  min-height:calc(100dvh - 2*clamp(9px,1.5vw,22px));
+  border:1px solid rgb(12 62 42 / .09) !important;
+  border-radius:clamp(20px,3vw,35px) !important;
+  box-shadow:0 24px 88px rgb(3 41 27 / .15),0 3px 12px rgb(3 41 27 / .06) !important;
+  background:var(--lx-chill-cream) !important;
+  isolation:isolate;
+}
+[data-lexis-auth-aside] {
+  position:relative;
+  border:0 !important;
+  color:#f8fcf4 !important;
+  background:
+    radial-gradient(ellipse 70% 60% at 80% 0%,rgb(44 157 105 / .34),transparent 80%),
+    radial-gradient(ellipse 69% 52% at 0% 92%,rgb(10 90 58 / .52),transparent 88%),
+    linear-gradient(155deg,#09533b 0%,#053524 53%,#011f18 100%) !important;
+  text-shadow:none;
+}
+[data-lexis-auth-aside] > div.absolute {
+  opacity:.38;
+  pointer-events:none;
+}
+[data-lexis-auth-aside] h1 {
+  font-weight:760 !important;
+  letter-spacing:-.054em !important;
+  text-wrap:balance;
+  color:#fffdf7 !important;
+}
+[data-lexis-auth-aside] :where(p,span) {
+  text-shadow:none;
+}
+[data-lexis-auth-aside] > div.relative > div.mt-16 > span,
+[data-lexis-auth-aside] .text-cyan-300 {
+  color:#e8d1a0 !important;
+}
+[data-lexis-auth-aside] > div.relative > div.mt-16 > h1 + p {
+  color:rgb(240 249 237 / .73) !important;
+}
+[data-lexis-auth-aside] [class*="border-white/10"][class*="bg-white/"] {
+  border-color:rgb(255 255 255 / .13) !important;
+  background:rgb(255 255 255 / .055) !important;
+  border-radius:17px !important;
+}
+[data-lexis-auth-aside] :where(.text-emerald-300) { color:#c5f5aa !important; }
+[data-lexis-auth-aside] > div.relative > div:first-child [class*="rounded-2xl"] {
+  border-color:rgb(237 220 162 / .22);
+  background:rgb(255 255 255 / .09);
+}
+[data-lexis-auth-form] {
+  position:relative;
+  min-width:0;
+  background:var(--lx-chill-cream) !important;
+  color:#142a20 !important;
+}
+[data-lexis-auth-form] :where(h2,h3) {
+  color:#103824 !important;
+  letter-spacing:-.045em !important;
+}
+[data-lexis-auth-form] > div {
+  z-index:1;
+}
+[data-lexis-auth-form] :where(p.text-slate-500,p.text-muted-foreground) {
+  color:#657b6c !important;
+}
+[data-lexis-auth-form] [class*="bg-primary/8"],
+[data-lexis-auth-form] [class*="bg-primary/"] {
+  background:rgb(19 118 76 / .09) !important;
+  color:#136545 !important;
+}
+[data-lexis-auth-form] [data-lexis-auth-fields] label,
+[data-lexis-auth-steps] label {
+  color:#294938;
+  letter-spacing:.012em;
+}
+[data-lexis-auth-form] [data-lexis-auth-fields] input {
+  border:1px solid transparent !important;
+  border-bottom:1.5px solid #b8c4b4 !important;
+  background:transparent !important;
+  border-radius:5px !important;
+  color:#153628 !important;
+  height:52px;
+  font-size:16px;
+  transition:border-color 180ms ease,box-shadow 180ms ease,background-color 180ms ease;
+}
+[data-lexis-auth-form] [data-lexis-auth-fields] input:focus-visible {
+  border-bottom-color:#0a6846 !important;
+  box-shadow:0 4px 0 -2px rgb(13 116 71 / .35) !important;
+  outline:none !important;
+  background:rgb(244 251 241 / .75) !important;
+}
+[data-lexis-auth-form] [data-lexis-auth-fields] .group:focus-within > svg {
+  color:#126c48 !important;
+  transform:translate3d(0,-50%,0) scale(1.08);
+}
+[data-lexis-auth-form] [data-lexis-auth-fields] .group > svg {
+  transition:color 160ms ease,transform 160ms var(--lx-chill-ease);
+}
+[data-lexis-auth-submit] {
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(110deg,#086341,#02452f) !important;
+  color:#fff !important;
+  border:1px solid rgb(5 98 56 / .17) !important;
+  border-radius:999px !important;
+  min-height:50px;
+  box-shadow:0 9px 21px rgb(6 95 56 / .20) !important;
+  transition:transform var(--lx-chill-duration) var(--lx-chill-ease),
+    box-shadow var(--lx-chill-duration) ease,filter var(--lx-chill-duration) ease !important;
+}
+[data-lexis-auth-submit]:not(:disabled):hover {
+  filter:brightness(1.12);
+  box-shadow:0 12px 26px rgb(7 91 61 / .26) !important;
+}
+[data-lexis-auth-submit]:not(:disabled):active {
+  transform:translate3d(0,1px,0) scale(.99);
+}
+[data-lexis-auth-form] a[data-lexis-auth-switch] {
+  color:#075b3d !important;
+  font-weight:790;
+  text-underline-offset:4px;
+  transition:color 170ms ease,transform 170ms ease;
+}
+[data-lexis-auth-form] a[data-lexis-auth-switch]:focus-visible {
+  outline:2px solid #0a6d49;
+  outline-offset:4px;
+}
+[data-lexis-auth-form] :where(input,select,textarea):focus-visible {
+  outline-color:#178252;
+}
+[data-lexis-auth-steps] {
+  border:1px solid rgb(17 88 56 / .13) !important;
+  border-radius:24px !important;
+  background:rgb(255 255 255 / .85) !important;
+  box-shadow:0 10px 30px rgb(14 60 42 / .04) !important;
+}
+[data-lexis-auth-screen="login"] [data-lexis-auth-form] > div.relative {
+  animation:lx-chill-form-in 420ms var(--lx-chill-ease) both;
+}
+[data-lexis-auth-screen="signup"] [data-lexis-auth-steps] {
+  animation:lx-chill-appear 320ms var(--lx-chill-ease) both;
+}
+@media(min-width:1024px) {
+  [data-lexis-auth-screen="login"] [data-lexis-auth-layout] {
+    grid-template-columns:minmax(0,.93fr) minmax(0,1.07fr) !important;
+  }
+  [data-lexis-auth-screen="login"] [data-lexis-auth-form] {
+    order:0;
+    padding:clamp(32px,5vw,85px) !important;
+  }
+  [data-lexis-auth-screen="login"] [data-lexis-auth-aside] {
+    order:1;
+    clip-path:polygon(15% 0,100% 0,100% 100%,0 100%);
+    margin-left:-50px;
+    padding-left:clamp(62px,6.7vw,108px) !important;
+    animation:lx-chill-panel-slide 450ms var(--lx-chill-ease) both;
+  }
+  [data-lexis-auth-screen="signup"] [data-lexis-auth-aside] {
+    clip-path:polygon(0 0,100% 0,91% 100%,0 100%);
+    margin-right:-30px;
+    padding-right:clamp(35px,4vw,68px);
+    animation:lx-chill-panel-slide 450ms var(--lx-chill-ease) both;
+  }
+  [data-lexis-auth-screen="signup"] [data-lexis-auth-form] {
+    padding-left:clamp(34px,5vw,75px) !important;
+  }
+}
+@media(max-width:1023px) {
+  [data-lexis-auth-screen] {
+    background:linear-gradient(160deg,#043c29 0%,#07563b 28%,#e9ede4 29%,#e9ede4 100%) !important;
+  }
+  [data-lexis-auth-screen] [data-lexis-auth-layout] {
+    min-height:calc(100dvh - 18px);
+    grid-template-columns:minmax(0,1fr) !important;
+  }
+  [data-lexis-auth-screen] [data-lexis-auth-form] {
+    min-height:calc(100dvh - 18px);
+    padding:clamp(19px,4vw,38px) !important;
+  }
+  [data-lexis-auth-screen="login"] [data-lexis-auth-form] .max-w-md {
+    max-width:470px;
+  }
+}
+@media(max-width:480px) {
+  [data-lexis-auth-screen] [data-lexis-auth-layout] {
+    border-radius:21px !important;
+  }
+  [data-lexis-auth-screen] [data-lexis-auth-form] {
+    align-items:flex-start;
+    padding-top:clamp(28px,7dvh,60px) !important;
+  }
+  [data-lexis-auth-screen="signup"] [data-lexis-auth-form] {
+    padding-top:23px !important;
+  }
+  [data-lexis-auth-form] h2 {font-size:clamp(27px,7.5vw,34px) !important;}
+  [data-lexis-auth-form] :where(input,select,textarea) {
+    font-size:16px;
+  }
+}
+/* Magnetic, liquid capsule nav — one shared indicator follows the real active
+ * route. DOM remains stable thanks to PersistentAppShell. No fake nav tabs. */
+@media(max-width:767px) {
+  [data-lexis-mobile-bottom-nav] {
+    isolation:isolate;
+    position:fixed;
+    overflow:visible;
+    background:rgba(249,250,251,.97) !important;
+    border:1px solid rgb(216 225 225 / .84) !important;
+    border-bottom:0 !important;
+    box-shadow:0 -12px 28px rgb(20 40 32 / .095),inset 0 1px 0 rgb(255 255 255 / .83) !important;
+  }
+  [data-lexis-mobile-bottom-nav]::before {
+    content:"";
+    pointer-events:none;
+    position:absolute;
+    z-index:0;
+    left:8px;
+    width:calc((100% - 20px)/5);
+    height:calc(100% - 18px);
+    top:8px;
+    border-radius:17px;
+    background:#173d30;
+    box-shadow:0 5px 17px rgb(19 71 46 / .16);
+    transform:translate3d(0,0,0);
+    transition:transform 350ms var(--lx-chill-ease),background-color 160ms ease;
+  }
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="1"]::before {
+    transform:translate3d(calc(100% + 3px),0,0);
+  }
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="3"]::before {
+    transform:translate3d(calc(300% + 9px),0,0);
+  }
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"]::before {
+    transform:translate3d(calc(400% + 12px),0,0);
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] {
+    position:relative;
+    z-index:1;
+    background:transparent !important;
+    border:0 !important;
+    border-radius:15px !important;
+    color:#667d70 !important;
+    transition:color 180ms ease,transform 190ms var(--lx-chill-ease) !important;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] > svg {
+    transition:transform 280ms var(--lx-chill-ease),stroke-width 150ms ease;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][data-mobile-nav-active="true"],
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][aria-expanded="true"]:not([data-mobile-nav-scanner]) {
+    background:transparent !important;
+    color:#fff !important;
+    box-shadow:none !important;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][data-mobile-nav-active="true"] > svg,
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][aria-expanded="true"] > svg {
+    color:currentColor !important;
+    transform:translate3d(0,-3px,0) scale(1.13);
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][data-mobile-nav-active="true"] > span:last-child,
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][aria-expanded="true"] > span:last-child {
+    color:inherit !important;
+  }
+  [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-menu] {
+    color:#fff !important;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] {
+    z-index:2;
+    background:transparent !important;
+    color:#133b2c !important;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
+    border-radius:50% !important;
+    border:4px solid #fff !important;
+    background:linear-gradient(150deg,#bfff8e,#48bb82) !important;
+    color:#123e2a !important;
+    box-shadow:0 8px 19px rgb(18 107 72 / .21) !important;
+    transition:transform 210ms var(--lx-chill-ease),box-shadow 210ms ease;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner]:active > span:first-child {
+    transform:scale(.91);
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:last-child {
+    color:#173d30 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav] {
+    background:linear-gradient(160deg,#17241f,#0e1b17) !important;
+    border-color:rgb(207 247 192 / .12) !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav]::before {
+    background:#d5fa78;
+    box-shadow:0 4px 17px rgb(160 231 79 / .14);
+  }
+  html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] {
+    color:#b0c4b7 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-action][data-mobile-nav-active="true"],
+  html.dark [data-lexis-mobile-bottom-nav][data-lexis-mobile-active-index="4"] [data-mobile-nav-menu] {
+    color:#1e3021 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
+    border-color:#101e18 !important;
+  }
+  html.dark [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:last-child {
+    color:#eaf5e7 !important;
+  }
+  /* The mobile sheet opens via the existing Radix state machine. The header
+     and list reveal gently, without animating a full-screen backdrop blur. */
+  [data-lexis-mobile-drawer] {
+    border-radius:0 25px 25px 0 !important;
+    box-shadow:15px 0 46px rgb(13 40 27 / .16) !important;
+  }
+  [data-lexis-mobile-drawer][data-state="open"] [data-lexis-mobile-drawer-header] {
+    animation:lx-chill-appear 280ms var(--lx-chill-ease) both;
+  }
+  [data-lexis-mobile-drawer][data-state="open"] [data-lexis-mobile-menu-group] {
+    animation:lx-chill-appear 240ms var(--lx-chill-ease) both;
+  }
+  [data-lexis-mobile-drawer][data-state="open"] [data-lexis-mobile-menu-group]:nth-child(2) {
+    animation-delay:28ms;
+  }
+  [data-lexis-mobile-drawer][data-state="open"] [data-lexis-mobile-menu-group]:nth-child(3) {
+    animation-delay:50ms;
+  }
+  [data-lexis-mobile-drawer] [data-lexis-mobile-menu-summary][aria-expanded="true"],
+  [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group][open] > summary {
+    color:hsl(var(--foreground));
+    background:hsl(var(--primary) / .065);
+  }
+  [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry][aria-current="page"] {
+    background:hsl(var(--primary) / .10);
+    border-radius:13px;
+  }
+  [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry] {
+    transition:background-color 160ms ease;
+  }
+}
+/* Desktop sidebar: active line grows into place; icon gently lifts. No
+ * icon moves on touch devices or within potentially destructive menus. */
+[data-lexis-magnetic-sidebar] nav a {
+  isolation:isolate;
+}
+[data-lexis-magnetic-sidebar] nav a[aria-current="page"]::before {
+  animation:lx-chill-mark-in 240ms var(--lx-chill-ease) both;
+  transform-origin:center;
+}
+[data-lexis-magnetic-sidebar] nav a :is(svg) {
+  transition:transform 200ms var(--lx-chill-ease),color 160ms ease !important;
+}
+@media(min-width:768px) and (hover:hover) and (pointer:fine) {
+  [data-lexis-magnetic-sidebar] nav a:hover > svg {
+    transform:translate3d(3px,0,0) scale(1.1);
+  }
+  [data-lexis-magnetic-dock] [data-lexis-dock-items] a:not([aria-current="page"]):hover svg {
+    transform:translate3d(0,-2px,0) scale(1.12);
+  }
+}
+[data-lexis-magnetic-dock] {
+  box-shadow:0 19px 52px rgb(3 28 20 / .24),inset 0 1px 0 rgb(255 255 255 / .09) !important;
+}
+[data-lexis-magnetic-dock] [data-lexis-dock-items] a {
+  position:relative;
+  isolation:isolate;
+  transition:color 190ms ease,background-color 190ms ease,
+    transform 210ms var(--lx-chill-ease) !important;
+}
+[data-lexis-magnetic-dock] [data-lexis-dock-items] a svg {
+  transition:transform 210ms var(--lx-chill-ease);
+}
+[data-lexis-magnetic-dock] [data-lexis-dock-items] a[aria-current="page"] {
+  background:#d5fa78 !important;
+  color:#142b1f !important;
+  border-radius:999px !important;
+  box-shadow:0 3px 16px rgb(174 232 112 / .12) !important;
+}
+[data-lexis-magnetic-dock] :is(a,button):focus-visible,
+[data-lexis-magnetic-sidebar] :is(a,button):focus-visible,
+[data-lexis-mobile-bottom-nav] :is(button):focus-visible {
+  outline:2px solid #bddf7c !important;
+  outline-offset:2px;
+}
+/* Short route arrival: tiny accent after the actual URL changes, no blank
+ * canvas, no route-wide transform or iframe/scroll interference. */
+html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+ [data-lexis-route-content] main > header :is(h1,h2) {
+  animation:lx-chill-appear 275ms var(--lx-chill-ease) both;
+}
+@media(max-width:767px) {
+  html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"]
+  [data-lexis-route-content] main > header :is(h1,h2) {
+    animation-duration:200ms;
+  }
+}
+@media(hover:hover) and (pointer:fine) {
+  [data-lexis-auth-form] a[data-lexis-auth-switch]:hover {
+    transform:translate3d(2px,0,0);
+  }
+}
+/* Accessibility and low-end device caps outrank every animation above. */
+@media(prefers-reduced-motion:reduce) {
+  [data-lexis-auth-screen] *,
+  [data-lexis-auth-screen] *::before,
+  [data-lexis-auth-screen] *::after,
+  [data-lexis-mobile-bottom-nav] *,
+  [data-lexis-mobile-bottom-nav]::before,
+  [data-lexis-mobile-drawer] *,
+  [data-lexis-magnetic-sidebar] *,
+  [data-lexis-magnetic-dock] *,
+  html[data-lexis-motion] [data-lexis-route-content] main > header :is(h1,h2) {
+    animation:none !important;
+    transition:none !important;
+  }
+}
+html[data-lexis-motion="lite"] [data-lexis-auth-screen] *,
+html[data-lexis-motion="lite"] [data-lexis-auth-screen] *::before,
+html[data-lexis-motion="lite"] [data-lexis-mobile-bottom-nav]::before,
+html[data-lexis-motion="lite"] [data-lexis-mobile-drawer] *,
+html[data-lexis-motion="lite"] [data-lexis-magnetic-sidebar] * {
+  animation:none !important;
+  transition-duration:0ms !important;
+}
+@media print {
+  [data-lexis-auth-screen], [data-lexis-auth-layout], [data-lexis-auth-form] {
+    background:#fff !important;
+    color:#000 !important;
+    box-shadow:none !important;
+    animation:none !important;
+  }
+}
