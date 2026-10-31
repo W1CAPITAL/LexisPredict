@@ -178,7 +178,7 @@ export function DashboardVisualOverview({
                       boxShadow: "0 12px 28px rgba(12,15,20,.08)",
                       color: "var(--lx-reference-foreground)",
                     }}
-                    formatter={(value: number) => [Number(value).toLocaleString("pt-BR"), "Atendimentos"]}
+                    formatter={(value) => [Number(value).toLocaleString("pt-BR"), "Atendimentos"]}
                   />
                   <Area
                     type="monotone"
