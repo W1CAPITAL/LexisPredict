@@ -1,0 +1,396 @@
+/**
+ * LexisPredict · Sales CRM Mobile
+ *
+ * Responsive companion to crm-fluid-refresh.css. Scoped under the existing
+ * persistent shell and viewport <= 767px; never changes navigation ACL,
+ * business state, scanner actions or print/document editor surfaces.
+ *
+ * No infinite motion loops, no animated backdrop filters, no layout animation.
+ */
+@media (max-width: 767px) {
+  :root {
+    --lx-mobile-interactive: 44px;
+    --lx-mobile-rounded: 18px;
+    --lx-mobile-surface-border: hsl(var(--border) / .74);
+    --lx-mobile-surface-shadow: 0 4px 16px rgb(14 25 44 / .05);
+  }
+
+  /* Retain layout preference, avoid edge-to-edge content bleeding and preserve
+     iOS safe areas managed by lexis-responsive.css. */
+  [data-lexis-app-shell] {
+    min-width: 0;
+    max-width: 100%;
+  }
+  [data-lexis-app-shell] [data-lexis-route-content] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] :where(
+    .dashboard-grid, .lexis-grid-metrics, .grid, .flex
+  ) {
+    min-width: 0;
+  }
+
+  /* Compact dark header inspired by the desktop Sales CRM sidebar. */
+  [data-lexis-mobile-topbar] {
+    isolation: isolate;
+    background: linear-gradient(113deg, #253034 0%, #1a2326 65%, #151c1f 100%) !important;
+    color: #f0f6f2 !important;
+    box-shadow: 0 4px 18px rgb(14 24 29 / .15) !important;
+    border-color: rgb(255 255 255 / .09) !important;
+  }
+  [data-lexis-mobile-topbar] :is(button, [role="button"]) {
+    min-height: var(--lx-mobile-interactive);
+    min-width: var(--lx-mobile-interactive);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 160ms ease, border-color 160ms ease,
+      transform 150ms cubic-bezier(.22,1,.36,1);
+  }
+  [data-lexis-mobile-topbar] [data-lexis-mobile-brand] {
+    background: #131c1d !important;
+    border-color: rgb(213 250 120 / .23) !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .08) !important;
+    border-radius: 13px !important;
+  }
+  [data-lexis-mobile-heading] > p:first-child {
+    color: #f0f6f2 !important;
+    letter-spacing: -.015em;
+  }
+  [data-lexis-mobile-heading] > p:last-child {
+    color: #bdc9c5 !important;
+    letter-spacing: .11em;
+  }
+  [data-lexis-mobile-topbar] [data-lexis-mobile-menu-trigger] {
+    background: #d5fa78 !important;
+    color: #1b291b !important;
+    box-shadow: 0 3px 13px rgb(134 170 52 / .18) !important;
+  }
+  [data-lexis-mobile-topbar] button[aria-expanded="true"] {
+    color: #19271a !important;
+    background: #d5fa78 !important;
+    box-shadow: none !important;
+  }
+
+  /* Bottom navigation: five fixed touch targets, no overflow and no
+     competing floating menu. The scanner remains the original real action. */
+  [data-lexis-mobile-bottom-nav] {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0,1fr));
+    gap: 2px;
+    width: 100%;
+    max-width: 100vw;
+    border: 1px solid hsl(var(--border) / .55) !important;
+    border-bottom: 0 !important;
+    background: hsl(var(--card) / .98) !important;
+    color: hsl(var(--foreground));
+    box-shadow: 0 -6px 25px rgb(17 26 39 / .095) !important;
+    border-radius: 20px 20px 0 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] {
+    position: relative;
+    min-width: 0;
+    min-height: 44px;
+    overflow: visible;
+    padding-inline: 2px;
+    gap: 3px;
+    color: hsl(var(--muted-foreground)) !important;
+    border-radius: 14px !important;
+    text-decoration: none;
+    transition: background-color 160ms ease, color 160ms ease,
+      transform 150ms cubic-bezier(.22,1,.36,1);
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-action] > span:last-child {
+    max-width: 100%;
+    line-height: 1.1;
+    font-size: clamp(9px, 2.5vw, 11px);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] {
+    background: #d5fa78 !important;
+    color: #202a1d !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .36);
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] > svg {
+    color: #202a1d !important;
+    stroke-width: 2.3px;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-pending="true"]:not([data-mobile-nav-active="true"])::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: calc(50% - 3px);
+    width: 6px;
+    height: 6px;
+    border-radius: 100%;
+    background: #86ac26;
+    opacity: .8;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] {
+    color: hsl(var(--foreground)) !important;
+    overflow: visible;
+    z-index: 1;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
+    border-color: hsl(var(--card)) !important;
+    border-radius: 17px !important;
+    background: linear-gradient(140deg,#d5fa78 0%,#b2ec6b 100%) !important;
+    color: #203116 !important;
+    box-shadow: 0 5px 18px rgb(149 193 74 / .22) !important;
+    flex-shrink: 0;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:last-child {
+    color: hsl(var(--foreground)) !important;
+  }
+  [data-lexis-mobile-bottom-nav] [data-mobile-nav-menu][aria-expanded="true"] {
+    color: hsl(var(--primary)) !important;
+    background: hsl(var(--primary) / .11) !important;
+  }
+
+  /* Drawer: same CRM palette, but route/tenant/menu logic is untouched. */
+  [data-lexis-mobile-drawer] {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: calc(100vw - 20px);
+    background: hsl(var(--card)) !important;
+    border-color: var(--lx-mobile-surface-border) !important;
+    color: hsl(var(--foreground)) !important;
+    box-shadow: 13px 0 30px rgb(11 22 29 / .14) !important;
+    border-radius: 0 22px 22px 0;
+    overflow: hidden;
+    /* Avoid a perpetual backdrop filter on the full-screen sheet. */
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  [data-lexis-mobile-drawer-header] {
+    flex: 0 0 auto;
+    min-width: 0;
+    border-color: hsl(var(--border) / .6) !important;
+    background: hsl(var(--card)) !important;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  [data-lexis-mobile-menu-title] {
+    color: hsl(var(--foreground)) !important;
+    letter-spacing: -.025em;
+  }
+  [data-lexis-mobile-menu-description] {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-label] {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-empty] {
+    background: hsl(var(--muted) / .7) !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-feature] {
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border) / .64) !important;
+    background: hsl(var(--primary) / .07) !important;
+    border-radius: 15px !important;
+    min-height: 44px;
+    transition: background-color 150ms ease, transform 150ms ease !important;
+  }
+  [data-lexis-mobile-menu-feature] > span,
+  [data-lexis-mobile-menu-feature] > span > span {
+    color: hsl(var(--foreground)) !important;
+  }
+  [data-lexis-mobile-menu-feature] > span > span:last-child {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-feature] > span:first-child:has(svg) {
+    background: hsl(var(--primary) / .14) !important;
+    color: hsl(var(--primary)) !important;
+    border-radius: 11px !important;
+  }
+  [data-lexis-mobile-menu-search] {
+    border-color: hsl(var(--border) / .74) !important;
+    background: hsl(var(--muted) / .53) !important;
+    border-radius: 999px !important;
+  }
+  [data-lexis-mobile-menu-search]:focus-within {
+    border-color: hsl(var(--primary) / .6) !important;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / .11);
+  }
+  [data-lexis-mobile-menu-search] svg {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-search] input {
+    min-width: 0;
+    font-size: 16px; /* prevent iOS auto zoom */
+    color: hsl(var(--foreground)) !important;
+    background: transparent !important;
+  }
+  [data-lexis-mobile-menu-search] input::placeholder {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-drawer-scroll] {
+    min-height: 0;
+    flex: 1 1 0;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    background: hsl(var(--background) / .65);
+  }
+  [data-lexis-mobile-menu-group] {
+    background: hsl(var(--card)) !important;
+    border-color: hsl(var(--border) / .65) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 3px 10px rgb(15 23 42 / .025);
+  }
+  [data-lexis-mobile-menu-summary] {
+    min-height: 60px;
+    color: hsl(var(--foreground));
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-lexis-mobile-menu-summary] > span:first-child {
+    background: hsl(var(--primary) / .11) !important;
+    color: hsl(var(--primary)) !important;
+    border-radius: 12px !important;
+  }
+  [data-lexis-mobile-menu-summary] > span:nth-child(2) > span:first-child {
+    color: hsl(var(--foreground)) !important;
+  }
+  [data-lexis-mobile-menu-summary] > span:nth-child(2) > span:last-child {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-summary] > span:nth-last-child(2) {
+    color: hsl(var(--muted-foreground)) !important;
+    background: hsl(var(--muted)) !important;
+  }
+  [data-lexis-mobile-menu-group-body] {
+    background: hsl(var(--muted) / .2) !important;
+    border-color: hsl(var(--border) / .48) !important;
+  }
+  [data-lexis-mobile-menu-entry] {
+    position: relative;
+    min-height: 44px;
+    border-radius: 13px !important;
+    color: hsl(var(--foreground)) !important;
+    transition: background-color 150ms ease, transform 150ms cubic-bezier(.22,1,.36,1) !important;
+  }
+  [data-lexis-mobile-menu-entry] > span:first-child:has(svg) {
+    background: hsl(var(--primary) / .09) !important;
+    color: hsl(var(--primary)) !important;
+  }
+  [data-lexis-mobile-menu-entry] > svg {
+    color: hsl(var(--primary)) !important;
+  }
+  [data-lexis-mobile-menu-entry] > span:last-child > span:first-child {
+    color: hsl(var(--foreground)) !important;
+  }
+  [data-lexis-mobile-menu-entry] > span:last-child > span:last-child:not(:first-child) {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  [data-lexis-mobile-menu-entry][aria-current="page"] {
+    background: hsl(var(--primary) / .115) !important;
+  }
+  [data-lexis-mobile-menu-entry][aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 12px;
+    left: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: hsl(var(--primary));
+  }
+  [data-lexis-mobile-menu-entry]:active,
+  [data-lexis-mobile-menu-feature]:active {
+    background: hsl(var(--primary) / .15) !important;
+    transform: scale(.99);
+  }
+  [data-lexis-mobile-drawer] :is(button,summary,input):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  [data-lexis-mobile-pending] {
+    max-width: calc(100vw - 32px);
+    color: hsl(var(--foreground)) !important;
+    background: hsl(var(--card) / .97) !important;
+    border-color: hsl(var(--border)) !important;
+    border-radius: 999px;
+  }
+
+  /* Shared cards and CRM pages. Keep tables and editors horizontally scrollable,
+     never transform the full main or animate thousands of cells. */
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .premium-card, .lexis-metric, .lexis-chart-card, [data-slot="card"],
+    [data-admin-card], [data-efferd-kpi], .bg-card.border
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    border-radius: var(--lx-mobile-rounded);
+    box-shadow: var(--lx-mobile-surface-shadow);
+    border-color: var(--lx-mobile-surface-border);
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    [role="tablist"], .tabs-list
+  ) {
+    max-width: 100%;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .recharts-responsive-container, .recharts-wrapper
+  ) {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    .lexis-table-wrap, .overflow-x-auto
+  ) {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  body[data-lexis-visual-group] [data-lexis-route-content] main :where(
+    input[type="search"], textarea
+  ) { max-width: 100%; }
+
+  /* Skeletons are layout placeholders, not another full viewport. */
+  [data-lexis-route-content] [data-lexis-page-skeleton] {
+    padding: 16px 12px;
+    min-height: 0;
+  }
+  [data-lexis-page-skeleton] .lx-skeleton-frame {
+    border-radius: var(--lx-mobile-rounded);
+  }
+
+  /* On touch devices only scale pressed navigation items. Motion capacity and
+     OS reduce-motion preference always take precedence. */
+  @media (hover:none) and (pointer:coarse) {
+    html[data-lexis-motion="full"] [data-lexis-mobile-bottom-nav]
+    [data-mobile-nav-action]:active {
+      transform: scale(.96);
+    }
+  }
+  @media (max-height: 560px) {
+    [data-lexis-mobile-drawer-header] [data-lexis-mobile-menu-feature] {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-lexis-mobile-topbar] button,
+    [data-lexis-mobile-bottom-nav] [data-mobile-nav-action],
+    [data-lexis-mobile-menu-entry],
+    [data-lexis-mobile-menu-feature] {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+  html[data-lexis-motion="lite"] [data-lexis-mobile-bottom-nav]
+  [data-mobile-nav-action]:active,
+  html[data-lexis-motion="lite"] [data-lexis-mobile-menu-entry]:active {
+    transform: none !important;
+  }
+}

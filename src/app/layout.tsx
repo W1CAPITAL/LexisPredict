@@ -12,6 +12,7 @@ import './visual-refinement.css';
 import './visual-all-routes.css';
 import './fluid-interactions.css';
 import './crm-fluid-refresh.css';
+import './crm-mobile-refresh.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
