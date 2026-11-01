@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getReportIdentity } from "@/lib/report/report-identity";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { canViewCompanyAnalyses } from "@/lib/roles";
 import { AnalisesPdfExportButton } from "@/components/analises-internas/pdf-export-button";
@@ -46,12 +47,13 @@ export default async function AnalisesInternasPage({searchParams}:{
     acoesQuery=acoesQuery.ilike("protocolo_ref",`%${q}%`);
   }
   if(cat)query=query.eq("categoria",cat);
-  const [analisesResult,tarefasResult,acoesResult,docsResult,replicasResult]=await Promise.all([
+  const [analisesResult,tarefasResult,acoesResult,docsResult,replicasResult,identity]=await Promise.all([
     query.order("data_atividade",{ascending:false}).order("id",{ascending:false}).range((pagina-1)*limit,pagina*limit-1),
     tarefasQuery.order("data_realizacao",{ascending:false}).order("id",{ascending:false}).range((atividadesPagina-1)*taskLimit,atividadesPagina*taskLimit-1),
     acoesQuery.order("created_at",{ascending:false}).range((acoesPagina-1)*actionLimit,acoesPagina*actionLimit-1),
     admin.from("registros_trabalho_analitico").select("id",{head:true,count:"exact"}).eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario).eq("categoria","auditoria_documental"),
     admin.from("registros_trabalho_analitico").select("id",{head:true,count:"exact"}).eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario).eq("categoria","triagem_replica_provas"),
+    getReportIdentity(),
   ]);
   const {data,error,count}=analisesResult;
   const {data:atividades,error:atividadesError,count:atividadesCount}=tarefasResult;
@@ -68,7 +70,7 @@ export default async function AnalisesInternasPage({searchParams}:{
     ["","Todos"],["auditoria_sistemica","Auditoria sistêmica"],
     ["auditoria_documental","Auditoria documental"],
     ["triagem_replica_provas","Réplica e provas"],["dossie_individual","Dossiês"],
-    ["investigacao_get","Processos GET"],["investigacao_externa","Investigação externa"],
+    ["investigacao_get","Investigação interna"],["investigacao_externa","Investigação externa"],
     ["entrega_projeto","Projetos e sistemas"]
   ];
   const link=(page:number,category=cat,taskPage=atividadesPagina,actionPage=acoesPagina)=>
@@ -76,10 +78,11 @@ export default async function AnalisesInternasPage({searchParams}:{
   const ids=[...new Set((data||[]).map(x=>x.protocolo_ref).filter(x=>/^\d{7}-/.test(x)))];
   const {data:names}=ids.length?await admin.from("processos").select("protocolo_ref,cliente").eq("empresa_id",empresa).in("protocolo_ref",ids):{data:[]};
   const nomePorCnj=new Map((names||[]).map(x=>[String(x.protocolo_ref),String(x.cliente||"")]));
-  return <main data-lexis-visual="analyses" className="mx-auto max-w-[1600px] space-y-6 px-4 py-8 text-foreground sm:px-8">
+  return <main data-lexis-visual="analyses" data-report-surface="analyses" className="mx-auto max-w-[1600px] space-y-6 px-4 py-8 text-foreground sm:px-8">
     <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
-      <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">LexisPredict · Relatórios e Auditoria</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">{identity.company} / Histórico pessoal</p>
       <h1 className="mt-2 text-3xl font-extrabold">Minhas análises e atividades</h1>
+      <span className="mt-4 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs">{ctx.nome || "Colaborador"}</span>
       <p className="mt-2 max-w-4xl text-sm text-slate-300">Histórico individual: análises documentadas, atividades manuais e ações operacionais. Cada fonte é identificada e não comprova, por si só, revisão jurídica integral ou contato com o cliente.</p>
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[[resumo.totalRegistros,cat?"Análises filtradas":"Registros analíticos"],[resumo.atividadesRegistradas,"Atividades manuais"],[resumo.acoesRegistradas,"Ações operacionais"],[resumo.auditoriaDocumental,"Auditorias documentais"]].map(([v,l])=>

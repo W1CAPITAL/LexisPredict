@@ -97,7 +97,7 @@ export default function UnifiedReport() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
   const [portfolioResumo,setPortfolioResumo]=useState<CarteiraSnapshot|null>(null);
-  const [analisesResumo,setAnalisesResumo]=useState<{processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasDaviConcluidas:number;tarefasDaviPeriodo:number;historicoAtendimentosDavi:number;historicoEdicoesDavi:number;encerramentosSistemicosDavi:number;processosComTrabalhoDavi:number;contatosDeclaradosPeriodo:number}|null>(null);
+  const [analisesResumo,setAnalisesResumo]=useState<{empresaNome?:string;processosAnalisados:number;atendidosInternamenteNoPeriodo:number;auditoriaDocumental:number;triagemReplicaProvas:number;dossiesIndividuais:number;investigacoesExternas:number;projetos:number;tarefasConcluidas:number;tarefasConcluidasPeriodo:number;tarefasUsuarioConcluidas:number;tarefasUsuarioPeriodo:number;historicoAtendimentosLegados:number;historicoEdicoesLegadas:number;encerramentosImportados:number;processosComTrabalho:number;contatosDeclaradosPeriodo:number}|null>(null);
 
   const { profile, loading: authLoading } = useAuth();
 
@@ -409,6 +409,7 @@ export default function UnifiedReport() {
         <DossieOperacionalPDF
           data={{
             geradoEm: new Date().toLocaleString("pt-BR"),
+            empresaNome: analisesResumo?.empresaNome,
             auditor: profile?.nome || "—",
             cargo: profile?.cargo || "—",
             kpis: [
@@ -420,14 +421,14 @@ export default function UnifiedReport() {
               { label: "Auditados semana", value: String(metrics.countAuditadosSemana ?? 0) },
               { label: "Tribunal (sem.)", value: String(metrics.countAuditadosTribunal ?? 0) },
               { label: "Editados app", value: String(metrics.countEditadosApp ?? 0) },
-              { label: "Atendidos internamente (Davi)", value: String(analisesResumo?.atendidosInternamenteNoPeriodo ?? 0) },
-              { label: "Processos analisados (Davi)", value: String(analisesResumo?.processosAnalisados ?? 0) },
+              { label: "Trabalho interno da equipe", value: String(analisesResumo?.atendidosInternamenteNoPeriodo ?? 0) },
+              { label: "Processos analisados na empresa", value: String(analisesResumo?.processosAnalisados ?? 0) },
               { label: "Tarefas manuais no período", value: String(analisesResumo?.tarefasConcluidasPeriodo ?? 0) },
               { label: "Atendimentos registrados", value: String(historicoAtendimentos?.eventos ?? 0) },
             ],
             resumoExecutivo: [
-              `Davi Alves Figueredo — ${analisesResumo?.processosAnalisados ?? 0} processos com análise interna, ${analisesResumo?.auditoriaDocumental ?? 0} registros de auditoria documental, ${analisesResumo?.triagemReplicaProvas ?? 0} triagens de réplica/provas, ${analisesResumo?.dossiesIndividuais ?? 0} dossiês individuais e ${analisesResumo?.investigacoesExternas ?? 0} referências de investigação externa. São atividades internas, sem comprovação automática de atendimento ao cliente.`,
-              `Atividades registradas: ${analisesResumo?.tarefasDaviPeriodo ?? 0} tarefas concluídas por Davi no período e ${analisesResumo?.tarefasConcluidasPeriodo ?? 0} por toda a equipe. Há também ${analisesResumo?.encerramentosSistemicosDavi ?? 0} processos com operação em lote vinculada à conta de Davi, que não equivalem a contatos pessoais.`,
+              `Produção da equipe — ${analisesResumo?.processosAnalisados ?? 0} processos com análise interna, ${analisesResumo?.auditoriaDocumental ?? 0} registros de auditoria documental, ${analisesResumo?.triagemReplicaProvas ?? 0} triagens de réplica/provas, ${analisesResumo?.dossiesIndividuais ?? 0} dossiês individuais e ${analisesResumo?.investigacoesExternas ?? 0} referências de investigação externa. São atividades internas, sem comprovação automática de atendimento ao cliente.`,
+              `Atividades registradas: ${analisesResumo?.tarefasConcluidasPeriodo ?? 0} tarefas concluídas pela equipe no período. Registros em lote são separados dos contatos pessoais.`,
               `Histórico de atendimentos no período: ${historicoAtendimentos?.processos ?? 0} processos únicos, ${historicoAtendimentos?.eventos ?? 0} eventos humanos. ${historicoAtendimentos?.tecnicoEventos ?? 0} eventos de conta técnica separados. Crédito pelo executor da ação, mesmo que o cliente esteja atribuído a outro responsável.`,
               ...metrics.recomendacoes,
             ],
@@ -675,9 +676,9 @@ export default function UnifiedReport() {
            <KpiCard label="Ativos em Gestão" value={metrics.activeTotal} />
            <KpiCard label="Atendidos esta semana" value={historicoLoading||historicoAtendimentos?.periodo!==periodo?"…":metrics.countAtendidosSemana} tone="info" />
           <KpiCard label="Registros de atendimento" value={historicoAtendimentos?.eventos ?? 0} tone="info" />
-           <KpiCard label="Atendidos internamente · Davi" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
-           <KpiCard label="Analisados na carteira · Davi" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
-           <KpiCard label="Minhas tarefas concluídas" value={analisesResumo?.tarefasDaviPeriodo ?? 0} tone="ok" />
+           <KpiCard label="Trabalho interno · equipe" value={analisesResumo?.atendidosInternamenteNoPeriodo ?? 0} tone="info" />
+           <KpiCard label="Analisados na carteira · empresa" value={analisesResumo?.processosAnalisados ?? 0} tone="info" />
+           <KpiCard label="Minhas tarefas concluídas" value={analisesResumo?.tarefasUsuarioPeriodo ?? 0} tone="ok" />
            <KpiCard label="Auditados esta semana" value={metrics.countAuditadosSemana ?? 0} tone="info" />
            <KpiCard label="Tribunal (DataJud/DJEN)" value={metrics.countAuditadosTribunal ?? 0} />
            <KpiCard label="Editados no app" value={metrics.countEditadosApp ?? 0} />
@@ -694,7 +695,7 @@ export default function UnifiedReport() {
         </section>
 
         <section className="lexis-report-sheet rounded-2xl border border-border bg-card p-6 sm:p-8 break-inside-avoid">
-          <h2 className="text-xl font-black text-foreground">Trabalho analítico e auditoria — Davi Alves Figueredo</h2>
+          <h2 className="text-xl font-black text-foreground">Trabalho analítico e auditoria da empresa</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {analisesResumo
               ? `${analisesResumo.auditoriaDocumental} apontamentos de auditoria documental, ${analisesResumo.triagemReplicaProvas} triagens de réplica/provas, ${analisesResumo.dossiesIndividuais} dossiês individuais, ${analisesResumo.investigacoesExternas} referências de investigações externas e ${analisesResumo.projetos} entregas de projeto, incluindo sistemas e automações.`
@@ -1118,7 +1119,7 @@ export default function UnifiedReport() {
            <div className="flex items-center gap-6">
               <div className="w-10 h-10 border-2 border-primary rounded-lg flex items-center justify-center bg-primary text-primary-foreground"><Zap size={20} /></div>
               <div>
-                <p className="text-[10px] tracking-[0.4em] uppercase text-foreground font-black">2026 W1 CAPITAL • AUTHORITY SYSTEM</p>
+                <p className="text-[10px] tracking-[0.4em] uppercase text-foreground font-black">LEXISPREDICT • RELATÓRIO OPERACIONAL</p>
                 <p className="text-[7px] font-bold uppercase text-muted-foreground tracking-[0.2em]">
                   Dossiê Operacional · Claude AI · métricas locais + parecer
                 </p>
