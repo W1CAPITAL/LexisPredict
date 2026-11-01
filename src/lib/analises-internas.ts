@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/server-db";
 export type AnalisesResumo = {
  totalRegistros:number;
  processosAnalisados:number;
- processosComTrabalhoDavi:number;
+ processosComTrabalho:number;
  atendidosInternamenteNoPeriodo:number;
  auditoriaSistemica:number;
  auditoriaDocumental:number;
@@ -11,25 +11,25 @@ export type AnalisesResumo = {
  dossiesIndividuais:number;
  investigacoesExternas:number;
  projetos:number;
- historicoAtendimentosDavi:number;
- historicoEdicoesDavi:number;
- encerramentosSistemicosDavi:number;
+ historicoAtendimentosLegados:number;
+ historicoEdicoesLegadas:number;
+ encerramentosImportados:number;
  tarefasConcluidas:number;
  tarefasConcluidasPeriodo:number;
- tarefasDaviConcluidas:number;
- tarefasDaviPeriodo:number;
+ tarefasUsuarioConcluidas:number;
+ tarefasUsuarioPeriodo:number;
  contatosDeclaradosPeriodo:number;
  tarefasPorPessoa:Array<{nome:string;total:number;periodo:number}>;
  responsavel:string;
  consultaEm:string;
 };
 export const EMPTY_ANALISES:AnalisesResumo={
- totalRegistros:0,processosAnalisados:0,processosComTrabalhoDavi:0,atendidosInternamenteNoPeriodo:0,
+ totalRegistros:0,processosAnalisados:0,processosComTrabalho:0,atendidosInternamenteNoPeriodo:0,
  auditoriaSistemica:0,auditoriaDocumental:0,triagemReplicaProvas:0,dossiesIndividuais:0,
- investigacoesExternas:0,projetos:0,historicoAtendimentosDavi:0,historicoEdicoesDavi:0,
- encerramentosSistemicosDavi:0,tarefasConcluidas:0,tarefasConcluidasPeriodo:0,
- tarefasDaviConcluidas:0,tarefasDaviPeriodo:0,contatosDeclaradosPeriodo:0,
- tarefasPorPessoa:[],responsavel:"Davi Alves Figueredo",consultaEm:""
+ investigacoesExternas:0,projetos:0,historicoAtendimentosLegados:0,historicoEdicoesLegadas:0,
+ encerramentosImportados:0,tarefasConcluidas:0,tarefasConcluidasPeriodo:0,
+ tarefasUsuarioConcluidas:0,tarefasUsuarioPeriodo:0,contatosDeclaradosPeriodo:0,
+ tarefasPorPessoa:[],responsavel:"Equipe da empresa",consultaEm:""
 };
 type Analysis={
  processo_id:number|null;protocolo_ref:string;categoria:string;data_atividade:string;
@@ -39,7 +39,6 @@ type Task={
  responsavel_auth_user_id:string;processo_id:number|null;
  data_realizacao:string;contato_cliente_confirmado:boolean;
 };
-const DAVI_AUTH="4581d2fe-c358-45f9-a1bd-f90f93dce0fc";
 const ANALISE_TIPOS=new Set([
  "auditoria_sistemica","auditoria_documental","triagem_replica_provas",
  "dossie_individual","investigacao_get","investigacao_externa"
@@ -58,7 +57,7 @@ async function paginate<T>(build:(from:number,to:number)=>any):Promise<T[]>{
 }
 // Fonte de verdade dos KPIs de trabalho interno e tarefas; nunca modifica retorno real ao cliente.
 export async function getResumoAnalisesDaEmpresa(
- empresaId:string,inicio?:string,fim?:string
+ empresaId:string,inicio?:string,fim?:string,authUserId?:string
 ):Promise<AnalisesResumo>{
  const db=await getSupabaseAdmin();
  const [rows,tasks,users]=await Promise.all([
@@ -83,11 +82,11 @@ export async function getResumoAnalisesDaEmpresa(
   const m=tasks.filter(t=>t.responsavel_auth_user_id===user);
   return {nome:nomes.get(user)||"Usuário",total:m.length,periodo:m.filter(x=>inPeriod(x.data_realizacao)).length};
  }).sort((a,b)=>b.periodo-a.periodo);
- const daDavi=tasks.filter(x=>x.responsavel_auth_user_id===DAVI_AUTH);
+ const actorTasks=authUserId?tasks.filter(x=>x.responsavel_auth_user_id===authUserId):[];
  return {
   totalRegistros:rows.length,
   processosAnalisados:new Set(analyses.map(x=>x.processo_id)).size,
-  processosComTrabalhoDavi:new Set(works.map(x=>x.processo_id)).size,
+  processosComTrabalho:new Set(works.map(x=>x.processo_id)).size,
   atendidosInternamenteNoPeriodo:new Set(periodo.map(x=>x.processo_id)).size,
   auditoriaSistemica:typeCount("auditoria_sistemica"),
   auditoriaDocumental:typeCount("auditoria_documental"),
@@ -95,16 +94,16 @@ export async function getResumoAnalisesDaEmpresa(
   dossiesIndividuais:typeCount("dossie_individual"),
   investigacoesExternas:typeCount("investigacao_get")+typeCount("investigacao_externa"),
   projetos:typeCount("entrega_projeto"),
-  historicoAtendimentosDavi:typeCount("historico_atendimento_id_davi")+typeCount("atendimento_por_perfil_davi"),
-  historicoEdicoesDavi:typeCount("historico_edicao_id_davi")+typeCount("edicao_por_nome_davi"),
-  encerramentosSistemicosDavi:typeCount("historico_encerramento_lote_id_davi"),
+  historicoAtendimentosLegados:typeCount("historico_atendimento_id_davi")+typeCount("atendimento_por_perfil_davi"),
+  historicoEdicoesLegadas:typeCount("historico_edicao_id_davi")+typeCount("edicao_por_nome_davi"),
+  encerramentosImportados:typeCount("historico_encerramento_lote_id_davi"),
   tarefasConcluidas:tasks.length,
   tarefasConcluidasPeriodo:tasks.filter(x=>inPeriod(x.data_realizacao)).length,
-  tarefasDaviConcluidas:daDavi.length,
-  tarefasDaviPeriodo:daDavi.filter(x=>inPeriod(x.data_realizacao)).length,
+  tarefasUsuarioConcluidas:actorTasks.length,
+  tarefasUsuarioPeriodo:actorTasks.filter(x=>inPeriod(x.data_realizacao)).length,
   contatosDeclaradosPeriodo:tasks.filter(x=>inPeriod(x.data_realizacao)&&x.contato_cliente_confirmado).length,
   tarefasPorPessoa,
-  responsavel:"Davi Alves Figueredo",consultaEm:new Date().toISOString()
+  responsavel:"Equipe da empresa",consultaEm:new Date().toISOString()
  };
 }
 

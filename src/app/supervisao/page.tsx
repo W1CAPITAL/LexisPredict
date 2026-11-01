@@ -57,13 +57,11 @@ function KpiCard({ icon, label, value, hint, tone = "default" }: {
     primary: "text-primary",
   };
   return (
-    <div className="rounded-2xl border border-border/70 bg-card/70 backdrop-blur-md p-4 sm:p-5 shadow-sm hover:border-primary/40 transition-all group">
-      <div className="flex items-center justify-between">
-        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
-        <span className="text-muted-foreground/50 group-hover:text-primary transition-colors">{icon}</span>
-      </div>
-      <p className={cn("mt-3 text-2xl sm:text-3xl font-black tabular-nums tracking-tight", tones[tone])}>{value}</p>
-      {hint ? <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60">{hint}</p> : null}
+    <div className="rv-card rv-stat">
+      <span className={cn("rv-stat-icon", tones[tone])}>{icon}</span>
+      <strong className={tones[tone]}>{value}</strong>
+      <h2>{label}</h2>
+      {hint ? <p>{hint}</p> : null}
     </div>
   );
 }
@@ -123,49 +121,20 @@ export default function SupervisaoPage() {
     };
   }, [allowed, authLoading, periodo]);
 
-  const handleDownloadRelatorioEquipe = async () => {
-    if (!snap) return;
+  const exportReport = async (tipo: "equipe" | "operacional") => {
+    if (!snap || pdfLoading) return;
     setPdfLoading(true);
     try {
-      const [{ downloadPdf }, { RelatorioEquipePDF }, { montarRelatorioEquipe }] = await Promise.all([
-        import("@/lib/pdf-download"),
-        import("@/components/pdf/relatorio-equipe-pdf"),
-        import("@/lib/relatorio-equipe-narrativa"),
-      ]);
-      const data = montarRelatorioEquipe(snap, { geradoEm: new Date().toLocaleString("pt-BR") });
-      await downloadPdf(
-        <RelatorioEquipePDF data={data} />,
-        `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}`
-      );
+      const { downloadServerReport } = await import("@/lib/report/download-server-report");
+      await downloadServerReport(`/api/supervisao/pdf?${new URLSearchParams({ periodo, tipo })}`, "LexisPredict-Supervisao.pdf");
     } catch (e) {
-      console.error("Relatorio equipe PDF:", e);
+      setError(e instanceof Error ? e.message : "Não foi possível gerar o relatório.");
     } finally {
       setPdfLoading(false);
     }
   };
-
-  const handleDownloadPdf = async () => {
-    if (!snap) return;
-    setPdfLoading(true);
-    try {
-      const [{ downloadPdf }, { SupervisaoPDF }] = await Promise.all([
-        import("@/lib/pdf-download"),
-        import("@/components/pdf/supervisao-pdf"),
-      ]);
-      await downloadPdf(
-        <SupervisaoPDF
-          data={snap}
-          geradoEm={new Date().toLocaleString("pt-BR")}
-          auditor={profile?.nome}
-        />,
-        `Supervisao_Operacional_${new Date().toISOString().slice(0, 10)}`
-      );
-    } catch (e) {
-      console.error("Supervisão PDF:", e);
-    } finally {
-      setPdfLoading(false);
-    }
-  };
+  const handleDownloadRelatorioEquipe = () => exportReport("equipe");
+  const handleDownloadPdf = () => exportReport("operacional");
 
   if (!authLoading && !allowed) {
     return (
@@ -195,11 +164,11 @@ export default function SupervisaoPage() {
   return (
     <div className="flex h-screen bg-background font-sans text-foreground overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main data-report-surface="supervision" className="flex-1 flex flex-col overflow-hidden">
         <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 px-5 pb-4 pt-6 sm:px-8">
           <div>
             <p className="mb-1 flex items-center gap-2 text-[11px] font-black uppercase tracking-[.14em] text-[#1f6fff]">
-              <ShieldCheck size={14} /> Supervisão
+              <ShieldCheck size={14} /> {snap?.empresaNome || "Supervisão"}
             </p>
             <h1 className="text-[28px] font-black leading-none tracking-[-.04em] text-[#102447] sm:text-[32px]">Supervisão</h1>
             <p className="mt-2 text-sm font-medium text-[#617693]">Indicadores consolidados no Supabase, com atualização automática a cada minuto. Carteira atual separada dos resultados do período.</p>
@@ -253,7 +222,7 @@ export default function SupervisaoPage() {
               </div>
             ) : snap ? (
               <>
-<div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                   
           <div className="flex flex-wrap items-center gap-2 px-1 mb-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Período</span>
@@ -290,7 +259,7 @@ export default function SupervisaoPage() {
                   <KpiCard icon={<Sparkles size={16} />} label="Novidades" value={snap.novidades} tone={snap.novidades > 0 ? "warn" : "default"} />
                   <KpiCard icon={<Gavel size={16} />} label="B.A." value={snap.ba} tone={snap.ba > 0 ? "danger" : "default"} />
                   <KpiCard icon={<FileSearch size={16} />} label="Processos com trabalho interno" value={snap.analisesInternas?.atendidosInternamenteNoPeriodo ?? 0} tone="primary" hint="Registrados no período · equipe; não é contato com cliente" />
-                  <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · Davi" value={snap.analisesInternas?.tarefasDaviPeriodo ?? 0} tone="ok" hint="atividades manuais no período" />
+                  <KpiCard icon={<CheckCircle2 size={16} />} label="Contatos declarados · equipe" value={snap.analisesInternas?.contatosDeclaradosPeriodo ?? 0} tone="ok" hint="atividades manuais no período" />
                   <KpiCard icon={<CheckCircle2 size={16} />} label="Tarefas concluídas · equipe" value={snap.analisesInternas?.tarefasConcluidasPeriodo ?? 0} tone="ok" hint="lançamentos manuais no período" />
                   <KpiCard icon={<FileSearch size={16} />} label="Processos analisados · empresa" value={snap.analisesInternas?.processosAnalisados ?? 0} tone="ok" hint="Histórico acumulado de análises cadastradas" />
                                     <KpiCard icon={<MessageSquare size={16} />} label="Com data de retorno" value={snap.atendimentosTotais} tone="ok" hint="Data no CRM; não comprova contato humano" />

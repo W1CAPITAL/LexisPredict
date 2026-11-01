@@ -6,9 +6,9 @@ import {ReportPdfExportButton} from "@/components/report/report-pdf-export-butto
 import {Activity,AlertTriangle,ArrowUpRight,BarChart3,BellRing,BriefcaseBusiness,CheckCircle2,ChevronRight,ClipboardList,Clock3,FileText,Filter,MessageCircle,RefreshCw,ShieldAlert,Sparkles,Users,Wallet} from "lucide-react";
 import {CartesianGrid,Cell,Line,LineChart,Pie,PieChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 
-type Person={id:string;nome:string;carteira:number;atendimentos:number;encerramentos:number;edicoes:number;atividades:number};
+type Person={id:string;nome:string;carteira:number;atendimentos:number;encerramentos:number;edicoes:number;atividades:number|null};
 type Day={ymd:string;atendimentos:number;encerramentos:number};
-type Props={
+type Props={company?:string;
  periodo:"esta_semana"|"semana_passada"|"mes";meus:boolean;
  canViewTeam:boolean;canExport:boolean;
  total:number|null;ativos:number|null;encerrados:number|null;novidades:number|null;vencidos:number|null;

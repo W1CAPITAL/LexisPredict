@@ -99,7 +99,7 @@ describe("commercial role contract", () => {
     // A função gerencial continua separada; a página individual usa apenas
     // consultas limitadas (nenhuma varredura paginada completa dos 6 mil registros).
     expect(page).not.toContain("await getResumoAnalisesDoUsuario(");
-    expect(page).toContain('const [analisesResult,tarefasResult,acoesResult,docsResult,replicasResult]=await Promise.all');
+    expect(page).toContain('const [analisesResult,tarefasResult,acoesResult,docsResult,replicasResult,identity]=await Promise.all');
     expect(page).toContain('head:true,count:"exact"');
     expect(page).toContain("taskLimit=25");
     expect(page).toContain("actionLimit=20");

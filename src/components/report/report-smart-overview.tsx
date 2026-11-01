@@ -47,7 +47,7 @@ export function ReportSmartOverview(props: Props) {
   const activePct = props.total && props.ativos != null ? Math.max(0,Math.min(100,Math.round(100*props.ativos/props.total))) : null;
   const closedPct = activePct == null ? null : 100-activePct;
   const maxDaily = Math.max(1,...props.dias.map(d=>d.atendimentos || 0));
-  const questions = ["O que Davi realizou?", "Compare os atendimentos de Davi, Kris e Adriana", "Quais dossiês e projetos foram registrados?", "Quais atividades precisam de conferência?"];
+  const questions = ["Compare os atendimentos da equipe", "Quais atividades foram registradas?", "Quais dossiês e projetos foram registrados?", "Quais atividades precisam de conferência?"];
   const facts = {
     periodo: props.periodLabel,
     escopo_carteira: props.scopeLabel,

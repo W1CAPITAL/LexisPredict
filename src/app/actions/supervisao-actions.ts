@@ -5,6 +5,7 @@
  * Processos agrupados por usuário (created_by → nome do perfil).
  */
 
+import { getReportIdentity } from '@/lib/report/report-identity';
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
 import { periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { getHistoricoAtendimentosEmpresa,emptyHistorico,type AtendimentosHistorico } from '@/lib/historico-atendimentos';
@@ -40,6 +41,8 @@ export type SupervisaoUsuarioGrupo = {
 };
 
 export type SupervisaoSnapshot = {
+  empresaNome?: string;
+  analisesDisponiveis?: boolean;
   historicoAtendimentos:AtendimentosHistorico;
   analisesInternas: AnalisesResumo;
   /** Horário UTC em que a consulta foi executada */
@@ -161,7 +164,7 @@ export async function getSupervisaoSnapshotAction(
   const hoje=new Date();
   const bounds=periodBounds(periodo,hoje);
   const toYmd=(date:Date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
-  const [carteiraReq,atividadeReq,estadoReq,historicoReq,analisesReq,casosReq,usuariosReq]=await Promise.allSettled([
+  const [carteiraReq,atividadeReq,estadoReq,historicoReq,analisesReq,casosReq,usuariosReq,identityReq]=await Promise.allSettled([
     db.rpc('lexis_supervisao_carteira_snapshot',{p_empresa:ctx.empresa_id}),
     db.rpc('lexis_supervisao_atividade_snapshot',{p_empresa:ctx.empresa_id,p_periodo:periodo}),
     db.rpc('lexis_supervisao_status_por_protocolo',{p_empresa:ctx.empresa_id}),
@@ -169,6 +172,7 @@ export async function getSupervisaoSnapshotAction(
     getResumoAnalisesDaEmpresa(ctx.empresa_id,toYmd(bounds.start),toYmd(bounds.end)),
     getStoredCasesForEmpresa(ctx.empresa_id,false),
     db.from('usuarios').select('id,auth_user_id,nome').eq('empresa_id',ctx.empresa_id),
+    getReportIdentity(),
   ]);
   const checked=(result:PromiseSettledResult<any>,label:string):any=>{
    if(result.status!=='fulfilled')throw new Error(label+': '+String(result.reason));
@@ -227,10 +231,11 @@ export async function getSupervisaoSnapshotAction(
   const comRetorno=Number(carteira.comRetorno||0);
   const novosAuditoria=Math.max(0,Number(atividade.auditoriasLancadas||0)-Number(atividade.auditoriasImportadas||0));
   return {success:true,snapshot:{
+   empresaNome:identityReq.status==='fulfilled'?identityReq.value.company:'Empresa vinculada',
    geradoEm:new Date().toISOString(),
    ultimaAlteracaoEm:carteira.ultimaAlteracaoEm,
    periodo,periodoLabel:labelPeriodo(periodo),
-   historicoAtendimentos:historico,analisesInternas:analises,
+   historicoAtendimentos:historico,analisesInternas:analises,analisesDisponiveis:analisesReq.status==='fulfilled',
    total,ativos,encerrados:Number(carteira.encerrados||0),
    baixasTribunal:Number(carteira.baixasTribunal||0),
    vencidos:Number(carteira.vencidos||0),

@@ -19,6 +19,7 @@ export type RelatorioEquipePessoa = {
 };
 export type RelatorioEquipeData = {
   geradoEm: string;
+  empresaNome?: string;
   periodoLabel: string;
   kpis: { valor: string; rotulo: string }[];
   pessoas: RelatorioEquipePessoa[];
@@ -47,14 +48,11 @@ export function montarRelatorioEquipe(
       }));
   const a = snap.analisesInternas;
   const pessoas: RelatorioEquipePessoa[] = grupos.map(u => {
-    const davi=/\bDAVI\b/i.test(u.nome);
     const tarefas=(a?.tarefasPorPessoa||[]).find(x=>x.nome.toUpperCase()===u.nome.toUpperCase());
     return {
       nome: u.nome || "Sem usuário identificado",
-      papel: davi
-        ? "Carteira processual, dossiês, auditoria documental, investigações, sistemas e automações."
-        : "Carteira conforme titularidade cadastrada no Supabase.",
-      linha: linhaPessoa(u)+(tarefas?` · ${tarefas.periodo} tarefas concluídas no período`:"")+(davi&&a?` · ${a.processosAnalisados} processos com análise interna registrada na empresa (inclui auditoria sistêmica, sem contato presumido)`:""),
+      papel: "Carteira conforme titularidade cadastrada no sistema.",
+      linha: linhaPessoa(u)+(tarefas?` · ${tarefas.periodo} tarefas concluídas no período`:""),
       vencidos: u.vencidos,
     };
   });
@@ -62,7 +60,7 @@ export function montarRelatorioEquipe(
     .sort((a,b) => b.vencidos - a.vencidos).slice(0,3);
   const maiorCarteira = [...grupos].sort((a,b)=>b.total-a.total)[0];
   const leitura = [
-    ...(a ? [`A equipe registrou ${a.tarefasConcluidasPeriodo} tarefas concluídas manualmente neste período; Davi realizou ${a.tarefasDaviPeriodo}. Tarefas de sistema, análises e contatos são classificados separadamente.`] : []),
+    ...(a ? [`A equipe registrou ${a.tarefasConcluidasPeriodo} tarefas concluídas manualmente neste período. Tarefas de sistema, análises e contatos são classificados separadamente.`] : []),
     ...(a ? [`Produção analítica cadastrada na empresa: ${a.processosAnalisados} processos com registro de análise, ${a.auditoriaDocumental} anotações documentais, ${a.triagemReplicaProvas} triagens de réplica e provas, ${a.dossiesIndividuais} dossiês, ${a.investigacoesExternas} levantamentos externos e ${a.projetos} entregas de projeto. Esses registros não identificam individualmente o executor por categoria nem equivalem a contato com cliente.`] : []),
     `A base consultada contém ${snap.total} processos: ${snap.ativos} ativos e ${snap.encerrados} encerrados.`,
     `Foram identificados ${snap.vencidos} processos ativos com status operacional Vencido ou Caso Crítico. Datas antigas isoladas não entram nesse KPI; devem ser revisadas como inconsistências separadas.`,
@@ -89,6 +87,7 @@ export function montarRelatorioEquipe(
   ];
   const recado = `Corte: ${snap.periodoLabel || "período atual"}. Dados extraídos em ${snap.geradoEm ? new Date(snap.geradoEm).toLocaleString("pt-BR", {timeZone:"America/Sao_Paulo"}) : "horário não informado"}. Prioridade operacional: retorno vencido, novidade ainda sem comunicação e cadastro sem contato. Não há verificação automática de conclusão das demandas externas neste relatório.`;
   return {
+    empresaNome: snap.empresaNome,
     geradoEm: opts?.geradoEm || new Date().toLocaleString("pt-BR", {timeZone:"America/Sao_Paulo"}),
     periodoLabel: snap.periodoLabel || "período atual",
     kpis: [
@@ -103,7 +102,6 @@ export function montarRelatorioEquipe(
       { valor: String(a?.atendidosInternamenteNoPeriodo ?? 0), rotulo: "atendidos internamente (análise)" },
       { valor: String(a?.processosAnalisados ?? 0), rotulo: "processos auditados/analisados" },
       { valor: String(a?.tarefasConcluidasPeriodo ?? 0), rotulo: "tarefas concluídas equipe" },
-      { valor: String(a?.tarefasDaviPeriodo ?? 0), rotulo: "tarefas concluídas Davi" },
     ],
     pessoas, leitura, canais, esconde, recado, proxima, whatsapp: FATO_WHATSAPP,
   };
