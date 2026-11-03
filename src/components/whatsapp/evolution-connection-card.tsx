@@ -37,6 +37,7 @@ export function EvolutionConnectionCard(){
       if(version!==requestVersion.current)return;
       if(!result.ok){
         setBridge(null);
+        setLastCheckedAt('');
         setError(result.error||'Não foi possível consultar o WA.Auto.');
         report(false);
         return;
@@ -48,6 +49,7 @@ export function EvolutionConnectionCard(){
     }catch{
       if(version!==requestVersion.current)return;
       setBridge(null);
+      setLastCheckedAt('');
       setError('Falha ao consultar a conexão WhatsApp.');
       report(false);
     }finally{
@@ -114,7 +116,7 @@ export function EvolutionConnectionCard(){
     </div>
     {requestNote&&<p role="status" className="mt-2 rounded border p-2 text-xs">{requestNote}</p>}
     {!ready&&showQr&&<div role="status" className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground">
-      {!bridge?.online?'O serviço de pareamento não está ativo neste momento. O código abaixo pode estar expirado; um novo só será gerado quando o serviço WhatsApp retomar a conexão.':
+      {!bridge?.online?'O serviço de pareamento está offline. Nenhum QR disponível nesta consulta; um código novo será gerado quando o serviço voltar.':
        qrReady?'QR recente. Abra WhatsApp no celular → Aparelhos conectados → Conectar aparelho.':
        bridge?.qrRefreshPending?'Pedido registrado; aguardando o worker renovar o QR.':bridge?.qrStale?'QR antigo expirado. Clique em Gerar novo QR.':'Aguardando QR do worker. Esta tela atualiza automaticamente.'}
      </div>}
