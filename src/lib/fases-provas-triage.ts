@@ -55,6 +55,13 @@ export function formatFasesDate(value: unknown): string {
   return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+function eventTime(raw: string): number {
+  if (!raw) return 0;
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(raw);
+  if (br) return Date.UTC(Number(br[3]), Number(br[2])-1, Number(br[1]));
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
 function snippet(value: unknown, max = 260): string {
   const text = String(value ?? "").replace(/\s+/g, " ").trim();
   return text.length > max ? text.slice(0, max - 1) + "…" : text;
@@ -155,16 +162,16 @@ export function classifyFasesProvas(cases: CaseRecord[], seen = new Set<string>(
     const tribunalEvents = [
       { text: datajud, source: "DataJud · último movimento", date: valueOf(item, "datajud_ultimo_movimento", "datajud_consultado_em") },
       { text: djen, source: "DJEN · última publicação", date: valueOf(item, "djen_ultima_data", "djen_consultado_em") },
-    ];
+    ].sort((a, b) => eventTime(b.date) - eventTime(a.date));
     for (const tipo of ["replica", "provas"] as const) {
       if (![note, datajud, djen].some(text => isAboutType(text, tipo))) continue;
       const key = keyBase + ":" + tipo;
       if (seen.has(key)) continue;
       seen.add(key);
-      // Últimos registros oficiais são evidências mais fortes do que a anotação
-      // interna. Um ato posterior explícito prevalece sobre uma fase antiga.
-      const laterAct = tribunalEvents.find(event => decision.test(normalizePhaseText(event.text)));
-      const official = laterAct || tribunalEvents.find(event => isAboutType(event.text, tipo));
+      // O registro oficial mais recente e relevante prevalece sobre anotações
+      // antigas. Um ato posterior só desloca a fase se for realmente mais novo.
+      const official = tribunalEvents.find(event =>
+        decision.test(normalizePhaseText(event.text)) || isAboutType(event.text, tipo));
       const evidence = official || (isAboutType(note, tipo)
         ? { text: note, source: "Cadastro · observação", date: "" }
         : { text: "", source: "Sem trecho disponível", date: "" });
