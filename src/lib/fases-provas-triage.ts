@@ -77,7 +77,7 @@ const decision = /\bsentenca\b|improceden|proceden|transito em julgado|extincao 
 const request = /\bintimad[oa]s?\b|\bintimacao\b|\bdetermin[ao]c?a?o?\b|\bdespacho\b|\bprazo para\b|\bprazo de\b|\bespecificacao de provas|\bmanifestar.s? sobre\b|\bapresentar\b|\bjuntar\b|\brequer[ae]r\b|\bproduzir\b/;
 const sent = /\bprotocolad[ao]s?\b|\bapresentad[ao]s?\b|\bjuntad[ao]s?\b|\bentregu[ae]s?\b|\brealizad[ao]s?\b|\benviad[ao]s?\b/;
 const pending = /\bpendente\b|\baguardand[oa]\b|\bprovidenciar\b|\bsolicitar\b|\bprecisa\b|\bfalta\b|\bnao apresentad[ao]\b|\bprazo decorrid[ao]\b|\bperda de prazo\b/;
-const negative = /\bnao\b.{0,28}\b(?:apresentad[ao]|protocolad[ao]|juntad[ao]|enviad[ao]|realizad[ao])\b/;
+const negative = /\b(?:nao|nunca)\b.{0,40}\b(?:apresentad[ao]s?|protocolad[ao]s?|juntad[ao]s?|enviad[ao]s?|realizad[ao]s?)\b/;
 
 type Finding = Pick<TriageRow, "fase" | "categoria" | "prioridade" | "acao" | "motivo">;
 function findingFor(text: string, tipo: TriageKind, source: EvidenceLevel): Finding {
