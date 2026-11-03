@@ -33,6 +33,8 @@ jobs:
         run: pnpm run typecheck
       - name: Tests
         run: pnpm test
+      - name: WA.Auto transport lifecycle tests
+        run: node --test workers/wa-local/connection-lifecycle.test.mjs
       - name: Commercial contract
         run: pnpm run commercial:check
         env:
