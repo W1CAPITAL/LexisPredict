@@ -9,7 +9,8 @@
 export function reconnectDelay(attempt, random = Math.random) {
   const n = Math.max(1, Math.min(12, Number.isFinite(attempt) ? Math.trunc(attempt) : 1));
   const exponential = Math.min(60000, 2500 * 2 ** (n - 1));
-  const value = Math.max(0, Math.min(1, Number(random()) || 0.5));
+  const sample = Number(random());
+  const value = Number.isFinite(sample) ? Math.max(0, Math.min(1, sample)) : 0.5;
   return Math.min(60000, Math.round(exponential * (0.8 + 0.4 * value)));
 }
 
