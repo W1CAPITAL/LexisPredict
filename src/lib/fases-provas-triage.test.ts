@@ -23,6 +23,19 @@ describe("triagem segura de réplicas e provas", () => {
     expect(r.motivo).toMatch(/não é calculado nem confirmado/);
   });
 
+  it("prioriza o registro oficial mais recente entre DataJud e DJEN", () => {
+    const [r] = classifyFasesProvas([{
+      ...base, observacao:"provas pendentes",
+      datajud_ultimo_nome:"Provas apresentadas",
+      datajud_ultimo_movimento:"2026-10-20",
+      djen_ultimo_resumo:"Intimação para especificação de provas",
+      djen_ultima_data:"2026-10-28",
+    }]);
+    expect(r.fonte).toContain("DJEN");
+    expect(r.categoria).toBe("intimacao");
+    expect(r.dataMovimento).toBe("28/10/2026");
+  });
+
   it("apresentação afirmada pela equipe é registro interno, não protocolo confirmado", () => {
     const [r] = classifyFasesProvas([{...base,observacao:"Réplica apresentada conforme anotação."}]);
     expect(r.nivel).toBe("cadastro");
