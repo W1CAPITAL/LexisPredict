@@ -15,14 +15,32 @@ describe("Video reference motion and persistent navigation", () => {
     expect(layout.indexOf("import './video-fluid-navigation.css';")).toBeGreaterThan(layout.indexOf("import './codeandchill-motion.css';"));
   });
 
-  it("collapses only the fixed desktop rail, without hiding navigation or breaking SSR", () => {
-    expect(vertical).toContain("useState(true)");
-    expect(vertical).toContain('lexis-sidebar-rail-collapsed');
+  it("starts collapsed deterministically and only expands the fixed desktop rail", () => {
+    expect(vertical).toContain("const [railCollapsed, setRailCollapsed] = useState(true)");
+    expect(vertical).not.toContain("lexis-sidebar-rail-collapsed");
     expect(vertical).toContain('navBehavior === "fixed" && railCollapsed');
+    expect(vertical).toContain('if (navBehavior === "fixed") setRailCollapsed(false)');
     expect(vertical).toContain("aria-expanded={!railCollapsed}");
     expect(vertical).toContain('aria-controls="lexis-desktop-navigation"');
     expect(css).toContain('data-lexis-sidebar-behavior="fixed"');
     expect(css).toContain('data-lexis-rail="true"');
+    expect(css).toContain("width:var(--lx-video-sidebar-compact) !important");
+    expect(css).toContain("transition: width var(--lx-video-sidebar-duration)");
+  });
+
+  it("expands on hover, any sidebar click or keyboard focus, and closes outside or on Escape", () => {
+    expect(vertical).toContain("ref={sidebarRef}");
+    expect(vertical).toContain("onMouseEnter={expandRail}");
+    expect(vertical).toContain("onClickCapture={expandRail}");
+    expect(vertical).toContain("onFocusCapture={expandRail}");
+    expect(vertical).toContain('document.addEventListener("pointerdown", collapseOnOutsidePointer, true)');
+    expect(vertical).toContain('sidebarRef.current?.contains(event.target as Node)');
+    expect(vertical).toContain("setRailCollapsed(true)");
+    expect(vertical).toContain('event.key === "Escape"');
+    expect(vertical).toContain('document.removeEventListener("pointerdown", collapseOnOutsidePointer, true)');
+    expect(vertical).toContain('document.removeEventListener("keydown", collapseOnEscape)');
+    expect(vertical).toContain('onClick={expandRail}');
+    expect(vertical).not.toContain("event.preventDefault()");
   });
 
   it("animates one real active pill and honors mobile/low motion", () => {
