@@ -100,19 +100,32 @@ export function SidebarVertical() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [navBehavior,setNavBehavior]=useState<ExperiencePreferences['sidebarBehavior']>('fixed');
   const [navOpened,setNavOpened]=useState(true);
-  // The compact desktop rail is stable across routes and remembered per browser.
-  // Initial value stays deterministic for SSR/hydration.
+  // Starts compact on every visit. Expanded state is temporary by design:
+  // hover, click or keyboard focus reveals the full desktop navigation.
   const [railCollapsed, setRailCollapsed] = useState(true);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  const expandRail = () => {
+    if (navBehavior === "fixed") setRailCollapsed(false);
+  };
+
   useEffect(() => {
-    try { setRailCollapsed(window.localStorage.getItem("lexis-sidebar-rail-collapsed") !== "false"); }
-    catch { /* Private browsing may block local storage. */ }
+    // Capture outside pointer events even when other components stop propagation.
+    // Do not intercept clicks or prevent real navigation, editing or dialogs.
+    const collapseOnOutsidePointer = (event: PointerEvent) => {
+      if (sidebarRef.current?.contains(event.target as Node)) return;
+      setRailCollapsed(true);
+    };
+    const collapseOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRailCollapsed(true);
+    };
+    document.addEventListener("pointerdown", collapseOnOutsidePointer, true);
+    document.addEventListener("keydown", collapseOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", collapseOnOutsidePointer, true);
+      document.removeEventListener("keydown", collapseOnEscape);
+    };
   }, []);
-  const toggleRail = () => setRailCollapsed((previous) => {
-    const next = !previous;
-    try { window.localStorage.setItem("lexis-sidebar-rail-collapsed", String(next)); }
-    catch { /* The toggle still works without persistence. */ }
-    return next;
-  });
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const routePrefetchAt = useRef(new Map<string, number>());
@@ -402,11 +415,11 @@ export function SidebarVertical() {
         <button
           type="button"
           data-lexis-rail-toggle
-          onClick={toggleRail}
-          aria-label={railCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          onClick={expandRail}
+          aria-label={railCollapsed ? "Expandir menu lateral" : "Menu lateral expandido"}
           aria-controls="lexis-desktop-navigation"
           aria-expanded={!railCollapsed}
-          title={railCollapsed ? "Expandir menu" : "Recolher menu"}
+          title={railCollapsed ? "Expandir menu" : "Clique fora do menu para recolher"}
           className="group flex w-full min-w-0 items-center gap-2 rounded-xl p-1 text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.08]">
@@ -527,6 +540,10 @@ export function SidebarVertical() {
         </button>
       ):null}
       <aside
+        ref={sidebarRef}
+        onMouseEnter={expandRail}
+        onClickCapture={expandRail}
+        onFocusCapture={expandRail}
         data-lexis-sidebar
         data-nav-open={navOpened?'true':'false'}
         data-lexis-commercial-sidebar
