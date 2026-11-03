@@ -12,6 +12,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname,join} from 'node:path';
 import {mkdir} from 'node:fs/promises';
 import {createSessionVault} from './session-vault.mjs';
+import {reconnectDelay,createInboundDeduper,createEarlyReceiptBuffer} from './connection-lifecycle.mjs';
 
 const folder=dirname(fileURLToPath(import.meta.url));
 const url=String(process.env.LEXIS_URL||'https://lexispredict.vercel.app').replace(/\/+$/,'');
@@ -51,11 +52,57 @@ async function prepareScheduledNotices(){
 }
 let pollingBusy=false;
 let reconnectAttempts=0;
+let connectPromise=null;
 const receiptJobs=new Map();
+const earlyReceipts=createEarlyReceiptBuffer();
+const inboundDeduper=createInboundDeduper();
 const sendInterval=2000;
 let lastSend=0;
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+/** One transport connection at a time, with bounded jittered retries.
+ * No reconnect path re-queues a claimed send automatically.
+ */
+function scheduleReconnect(delayOverride){
+  if(reconnectTimer)return;
+  reconnectAttempts++;
+  const delay=delayOverride??reconnectDelay(reconnectAttempts);
+  console.log('Próxima tentativa de conexão em',Math.round(delay/1000),'s.');
+  reconnectTimer=setTimeout(()=>{
+    reconnectTimer=null;
+    void connect().catch(e=>{
+      console.error('Reconexão:',String(e?.message||e).slice(0,140));
+      setStatus('error',null,null,'Falha ao iniciar conexão; nova tentativa programada.');
+      scheduleReconnect();
+    });
+  },delay);
+}
+function pruneReceiptJobs(){
+  const cutoff=Date.now()-2*60*60*1000;
+  for(const [id,entry] of receiptJobs){
+    if(entry.seenAt>cutoff)break;
+    receiptJobs.delete(id);
+  }
+  while(receiptJobs.size>2000)receiptJobs.delete(receiptJobs.keys().next().value);
+}
+async function flushReceipt(id){
+  const entry=receiptJobs.get(id);
+  if(!entry||!entry.accepted||entry.flushing)return;
+  entry.flushing=true;
+  try{
+    while(receiptJobs.get(id)===entry){
+      const target=entry.highestAck>=4?4:entry.highestAck>=3?3:0;
+      if(target<=entry.reportedAck)break;
+      await api({type:'ack',id:entry.jobId,state:target>=4?'read':'delivered',messageId:id});
+      entry.reportedAck=target;
+      if(target>=4){receiptJobs.delete(id);break;}
+    }
+  }catch(e){
+    console.error('Recibo pendente de confirmação:',String(e?.message||e).slice(0,140));
+    // Never mark a failed acknowledgement as delivered.
+  }finally{entry.flushing=false;}
+}
 async function heartbeat(){
   if(heartbeatBusy)return;
   heartbeatBusy=true;
@@ -83,12 +130,18 @@ function textOf(m){
   return String(root.conversation||root.extendedTextMessage?.text||root.imageMessage?.caption||'').trim().slice(0,8000);
 }
 async function onIncoming(message){
+  if(message.key?.fromMe===true)return; // Only inbound messages can set opt-out.
   const jid=String(message.key?.remoteJid||'');
   if(!jid.endsWith('@s.whatsapp.net'))return; // Never forward groups or status broadcasts.
   const number=digits(jid),content=textOf(message),messageId=String(message.key?.id||'');
   if(!number||!content||!messageId)return;
-  try{await api({type:'message',phone:number,text:content,messageId,fromMe:message.key.fromMe===true});}
-  catch(e){console.error('Histórico não sincronizado. Não reenvie sem conferir:',e.message);}
+  const key=number+':'+messageId;
+  if(!inboundDeduper.claim(key))return;
+  try{await api({type:'message',phone:number,text:content,messageId,fromMe:false});}
+  catch(e){
+    inboundDeduper.release(key); // A re-delivery may safely retry the opt-out.
+    console.error('Preferência do contato não sincronizada:',String(e?.message||e).slice(0,140));
+  }
 }
 async function poll(){
   if(!isReady||pollingBusy||!socket)return;
@@ -100,11 +153,15 @@ async function poll(){
     if(!job)return;
     const dest=digits(String(job.to)+'@s.whatsapp.net');
     if(!dest||!job.body)throw Error('Destino ou mensagem inválida.');
-    // Never retry an unknown send after the socket attempted sending.
+    // Pin a single ready socket. A claimed job is never automatically
+    // sent twice after an ambiguous disconnect or socket replacement.
+    const activeSocket=socket;
     await sleep(Math.max(0,sendInterval-(Date.now()-lastSend)));
+    if(!isReady||!activeSocket||socket!==activeSocket)
+      throw Error('A sessão desconectou antes do envio; confirmar manualmente a fila.');
     lastSend=Date.now();
     let reply;
-    try{reply=await socket.sendMessage(dest+'@s.whatsapp.net',{text:job.body});}
+    try{reply=await activeSocket.sendMessage(dest+'@s.whatsapp.net',{text:job.body});}
     catch(e){
       await api({type:'ack',id:job.id,state:'uncertain',error:'Falha após solicitar envio. Confira WhatsApp antes de repetir.'}).catch(()=>{});
       console.error('Envio incerto:',String(e?.message||e).slice(0,140));
@@ -115,9 +172,14 @@ async function poll(){
       await api({type:'ack',id:job.id,state:'uncertain',error:'WhatsApp não retornou identificador'}).catch(()=>{});
       return;
     }
-    receiptJobs.set(msgId,job.id);
+    pruneReceiptJobs();
+    const entry={jobId:job.id,accepted:false,highestAck:earlyReceipts.take(msgId),
+      reportedAck:0,flushing:false,seenAt:Date.now()};
+    receiptJobs.set(msgId,entry);
     await api({type:'ack',id:job.id,state:'accepted',messageId:msgId});
-    await api({type:'message',phone:dest,text:job.body,messageId:msgId,fromMe:true});
+    entry.accepted=true;
+    void flushReceipt(msgId);
+    // Outgoing message contents are not stored by the bridge.
     console.log('Mensagem aceita pelo dispositivo; entrega ainda não confirmada.');
   }catch(e){
     console.error('Fila indisponível:',String(e?.message||e).slice(0,140));
@@ -143,10 +205,14 @@ async function requestFreshQr(requestedAt){
     if(!socket)setStatus('error',null,null,'Não foi possível renovar o QR.');
   }finally{qrRestartBusy=false;}
 }
-async function connect(){
+async function connectOnce(){
   clearTimeout(reconnectTimer);
+  reconnectTimer=null;
   isReady=false;
-  status='connecting';currentQr=null;qrIssuedAt=null;
+  const retired=socket;
+  socket=null; // Late events from a previous generation cannot affect state.
+  try{retired?.end?.(new Error('New connection generation'));}catch{}
+  setStatus('connecting');
   await vault.restore();
   const {state,saveCreds}=await useMultiFileAuthState(join(folder,'session'));
   const keyWriter=state.keys.set.bind(state.keys);
@@ -161,21 +227,24 @@ async function connect(){
   });
   socket=sock;
   sock.ev.on('creds.update',async()=>{
+    if(socket!==sock)return;
     try{await saveCreds();vault.schedule();}
     catch(e){console.error('Credenciais não persistidas:',e?.message||String(e));}
   });
   sock.ev.on('messages.upsert',({type,messages})=>{
-    if(type!=='notify')return;
+    if(socket!==sock||type!=='notify')return;
     for(const msg of messages||[])void onIncoming(msg);
   });
   sock.ev.on('messages.update',(updates)=>{
+    if(socket!==sock)return;
     for(const u of updates||[]){
-      const id=String(u.key?.id||''),jobId=receiptJobs.get(id),ack=Number(u.update?.status);
-      if(!jobId||!Number.isFinite(ack)||ack<3)continue;
-      const next=ack>=4?'read':'delivered';
-      void api({type:'ack',id:jobId,state:next,messageId:id})
-        .then(()=>{if(next==='read')receiptJobs.delete(id);})
-        .catch(e=>console.error('Recibo pendente:',e.message));
+      const id=String(u.key?.id||''),ack=Number(u.update?.status);
+      if(!id||!Number.isFinite(ack)||ack<3)continue;
+      const entry=receiptJobs.get(id);
+      if(!entry){earlyReceipts.observe(id,ack);continue;}
+      entry.highestAck=Math.max(entry.highestAck,ack);
+      entry.seenAt=Date.now();
+      void flushReceipt(id);
     }
   });
   sock.ev.on('connection.update',({connection,qr,lastDisconnect})=>{
@@ -195,9 +264,13 @@ async function connect(){
       const code=lastDisconnect?.error?.output?.statusCode;
       if(code===DisconnectReason.loggedOut){
         setStatus('offline',null,null,'Sessão desvinculada. Preparando novo QR.');
+        reconnectAttempts=0;
         void vault.clear()
-          .then(()=>setTimeout(()=>void connect().catch(e=>console.error('Novo QR:',e.message)),4000))
-          .catch(e=>console.error('Não foi possível limpar a sessão antiga:',e.message));
+          .then(()=>scheduleReconnect(4000))
+          .catch(e=>{
+            console.error('Não foi possível limpar a sessão antiga:',String(e?.message||e).slice(0,140));
+            setStatus('error',null,null,'Limpeza da sessão falhou; intervenção necessária.');
+          });
         return;
       }
       const reason=Number.isFinite(Number(code))
@@ -205,11 +278,16 @@ async function connect(){
         :'WhatsApp encerrou a tentativa de pareamento.';
       setStatus('offline',null,null,reason);
       console.error('WA.Auto desconectado:',reason);
-      reconnectAttempts++;
-      const delay=Math.min(60000,5000*reconnectAttempts);
-      reconnectTimer=setTimeout(()=>void connect().catch(e=>console.error('Reconexão:',e.message)),delay);
+      scheduleReconnect();
     }
   });
+}
+/** Single-flight connection initialization, including QR-refresh requests. */
+async function connect(){
+  if(connectPromise)return connectPromise;
+  connectPromise=connectOnce();
+  try{return await connectPromise;}
+  finally{connectPromise=null;}
 }
 setInterval(()=>void heartbeat(),23000);
 setInterval(()=>void poll(),15000);
@@ -217,4 +295,9 @@ setInterval(()=>void prepareScheduledNotices(),65000);
 process.on('SIGINT',()=>{setStatus('offline');process.exit(0);});
 process.on('SIGTERM',()=>{setStatus('offline');process.exit(0);});
 console.log('LexisPredict WA.Auto servidor hospedado — aguarde vinculação.');
-await connect();
+try{await connect();}
+catch(e){
+  console.error('Inicialização do WhatsApp:',String(e?.message||e).slice(0,140));
+  setStatus('error',null,null,'Falha inicial de conexão; tentando novamente.');
+  scheduleReconnect();
+}
