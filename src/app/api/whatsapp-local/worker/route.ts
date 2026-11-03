@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {getSupabaseAdmin} from '@/lib/server-db';
 import {noteInboundPreference} from '@/lib/wa-contact-privacy';
+import {isWaAckState,isWaJobId,waAckDecision} from '@/lib/wa-local-ack-state';
 import {dispatchPreparedDailyReturns,processNextDueReturn,getDailyReturnSettings} from '@/lib/wa-daily-return-service';
 import {queueNextMovementForTenant} from '@/lib/wa-movement-campaign';
 
@@ -152,22 +153,35 @@ export async function POST(req:Request){
     }
     case 'ack':{
       const id=String(body.id||''),state=String(body.state||'');
-      if(!/^[0-9a-f-]{36}$/i.test(id)||!['accepted','delivered','read','failed','uncertain'].includes(state))
+      if(!isWaJobId(id)||!isWaAckState(state))
         return result({ok:false,error:'Invalid acknowledgement'},400);
-      const {data:prior}=await db.from('wa_local_jobs').select('id,status').eq('empresa_id',tenant).eq('id',id).maybeSingle();
+      const {data:prior,error:lookupError}=await db.from('wa_local_jobs')
+        .select('id,status,provider_message_id').eq('empresa_id',tenant).eq('id',id).maybeSingle();
+      if(lookupError)return result({ok:false,error:'Queue unavailable'},503);
       if(!prior)return result({ok:false,error:'Unknown job'},404);
-      const transitions:Record<string,string[]>={
-        claimed:['accepted','failed','uncertain'],accepted:['delivered','read'],delivered:['read'],
+      const transition=waAckDecision(prior.status,state);
+      if(transition==='same')return result({ok:true,idempotent:true});
+      if(transition!=='advance')return result({ok:false,error:'Invalid state transition'},409);
+
+      const providerId=typeof body.messageId==='string'?body.messageId.trim().slice(0,160):'';
+      // A delivery/read receipt must match the provider message ID recorded
+      // during the accepted transition. It cannot change that correlation.
+      if((state==='delivered'||state==='read') &&
+        (!providerId||providerId!==prior.provider_message_id))
+        return result({ok:false,error:'Receipt message does not match job'},409);
+      if(state==='accepted'&&!providerId)
+        return result({ok:false,error:'Missing provider message ID'},400);
+      const patch:Record<string,unknown>={
+        status:state,resolved_at:new Date().toISOString(),
+        last_error:body.error?String(body.error).slice(0,200):null,
       };
-      if(prior.status===state)return result({ok:true});
-      if(!(transitions[prior.status]||[]).includes(state))
-        return result({ok:false,error:'Invalid state transition'},409);
-      const patch:any={status:state,resolved_at:new Date().toISOString(),
-        last_error:body.error?String(body.error).slice(0,200):null};
-      if(typeof body.messageId==='string')patch.provider_message_id=body.messageId.slice(0,160);
-      const {error}=await db.from('wa_local_jobs').update(patch)
-        .eq('empresa_id',tenant).eq('id',id).eq('status',prior.status);
-      return result({ok:!error},error?503:200);
+      if(state==='accepted')patch.provider_message_id=providerId;
+      const {data:updated,error}=await db.from('wa_local_jobs').update(patch)
+        .eq('empresa_id',tenant).eq('id',id).eq('status',prior.status)
+        .select('id').maybeSingle();
+      if(error)return result({ok:false,error:'Queue update failed'},503);
+      if(!updated)return result({ok:false,error:'Job state changed during acknowledgement'},409);
+      return result({ok:true});
     }
     case 'message':{
       // Historical WhatsApp text is no longer persisted by this bridge.
