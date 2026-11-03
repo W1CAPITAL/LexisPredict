@@ -81,8 +81,7 @@ function scheduleReconnect(delayOverride){
 function pruneReceiptJobs(){
   const cutoff=Date.now()-2*60*60*1000;
   for(const [id,entry] of receiptJobs){
-    if(entry.seenAt>cutoff)break;
-    receiptJobs.delete(id);
+    if(entry.seenAt<=cutoff)receiptJobs.delete(id);
   }
   while(receiptJobs.size>2000)receiptJobs.delete(receiptJobs.keys().next().value);
 }
@@ -109,6 +108,11 @@ async function heartbeat(){
   try {
     const response=await api({type:'status',state:status,qr:currentQr,qrIssuedAt,phone});
     if(response.refreshQrRequestedAt)void requestFreshQr(response.refreshQrRequestedAt);
+    // Reconcile delivery receipts after transient API outages; never
+    // resend the original WhatsApp message.
+    for(const [id,entry] of receiptJobs){
+      if(entry.accepted&&entry.highestAck>entry.reportedAck)void flushReceipt(id);
+    }
   }
   catch(e){console.error('Não foi possível atualizar o painel:',e.message);}
   finally{heartbeatBusy=false;}
@@ -202,7 +206,10 @@ async function requestFreshQr(requestedAt){
     await connect();
   }catch(error){
     console.error('Falha ao renovar QR:',String(error?.message||error).slice(0,160));
-    if(!socket)setStatus('error',null,null,'Não foi possível renovar o QR.');
+    if(!socket){
+      setStatus('error',null,null,'Não foi possível renovar o QR.');
+      scheduleReconnect();
+    }
   }finally{qrRestartBusy=false;}
 }
 async function connectOnce(){
