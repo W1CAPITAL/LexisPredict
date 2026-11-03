@@ -225,10 +225,19 @@ export default function FasesProvasClient() {
         const rows = records.filter(row => row.tipo === kind);
         const sheet = XLSX.utils.aoa_to_sheet([TRIAGE_EXPORT_HEADERS,...rows.map(exportTriageRow)]);
         sheet["!cols"] = [28,27,12,34,28,19,54,55,31,65,18,28,27,25,18,28,19,19].map(wch => ({wch}));
-        if (rows.length) sheet["!autofilter"] = {ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:TRIAGE_EXPORT_HEADERS.length-1}})};
+        if (rows.length) sheet["!autofilter"] = {ref: "A1:R" + (rows.length + 1)};
         XLSX.utils.book_append_sheet(wb,sheet,kind === "provas" ? "Provas" : "Réplicas");
       }
-      XLSX.writeFile(wb,"LexisPredict_Fases_Provas_" + new Date().toISOString().slice(0,10) + ".xlsx",{compression:true});
+      const bytes = XLSX.write(wb,{bookType:"xlsx",type:"array",compression:true});
+      const blob = new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "LexisPredict_Fases_Provas_" + new Date().toISOString().slice(0,10) + ".xlsx";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (cause) {
       setExportError("Não foi possível gerar o Excel. " + (cause instanceof Error ? cause.message : "Tente novamente."));
     } finally { setExporting(false); }
