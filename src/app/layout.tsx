@@ -18,6 +18,7 @@ import './code-xr-unified.css';
 import './codeandchill-motion.css';
 import './buildindex-motion.css';
 import './report-visual-system.css';
+import './video-fluid-navigation.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';

@@ -100,6 +100,19 @@ export function SidebarVertical() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [navBehavior,setNavBehavior]=useState<ExperiencePreferences['sidebarBehavior']>('fixed');
   const [navOpened,setNavOpened]=useState(true);
+  // The compact desktop rail is stable across routes and remembered per browser.
+  // Initial value stays deterministic for SSR/hydration.
+  const [railCollapsed, setRailCollapsed] = useState(true);
+  useEffect(() => {
+    try { setRailCollapsed(window.localStorage.getItem("lexis-sidebar-rail-collapsed") !== "false"); }
+    catch { /* Private browsing may block local storage. */ }
+  }, []);
+  const toggleRail = () => setRailCollapsed((previous) => {
+    const next = !previous;
+    try { window.localStorage.setItem("lexis-sidebar-rail-collapsed", String(next)); }
+    catch { /* The toggle still works without persistence. */ }
+    return next;
+  });
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const routePrefetchAt = useRef(new Map<string, number>());
@@ -353,6 +366,8 @@ export function SidebarVertical() {
 
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
+  // A single indicator moves between real destinations, not on every hover.
+  const desktopActiveIndex = primaryItems.findIndex((item) => active(item.href));
 
   const displayName = String(
     (profile as any)?.nome ||
@@ -380,31 +395,33 @@ export function SidebarVertical() {
     setToolsOpen(false);
   };
 
-  // Render as a function, not a nested React component: keeps scroll position
-  // and DOM identity stable when navigation or search state changes.
-  const renderSidebarBody = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
-      <div className="flex h-[82px] shrink-0 items-center border-b border-white/10 px-5">
-        <Link href="/"  className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#2d7fff] bg-[#07182d] shadow-[0_0_24px_rgba(31,111,255,.22)]">
-            <img src="/logo.png" alt="LexisPredict" className="h-7 w-7 object-contain" />
-          </div>
-          <div>
-            <p className="text-[17px] font-black tracking-tight text-white">LexisPredict</p>
-            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.22em] text-[#8fb0d1]">
-              Operações Jurídicas
-            </p>
-          </div>
-        </Link>
-        {mobile ? (
-          <button  className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/10">
-            <X className="h-5 w-5" />
-          </button>
-        ) : null}
+  // Keep DOM identity (and navigation scroll) stable while the rail resizes.
+  const renderSidebarBody = () => (
+    <div data-lexis-sidebar-body className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
+      <div data-lexis-sidebar-brand className="flex h-[74px] shrink-0 items-center border-b border-white/10 px-3">
+        <button
+          type="button"
+          data-lexis-rail-toggle
+          onClick={toggleRail}
+          aria-label={railCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          aria-controls="lexis-desktop-navigation"
+          aria-expanded={!railCollapsed}
+          title={railCollapsed ? "Expandir menu" : "Recolher menu"}
+          className="group flex w-full min-w-0 items-center gap-2 rounded-xl p-1 text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.08]">
+            <img src="/logo.png" alt="" className="h-7 w-7 object-contain" />
+          </span>
+          <span data-lexis-nav-label className="min-w-0 flex-1 overflow-hidden">
+            <span className="block truncate text-[15px] font-black tracking-tight">LexisPredict</span>
+            <span className="block truncate text-[9px] font-semibold uppercase tracking-[.1em] text-white/55">W1 Capital</span>
+          </span>
+          <ChevronRight data-lexis-rail-chevron className="h-4 w-4 shrink-0 text-white/55" />
+        </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
-        <div className="space-y-1.5">
+      <nav id="lexis-desktop-navigation" data-lexis-nav-scroll className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div data-lexis-nav-primary data-lexis-active-visible={desktopActiveIndex >= 0 ? "true" : "false"} style={{ "--lx-active-index": Math.max(0, desktopActiveIndex) } as CSSProperties} className="relative space-y-1.5">
           {primaryItems.map((item) => {
             const Icon = item.icon;
             const isActive = active(item.href);
@@ -419,6 +436,9 @@ export function SidebarVertical() {
                 onClick={() => { if (!isActive) setNavigatingTo(item.href); }}
                 data-nav-pending={navigatingTo === item.href ? "true" : undefined}
                 aria-current={isActive?'page':undefined}
+                aria-label={item.label}
+                title={railCollapsed ? item.label : undefined}
+                data-lexis-nav-item
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
                   isActive
@@ -427,7 +447,7 @@ export function SidebarVertical() {
                 )}
               >
                 <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-[#cfe5ff]" : "text-[#a9c3dc] group-hover:text-white")} />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span data-lexis-nav-label className="min-w-0 flex-1 truncate">{item.label}</span>
               </Link>
             );
           })}
@@ -435,19 +455,21 @@ export function SidebarVertical() {
           <button
             type="button"
             onClick={handleOpenScanner}
+            data-lexis-nav-cta
+            title={railCollapsed ? "Atualizar tribunal" : undefined}
             className="group mt-2 flex h-12 w-full items-center gap-3 rounded-xl border border-[#2f7dff]/35 bg-[linear-gradient(135deg,rgba(20,103,255,.22),rgba(0,197,255,.10))] px-3.5 text-left text-[13px] font-bold text-white shadow-[inset_0_0_0_1px_rgba(120,190,255,.06),0_8px_20px_rgba(0,0,0,.10)] transition hover:border-[#5ca0ff]/60 hover:bg-[linear-gradient(135deg,rgba(20,103,255,.32),rgba(0,197,255,.14))]"
             aria-label="Abrir Scanner DataJud e DJEN"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#4b91ff]/40 bg-[#07182d] text-[#65b5ff] shadow-[0_0_18px_rgba(41,126,255,.20)]">
               <Zap className="h-4 w-4" />
             </span>
-            <span className="min-w-0 flex-1">
+            <span data-lexis-nav-label className="min-w-0 flex-1">
               <span className="block truncate">Atualizar tribunal</span>
               <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#9fc2e4]">
                 DataJud + DJEN
               </span>
             </span>
-            <ChevronRight className="h-4 w-4 text-[#8fb9e3] transition group-hover:translate-x-0.5 group-hover:text-white" />
+            <ChevronRight data-lexis-nav-label className="h-4 w-4 text-[#8fb9e3] transition group-hover:translate-x-0.5 group-hover:text-white" />
           </button>
         </div>
 
@@ -455,17 +477,20 @@ export function SidebarVertical() {
           <button
             type="button"
             onClick={openToolsMenu}
+            data-lexis-nav-central
+            title={railCollapsed ? "Central de ferramentas" : undefined}
+            aria-label="Central de ferramentas"
             className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#9fb9d2] hover:bg-white/[.06] hover:text-white"
           >
-            <Menu className="h-4 w-4" />
-            Central
-            <span className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#7fa1c1]">tudo aqui</span>
+            <Menu className="h-4 w-4 shrink-0" />
+            <span data-lexis-nav-label>Central</span>
+            <span data-lexis-nav-label className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#7fa1c1]">tudo aqui</span>
           </button>
         </div>
       </nav>
 
       <div className="shrink-0 px-4 pb-4">
-        <div className="rounded-xl border border-white/10 bg-white/[.06] p-4">
+        <div data-lexis-nav-footer-message className="rounded-xl border border-white/10 bg-white/[.06] p-4">
           <p className="text-[12px] font-semibold leading-relaxed text-white">
             Inteligência jurídica
             <br />
@@ -473,13 +498,16 @@ export function SidebarVertical() {
           </p>
         </div>
         <div className="mt-4 flex items-center justify-between px-1 text-[10px] text-[#7195b6]">
-          <span>v1.2.0</span>
+          <span data-lexis-nav-label>v1.2.0</span>
           <button
             onClick={() => void signOut()}
+            aria-label="Sair"
+            title="Sair"
+            data-lexis-nav-signout
             className="flex items-center gap-1.5 rounded-md px-2 py-1 hover:bg-white/10 hover:text-white"
           >
-            <LogOut className="h-3.5 w-3.5" />
-            Sair
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span data-lexis-nav-label>Sair</span>
           </button>
         </div>
       </div>
@@ -503,9 +531,10 @@ export function SidebarVertical() {
         data-nav-open={navOpened?'true':'false'}
         data-lexis-commercial-sidebar
         data-lexis-magnetic-sidebar
-        className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-border transition-transform duration-200 md:block"
+        data-lexis-rail={navBehavior === "fixed" && railCollapsed ? "true" : "false"}
+        className="sticky top-0 hidden h-dvh w-[228px] shrink-0 overflow-hidden border-r border-border md:block"
       >
-        {renderSidebarBody({})}
+        {renderSidebarBody()}
       </aside>
 
       <CommercialTopbar />
