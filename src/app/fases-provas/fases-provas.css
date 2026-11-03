@@ -1,0 +1,119 @@
+/* Fases e Provas — contraste independente de presets personalizados,
+ * mantendo superfícies acessíveis tanto no tema claro quanto no escuro. */
+[data-fases-provas] {
+  --fp-bg: #f3f6fb;
+  --fp-card: #ffffff;
+  --fp-ink: #111f35;
+  --fp-muted: #40536c;
+  --fp-line: #c7d3e4;
+  --fp-subtle: #edf3fa;
+  --fp-accent: #174baf;
+  --fp-accent-hover: #123b90;
+  background:var(--fp-bg) !important;
+  color:var(--fp-ink) !important;
+  min-height:calc(100dvh - 64px);
+}
+html.dark [data-fases-provas] {
+  --fp-bg:#0c1525;--fp-card:#182338;--fp-ink:#f4f7ff;
+  --fp-muted:#cbd6e7;--fp-line:#51647f;--fp-subtle:#24334c;
+  --fp-accent:#a4c4ff;--fp-accent-hover:#c1d6ff;
+}
+[data-fases-provas] :is(h1,h2,h3,b,strong,th) { color:inherit; }
+[data-fases-provas] .fp-hero {
+  background:linear-gradient(125deg,#102845 0%,#112f55 58%,#193e68 100%) !important;
+  color:#fff !important;
+  border:1px solid #416087;
+  box-shadow:0 18px 32px rgba(16,39,77,.12);
+}
+[data-fases-provas] .fp-hero :is(h1,h2,h3,b,strong) {color:#fff !important;}
+[data-fases-provas] .fp-hero .fp-hero-muted {color:#d6e4f9 !important;}
+[data-fases-provas] .fp-stat {background:#1b3d64 !important;border:1px solid #55759a;color:#fff !important;}
+[data-fases-provas] .fp-stat-label {color:#dce9fb !important;}
+[data-fases-provas] .fp-card {
+  color:var(--fp-ink) !important;
+  background:var(--fp-card) !important;
+  border:1px solid var(--fp-line) !important;
+  box-shadow:0 6px 20px rgba(13,37,66,.045);
+}
+[data-fases-provas] .fp-muted {color:var(--fp-muted) !important;}
+[data-fases-provas] .fp-input {
+  border:1px solid var(--fp-line) !important;
+  background:var(--fp-card) !important;
+  color:var(--fp-ink) !important;
+  min-height:42px;
+  border-radius:11px;
+  padding:8px 12px;
+}
+[data-fases-provas] .fp-input::placeholder {color:var(--fp-muted);opacity:1;}
+[data-fases-provas] .fp-input:focus-visible,
+[data-fases-provas] :is(a,button,select,summary):focus-visible {
+  outline:3px solid #5595f4 !important;
+  outline-offset:2px;
+}
+[data-fases-provas] .fp-button {
+  min-height:42px;
+  padding:9px 16px;
+  border-radius:11px;
+  border:1px solid var(--fp-line);
+  color:var(--fp-ink) !important;
+  background:var(--fp-card) !important;
+  font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  transition:background-color 170ms ease,transform 170ms ease,border-color 170ms ease;
+}
+[data-fases-provas] .fp-button:hover {background:var(--fp-subtle) !important;}
+[data-fases-provas] .fp-button:active {transform:scale(.98);}
+[data-fases-provas] .fp-button:disabled {opacity:.6;cursor:not-allowed;}
+[data-fases-provas] .fp-button-primary {
+  background:#174baf !important;
+  border-color:#174baf !important;
+  color:#fff !important;
+}
+[data-fases-provas] .fp-button-primary:hover {background:#123b90 !important;}
+[data-fases-provas] .fp-badge {
+  border-radius:100px;
+  font-size:11px;
+  font-weight:750;
+  padding:4px 9px;
+  line-height:1.4;
+  display:inline-block;
+  border:1px solid transparent;
+  white-space:normal;
+}
+[data-fases-provas] .fp-badge-tribunal {background:#dbeafe;color:#123c88;border-color:#94baf8;}
+[data-fases-provas] .fp-badge-cadastro {background:#fef0c8;color:#694300;border-color:#efc87a;}
+[data-fases-provas] .fp-badge-mencao {background:#e5eaf2;color:#354764;border-color:#b2bfd3;}
+[data-fases-provas] .fp-badge-alta {background:#fee2e2;color:#922026;border-color:#fca5a5;}
+[data-fases-provas] .fp-badge-media {background:#dbeafe;color:#17458f;border-color:#9ac1f9;}
+[data-fases-provas] .fp-badge-baixa {background:#e5eaf2;color:#354764;border-color:#bdc8d8;}
+html.dark [data-fases-provas] .fp-badge-tribunal,
+html.dark [data-fases-provas] .fp-badge-media {background:#153b73;color:#d8e9ff;border-color:#547fb7;}
+html.dark [data-fases-provas] .fp-badge-cadastro {background:#5e3e13;color:#ffe1a6;border-color:#94703b;}
+html.dark [data-fases-provas] .fp-badge-mencao,
+html.dark [data-fases-provas] .fp-badge-baixa {background:#2c3d53;color:#e5edf7;border-color:#60738d;}
+html.dark [data-fases-provas] .fp-badge-alta {background:#672b39;color:#ffced6;border-color:#a75162;}
+[data-fases-provas] .fp-table {width:100%;border-collapse:separate;border-spacing:0;min-width:1080px;color:var(--fp-ink);}
+[data-fases-provas] .fp-table thead th {
+  background:#162b48 !important;color:#fff !important;
+  font-weight:750;text-align:left;padding:15px 13px;vertical-align:top;font-size:12px;
+}
+[data-fases-provas] .fp-table tbody tr {background:var(--fp-card);color:var(--fp-ink);}
+[data-fases-provas] .fp-table tbody tr:nth-child(even) {background:var(--fp-subtle);}
+[data-fases-provas] .fp-table tbody tr:hover {box-shadow:inset 3px 0 0 #4285e4;}
+[data-fases-provas] .fp-table td {padding:14px 13px;vertical-align:top;border-bottom:1px solid var(--fp-line);font-size:12px;line-height:1.55;}
+[data-fases-provas] .fp-table td strong {color:var(--fp-ink) !important;}
+[data-fases-provas] .fp-link {color:var(--fp-accent) !important;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;font-weight:750;}
+[data-fases-provas] .fp-link:hover {color:var(--fp-accent-hover) !important;}
+[data-fases-provas] .fp-evidence {color:var(--fp-ink);background:var(--fp-subtle);border:1px solid var(--fp-line);border-radius:10px;padding:10px;line-height:1.5;overflow-wrap:anywhere;}
+[data-fases-provas] .fp-notice {background:var(--fp-subtle);border-left:4px solid #447cd4;color:var(--fp-ink);padding:13px 16px;border-radius:9px;}
+[data-fases-provas] .fp-detail {border-top:1px solid var(--fp-line);margin-top:10px;padding-top:8px;}
+[data-fases-provas] .fp-detail summary {cursor:pointer;color:var(--fp-accent);font-weight:700;}
+[data-fases-provas] .fp-mobile-row {background:var(--fp-card);border:1px solid var(--fp-line);color:var(--fp-ink);border-radius:16px;padding:15px;box-shadow:0 4px 12px rgba(0,0,0,.035);}
+[data-fases-provas] .fp-mobile-row + .fp-mobile-row {margin-top:10px;}
+[data-fases-provas] .fp-bottom-line {border-bottom:1px solid var(--fp-line);}
+@media(prefers-reduced-motion:reduce) {
+  [data-fases-provas] * {transition:none !important;scroll-behavior:auto !important;}
+}
