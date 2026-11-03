@@ -44,6 +44,12 @@ export const normalizePhaseText = (v: unknown) =>
 export function formatFasesDate(value: unknown): string {
   if (!value) return "Sem registro";
   const raw = String(value);
+  // Datas sem horário são datas de calendário: converter para o fuso de
+  // São Paulo com new Date("YYYY-MM-DD") faria recuar um dia.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split("-");
+    return day + "/" + month + "/" + year;
+  }
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw.slice(0, 10);
   return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -84,6 +90,13 @@ function findingFor(text: string, tipo: TriageKind, source: EvidenceLevel): Find
     acao: "Ler a decisão e atualizar a fase da carteira.",
     motivo: "O último registro consultado menciona uma decisão ou etapa posterior. Isso não demonstra que o processo inteiro acabou.",
   };
+  if (negative.test(n) || /\bprazo decorrid[ao]\b|\bperda de prazo\b/.test(n)) return {
+    fase: "Ausência ou decurso anotado",
+    categoria: "pendencia",
+    prioridade: "alta",
+    acao: isReplica ? "Verificar o protocolo da réplica e eventual certidão de decurso." : "Verificar se as provas foram apresentadas e se existe prazo encerrado.",
+    motivo: "O registro menciona ausência ou decurso. Não equivale à confirmação de perda de prazo pelo tribunal.",
+  };
   if (!isReplica && /\b(?:pericia|pericial|perito|laudo)\b/.test(n)) {
     const entregue = sent.test(n) && !negative.test(n);
     return {
@@ -94,13 +107,7 @@ function findingFor(text: string, tipo: TriageKind, source: EvidenceLevel): Find
       motivo: source === "tribunal" ? "O movimento consultado menciona a perícia; não comprova, sozinho, prazo de manifestação vigente." : "Informação encontrada no cadastro; verificar o andamento oficial se for necessária uma decisão jurídica.",
     };
   }
-  if (negative.test(n) || /\bprazo decorrid[ao]\b|\bperda de prazo\b/.test(n)) return {
-    fase: "Ausência ou decurso anotado",
-    categoria: "pendencia",
-    prioridade: "alta",
-    acao: isReplica ? "Verificar o protocolo da réplica e eventual certidão de decurso." : "Verificar se as provas foram apresentadas e se existe prazo encerrado.",
-    motivo: "O registro menciona ausência ou decurso. Não equivale à confirmação de perda de prazo pelo tribunal.",
-  };
+
   // Menção genérica a "juntada de petição" NÃO comprova que eram provas/réplica.
   const envioEspecifico = sent.test(n) && isAboutType(n, tipo);
   if (envioEspecifico) return {
