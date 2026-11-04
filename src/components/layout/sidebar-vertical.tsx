@@ -423,7 +423,7 @@ export function SidebarVertical() {
           className="group flex w-full min-w-0 items-center gap-2 rounded-xl p-1 text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.08]">
-            <img src="/logo.png" alt="" className="h-7 w-7 object-contain" />
+            <span className="lexis-brand-symbol block h-8 w-8 rounded-lg" role="img" aria-label="Emblema LexisPredict" />
           </span>
           <span data-lexis-nav-label className="min-w-0 flex-1 overflow-hidden">
             <span className="block truncate text-[15px] font-black tracking-tight">LexisPredict</span>
@@ -568,7 +568,7 @@ export function SidebarVertical() {
           data-lexis-mobile-brand
           className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]"
         >
-          <img src="/logo.png" alt="LexisPredict" className="h-6 w-6 object-contain" />
+          <span className="lexis-brand-symbol block h-7 w-7 rounded-md" role="img" aria-label="LexisPredict" />
         </button>
         <div data-lexis-mobile-heading className="ml-2 min-w-0 flex-1">
           <p className="truncate text-[13px] font-black tracking-tight">Olá, {firstName}</p>
