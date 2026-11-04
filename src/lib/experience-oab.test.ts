@@ -27,6 +27,9 @@ describe('Personalização da consulta OAB',()=>{
   expect(prefs.oabDefaultDocuments).toBe('contestacao');
   expect(prefs.oabShowGuide).toBe(false);
  });
+ it('preserva sufixo válido de inscrição OAB, como 52996-A',()=>{
+   expect(cleanExperiencePrefs({oabNumber:'52996-A'}).oabNumber).toBe('52996A');
+ });
  it('direciona o CNJ ao tribunal real e jamais substitui pelo favorito escolhido',()=>{
   const portal=resolveOabOfficialPortal('8007617-77.2023.8.05.0154','8.26');
   expect(portal?.tribunal).toBe('TJBA');
