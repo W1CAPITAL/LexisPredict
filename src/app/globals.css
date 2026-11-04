@@ -624,3 +624,20 @@ body:has([data-lexis-commercial-sidebar]) [role="dialog"] .bg-\[\#061d35\] * {
   [data-lexis-settings-tabs]::-webkit-scrollbar { display: none; }
   [data-lexis-settings-tab] { scroll-snap-align: start; white-space: nowrap; }
 }
+
+
+/* W1 Capital visual family — optimized official logo atlas. Logo only:
+   application colors and business/tenant features remain unchanged. */
+.lexis-brand-symbol,.lexis-brand-lockup,.w1-brand-symbol {
+  display:inline-block;
+  flex:none;
+  aspect-ratio:1 / 1;
+  background-image:url("/brand/w1-lexis-atlas.webp");
+  background-repeat:no-repeat;
+  background-size:200% 200%;
+  background-color:#310012;
+  border-radius:11px;
+}
+.lexis-brand-symbol{background-position:100% 0}
+.lexis-brand-lockup{background-position:100% 100%}
+.w1-brand-symbol{background-position:0 0}
