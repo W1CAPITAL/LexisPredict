@@ -77,12 +77,12 @@ export async function probeColibri() {
   }
 }
 
-export async function callColibri(messages: ChatTurn[], options: { maxTokens?: number; temperature?: number } = {}) {
+export async function callColibri(messages: ChatTurn[], options: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}) {
   const cfg = colibriConfig();
   if (!cfg) throw new Error('COLIBRI_BASE_URL não configurada para um servidor HTTPS de inferência');
   const started = Date.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), Math.max(1500,Math.min(cfg.timeoutMs,options.timeoutMs??cfg.timeoutMs)));
   try {
     const model = await discoverColibriModel(cfg);
     const response = await fetch(cfg.endpoint, {
