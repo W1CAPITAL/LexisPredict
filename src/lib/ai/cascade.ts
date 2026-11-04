@@ -185,7 +185,10 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
         const msgs: ChatTurn[] = [];
         if (system) msgs.push({ role: 'system', content: system });
         msgs.push(...history, { role: 'user', content: String(user) });
-        const r = await callColibri(msgs, { maxTokens: opts.max_tokens, temperature: opts.temperature });
+        const r = await callColibri(msgs, {
+          maxTokens: opts.max_tokens,temperature: opts.temperature,
+          timeoutMs:preferred==='auto' && opts.surface==='chat-summary'?7000:undefined,
+        });
         if (!isLowQualityAiText(r.text)) {
           return { text: r.text, engineId: 'colibri', model: r.model, latencyMs: r.latencyMs, latency: r.latencyMs };
         }
@@ -207,6 +210,7 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
         turns.push(...history, { role: 'user', content: String(user) });
         const result = await callMiniCpm(turns, {
           maxTokens: opts.max_tokens, temperature: opts.temperature, images: opts.images,
+          timeoutMs:preferred==='auto' && opts.surface==='chat-summary'?8000:undefined,
         });
         if (!isLowQualityAiText(result.text)) {
           return {text:result.text,engineId:'minicpm',model:result.model,latencyMs:result.latencyMs};
@@ -491,6 +495,8 @@ export async function runCascade(opts: CascadeCallOptions): Promise<CascadeResul
       history,
       preferred: preferred === 'auto' ? undefined : preferred,
       exclusive: softExclusive,
+      max_tokens: opts.max_tokens,
+      timeoutMs:opts.surface==='chat-summary'?30000:undefined,
     } as any);
     const parts = r.engine.split(':');
     return {
