@@ -215,6 +215,7 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/',
   '/cases',
   '/processos',
+  '/consulta-oab',
   '/fases-provas',
   '/tarefas',
   '/vencidos',
