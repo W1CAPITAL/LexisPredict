@@ -1,3 +1,4 @@
+import { PROCESSOS_DATE_FIELDS, nextProcessDay, type ProcessoDateField } from './processos-date-range';
 'use server';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from './supabase';
@@ -115,6 +116,7 @@ function toLegalCase(item: any): LegalCase {
     empresa_id: item.empresa_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
+    dataDistribuicao: item.data_distribuicao ?? dados.dataDistribuicao ?? dados.data_ajuizamento ?? null,
 
     situacao: resolveSituacaoFromRow(item, dados),
     statusManual: resolveStatusManualFromRow(item, dados),
@@ -314,6 +316,7 @@ export async function getStoredCasesPageForEmpresa(
   offset = 0,
   isAdmin = false,
   opts?: { onlyAtivos?: boolean; includeDetails?: boolean; companyReadOnly?: boolean;
+  dateFilter?: { field: ProcessoDateField; from?: string; to?: string };
   validatedContext?: Awaited<ReturnType<typeof getUserContext>> }
 ): Promise<LegalCase[]> {
   if (!isSupabaseConfigured) return [];
@@ -338,6 +341,17 @@ export async function getStoredCasesPageForEmpresa(
 
       if (onlyAtivos) {
         query = query.not("status", "in", '("Arquivado","ENCERRADO","Extinto","SUSPENSO")');
+      }
+      // Intervalo aplicado no SQL antes de paginar, incluindo todo o dia Até.
+      // Column names come from a strict local allowlist, never from the user.
+      if (opts?.dateFilter) {
+        const {field,from,to}=opts.dateFilter;
+        const config=PROCESSOS_DATE_FIELDS[field];
+        if (from) query=query.gte(config.column, config.timestamp ? `${from}T00:00:00-03:00` : from);
+        if (to) {
+          const next=nextProcessDay(to);
+          query=query.lt(config.column, config.timestamp ? `${next}T00:00:00-03:00` : next);
+        }
       }
 
       // Somente a ação explícita de Processos da Empresa usa esta exceção
