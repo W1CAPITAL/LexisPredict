@@ -157,7 +157,7 @@ html [data-lexis-dashboard-home] {
   --lx-reference-card-border: hsl(var(--border));
   --lx-reference-paper: hsl(var(--card));
   --lx-reference-tooltip: hsl(var(--popover));
-  --lx-reference-chart-color: hsl(var(--primary));
+  --lx-reference-chart-color: hsl(var(--ring));
   --lx-reference-chart-muted: hsl(var(--muted-foreground));
   --lx-reference-chart-grid: hsl(var(--border));
 }
