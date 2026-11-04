@@ -10,36 +10,36 @@
  * Only home/CRM shell and explicitly marked elements are restyled here.
  */
 [data-lexis-dashboard-home] {
-  --lx-reference-foreground: #202238;
-  --lx-reference-muted: #777c98;
-  --lx-reference-border: #e9e6f6;
-  --lx-reference-card-border: #ebe9f4;
+  --lx-reference-foreground: #21151A;
+  --lx-reference-muted: #60555C;
+  --lx-reference-border: #8F858B;
+  --lx-reference-card-border: #C5BAC1;
   --lx-reference-paper: #fff;
   --lx-reference-tooltip: #fff;
-  --lx-reference-chart-color: #9a8acb;
-  --lx-reference-chart-muted: #9892b1;
-  --lx-reference-chart-grid: #ece9f6;
+  --lx-reference-chart-color: #6D1734;
+  --lx-reference-chart-muted: #60555C;
+  --lx-reference-chart-grid: #D5CED3;
   --lx-reference-shadow: 0 10px 32px rgb(90 78 151 / .065), 0 2px 7px rgb(80 76 124 / .026);
   --lx-reference-radius: 23px;
   min-width: 0;
 }
 html.dark [data-lexis-dashboard-home] {
-  --lx-reference-foreground: #f5f3ed;
-  --lx-reference-muted: #a6afac;
-  --lx-reference-border: #3c4541;
-  --lx-reference-card-border: #3e4741;
-  --lx-reference-paper: #272d2a;
-  --lx-reference-tooltip: #252b28;
-  --lx-reference-chart-color: #d5fa78;
-  --lx-reference-chart-muted: #a3ada7;
-  --lx-reference-chart-grid: #414942;
+  --lx-reference-foreground: #F5F2F4;
+  --lx-reference-muted: #C9BDC5;
+  --lx-reference-border: #86747F;
+  --lx-reference-card-border: #86747F;
+  --lx-reference-paper: #211A20;
+  --lx-reference-tooltip: #211A20;
+  --lx-reference-chart-color: #E5AABB;
+  --lx-reference-chart-muted: #C9BDC5;
+  --lx-reference-chart-grid: #66535E;
   --lx-reference-shadow: 0 14px 34px rgb(0 0 0 / .13), inset 0 1px 0 rgb(255 255 255 / .035);
 }
 html:not(.dark):not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
   background:
     radial-gradient(ellipse 65% 40% at 94% 2%,rgb(192 207 255 / .37),transparent 76%),
     radial-gradient(ellipse 68% 45% at -14% 20%,rgb(253 220 243 / .27),transparent 78%),
-    #f7f6fe !important;
+    hsl(var(--background)) !important;
 }
 html.dark:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
   background:
@@ -56,12 +56,12 @@ html.dark:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
   min-width: 0;
 }
 [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
-  color: #8e7db7 !important;
+  color: #6D1734 !important;
   letter-spacing: .16em;
   font-size: 10px !important;
 }
 html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
-  color: #c7ee91 !important;
+  color: #E5AABB !important;
 }
 [data-lexis-dashboard-home] [data-lexis-dashboard-header] h1 {
   color: var(--lx-reference-foreground) !important;
@@ -111,13 +111,13 @@ html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-chil
   transition: background-color 150ms ease, color 150ms ease !important;
 }
 [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background: #282937 !important;
+  background: #6D1734 !important;
   color: #fff !important;
   box-shadow: 0 4px 12px rgb(18 21 38 / .12) !important;
 }
 html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background: #d5fa78 !important;
-  color: #1b2815 !important;
+  background: #8A2E50 !important;
+  color: #FFFFFF !important;
 }
 [data-lexis-dashboard-home] [data-lexis-dashboard-content] {
   padding-top: 10px;
@@ -142,7 +142,7 @@ html.dark [data-lexis-reference-overview] {
   background:
     radial-gradient(ellipse 75% 90% at 100% 0%,rgb(138 117 86 / .16),transparent 80%),
     linear-gradient(145deg,#272f2b,#1d2421);
-  border-color: #3c4540;
+  border-color: #86747F;
   box-shadow: 0 22px 50px rgb(0 0 0 / .18);
 }
 .lx-reference-header {
@@ -157,22 +157,22 @@ html.dark [data-lexis-reference-overview] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #8d82b1;
+  color: #6D1734;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .15em;
 }
-html.dark .lx-reference-eyebrow { color: #c5dcac; }
+html.dark .lx-reference-eyebrow { color: #E5AABB; }
 .lx-reference-eyebrow-mark {
   display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f47445;
+  background: #6D1734;
   box-shadow: 0 0 0 4px rgb(244 116 69 / .12);
 }
 html.dark .lx-reference-eyebrow-mark {
-  background: #d5fa78;
+  background: #8A2E50;
   box-shadow: 0 0 0 4px rgb(213 250 120 / .1);
 }
 .lx-reference-heading h2 {
@@ -183,8 +183,8 @@ html.dark .lx-reference-eyebrow-mark {
   line-height: 1.1;
   color: var(--lx-reference-foreground);
 }
-.lx-reference-heading-dot { color: #f47445; }
-html.dark .lx-reference-heading-dot { color: #d5fa78; }
+.lx-reference-heading-dot { color: #6D1734; }
+html.dark .lx-reference-heading-dot { color: #8A2E50; }
 .lx-reference-heading > p {
   font-size: 12px;
   line-height: 1.45;
@@ -224,9 +224,9 @@ html.dark .lx-reference-heading-dot { color: #d5fa78; }
   min-width: 0;
 }
 .lx-reference-metric {
-  --lx-metric-bg: #f4f1ff;
-  --lx-metric-fg: #282539;
-  --lx-metric-sub: #6e6b86;
+  --lx-metric-bg: #EDE9ED;
+  --lx-metric-fg: #21151A;
+  --lx-metric-sub: #60555C;
   --lx-metric-icon: rgb(255 255 255 / .75);
   position: relative;
   display: flex;
@@ -243,30 +243,30 @@ html.dark .lx-reference-heading-dot { color: #d5fa78; }
   overflow: hidden;
   transition: transform 180ms cubic-bezier(.22,1,.36,1),box-shadow 180ms ease;
 }
-.lx-reference-metric[data-kind="active"] { --lx-metric-bg:#ecf2ff; }
+.lx-reference-metric[data-kind="active"] { --lx-metric-bg:#E7DFE4; }
 .lx-reference-metric[data-kind="today"] {
-  --lx-metric-bg:#f46d3c;
+  --lx-metric-bg:#6D1734;
   --lx-metric-fg:#fff;
-  --lx-metric-sub:#fff1e9;
+  --lx-metric-sub:#EDE9ED;
   --lx-metric-icon:rgb(255 255 255 / .18);
 }
-.lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#f4ecf5; }
+.lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#F2ECEF; }
 html.dark .lx-reference-metric {
-  --lx-metric-bg: #303934;
-  --lx-metric-fg: #eff7ed;
-  --lx-metric-sub: #bbc8bd;
+  --lx-metric-bg: #35252F;
+  --lx-metric-fg: #F5F2F4;
+  --lx-metric-sub: #C9BDC5;
   --lx-metric-icon: rgb(255 255 255 / .08);
   border-color: #454f47;
 }
-html.dark .lx-reference-metric[data-kind="active"] { --lx-metric-bg:#3b4840; }
+html.dark .lx-reference-metric[data-kind="active"] { --lx-metric-bg:#412937; }
 html.dark .lx-reference-metric[data-kind="today"] {
-  --lx-metric-bg:#d5fa78;
-  --lx-metric-fg:#243015;
-  --lx-metric-sub:#516737;
-  --lx-metric-icon:rgb(31 49 17 / .09);
-  border-color: #d5fa78;
+  --lx-metric-bg:#8A2E50;
+  --lx-metric-fg:#FFFFFF;
+  --lx-metric-sub:#F5F2F4;
+  --lx-metric-icon:rgb(255 255 255 / .15);
+  border-color: #8A2E50;
 }
-html.dark .lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#38332f; }
+html.dark .lx-reference-metric[data-kind="overdue"] { --lx-metric-bg:#392B34; }
 .lx-reference-metric-top { display:flex; align-items:flex-start; justify-content:space-between; gap:6px; }
 .lx-reference-metric-label {
   min-width: 0;
@@ -436,7 +436,7 @@ html.dark .lx-reference-chart-icon { background:rgb(213 250 120 / .10); }
 }
 html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi] :where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
   background:rgb(213 250 120 / .09) !important;
-  color:#d5fa78 !important;
+  color:#8A2E50 !important;
 }
 [data-lexis-dashboard-home] [data-lexis-home-dark-panel] {
   border:1px solid var(--lx-reference-card-border) !important;
@@ -472,7 +472,7 @@ html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-effer
   --lx-crm-focus: #f47644;
 }
 html.dark [data-lexis-crm-shell] {
-  --lx-crm-focus:#d5fa78;
+  --lx-crm-focus:#8A2E50;
 }
 [data-lexis-crm-shell] [data-lexis-crm-header] {
   background:hsl(var(--card) / .72) !important;
@@ -506,7 +506,7 @@ html.dark [data-lexis-crm-shell] {
   box-shadow:0 2px 8px rgb(0 0 0 / .09);
 }
 html:not(.dark) [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
-  background:#292638 !important;
+  background:#6D1734 !important;
   color:#fff !important;
 }
 /* Mobile geometry: genuine two-up metric tiles, a full-width area chart and
@@ -748,7 +748,7 @@ html.dark [data-lexis-crm-lane-header] p.text-muted-foreground {
   html:not(.dark) body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
   [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
     border-color:#fff !important;
-    background:linear-gradient(145deg,#fa916b,#f46d3c) !important;
+    background:linear-gradient(145deg,#A95B75,#6D1734) !important;
     color:#fff !important;
     box-shadow:0 5px 18px rgb(240 124 80 / .17) !important;
   }
