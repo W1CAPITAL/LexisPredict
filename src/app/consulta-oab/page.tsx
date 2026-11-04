@@ -21,7 +21,7 @@ export default function ConsultaOabPage(){
              <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">Localize o portal pelo número do processo, entre com o certificado do advogado e organize as peças judiciais sem pagar por uma API de autos.</p>
            </div>
          </div>
-         <Link href="/settings?section=Personalizacao" className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-semibold text-primary hover:bg-muted">
+         <Link href="/settings?section=Oab" className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-semibold text-primary hover:bg-muted">
            <Settings2 size={15}/> Personalizar
          </Link>
        </div>
