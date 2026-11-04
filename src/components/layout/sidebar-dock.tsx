@@ -52,6 +52,7 @@ const more = [
   ["Peças", "/documents", FileText],
   ["Veredito", "/veredito", Scale],
   ["Superagente", "/chat", Bot],
+  ["Consulta OAB", "/consulta-oab", Gavel],
   ["Finanças", "/financas", Wallet],
   ["Cálculos", "/calculos", Calculator],
   ["Importar", "/import", Upload],
