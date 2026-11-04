@@ -27,6 +27,9 @@ export function AutosOabScannerPanel(){
  const [nextCursor,setNextCursor]=React.useState<string|null>(null);
  const [complete,setComplete]=React.useState(false);
  const [showAll,setShowAll]=React.useState(false);
+ const [zipWorking,setZipWorking]=React.useState(false);
+ const [zipOffset,setZipOffset]=React.useState(0);
+ const [zipProgress,setZipProgress]=React.useState('');
  const validCnj=canonicalCnj(cnjInput);
  const current=React.useRef(0);
  React.useEffect(()=>{
@@ -48,7 +51,7 @@ export function AutosOabScannerPanel(){
    return API+'?'+p;
  };
  const resetDocs=()=>{
-   current.current++;setBusy(null);setDocuments([]);setStatus(null);setNextCursor(null);
+   current.current++;setBusy(null);setDocuments([]);setStatus(null);setNextCursor(null);setZipOffset(0);setZipProgress('');
    setComplete(false);setError('');setAuthorized(false);setAcceptedCosts(false);
  };
  const loadAutos=async(cursor?:string|null)=>{
@@ -105,6 +108,43 @@ export function AutosOabScannerPanel(){
  },[expanded,status,busy,validCnj]);
  const segment=React.useMemo(()=>chronologicalThroughContestacao(documents),[documents]);
  const shown=showAll? [...documents].sort((a,b)=>a.data.localeCompare(b.data)):segment.docs;
+ const zipBatchSize=10;
+ const zipPages=Math.max(1,Math.ceil(shown.length/zipBatchSize));
+ const zipPage=Math.min(zipOffset,zipPages-1);
+ async function downloadZip(){
+   if(!validCnj||zipWorking||!shown.length)return;
+   setZipWorking(true);setZipProgress('Preparando arquivos…');setError('');
+   try{
+     const JSZip=(await import('jszip')).default;
+     const zip=new JSZip();
+     const batch=shown.slice(zipPage*zipBatchSize,(zipPage+1)*zipBatchSize);
+     let totalBytes=0;
+     for(let i=0;i<batch.length;i++){
+       const doc=batch[i];
+       setZipProgress(`Baixando ${i+1}/${batch.length}: ${doc.titulo.slice(0,55)}`);
+       const response=await fetch(requestUrl('documento',null,doc.key),{
+         credentials:'same-origin',cache:'no-store'
+       });
+       if(!response.ok)throw new Error('Falha ao obter '+doc.titulo+'. O arquivo ZIP não foi criado para evitar lacunas.');
+       const blob=await response.blob();
+       if(blob.size>25_000_000)throw new Error('Peça muito grande: '+doc.titulo);
+       totalBytes+=blob.size;
+       if(totalBytes>75_000_000)throw new Error('Lote excedeu 75 MB. Baixe as peças individualmente.');
+       const safeTitle=doc.titulo.replace(/[^a-zA-Z0-9À-ÿ_-]+/g,'-').slice(0,60)||'documento';
+       zip.file(`${String(zipPage*zipBatchSize+i+1).padStart(3,'0')}-${safeTitle}.${doc.extensao}`,blob);
+     }
+     setZipProgress('Compactando os documentos…');
+     const result=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:3}});
+     const url=URL.createObjectURL(result);
+     const a=document.createElement('a');
+     a.href=url;a.download=`autos-${validCnj.replace(/\\D/g,'')}-lote-${zipPage+1}.zip`;
+     document.body.appendChild(a);a.click();a.remove();
+     window.setTimeout(()=>URL.revokeObjectURL(url),2000);
+     setZipOffset(prev=>Math.min(prev+1,zipPages-1));
+     setZipProgress('Lote salvo. Confira os documentos.');
+   }catch(e){setError(e instanceof Error?e.message:'Não foi possível preparar o ZIP.');setZipProgress('');}
+   finally{setZipWorking(false);}
+ }
  return (
   <section className="rounded-xl border border-primary/40 bg-card text-card-foreground p-4 space-y-3 shadow-sm" aria-label="Autos com certificado OAB">
    <button type="button" onClick={()=>setExpanded(v=>!v)} className="w-full flex items-start gap-3 text-left">
@@ -163,6 +203,13 @@ export function AutosOabScannerPanel(){
           <label className="flex gap-2 items-center text-xs"><input type="checkbox" checked={showAll} onChange={e=>setShowAll(e.target.checked)} className="accent-primary"/> Ver também posteriores à contestação</label>
         </div>
         {!complete&&<p className="text-[11px] text-amber-800 dark:text-amber-200">Listagem incompleta: podem existir documentos anteriores. Continue carregando até finalizar para confirmar o recorte.</p>}
+        {shown.length>0 && <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={zipWorking||!!busy} onClick={()=>void downloadZip()}>
+            {zipWorking?<Loader2 size={13} className="mr-1 animate-spin"/>:<CloudDownload size={13} className="mr-1"/>}
+            Baixar ZIP · lote {zipPage+1}/{zipPages} (até {zipBatchSize} peças)
+          </Button>
+          <span role="status" className="text-[10px] text-muted-foreground">{zipProgress||'Cada lote é baixado no navegador; arquivos não são guardados no LexisPredict.'}</span>
+        </div>}
         <div className="space-y-1 max-h-64 overflow-auto">
           {shown.map((doc,i)=><div key={doc.key} className="flex items-start justify-between gap-2 rounded-md border border-border/60 bg-muted/25 p-2 text-xs">
             <div className="min-w-0">
