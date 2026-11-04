@@ -117,6 +117,8 @@ export async function GET(request:NextRequest){
   }
   if(action==='documento'){
    const key=url.searchParams.get('key');
+   const rawExt=(url.searchParams.get('ext')||'bin').toLowerCase();
+   const ext=['pdf','docx','doc','xlsx','xls','png','jpg','jpeg','txt','xml','odt','zip','bin'].includes(rawExt)?rawExt:'bin';
    if(!isSafeAutosKey(key))return response({ok:false,error:'Documento inválido.'},400);
    const file=await fetch(providerUrl(cnj,'documentos/'+encodeURIComponent(key)),{
      headers:{Authorization:`Bearer ${token()}`,Accept:'application/pdf,image/png,image/jpeg,application/octet-stream,*/*'},
@@ -142,7 +144,7 @@ export async function GET(request:NextRequest){
      cancel(){void reader.cancel();}
    });
    return new Response(stream,{status:200,headers:{
-     ...PRIVATE_HEADERS,'Content-Type':mime,'Content-Disposition':`attachment; filename="autos-${cnj.replace(/\D/g,'')}-documento"`,
+     ...PRIVATE_HEADERS,'Content-Type':mime,'Content-Disposition':`attachment; filename="autos-${cnj.replace(/\D/g,'')}-documento.${ext}"`,
      'Content-Security-Policy':"default-src 'none'; sandbox",
    }});
   }
