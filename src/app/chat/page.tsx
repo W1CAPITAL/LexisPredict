@@ -104,7 +104,7 @@ export default function AssistentePage() {
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
     const raw=params.get('cnj')||'';
-    const digits=raw.replace(/\\D/g,'');
+    const digits=raw.replace(/\D/g,'');
     if(digits.length!==20)return;
     const masked=digits.slice(0,7)+'-'+digits.slice(7,9)+'.'+digits.slice(9,13)+'.'+digits.slice(13,14)+'.'+digits.slice(14,16)+'.'+digits.slice(16,20);
     setInput(current=>current.trim()?current:'Fale sobre o processo '+masked);
