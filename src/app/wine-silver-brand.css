@@ -1,0 +1,216 @@
+/**
+ * LexisPredict — identidade padrão VINHO + PRATA
+ * Limita as substituições a usuários do tema principal. Outros presets e
+ * personalizações seguem com suas cores semânticas.
+ * WCAG 2.2 AA: texto >= 4.5:1 e bordas essenciais >= 3:1.
+ */
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) {
+  --lexis-navy-950:#260711;
+  --lexis-navy-900:#3B0B1E;
+  --lexis-blue-600:#6D1734; /* alias legado usado pela interface comercial */
+  --lexis-blue-700:#501025;
+  --lexis-ink-900:#21151A;
+  --lexis-ink-700:#453039;
+  --lexis-muted:#60555C;
+  --lexis-canvas:#F4F3F5;
+  --lexis-card:#FFFFFF;
+  --lexis-line:#8F858B;
+  --lexis-soft-blue:#EDE9ED;
+  --lexis-brand-wine:#6D1734;
+  --lexis-brand-silver:#EDE9ED;
+  color-scheme:light;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) {
+  --background:288 14% 7%;
+  --foreground:320 13% 95%;
+  --card:309 12% 12%;
+  --card-foreground:320 13% 95%;
+  --popover:309 12% 12%;
+  --popover-foreground:320 13% 95%;
+  --primary:338 50% 36%;
+  --primary-foreground:0 0% 100%;
+  --secondary:322 18% 18%;
+  --secondary-foreground:320 13% 95%;
+  --muted:322 18% 18%;
+  --muted-foreground:320 10% 76%;
+  --accent:322 18% 18%;
+  --accent-foreground:320 13% 95%;
+  --border:323 7% 49%;
+  --input:323 7% 49%;
+  --ring:320 10% 76%;
+  --sidebar-background:332 48% 10%;
+  --sidebar-foreground:320 13% 95%;
+  --sidebar-primary:338 50% 36%;
+  --sidebar-primary-foreground:0 0% 100%;
+  --sidebar-accent:322 18% 18%;
+  --sidebar-accent-foreground:320 13% 95%;
+  --sidebar-border:323 7% 49%;
+  --sidebar-ring:320 10% 76%;
+  --lexis-navy-950:#250D18;
+  --lexis-navy-900:#250D18;
+  --lexis-blue-600:#8A2E50;
+  --lexis-blue-700:#702541;
+  --lexis-ink-900:#F5F2F4;
+  --lexis-ink-700:#E2D7DF;
+  --lexis-muted:#C9BDC5;
+  --lexis-canvas:#141015;
+  --lexis-card:#211A20;
+  --lexis-line:#86747F;
+  --lexis-soft-blue:#35252F;
+  --lexis-brand-wine:#8A2E50;
+  --lexis-brand-silver:#C9BDC5;
+  color-scheme:dark;
+}
+
+/* Corrige seletores comerciais legados (azul/verde) sem alterar cores
+   semânticas de sucesso, erro, alerta, gráficos de categorias e impressão. */
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar]) :is(button.bg-black,a.bg-black,.bg-primary) {
+  background-color:hsl(var(--primary)) !important;
+  color:hsl(var(--primary-foreground)) !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar]) :is(.text-primary,.border-primary) {
+  border-color:hsl(var(--primary)) !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar]) .text-primary {
+  color:#6D1734 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) :is(.text-primary,.lexis-agent-card .does) {
+  color:#E5AABB !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) .bg-primary {
+  background-color:hsl(var(--primary)) !important;
+  color:hsl(var(--primary-foreground)) !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar])
+:is(input,textarea,select,[role="combobox"]) {
+  background-color:hsl(var(--card)) !important;
+  color:hsl(var(--card-foreground)) !important;
+  border-color:hsl(var(--input)) !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar])
+:is(input,textarea)::placeholder {
+  color:hsl(var(--muted-foreground)) !important;
+  opacity:1;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar])
+:is(.text-muted-foreground,.lexis-metric-label,table thead,table th) {
+  color:hsl(var(--muted-foreground)) !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+body:has([data-lexis-commercial-sidebar]) :is(table thead,table thead tr) {
+  background-color:hsl(var(--muted)) !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+.lexis-agent-fab {
+  background:hsl(var(--primary)) !important;
+  color:hsl(var(--primary-foreground)) !important;
+  border:1px solid hsl(var(--border)) !important;
+  box-shadow:0 8px 24px rgb(59 11 30 / .22);
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+.lexis-agent-card:is(:hover,.active) {
+  border-color:hsl(var(--border)) !important;
+}
+
+/* Navegação, dashboard inicial e estados ativos — identidade semântica. */
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] {
+  --lx-reference-foreground:#21151A;
+  --lx-reference-muted:#60555C;
+  --lx-reference-border:#8F858B;
+  --lx-reference-card-border:#C5BAC1;
+  --lx-reference-paper:#FFFFFF;
+  --lx-reference-tooltip:#FFFFFF;
+  --lx-reference-chart-color:#6D1734;
+  --lx-reference-chart-muted:#60555C;
+  --lx-reference-chart-grid:#D5CED3;
+  --lx-reference-shadow:0 10px 28px rgb(59 11 30 / .06);
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] {
+  --lx-reference-foreground:#F5F2F4;
+  --lx-reference-muted:#C9BDC5;
+  --lx-reference-border:#86747F;
+  --lx-reference-card-border:#86747F;
+  --lx-reference-paper:#211A20;
+  --lx-reference-tooltip:#211A20;
+  --lx-reference-chart-color:#E5AABB;
+  --lx-reference-chart-muted:#C9BDC5;
+  --lx-reference-chart-grid:#66535E;
+  --lx-reference-shadow:0 12px 32px rgb(0 0 0 / .26);
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] {
+  background:radial-gradient(ellipse at 92% 2%,rgb(109 23 52 / .055),transparent 42%),#F4F3F5 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] {
+  background:radial-gradient(ellipse at 85% 0%,rgb(138 46 80 / .15),transparent 42%),#141015 !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
+  color:#6D1734 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
+  color:#E5AABB !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
+  background:#6D1734 !important;color:#FFFFFF !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
+  background:#C9BDC5 !important;color:#21151A !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi]
+:where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
+  background:#EDE9ED !important;color:#6D1734 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi]
+:where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
+  background:#35252F !important;color:#E5AABB !important;
+}
+
+/* Controles de teclado e campos com contorno forte sobre prata/escuro.
+   Evita foco vinho de contraste insuficiente sobre superfícies escuras. */
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+:is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
+  outline:2px solid hsl(var(--ring)) !important;
+  outline-offset:3px;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+:is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
+  outline-color:#C9BDC5 !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) ::selection {
+  background:hsl(var(--primary) / .22);
+  color:hsl(var(--foreground));
+}
+
+/* Mobile: substitui o roxo legado do shell pelo vinho + prata. */
+@media (max-width:767px) {
+ html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+ [data-lexis-mobile-topbar] {
+   background:#F4F3F5 !important;border-color:#8F858B !important;color:#21151A !important;
+ }
+ html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+ :is([data-lexis-mobile-menu-trigger],[data-mobile-nav-active="true"]) {
+   background:#6D1734 !important;color:#FFFFFF !important;
+ }
+ html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
+ [data-lexis-mobile-heading] > p:last-child {
+   color:#60555C !important;
+ }
+}
