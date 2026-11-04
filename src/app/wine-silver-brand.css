@@ -1,311 +1,41 @@
 /**
- * LexisPredict — identidade padrão VINHO + PRATA
- * Limita as substituições a usuários do tema principal. Outros presets e
- * personalizações seguem com suas cores semânticas.
- * WCAG 2.2 AA: texto >= 4.5:1 e bordas essenciais >= 3:1.
- */
-html {
-  --lexis-navy-950:#260711;
-  --lexis-navy-900:#3B0B1E;
-  --lexis-blue-600:#6D1734; /* alias legado usado pela interface comercial */
-  --lexis-blue-700:#501025;
-  --lexis-ink-900:#21151A;
-  --lexis-ink-700:#453039;
-  --lexis-muted:#60555C;
-  --lexis-canvas:#F4F3F5;
-  --lexis-card:#FFFFFF;
-  --lexis-line:#8F858B;
-  --lexis-soft-blue:#EDE9ED;
-  --lexis-brand-wine:#6D1734;
-  --lexis-brand-silver:#EDE9ED;
-  color-scheme:light;
-}
-html.dark {
-  --background:288 14% 7%;
-  --foreground:320 13% 95%;
-  --card:309 12% 12%;
-  --card-foreground:320 13% 95%;
-  --popover:309 12% 12%;
-  --popover-foreground:320 13% 95%;
-  --primary:338 50% 36%;
-  --primary-foreground:0 0% 100%;
-  --secondary:322 18% 18%;
-  --secondary-foreground:320 13% 95%;
-  --muted:322 18% 18%;
-  --muted-foreground:320 10% 76%;
-  --accent:322 18% 18%;
-  --accent-foreground:320 13% 95%;
-  --border:323 7% 49%;
-  --input:323 7% 49%;
-  --ring:320 10% 76%;
-  --sidebar-background:332 48% 10%;
-  --sidebar-foreground:320 13% 95%;
-  --sidebar-primary:338 50% 36%;
-  --sidebar-primary-foreground:0 0% 100%;
-  --sidebar-accent:322 18% 18%;
-  --sidebar-accent-foreground:320 13% 95%;
-  --sidebar-border:323 7% 49%;
-  --sidebar-ring:320 10% 76%;
-  --lexis-navy-950:#250D18;
-  --lexis-navy-900:#250D18;
-  --lexis-blue-600:#8A2E50;
-  --lexis-blue-700:#702541;
-  --lexis-ink-900:#F5F2F4;
-  --lexis-ink-700:#E2D7DF;
-  --lexis-muted:#C9BDC5;
-  --lexis-canvas:#141015;
-  --lexis-card:#211A20;
-  --lexis-line:#86747F;
-  --lexis-soft-blue:#35252F;
-  --lexis-brand-wine:#8A2E50;
-  --lexis-brand-silver:#C9BDC5;
-  color-scheme:dark;
-}
-
-/* Corrige seletores comerciais legados (azul/verde) sem alterar cores
-   semânticas de sucesso, erro, alerta, gráficos de categorias e impressão. */
-html
-body:has([data-lexis-commercial-sidebar]) :is(button.bg-black,a.bg-black,.bg-primary) {
-  background-color:hsl(var(--primary)) !important;
-  color:hsl(var(--primary-foreground)) !important;
-}
-html
-body:has([data-lexis-commercial-sidebar]) :is(.text-primary,.border-primary) {
-  border-color:hsl(var(--primary)) !important;
-}
-html:not(.dark)
-body:has([data-lexis-commercial-sidebar]) .text-primary {
-  color:#6D1734 !important;
-}
-html.dark :is(.text-primary,.lexis-agent-card .does) {
-  color:#E5AABB !important;
-}
-html.dark .bg-primary {
-  background-color:hsl(var(--primary)) !important;
-  color:hsl(var(--primary-foreground)) !important;
-}
-html
-body:has([data-lexis-commercial-sidebar])
-:is(input,textarea,select,[role="combobox"]) {
-  background-color:hsl(var(--card)) !important;
-  color:hsl(var(--card-foreground)) !important;
-  border-color:hsl(var(--input)) !important;
-}
-html
-body:has([data-lexis-commercial-sidebar])
-:is(input,textarea)::placeholder {
-  color:hsl(var(--muted-foreground)) !important;
-  opacity:1;
-}
-html
-body:has([data-lexis-commercial-sidebar])
-:is(.text-muted-foreground,.lexis-metric-label,table thead,table th) {
-  color:hsl(var(--muted-foreground)) !important;
-}
-html
-body:has([data-lexis-commercial-sidebar]) :is(table thead,table thead tr) {
-  background-color:hsl(var(--muted)) !important;
-}
-html
-.lexis-agent-fab {
-  background:hsl(var(--primary)) !important;
-  color:hsl(var(--primary-foreground)) !important;
-  border:1px solid hsl(var(--border)) !important;
-  box-shadow:0 8px 24px rgb(59 11 30 / .22);
-}
-html
-.lexis-agent-card:is(:hover,.active) {
-  border-color:hsl(var(--border)) !important;
-}
-
-/* Navegação, dashboard inicial e estados ativos — identidade semântica. */
-html
-[data-lexis-dashboard-home] {
-  --lx-reference-foreground:#21151A;
-  --lx-reference-muted:#60555C;
-  --lx-reference-border:#8F858B;
-  --lx-reference-card-border:#C5BAC1;
-  --lx-reference-paper:#FFFFFF;
-  --lx-reference-tooltip:#FFFFFF;
-  --lx-reference-chart-color:#6D1734;
-  --lx-reference-chart-muted:#60555C;
-  --lx-reference-chart-grid:#D5CED3;
-  --lx-reference-shadow:0 10px 28px rgb(59 11 30 / .06);
-}
-html.dark
-[data-lexis-dashboard-home] {
-  --lx-reference-foreground:#F5F2F4;
-  --lx-reference-muted:#C9BDC5;
-  --lx-reference-border:#86747F;
-  --lx-reference-card-border:#86747F;
-  --lx-reference-paper:#211A20;
-  --lx-reference-tooltip:#211A20;
-  --lx-reference-chart-color:#E5AABB;
-  --lx-reference-chart-muted:#C9BDC5;
-  --lx-reference-chart-grid:#66535E;
-  --lx-reference-shadow:0 12px 32px rgb(0 0 0 / .26);
-}
-html:not(.dark)
-[data-lexis-dashboard-home] {
-  background:radial-gradient(ellipse at 92% 2%,rgb(109 23 52 / .055),transparent 42%),#F4F3F5 !important;
-}
-html.dark
-[data-lexis-dashboard-home] {
-  background:radial-gradient(ellipse at 85% 0%,rgb(138 46 80 / .15),transparent 42%),#141015 !important;
-}
-html:not(.dark)
-[data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
-  color:#6D1734 !important;
-}
-html.dark
-[data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
-  color:#E5AABB !important;
-}
-html:not(.dark)
-[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background:#6D1734 !important;color:#FFFFFF !important;
-}
-html.dark
-[data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background:#C9BDC5 !important;color:#21151A !important;
-}
-html:not(.dark)
-[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi]
-:where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
-  background:#EDE9ED !important;color:#6D1734 !important;
-}
-html.dark
-[data-lexis-dashboard-home] [data-lexis-dashboard-content] [data-efferd-kpi]
-:where(.bg-sky-600,.bg-amber-500,.bg-violet-600,.bg-emerald-600,.bg-rose-600) {
-  background:#35252F !important;color:#E5AABB !important;
-}
-
-/* Controles de teclado e campos com contorno forte sobre prata/escuro.
-   Evita foco vinho de contraste insuficiente sobre superfícies escuras. */
-html
-:is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
-  outline:2px solid hsl(var(--ring)) !important;
-  outline-offset:3px;
-}
-html.dark
-:is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
-  outline-color:#C9BDC5 !important;
-}
-html ::selection {
-  background:hsl(var(--primary) / .22);
-  color:hsl(var(--foreground));
-}
-
-/* Mobile: substitui o roxo legado do shell pelo vinho + prata. */
-@media (max-width:767px) {
- html:not(.dark)
- body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
- [data-lexis-mobile-topbar] {
-   background:#F4F3F5 !important;border-color:#8F858B !important;color:#21151A !important;
- }
- html:not(.dark)
- body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
- :is([data-lexis-mobile-menu-trigger],[data-mobile-nav-active="true"]) {
-   background:#6D1734 !important;color:#FFFFFF !important;
- }
- html:not(.dark)
- body:is([data-lexis-visual-group="workspace"],[data-lexis-visual-group="crm"])
- [data-lexis-mobile-heading] > p:last-child {
-   color:#60555C !important;
- }
-}
-
-
-/* Dashboard, CRM e relatórios utilizam a mesma identidade do aplicativo.
-   Presets explicitamente personalizados continuam intactos. */
-html:not(.dark)
- :is(.lx-reference-eyebrow,.lx-reference-heading-dot,[data-lexis-dashboard-home] .lx-reference-heading-dot) {
-  color:#6D1734 !important;
-}
-html.dark
- :is(.lx-reference-eyebrow,.lx-reference-heading-dot,[data-lexis-dashboard-home] .lx-reference-heading-dot) {
-  color:#E5AABB !important;
-}
-html
- .lx-reference-eyebrow-mark {
-  background:var(--lexis-brand-wine) !important;
-  box-shadow:0 0 0 4px hsl(var(--primary) / .12) !important;
-}
-html:not(.dark)
- [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
-  background:#6D1734 !important;color:#fff !important;
-}
-html.dark
- [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
-  background:#8A2E50 !important;color:#fff !important;
-}
-html:not(.dark)
- [data-report-surface] {
-  --rv-ink:#21151A;
-  --rv-muted:#60555C;
-  --rv-card:#fff;
-  --rv-line:#8F858B;
-  --rv-bg:#F4F3F5;
-  --rv-wash:#EDE9ED;
-  --rv-shadow:0 5px 18px rgb(59 11 30 / .08);
-}
-html.dark
- [data-report-surface] {
-  --rv-ink:#F5F2F4;
-  --rv-muted:#C9BDC5;
-  --rv-card:#211A20;
-  --rv-line:#86747F;
-  --rv-bg:#141015;
-  --rv-wash:#35252F;
-  --rv-shadow:0 8px 24px rgb(0 0 0 / .24);
-}
-html
- :is(
-  [data-report-surface] .rv-hero,
-  [data-report-surface="analyses"] > header,
-  [data-report-surface="complete"] .report-detail-heading
- ) {
-  background:linear-gradient(125deg,#3B0B1E,#6D1734) !important;
-  color:#fff !important;
-}
-html
- :is([data-report-surface] .rv-hero h1 span,[data-report-surface] .rv-hero p,[data-report-surface] .rv-hero .rv-eyebrow) {
-  color:#EDE9ED !important;
-}
-html
- :is(.rv-button-primary,.rv-segments a[aria-current="page"]) {
-  background:#6D1734 !important;
-  color:#fff !important;
-  border-color:#6D1734 !important;
-}
-html
- :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
-  color:#6D1734 !important;
-}
-html.dark
- :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
-  color:#E5AABB !important;
-}
-
-/* ============================================================================
- * IDENTIDADE CORPORATIVA UNIFICADA — LEXISPREDICT (04/11/2026)
+ * LexisPredict: identidade corporativa e acessibilidade para todos os presets.
  *
- * Prioridade visual corporativa: vinho + prata em TODAS as telas e em todas as
- * contas. Os tons antigos persistiam por CSS de rota e preferências locais:
- * --primary e --sidebar-background eram injetados como inline style na raiz.
- * Custom properties com !important no CSS vencem inline sem !important.
- * Modo claro/escuro, tipografia, dimensões e layout ainda funcionam.
- * As cores semânticas de erros, avisos, sucesso e documentos jurídicos são
- * mantidas fora das ações primárias de navegação.
- * ========================================================================== */
-:root:not(.dark) {
-  --background: 270 9% 96% !important;                /* #F4F3F5 */
-  --foreground: 335 22% 11% !important;               /* quase preto */
+ * REGRAS:
+ * 1. Somente o preset "minimal-steel" fixa a identidade vinho/prata.
+ * 2. Todo outro preset recebe seu próprio fundo, primeiro plano, botões,
+ *    bordas e navegação da função getPresetColors() / applyGlobalTheme().
+ * 3. Contraste é validado no motor de temas, não por uma cor universal imposta.
+ * 4. Não sobrescrever as cores semânticas de erro, aviso, sucesso ou impressão.
+ */
+
+/* Compatibilidade comercial: aliases antigos acompanham o preset escolhido. */
+:root {
+  --lexis-navy-950: hsl(var(--sidebar-background));
+  --lexis-navy-900: hsl(var(--sidebar-background));
+  --lexis-blue-600: hsl(var(--primary));
+  --lexis-blue-700: hsl(var(--primary));
+  --lexis-ink-900: hsl(var(--foreground));
+  --lexis-ink-700: hsl(var(--foreground));
+  --lexis-muted: hsl(var(--muted-foreground));
+  --lexis-canvas: hsl(var(--background));
+  --lexis-card: hsl(var(--card));
+  --lexis-line: hsl(var(--border));
+  --lexis-soft-blue: hsl(var(--muted));
+  --lexis-brand-wine: #6D1734;
+  --lexis-brand-silver: #EDE9ED;
+}
+
+/* O default VINHO/PRATA permanece fixo inclusive para perfis salvos antes
+   da migração, sem bloquear Ocean/Nord/Graphite/SheetsPredict/Custom. */
+:root:not(.dark)[data-lexis-preset="minimal-steel"] {
+  --background: 270 9% 96% !important;
+  --foreground: 335 22% 11% !important;
   --card: 0 0% 100% !important;
   --card-foreground: 335 22% 11% !important;
   --popover: 0 0% 100% !important;
   --popover-foreground: 335 22% 11% !important;
-  --primary: 340 65% 26% !important;                  /* #6D1734 */
+  --primary: 340 65% 26% !important;
   --primary-foreground: 0 0% 100% !important;
   --secondary: 300 10% 92% !important;
   --secondary-foreground: 335 22% 11% !important;
@@ -316,7 +46,7 @@ html.dark
   --border: 324 4% 54% !important;
   --input: 324 4% 54% !important;
   --ring: 340 65% 26% !important;
-  --sidebar-background: 336 69% 14% !important;       /* #3B0B1E */
+  --sidebar-background: 336 69% 14% !important;
   --sidebar-foreground: 0 0% 100% !important;
   --sidebar-primary: 340 65% 26% !important;
   --sidebar-primary-foreground: 0 0% 100% !important;
@@ -324,27 +54,15 @@ html.dark
   --sidebar-accent-foreground: 0 0% 100% !important;
   --sidebar-border: 324 4% 54% !important;
   --sidebar-ring: 343 53% 78% !important;
-  --lexis-navy-950: #260711 !important;
-  --lexis-navy-900: #3B0B1E !important;
-  --lexis-blue-600: #6D1734 !important;
-  --lexis-blue-700: #501025 !important;
-  --lexis-ink-900: #21151A !important;
-  --lexis-ink-700: #453039 !important;
-  --lexis-muted: #60555C !important;
-  --lexis-canvas: #F4F3F5 !important;
-  --lexis-card: #FFFFFF !important;
-  --lexis-line: #8F858B !important;
-  --lexis-soft-blue: #EDE9ED !important;
-  color-scheme: light;
 }
-:root.dark {
+:root.dark[data-lexis-preset="minimal-steel"] {
   --background: 288 14% 7% !important;
   --foreground: 320 13% 95% !important;
   --card: 309 12% 12% !important;
   --card-foreground: 320 13% 95% !important;
   --popover: 309 12% 12% !important;
   --popover-foreground: 320 13% 95% !important;
-  --primary: 338 50% 36% !important;                 /* #8A2E50 */
+  --primary: 338 50% 36% !important;
   --primary-foreground: 0 0% 100% !important;
   --secondary: 322 18% 18% !important;
   --secondary-foreground: 320 13% 95% !important;
@@ -363,49 +81,40 @@ html.dark
   --sidebar-accent-foreground: 0 0% 100% !important;
   --sidebar-border: 323 7% 49% !important;
   --sidebar-ring: 320 10% 76% !important;
-  --lexis-navy-950: #250D18 !important;
-  --lexis-navy-900: #250D18 !important;
-  --lexis-blue-600: #8A2E50 !important;
-  --lexis-blue-700: #702541 !important;
-  --lexis-ink-900: #F5F2F4 !important;
-  --lexis-ink-700: #E2D7DF !important;
-  --lexis-muted: #C9BDC5 !important;
-  --lexis-canvas: #141015 !important;
-  --lexis-card: #211A20 !important;
-  --lexis-line: #86747F !important;
-  --lexis-soft-blue: #35252F !important;
-  color-scheme: dark;
 }
 
-/* O menu usa componente permanente e CSS de experiência que substituía a
- * classe Tailwind do gradiente por cinza, inclusive após o deploy. */
+/* Navegação / sidebar — usa a superfície do preset, não cinza nem
+   preto em um item ativo com fundo vinho. */
 html [data-lexis-sidebar] [data-lexis-sidebar-body],
-html[data-lexis-experience="1"] [data-lexis-sidebar] [data-lexis-sidebar-body],
-html[data-lexis-experience="1"] [data-lexis-sidebar] > [data-lexis-sidebar-body] {
-  background: linear-gradient(180deg,#4B1630 0%,#3B0B1E 55%,#260711 100%) !important;
-  background-color: #3B0B1E !important;
-  color: #FFFFFF !important;
+html[data-lexis-experience="1"] [data-lexis-sidebar] > [data-lexis-sidebar-body],
+html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] > div:first-child {
+  background: hsl(var(--sidebar-background)) !important;
+  background-color: hsl(var(--sidebar-background)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
 }
-html [data-lexis-sidebar] [data-lexis-nav-scroll] {
-  scrollbar-color: #8F858B transparent;
+html[data-lexis-preset="minimal-steel"] [data-lexis-sidebar] [data-lexis-sidebar-body],
+html[data-lexis-preset="minimal-steel"] [data-lexis-commercial-sidebar] > div:first-child {
+  background: linear-gradient(180deg,#4B1630,#3B0B1E 56%,#260711) !important;
 }
-html [data-lexis-sidebar] :is([data-lexis-nav-item],[data-lexis-nav-cta],[data-lexis-nav-central],[data-lexis-nav-signout]) {
-  color: #F5F2F4 !important;
+html [data-lexis-sidebar] [data-lexis-nav-item],
+html [data-lexis-commercial-sidebar] nav a:not([aria-current="page"]) {
+  color: hsl(var(--sidebar-foreground)) !important;
 }
-html [data-lexis-sidebar] [data-lexis-nav-item]:not([aria-current="page"]):hover {
-  background: rgb(201 189 197 / .17) !important;
-  color: #FFFFFF !important;
+html [data-lexis-sidebar] [data-lexis-nav-item]:not([aria-current="page"]):hover,
+html [data-lexis-commercial-sidebar] nav a:not([aria-current="page"]):hover {
+  background: hsl(var(--sidebar-accent)) !important;
+  color: hsl(var(--sidebar-accent-foreground)) !important;
 }
 html [data-lexis-sidebar] [data-lexis-nav-item][aria-current="page"],
-html[data-lexis-experience="1"] [data-lexis-sidebar] [data-lexis-nav-item][aria-current="page"] {
-  background: #6D1734 !important;
-  color: #FFFFFF !important;
-  border: 1px solid #C9BDC5 !important;
-  box-shadow: inset 3px 0 0 #EDE9ED, 0 5px 15px rgb(38 7 17 / .25) !important;
+html [data-lexis-commercial-sidebar] nav a[aria-current="page"] {
+  background: hsl(var(--sidebar-primary)) !important;
+  border: 1px solid hsl(var(--sidebar-ring)) !important;
+  color: hsl(var(--sidebar-primary-foreground)) !important;
+  box-shadow: inset 3px 0 0 hsl(var(--sidebar-ring)),0 4px 14px rgb(0 0 0 / .15) !important;
 }
-html [data-lexis-sidebar] [data-lexis-nav-item][aria-current="page"] :is(svg,[data-lexis-nav-label]),
-html [data-lexis-sidebar] [data-lexis-nav-item][aria-current="page"] span {
-  color: #FFFFFF !important;
+html [data-lexis-sidebar] [data-lexis-nav-item][aria-current="page"] :is(span,svg,[data-lexis-nav-label]),
+html [data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg) {
+  color: hsl(var(--sidebar-primary-foreground)) !important;
   opacity: 1 !important;
 }
 html [data-lexis-sidebar] [data-lexis-nav-primary][data-lexis-active-visible="true"]::before {
@@ -413,263 +122,204 @@ html [data-lexis-sidebar] [data-lexis-nav-primary][data-lexis-active-visible="tr
   border-color: transparent !important;
   box-shadow: none !important;
 }
-html [data-lexis-sidebar] [data-lexis-nav-item]:not([aria-current="page"]) svg,
-html [data-lexis-sidebar] [data-lexis-nav-cta] svg {
-  color: #D8CBD3 !important;
+html [data-lexis-sidebar] [data-lexis-nav-item]:not([aria-current="page"]) svg {
+  color: hsl(var(--sidebar-foreground)) !important;
 }
 html [data-lexis-sidebar] [data-lexis-nav-cta] {
-  background: linear-gradient(125deg,#6D1734,#501025) !important;
-  border: 1px solid #C9BDC5 !important;
-  color: #FFFFFF !important;
+  background: hsl(var(--sidebar-primary)) !important;
+  border-color: hsl(var(--sidebar-ring)) !important;
+  color: hsl(var(--sidebar-primary-foreground)) !important;
 }
-html [data-lexis-sidebar] [data-lexis-nav-cta] [data-lexis-nav-label] {
-  color: #FFFFFF !important;
-}
-html [data-lexis-sidebar] [data-lexis-sidebar-brand] [data-lexis-nav-label],
-html [data-lexis-sidebar] [data-lexis-nav-footer-message] p {
-  color: #FFFFFF !important;
+html [data-lexis-sidebar] [data-lexis-nav-cta] :is(span,svg,[data-lexis-nav-label]) {
+  color: hsl(var(--sidebar-primary-foreground)) !important;
 }
 html [data-lexis-sidebar] [data-lexis-nav-footer-message] {
-  background: rgb(201 189 197 / .12) !important;
-  border-color: rgb(201 189 197 / .35) !important;
+  background: hsl(var(--sidebar-accent)) !important;
+  border: 1px solid hsl(var(--sidebar-border)) !important;
+  color: hsl(var(--sidebar-accent-foreground)) !important;
 }
 html [data-lexis-sidebar] [data-lexis-nav-footer-message] p {
+  color: hsl(var(--sidebar-accent-foreground)) !important;
   font-size: 12px !important;
 }
-html [data-lexis-sidebar] :is([data-lexis-nav-signout],[data-lexis-nav-central]):focus-visible {
-  outline: 2px solid #EDE9ED !important;
+html [data-lexis-sidebar] :is(a,button):focus-visible,
+html [data-lexis-desktop-dock] :is(a,button):focus-visible {
+  outline: 2px solid hsl(var(--sidebar-ring)) !important;
   outline-offset: 3px;
 }
 
-/* Dashboard: vermelho-alaranjado e cartões azuis/lilás eram variáveis locais,
- * portanto modificar apenas --primary nunca os atualizava. */
-html:not(.dark) [data-lexis-dashboard-home] {
-  --lx-reference-foreground: #21151A !important;
-  --lx-reference-muted: #60555C !important;
-  --lx-reference-border: #8F858B !important;
-  --lx-reference-card-border: #C5BAC1 !important;
-  --lx-reference-paper: #FFFFFF !important;
-  --lx-reference-tooltip: #FFFFFF !important;
-  --lx-reference-chart-color: #6D1734 !important;
-  --lx-reference-chart-muted: #60555C !important;
-  --lx-reference-chart-grid: #D5CED3 !important;
+/* Dashboard: cores semânticas; as dezenas de hardcodes do dashboard antigo
+   não devem mascarar o preset selecionado. */
+html [data-lexis-dashboard-home] {
+  --lx-reference-foreground: hsl(var(--foreground));
+  --lx-reference-muted: hsl(var(--muted-foreground));
+  --lx-reference-border: hsl(var(--border));
+  --lx-reference-card-border: hsl(var(--border));
+  --lx-reference-paper: hsl(var(--card));
+  --lx-reference-tooltip: hsl(var(--popover));
+  --lx-reference-chart-color: hsl(var(--primary));
+  --lx-reference-chart-muted: hsl(var(--muted-foreground));
+  --lx-reference-chart-grid: hsl(var(--border));
 }
-html.dark [data-lexis-dashboard-home] {
-  --lx-reference-foreground: #F5F2F4 !important;
-  --lx-reference-muted: #C9BDC5 !important;
-  --lx-reference-border: #86747F !important;
-  --lx-reference-card-border: #86747F !important;
-  --lx-reference-paper: #211A20 !important;
-  --lx-reference-tooltip: #211A20 !important;
-  --lx-reference-chart-color: #E5AABB !important;
-  --lx-reference-chart-muted: #C9BDC5 !important;
-  --lx-reference-chart-grid: #66535E !important;
+html:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-metric {
-  --lx-metric-bg: #EDE9ED !important;
-  --lx-metric-fg: #21151A !important;
-  --lx-metric-sub: #60555C !important;
-  --lx-metric-icon: #FFFFFF !important;
-  border-color: #C5BAC1 !important;
+html [data-lexis-dashboard-home] :is(.lx-reference-heading-dot,.lx-reference-eyebrow) {
+  color: hsl(var(--primary)) !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-metric[data-kind="active"] {
-  --lx-metric-bg: #E7DFE4 !important;
+html [data-lexis-dashboard-home] .lx-reference-eyebrow-mark {
+  background: hsl(var(--primary)) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / .12) !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-metric[data-kind="overdue"] {
-  --lx-metric-bg: #F2ECEF !important;
+html [data-lexis-dashboard-home] .lx-reference-metric {
+  --lx-metric-bg: hsl(var(--muted));
+  --lx-metric-fg: hsl(var(--foreground));
+  --lx-metric-sub: hsl(var(--muted-foreground));
+  --lx-metric-icon: hsl(var(--card));
+  border-color: hsl(var(--border)) !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-metric[data-kind="today"] {
-  --lx-metric-bg: #6D1734 !important;
-  --lx-metric-fg: #FFFFFF !important;
-  --lx-metric-sub: #EDE9ED !important;
-  --lx-metric-icon: rgb(255 255 255 / .16) !important;
-  border-color: #6D1734 !important;
+html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="active"] {
+  --lx-metric-bg: hsl(var(--accent));
 }
-html.dark [data-lexis-dashboard-home] .lx-reference-metric {
-  --lx-metric-bg: #35252F !important;
-  --lx-metric-fg: #F5F2F4 !important;
-  --lx-metric-sub: #C9BDC5 !important;
-  --lx-metric-icon: #443140 !important;
-  border-color: #86747F !important;
+html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="overdue"] {
+  --lx-metric-bg: hsl(var(--muted));
 }
-html.dark [data-lexis-dashboard-home] .lx-reference-metric[data-kind="active"] {
-  --lx-metric-bg: #412937 !important;
+html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="today"] {
+  --lx-metric-bg: hsl(var(--primary));
+  --lx-metric-fg: hsl(var(--primary-foreground));
+  --lx-metric-sub: hsl(var(--primary-foreground));
+  --lx-metric-icon: hsl(var(--primary-foreground) / .17);
+  border-color: hsl(var(--primary)) !important;
 }
-html.dark [data-lexis-dashboard-home] .lx-reference-metric[data-kind="today"] {
-  --lx-metric-bg: #8A2E50 !important;
-  --lx-metric-fg: #FFFFFF !important;
-  --lx-metric-sub: #F5F2F4 !important;
-  --lx-metric-icon: rgb(255 255 255 / .15) !important;
-  border-color: #8A2E50 !important;
-}
-html.dark [data-lexis-dashboard-home] .lx-reference-metric[data-kind="overdue"] {
-  --lx-metric-bg: #392B34 !important;
-}
-html [data-lexis-dashboard-home] .lx-reference-metric :is(.lx-reference-metric-label,.lx-reference-metric-value,.lx-reference-metric-detail,.lx-reference-metric-icon) {
+html [data-lexis-dashboard-home] .lx-reference-metric :is(.lx-reference-metric-label,.lx-reference-metric-value,.lx-reference-metric-icon) {
   color: var(--lx-metric-fg) !important;
 }
 html [data-lexis-dashboard-home] .lx-reference-metric .lx-reference-metric-detail {
   color: var(--lx-metric-sub) !important;
   font-size: 11px !important;
+  opacity: 1 !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-eyebrow,
-html:not(.dark) [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child,
-html:not(.dark) [data-lexis-dashboard-home] .lx-reference-heading-dot {
-  color: #6D1734 !important;
+html [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
 }
-html.dark [data-lexis-dashboard-home] .lx-reference-eyebrow,
-html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child,
-html.dark [data-lexis-dashboard-home] .lx-reference-heading-dot {
-  color: #E5AABB !important;
+html [data-lexis-dashboard-home] [data-lexis-dashboard-header] p:first-child {
+  color: hsl(var(--foreground)) !important;
 }
-html [data-lexis-dashboard-home] .lx-reference-eyebrow-mark {
-  background: #6D1734 !important;
-  box-shadow: 0 0 0 3px rgb(109 23 52 / .13) !important;
-}
-html [data-lexis-dashboard-home] .lx-reference-chart-card,
-html [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] {
+html [data-lexis-dashboard-home] .lx-reference-chart-card {
+  background: hsl(var(--card)) !important;
   border-color: hsl(var(--border)) !important;
 }
-html:not(.dark) [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background: #6D1734 !important;
-  color: #FFFFFF !important;
-}
-html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
-  background: #8A2E50 !important;
-  color: #FFFFFF !important;
-}
 
-/* Processos + demais rotas: componentes antigos precisam receber os tokens,
- * mesmo em presets salvos que antes eram azul/laranja. */
-html:not(.dark) [data-lexis-processos-workspace] {
-  --lx-process-bg: #F4F3F5 !important;
-  --lx-process-panel: #FFFFFF !important;
-  --lx-process-line: #C5BAC1 !important;
-  --lx-process-ink: #21151A !important;
-  --lx-process-muted: #60555C !important;
-  --lx-process-tint: #EDE9ED !important;
-  --lx-process-accent: #6D1734 !important;
-  --lx-process-accent-ink: #FFFFFF !important;
-  --lx-process-selected: #F1E7EC !important;
-}
-html.dark [data-lexis-processos-workspace] {
-  --lx-process-bg: #141015 !important;
-  --lx-process-panel: #211A20 !important;
-  --lx-process-line: #86747F !important;
-  --lx-process-ink: #F5F2F4 !important;
-  --lx-process-muted: #C9BDC5 !important;
-  --lx-process-tint: #35252F !important;
-  --lx-process-accent: #8A2E50 !important;
-  --lx-process-accent-ink: #FFFFFF !important;
-  --lx-process-selected: #432634 !important;
+/* Workbench de processos e abas: vinda de tokens de superfície/ação. */
+html [data-lexis-processos-workspace] {
+  --lx-process-bg: hsl(var(--background));
+  --lx-process-panel: hsl(var(--card));
+  --lx-process-line: hsl(var(--border));
+  --lx-process-ink: hsl(var(--card-foreground));
+  --lx-process-muted: hsl(var(--muted-foreground));
+  --lx-process-tint: hsl(var(--muted));
+  --lx-process-accent: hsl(var(--primary));
+  --lx-process-accent-ink: hsl(var(--primary-foreground));
+  --lx-process-selected: hsl(var(--primary) / .10);
 }
 html [data-lexis-processos-hero] :is(button.bg-blue-600,button.bg-violet-600,a.bg-violet-600),
 html [data-lexis-processos-inspector] :is(button.bg-blue-600,button.bg-violet-600),
 html [data-lexis-processos-pills] > button[aria-pressed="true"],
 html [data-lexis-processos-inspector-tabs] > button.bg-blue-600 {
-  background: var(--lx-process-accent) !important;
-  color: var(--lx-process-accent-ink) !important;
-  border-color: var(--lx-process-accent) !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+html [data-lexis-processos-pills] > button[aria-pressed="true"] :is(span,svg) {
+  color: hsl(var(--primary-foreground)) !important;
 }
 html [data-lexis-processos-kpi]:nth-child(5) {
-  background: var(--lx-process-accent) !important;
-  color: var(--lx-process-accent-ink) !important;
-  border-color: var(--lx-process-accent) !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
 }
 html [data-lexis-processos-kpi]:nth-child(5) :is(p,svg,span) {
-  color: var(--lx-process-accent-ink) !important;
+  color: hsl(var(--primary-foreground)) !important;
 }
 html [data-lexis-processos-kpi] p:last-child {
   font-size: 11px !important;
   opacity: 1 !important;
 }
-html:not(.dark) [data-lexis-processos-kpi]:nth-child(2) {
-  background: #E7DFE4 !important;
-}
-html:not(.dark) [data-lexis-processos-kpi]:nth-child(4) {
-  background: #F2ECEF !important;
-}
-html:not(.dark) [data-lexis-processos-table] tr[data-selected="true"] {
-  background: #F1E7EC !important;
-  color: #21151A !important;
-}
-html.dark [data-lexis-processos-table] tr[data-selected="true"] {
-  background: #432634 !important;
-  color: #F5F2F4 !important;
+html [data-lexis-processos-kpi]:nth-child(2) {background: hsl(var(--accent)) !important;}
+html [data-lexis-processos-kpi]:nth-child(4) {background: hsl(var(--muted)) !important;}
+html [data-lexis-processos-table] tr[data-selected="true"] {
+  background: hsl(var(--primary) / .10) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
-/* Navegação, botões e principais ações de rotas: 'bg-orange-600' e 'bg-blue'
- * eram escolhas de marca, não estados de risco. Não altera badges de erro. */
-html:not(.dark) body[data-lexis-visual-group] [data-lexis-route-content]
- :is(button,a):is(.bg-blue-600,.bg-blue-700,.bg-orange-500,.bg-orange-600,.bg-violet-600,.bg-indigo-600,.bg-emerald-600),
-html.dark body[data-lexis-visual-group] [data-lexis-route-content]
- :is(button,a):is(.bg-blue-600,.bg-blue-700,.bg-orange-500,.bg-orange-600,.bg-violet-600,.bg-indigo-600,.bg-emerald-600) {
+/* Botões operacionais com classes de cor legadas: não alterar chips de
+   gravidade/resultado, nem indicadores jurídicos. */
+html body[data-lexis-visual-group] [data-lexis-route-content]
+ :is(button,a):is(.bg-blue-600,.bg-blue-700,.bg-orange-500,.bg-orange-600,.bg-violet-600,.bg-indigo-600):not([data-status]):not([data-intent="destructive"]) {
   background: hsl(var(--primary)) !important;
   color: hsl(var(--primary-foreground)) !important;
   border-color: hsl(var(--primary)) !important;
 }
 html body[data-lexis-visual-group] [data-lexis-route-content]
- :is(button,a):is(.bg-blue-600,.bg-orange-500,.bg-orange-600,.bg-violet-600,.bg-indigo-600,.bg-emerald-600) svg {
+ :is(button,a):is(.bg-blue-600,.bg-orange-500,.bg-orange-600,.bg-violet-600,.bg-indigo-600) svg {
   color: inherit !important;
 }
 
-/* CRM e relatórios sem desfazer as cores semânticas dos dados. */
-html:not(.dark) [data-lexis-crm-shell] {
-  --lx-crm-focus: #6D1734 !important;
-}
-html.dark [data-lexis-crm-shell] {
-  --lx-crm-focus: #8A2E50 !important;
-}
-html body[data-lexis-visual-group] [data-lexis-route-content] :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
-  color: hsl(var(--primary)) !important;
-}
-html:not(.dark) body[data-lexis-visual-group] [data-lexis-route-content] :is(.rv-button-primary,.rv-segments a[aria-current="page"]) {
-  background: #6D1734 !important;
-  color: #FFFFFF !important;
-}
-html.dark body[data-lexis-visual-group] [data-lexis-route-content] :is(.rv-button-primary,.rv-segments a[aria-current="page"]) {
-  background: #8A2E50 !important;
-  color: #FFFFFF !important;
+/* Relatórios: ações e indicadores seguem o tema, mantendo erros e avisos. */
+html [data-lexis-crm-shell] {--lx-crm-focus: hsl(var(--primary));}
+html body[data-lexis-visual-group] [data-lexis-route-content]
+ :is(.rv-button-primary,.rv-segments a[aria-current="page"]) {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
 }
 
-/* Foco de teclado perceptível, com contraste >=3:1 em prata / vinho.
- * Não mexer em papeis A4, impressão de documentos ou editor de peças. */
-html:not(.dark) body :is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
-  outline: 2px solid #6D1734 !important;
+/* Alto contraste para inputs, placeholders, cards e controle por teclado. */
+html :is(input,select,textarea,[role="combobox"]):not([type="checkbox"]):not([type="radio"]) {
+  border-color: hsl(var(--input)) !important;
+}
+html :is(input,select,textarea)::placeholder {
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 1 !important;
+}
+html :is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
+  outline: 2px solid hsl(var(--ring)) !important;
   outline-offset: 3px;
 }
-html.dark body :is(button,a,input,select,textarea,[role="button"],[role="tab"],[role="combobox"]):focus-visible {
-  outline: 2px solid #C9BDC5 !important;
-  outline-offset: 3px;
+html [data-lexis-sidebar] :is(a,button):focus-visible {
+  outline-color: hsl(var(--sidebar-ring)) !important;
 }
-@media (max-width: 767px) {
+
+/* Controles mobile devem manter contraste independente do tema e modo. */
+@media (max-width:767px) {
   html [data-lexis-mobile-topbar] {
-    background: linear-gradient(130deg,#4B1630,#260711) !important;
-    color: #FFFFFF !important;
-    border-color: #86747F !important;
+    background: hsl(var(--sidebar-background)) !important;
+    color: hsl(var(--sidebar-foreground)) !important;
+    border-color: hsl(var(--sidebar-border)) !important;
   }
-  html [data-lexis-mobile-topbar] :is([data-lexis-mobile-heading] p,[data-lexis-mobile-menu-trigger]) {
-    color: #FFFFFF !important;
+  html [data-lexis-mobile-topbar] [data-lexis-mobile-heading] p {
+    color: hsl(var(--sidebar-foreground)) !important;
   }
   html [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] {
-    background: #6D1734 !important;
-    color: #FFFFFF !important;
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+  html [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] :is(span,svg) {
+    color: hsl(var(--primary-foreground)) !important;
   }
   html [data-lexis-mobile-drawer] [aria-current="page"] {
-    background: #EDE9ED !important;
-    color: #6D1734 !important;
-    border-left: 3px solid #6D1734 !important;
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    border-left: 3px solid hsl(var(--ring)) !important;
   }
 }
-@media print {
-  :root:not(.dark),:root.dark { color-scheme:light; }
-  body [data-lexis-document-paper],body [data-report-paper],
-  body [data-lexis-document-editor] { background:white !important;color:black !important; }
-}
 
-/* Accent text uses a brighter burgundy tint in dark mode; #8A2E50 itself
- * has only 2.10:1 on dark cards, below WCAG AA text contrast. */
-html.dark body[data-lexis-visual-group] [data-lexis-route-content]
- :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
-  color: #E5AABB !important;
+/* Impressão judicial não deve herdar superfícies escuras. */
+@media print {
+  body [data-lexis-document-paper],body [data-report-paper],body [data-lexis-document-editor] {
+    background: white !important;
+    color: black !important;
+  }
 }
