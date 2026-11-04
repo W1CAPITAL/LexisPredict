@@ -61,8 +61,8 @@ export const metadata: Metadata = {
     title: 'LexisPredict',
   },
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: '/brand/lexis-favicon.svg',
+    apple: '/brand/lexis-favicon.svg',
   },
 };
 
