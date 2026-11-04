@@ -44,10 +44,11 @@ export function AutosOabScannerPanel(){
    if(parsed)setCnjInput(parsed);
    return ()=>controller.abort();
  },[expanded]);
- const requestUrl=(action:string,cursor?:string|null,key?:string)=>{
+ const requestUrl=(action:string,cursor?:string|null,key?:string,extension?:string)=>{
    const p=new URLSearchParams({action,cnj:validCnj||''});
    if(cursor)p.set('cursor',cursor);
    if(key)p.set('key',key);
+   if(extension)p.set('ext',extension);
    return API+'?'+p;
  };
  const resetDocs=()=>{
@@ -122,7 +123,7 @@ export function AutosOabScannerPanel(){
      for(let i=0;i<batch.length;i++){
        const doc=batch[i];
        setZipProgress(`Baixando ${i+1}/${batch.length}: ${doc.titulo.slice(0,55)}`);
-       const response=await fetch(requestUrl('documento',null,doc.key),{
+       const response=await fetch(requestUrl('documento',null,doc.key,doc.extensao),{
          credentials:'same-origin',cache:'no-store'
        });
        if(!response.ok)throw new Error('Falha ao obter '+doc.titulo+'. O arquivo ZIP não foi criado para evitar lacunas.');
