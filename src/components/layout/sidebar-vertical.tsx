@@ -410,7 +410,7 @@ export function SidebarVertical() {
 
   // Keep DOM identity (and navigation scroll) stable while the rail resizes.
   const renderSidebarBody = () => (
-    <div data-lexis-sidebar-body className="flex h-full flex-col bg-[linear-gradient(180deg,#061d35_0%,#082944_55%,#0a3554_100%)] text-white">
+    <div data-lexis-sidebar-body className="flex h-full flex-col bg-[linear-gradient(180deg,#250D18_0%,#3B0B1E_55%,#4D1A30_100%)] text-white">
       <div data-lexis-sidebar-brand className="flex h-[74px] shrink-0 items-center border-b border-white/10 px-3">
         <button
           type="button"
@@ -455,11 +455,11 @@ export function SidebarVertical() {
                 className={cn(
                   "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
                   isActive
-                    ? "bg-[#0f4e83] text-white shadow-[inset_0_0_0_1px_rgba(85,159,255,.18),0_6px_18px_rgba(0,0,0,.12)]"
-                    : "text-[#d3e2f1] hover:bg-white/[.07] hover:text-white",
+                    ? "bg-[#62213A] text-white shadow-[inset_0_0_0_1px_rgba(201,189,197,.38),0_6px_18px_rgba(0,0,0,.12)]"
+                    : "text-[#EDE9ED] hover:bg-white/[.07] hover:text-white",
                 )}
               >
-                <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-[#cfe5ff]" : "text-[#a9c3dc] group-hover:text-white")} />
+                <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-[#F5F2F4]" : "text-[#C9BDC5] group-hover:text-white")} />
                 <span data-lexis-nav-label className="min-w-0 flex-1 truncate">{item.label}</span>
               </Link>
             );
@@ -470,19 +470,19 @@ export function SidebarVertical() {
             onClick={handleOpenScanner}
             data-lexis-nav-cta
             title={railCollapsed ? "Atualizar tribunal" : undefined}
-            className="group mt-2 flex h-12 w-full items-center gap-3 rounded-xl border border-[#2f7dff]/35 bg-[linear-gradient(135deg,rgba(20,103,255,.22),rgba(0,197,255,.10))] px-3.5 text-left text-[13px] font-bold text-white shadow-[inset_0_0_0_1px_rgba(120,190,255,.06),0_8px_20px_rgba(0,0,0,.10)] transition hover:border-[#5ca0ff]/60 hover:bg-[linear-gradient(135deg,rgba(20,103,255,.32),rgba(0,197,255,.14))]"
+            className="group mt-2 flex h-12 w-full items-center gap-3 rounded-xl border border-[#C9BDC5]/35 bg-[linear-gradient(135deg,rgba(138,46,80,.28),rgba(201,189,197,.11))] px-3.5 text-left text-[13px] font-bold text-white shadow-[inset_0_0_0_1px_rgba(201,189,197,.13),0_8px_20px_rgba(0,0,0,.10)] transition hover:border-[#EDE9ED]/60 hover:bg-[linear-gradient(135deg,rgba(138,46,80,.38),rgba(201,189,197,.18))]"
             aria-label="Abrir Scanner DataJud e DJEN"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#4b91ff]/40 bg-[#07182d] text-[#65b5ff] shadow-[0_0_18px_rgba(41,126,255,.20)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#997183]/40 bg-[#250D18] text-[#E7DDE3] shadow-[0_0_18px_rgba(138,46,80,.24)]">
               <Zap className="h-4 w-4" />
             </span>
             <span data-lexis-nav-label className="min-w-0 flex-1">
               <span className="block truncate">Atualizar tribunal</span>
-              <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#9fc2e4]">
+              <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#D2C3CA]">
                 DataJud + DJEN
               </span>
             </span>
-            <ChevronRight data-lexis-nav-label className="h-4 w-4 text-[#8fb9e3] transition group-hover:translate-x-0.5 group-hover:text-white" />
+            <ChevronRight data-lexis-nav-label className="h-4 w-4 text-[#C9BDC5] transition group-hover:translate-x-0.5 group-hover:text-white" />
           </button>
         </div>
 
@@ -493,11 +493,11 @@ export function SidebarVertical() {
             data-lexis-nav-central
             title={railCollapsed ? "Central de ferramentas" : undefined}
             aria-label="Central de ferramentas"
-            className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#9fb9d2] hover:bg-white/[.06] hover:text-white"
+            className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#C9BDC5] hover:bg-white/[.06] hover:text-white"
           >
             <Menu className="h-4 w-4 shrink-0" />
             <span data-lexis-nav-label>Central</span>
-            <span data-lexis-nav-label className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#7fa1c1]">tudo aqui</span>
+            <span data-lexis-nav-label className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#C9BDC5]">tudo aqui</span>
           </button>
         </div>
       </nav>
@@ -510,7 +510,7 @@ export function SidebarVertical() {
             para resultados reais.
           </p>
         </div>
-        <div className="mt-4 flex items-center justify-between px-1 text-[10px] text-[#7195b6]">
+        <div className="mt-4 flex items-center justify-between px-1 text-[10px] text-[#AFA1A9]">
           <span data-lexis-nav-label>v1.2.0</span>
           <button
             onClick={() => void signOut()}
@@ -558,7 +558,7 @@ export function SidebarVertical() {
 
       <div
         data-lexis-mobile-topbar
-        className="fixed inset-x-0 top-0 z-40 flex items-end pb-2 border-b border-white/10 bg-[linear-gradient(135deg,#061d35_0%,#082944_55%,#0b3b67_100%)] px-3 text-white shadow-[0_10px_28px_rgba(4,22,41,.24)] md:hidden"
+        className="fixed inset-x-0 top-0 z-40 flex items-end pb-2 border-b border-white/10 bg-[linear-gradient(135deg,#250D18_0%,#3B0B1E_55%,#4D1A30_100%)] px-3 text-white shadow-[0_10px_28px_rgba(38,7,17,.24)] md:hidden"
       >
         <button
           type="button"
@@ -566,20 +566,20 @@ export function SidebarVertical() {
           onClick={() => navigateMobile("/")}
           aria-label="Ir para o início"
           data-lexis-mobile-brand
-          className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#2d7fff]/70 bg-[#07182d] shadow-[0_0_18px_rgba(31,111,255,.28)]"
+          className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#C9BDC5]/70 bg-[#250D18] shadow-[0_0_18px_rgba(138,46,80,.28)]"
         >
           <span className="lexis-brand-symbol block h-7 w-7 rounded-md" role="img" aria-label="LexisPredict" />
         </button>
         <div data-lexis-mobile-heading className="ml-2 min-w-0 flex-1">
           <p className="truncate text-[13px] font-black tracking-tight">Olá, {firstName}</p>
-          <p className="truncate text-[9px] font-semibold uppercase tracking-[.14em] text-[#9fc2e4]">{mobileSection}</p>
+          <p className="truncate text-[9px] font-semibold uppercase tracking-[.14em] text-[#D2C3CA]">{mobileSection}</p>
         </div>
         <button
           type="button"
           onPointerDown={() => prefetchRoute("/settings")}
           onClick={() => navigateMobile("/settings")}
           aria-label="Abrir configurações"
-          className="relative mr-1 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#d8eaff]"
+          className="relative mr-1 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#EDE9ED]"
         >
           <Bell className="h-[17px] w-[17px]" />
         </button>
@@ -590,7 +590,7 @@ export function SidebarVertical() {
           aria-expanded={toolsOpen}
           aria-controls="lexis-mobile-menu"
           data-lexis-mobile-menu-trigger
-          className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full bg-[#1769ff] text-white shadow-[0_8px_22px_rgba(23,105,255,.32)]"
+          className="flex h-10 w-10 touch-manipulation items-center justify-center rounded-full bg-[#6D1734] text-white shadow-[0_8px_22px_rgba(138,46,80,.32)]"
         >
           <Menu className="h-[18px] w-[18px]" />
         </button>
@@ -603,7 +603,7 @@ export function SidebarVertical() {
         data-lexis-mobile-bottom-nav
         data-lexis-mobile-active-index={mobileActiveIndex}
         style={{ "--lx-mobile-active-index": mobileActiveIndex } as CSSProperties}
-        className="fixed inset-x-0 bottom-0 z-[70] grid h-[76px] grid-cols-5 border-t border-[#dfe7f2] bg-white px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(14,42,78,.12)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[70] grid h-[76px] grid-cols-5 border-t border-[#8F858B] bg-white px-1.5 pt-1.5 shadow-[0_-10px_30px_rgba(59,11,30,.12)] md:hidden"
         aria-label="Navegação principal móvel"
       >
         {[
@@ -624,8 +624,8 @@ export function SidebarVertical() {
               onPointerDown={() => prefetchRoute(item.href)}
               onClick={() => navigateMobile(item.href)}
               className={cn(
-                "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
-                isCurrentMobile ? "text-[#1769ff]" : "text-[#6f8098]"
+                "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#EDE9ED]",
+                isCurrentMobile ? "text-[#6D1734]" : "text-[#60555C]"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -640,9 +640,9 @@ export function SidebarVertical() {
           data-mobile-nav-scanner
           onClick={handleOpenScanner}
           aria-label="Atualizar processos no tribunal"
-          className="pointer-events-auto relative -mt-5 flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 text-[9px] font-black text-[#1769ff]"
+          className="pointer-events-auto relative -mt-5 flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 text-[9px] font-black text-[#6D1734]"
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#1769ff,#00a8ff)] text-white shadow-[0_10px_26px_rgba(23,105,255,.34)] active:scale-95">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#6D1734,#A95B75)] text-white shadow-[0_10px_26px_rgba(138,46,80,.32)] active:scale-95">
             <Zap className="h-5 w-5" />
           </span>
           <span>Atualizar</span>
@@ -657,8 +657,8 @@ export function SidebarVertical() {
           onPointerDown={() => prefetchRoute("/whatsapp")}
           onClick={() => navigateMobile("/whatsapp")}
           className={cn(
-            "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#eef5ff]",
-            active("/whatsapp") ? "text-[#1769ff]" : "text-[#6f8098]"
+            "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#EDE9ED]",
+            active("/whatsapp") ? "text-[#6D1734]" : "text-[#60555C]"
           )}
         >
           <MessageCircle className="h-5 w-5" />
@@ -672,7 +672,7 @@ export function SidebarVertical() {
           aria-expanded={toolsOpen}
           aria-controls="lexis-mobile-menu"
           onClick={openToolsMenu}
-          className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-[#6f8098] active:bg-[#eef5ff]"
+          className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-[#60555C] active:bg-[#EDE9ED]"
         >
           <Menu className="h-5 w-5" />
           <span>Menu</span>
@@ -680,18 +680,18 @@ export function SidebarVertical() {
       </nav>
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
-        <SheetContent id="lexis-mobile-menu" side="left" data-lexis-mobile-drawer className="z-[110] flex w-[min(88vw,340px)] flex-col border-r border-[#dfe7f2] bg-white p-0">
+        <SheetContent id="lexis-mobile-menu" side="left" data-lexis-mobile-drawer className="z-[110] flex w-[min(88vw,340px)] flex-col border-r border-[#8F858B] bg-white p-0">
           <SheetTitle className="sr-only">Central do LexisPredict</SheetTitle>
           <SheetDescription className="sr-only">Recursos agrupados por objetivo</SheetDescription>
-          <div data-lexis-mobile-drawer-header className="border-b border-[#e2e8f2] px-4 pb-4 pt-3">
-            <p data-lexis-mobile-menu-title className="text-lg font-black text-[#102447]">Central</p>
-            <p data-lexis-mobile-menu-description className="mt-1 text-xs leading-relaxed text-[#6d7f9b]">Encontre pelo que você quer fazer, não pelo nome do módulo.</p>
+          <div data-lexis-mobile-drawer-header className="border-b border-[#C5BAC1] px-4 pb-4 pt-3">
+            <p data-lexis-mobile-menu-title className="text-lg font-black text-[#21151A]">Central</p>
+            <p data-lexis-mobile-menu-description className="mt-1 text-xs leading-relaxed text-[#60555C]">Encontre pelo que você quer fazer, não pelo nome do módulo.</p>
             <button
               type="button"
               onPointerDown={() => prefetchRoute("/onboarding")}
               onClick={() => navigateMobile("/onboarding")}
               data-lexis-mobile-menu-feature
-              className="mt-3 flex h-11 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#cfe0ff] bg-[#eef5ff] px-3 text-left text-sm font-bold text-[#145bd7]"
+              className="mt-3 flex h-11 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#C9BDC5] bg-[#EDE9ED] px-3 text-left text-sm font-bold text-[#6D1734]"
             >
               <BookOpen className="h-4 w-4" />
               Aprender o app em 3 minutos
@@ -701,20 +701,20 @@ export function SidebarVertical() {
               onPointerDown={() => prefetchRoute("/dossies")}
               onClick={() => navigateMobile("/dossies")}
               data-lexis-mobile-menu-feature
-              className="mt-2 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#b9d2ff] bg-[linear-gradient(135deg,#eef5ff,#f8fbff)] px-3 py-2 text-left text-[#174f9d] shadow-sm"
+              className="mt-2 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#C9BDC5] bg-[linear-gradient(135deg,#EDE9ED,#f8fbff)] px-3 py-2 text-left text-[#6D1734] shadow-sm"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1769ff] text-white">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#6D1734] text-white">
                 <BookOpen className="h-4 w-4" />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-black">Dossiês por IA</span>
-                <span className="mt-0.5 block text-[10px] font-semibold leading-snug text-[#5f7898]">
+                <span className="mt-0.5 block text-[10px] font-semibold leading-snug text-[#60555C]">
                   PDF, Excel, processo, mensagens ou contexto em um único chat.
                 </span>
               </span>
             </button>
-            <label data-lexis-mobile-menu-search className="mt-3 flex h-11 items-center gap-2 rounded-xl border border-[#dce5f1] bg-[#f7f9fc] px-3">
-              <Search className="h-4 w-4 text-[#6c7f9b]" />
+            <label data-lexis-mobile-menu-search className="mt-3 flex h-11 items-center gap-2 rounded-xl border border-[#C5BAC1] bg-[#F4F3F5] px-3">
+              <Search className="h-4 w-4 text-[#60555C]" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -727,7 +727,7 @@ export function SidebarVertical() {
           <div data-lexis-mobile-drawer-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {query.trim() ? (
               <div className="space-y-1">
-                <p data-lexis-mobile-menu-label className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#8a9bb1]">
+                <p data-lexis-mobile-menu-label className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#60555C]">
                   Resultados
                 </p>
                 {mobileMenuItems.length ? (
@@ -741,20 +741,20 @@ export function SidebarVertical() {
                         onClick={() => navigateMobile(item.href)}
                         data-lexis-mobile-menu-entry
                         aria-current={active(item.href) ? "page" : undefined}
-                        className="flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#25466f] active:bg-[#eef5ff]"
+                        className="flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#453039] active:bg-[#EDE9ED]"
                       >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#1769ff]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EDE9ED] text-[#6D1734]">
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0">
                           <span className="block font-bold">{item.label}</span>
-                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#6d7f9b]">{item.description}</span>
+                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#60555C]">{item.description}</span>
                         </span>
                       </button>
                     );
                   })
                 ) : (
-                  <p data-lexis-mobile-menu-empty className="rounded-xl bg-[#f7f9fc] p-4 text-center text-xs text-[#6d7f9b]">
+                  <p data-lexis-mobile-menu-empty className="rounded-xl bg-[#F4F3F5] p-4 text-center text-xs text-[#60555C]">
                     Não encontrei essa ação. Tente descrever com outras palavras.
                   </p>
                 )}
@@ -768,22 +768,22 @@ export function SidebarVertical() {
                       key={group.id}
                       open={index === 0}
                       data-lexis-mobile-menu-group
-                      className="group overflow-hidden rounded-2xl border border-[#e0e8f3] bg-white"
+                      className="group overflow-hidden rounded-2xl border border-[#C5BAC1] bg-white"
                     >
                       <summary data-lexis-mobile-menu-summary className="flex min-h-16 cursor-pointer list-none touch-manipulation items-center gap-3 px-3 py-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef5ff] text-[#1769ff]">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDE9ED] text-[#6D1734]">
                           <GroupIcon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-black text-[#193b67]">{group.label}</span>
-                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#73849c]">{group.description}</span>
+                          <span className="block text-sm font-black text-[#21151A]">{group.label}</span>
+                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#60555C]">{group.description}</span>
                         </span>
-                        <span className="rounded-full bg-[#f1f5fa] px-2 py-1 text-[10px] font-black text-[#6d7f9b]">
+                        <span className="rounded-full bg-[#EDE9ED] px-2 py-1 text-[10px] font-black text-[#60555C]">
                           {group.items.length}
                         </span>
-                        <ChevronRight className="h-4 w-4 text-[#8194ad] transition-transform group-open:rotate-90" />
+                        <ChevronRight className="h-4 w-4 text-[#60555C] transition-transform group-open:rotate-90" />
                       </summary>
-                      <div data-lexis-mobile-menu-group-body className="border-t border-[#e7edf5] bg-[#fbfcfe] p-2">
+                      <div data-lexis-mobile-menu-group-body className="border-t border-[#C5BAC1] bg-[#F4F3F5] p-2">
                         {group.items.map((item) => {
                           const Icon = item.icon;
                           return (
@@ -794,12 +794,12 @@ export function SidebarVertical() {
                               onClick={() => navigateMobile(item.href)}
                               data-lexis-mobile-menu-entry
                               aria-current={active(item.href) ? "page" : undefined}
-                              className="flex min-h-13 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left active:bg-[#eef5ff]"
+                              className="flex min-h-13 w-full touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-left active:bg-[#EDE9ED]"
                             >
-                              <Icon className="h-4 w-4 shrink-0 text-[#3975c6]" />
+                              <Icon className="h-4 w-4 shrink-0 text-[#6D1734]" />
                               <span className="min-w-0">
-                                <span className="block text-[13px] font-bold text-[#25466f]">{item.label}</span>
-                                <span className="block text-[10px] leading-snug text-[#7a8ba3]">{item.description}</span>
+                                <span className="block text-[13px] font-bold text-[#453039]">{item.label}</span>
+                                <span className="block text-[10px] leading-snug text-[#60555C]">{item.description}</span>
                               </span>
                             </button>
                           );
@@ -818,7 +818,7 @@ export function SidebarVertical() {
         <div
           aria-live="polite"
           data-lexis-mobile-pending
-          className="pointer-events-none fixed bottom-[calc(var(--lexis-mobile-bottomnav,4.75rem)+0.5rem)] left-1/2 z-[120] -translate-x-1/2 rounded-full border border-[#d7e4f5] bg-white/95 px-3 py-1.5 text-[11px] font-bold text-[#25466f] shadow-lg backdrop-blur md:hidden"
+          className="pointer-events-none fixed bottom-[calc(var(--lexis-mobile-bottomnav,4.75rem)+0.5rem)] left-1/2 z-[120] -translate-x-1/2 rounded-full border border-[#C5BAC1] bg-white/95 px-3 py-1.5 text-[11px] font-bold text-[#453039] shadow-lg backdrop-blur md:hidden"
         >
           Abrindo…
         </div>
