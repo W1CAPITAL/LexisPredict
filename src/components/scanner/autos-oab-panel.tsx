@@ -137,7 +137,7 @@ export function AutosOabScannerPanel(){
      const result=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:3}});
      const url=URL.createObjectURL(result);
      const a=document.createElement('a');
-     a.href=url;a.download=`autos-${validCnj.replace(/\\D/g,'')}-lote-${zipPage+1}.zip`;
+     a.href=url;a.download=`autos-${validCnj.replace(/\D/g,'')}-lote-${zipPage+1}.zip`;
      document.body.appendChild(a);a.click();a.remove();
      window.setTimeout(()=>URL.revokeObjectURL(url),2000);
      setZipOffset(prev=>Math.min(prev+1,zipPages-1));
