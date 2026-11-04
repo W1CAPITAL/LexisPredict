@@ -142,6 +142,7 @@ export default function RootLayout({
                       setToken('--popover-foreground', fgC);
                       setToken('--secondary-foreground', fgC);
                       setToken('--muted-foreground', mutedC);
+                      setToken('--card-muted-foreground', contrast(CC.bgSecondary, mutedC) >= 4.5 ? mutedC : (contrast(CC.bgSecondary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
                       setToken('--primary', CC.primary);
                       setToken('--primary-foreground', onPrimaryC);
                       setToken('--accent', CC.accent);
@@ -180,6 +181,7 @@ export default function RootLayout({
                   setToken('--popover-foreground', fg);
                   setToken('--secondary-foreground', fg);
                   setToken('--muted-foreground', muted);
+                  setToken('--card-muted-foreground', contrast(C.bgSecondary, muted) >= 4.5 ? muted : (contrast(C.bgSecondary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
                   setToken('--primary', C.primary);
                   setToken('--primary-foreground', onPrimary);
                   setToken('--accent', C.accent);
