@@ -255,7 +255,7 @@ export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClos
             <select className={selectClass} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as ExperiencePreferences['oabCertificateType'])}>
               <option value="a3">Certificado A3 (token/cartão)</option>
               <option value="a1">Certificado A1 (computador)</option>
-              <option value="none">Acesso público, sem certificado</option>
+              <option value="none">Sem certificado configurado</option>
             </select>
           </label>
           <label><span className={labelClass}>Tribunal de uso frequente</span>
