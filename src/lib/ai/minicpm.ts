@@ -59,7 +59,7 @@ export async function callMiniCpm(
 ) {
   const cfg = miniCpmConfig();
   if (!cfg) throw new Error('MINICPM_BASE_URL não configurada');
-  const models = await availableMiniCpmModels(cfg,Math.min(3000,opts.timeoutMs??5000));
+  const models = await availableMiniCpmModels(cfg,opts.timeoutMs==null?5000:Math.min(3000,opts.timeoutMs));
   const model = cfg.model === 'auto' ? models[0] : models.find(x => x === cfg.model);
   if (!model) throw new Error('MiniCPM não consta em /v1/models');
   const visual = (opts.images || []).length > 0;
