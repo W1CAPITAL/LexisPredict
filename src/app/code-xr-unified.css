@@ -314,7 +314,7 @@ html.dark [data-lexis-processos-hero] {
 [data-lexis-processos-kpi]:nth-child(5) {
   background:var(--lx-process-accent) !important;
   border-color:var(--lx-process-accent) !important;
-  color: #fff !important;
+  color:var(--lx-process-accent-ink) !important;
 }
 html.dark [data-lexis-processos-kpi] {
   background:var(--lx-process-tint) !important;
@@ -406,7 +406,7 @@ html.dark [data-lexis-processos-kpi]:nth-child(5) {
   font-size:10px;
 }
 [data-lexis-processos-pills] > button:has(.bg-slate-200) {color:var(--lx-process-ink);}
-[data-lexis-processos-pills] > button.bg-blue-500\/15 {
+[data-lexis-processos-pills] > button[aria-pressed="true"] {
   background:var(--lx-process-accent) !important;
   border-color:var(--lx-process-accent) !important;
   color:var(--lx-process-accent-ink) !important;
