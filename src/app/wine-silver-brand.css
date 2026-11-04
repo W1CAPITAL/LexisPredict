@@ -371,3 +371,14 @@ html.dark body[data-lexis-visual-group] [data-lexis-route-content]
  :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
   color: hsl(var(--foreground)) !important;
 }
+
+/* Cartões podem diferir radicalmente do canvas em paletas personalizadas.
+   Usar a cor muted calculada para o cartão impede texto branco sobre branco. */
+html :is(.bg-card,[data-slot="card"],.premium-card,.lexis-metric)
+ :is(.text-muted-foreground,.lexis-metric-label) {
+  color: hsl(var(--card-muted-foreground, var(--muted-foreground))) !important;
+}
+html :is(.bg-card,[data-slot="card"],.premium-card,.lexis-metric)
+ :is(.text-card-foreground,.lexis-metric-value) {
+  color: hsl(var(--card-foreground)) !important;
+}
