@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import {getUserContext} from '@/lib/server-db';
 import {W1_EMPRESA_PRINCIPAL_ID} from '@/lib/w1-empresa';
+import {googleCalendarConfigured} from '@/lib/google-calendar-private';
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
 const headers={'Cache-Control':'private, no-store, max-age=0','Vary':'Cookie'};
@@ -12,7 +13,7 @@ export async function GET(){
  const asaasConfigured=company.toLowerCase()===allowed.toLowerCase()&&!!process.env.ASAAS_API_KEY;
  return NextResponse.json({ok:true,services:{
     whatsapp:{available:true,mode:'WhatsApp Web + módulos Lexis existentes',automatic:false},
-    calendar:{available:true,mode:'Google Agenda via confirmação do operador + arquivo ICS',oauthConnected:false},
+    calendar:{available:true,mode:'Google Agenda via confirmação + conexão OAuth opcional',oauthConfigured:googleCalendarConfigured()},
     asaas:{available:asaasConfigured,mode:process.env.ASAAS_ENV==='production'?'production':'sandbox',readOnly:true},
     judiciary:{available:true,mode:'Carteira autenticada + DJEN público',searchByOabCrossCourt:false},
     ai:{available:true,mode:'Superagente LexisPredict',automaticDecision:false}
