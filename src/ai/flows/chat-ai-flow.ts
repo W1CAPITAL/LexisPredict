@@ -20,7 +20,7 @@ import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
 import { superAgentInstructions, detectSuperAgentTask } from '@/lib/ai/lexis-superagent';
 import { compactAgentGuidance } from '@/lib/agents/studio';
 import { retrieveAuthorizedCaseEvidence } from '@/lib/ai/lexis-superagent-evidence';
-import { planChatWork } from '@/lib/ai/chat-performance';
+import { planChatWork, summarizeAuthorizedCaseEvidence } from '@/lib/ai/chat-performance';
 import { retrieveNeedleEvidence, retrieveCuratedLexisEvidence, formatKnowledgeEvidence } from '@/lib/ai/needle-rag';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
@@ -340,6 +340,20 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
       baHint: gate.ok ? null : gate.issues.join(' | '),
     };
   } catch (e: any) {
+    // A failure of all remote models must not turn an already authorized,
+    // factual case lookup into a generic error. This fallback uses only the
+    // evidence retrieved above; it does not fabricate a fresh DJEN check.
+    const offline = workPlan.mode==='case-summary'
+      ? summarizeAuthorizedCaseEvidence(caseEvidence) : null;
+    if(offline){
+      return {
+        resposta:offline,
+        thinking:null,
+        engineUtilizada:'LEXIS_RESUMO_CARTEIRA',
+        latencia:0,tokensConsumidos:0,sucesso:true,
+        baHint:'Resumo local da carteira autorizada; provedores de IA indisponíveis.',
+      };
+    }
     return {
       resposta: preferred === 'colibri'
         ? 'O Colibri não está disponível. Configure um servidor HTTPS externo com um modelo carregado e a variável COLIBRI_BASE_URL na Vercel. Sua pergunta não foi enviada para provedores externos.'
