@@ -780,7 +780,7 @@ export function ProcessosCommandCenter(props: Props) {
             </div>
             <div data-lexis-processos-pills className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
               {([
-                ["all","Todos",loaded,Rows3],
+                ["all","Todos",dateActive?(activeDateMatches?.totalCount??loaded):loaded,Rows3],
                 ["urgent","Urgentes",focusCounts.urgent,ShieldAlert],
                 ["returns","Prazos/retornos",focusCounts.returns,CalendarClock],
                 ["djen","Radar DJEN",focusCounts.djen,Gavel],
@@ -800,23 +800,23 @@ export function ProcessosCommandCenter(props: Props) {
                 <option value="">Tribunal · todos</option>
                 {tribunais.map((x) => <option key={x}>{x}</option>)}
               </select>
-              <select value={classe} onChange={(e) => setClasse(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
+              <select disabled={!classes.length} title={!classes.length?'Informação não disponível nos processos carregados.':undefined} value={classe} onChange={(e) => setClasse(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Classe · todas</option>
                 {classes.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={assunto} onChange={(e) => setAssunto(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
+              <select disabled={!assuntos.length} title={!assuntos.length?'Informação não disponível nos processos carregados.':undefined} value={assunto} onChange={(e) => setAssunto(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Assunto · todos</option>
                 {assuntos.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
+              <select disabled={!municipios.length} title={!municipios.length?'Informação não disponível nos processos carregados.':undefined} value={municipio} onChange={(e) => setMunicipio(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Município · todos</option>
                 {municipios.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={grau} onChange={(e) => setGrau(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
+              <select disabled={!graus.length} title={!graus.length?'Informação não disponível nos processos carregados.':undefined} value={grau} onChange={(e) => setGrau(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Grau · todos</option>
                 {graus.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-              <select value={sistema} onChange={(e) => setSistema(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
+              <select disabled={!sistemas.length} title={!sistemas.length?'Informação não disponível nos processos carregados.':undefined} value={sistema} onChange={(e) => setSistema(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Sistema · todos</option>
                 {sistemas.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
@@ -839,11 +839,14 @@ export function ProcessosCommandCenter(props: Props) {
                 <option value="">Risco · todos</option>
                 <option>Alto</option><option>Médio</option><option>Baixo</option>
               </select>
-              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[10px] text-slate-500">
-                De <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[10px] text-slate-700 dark:text-slate-300 outline-none"/>
+              <select aria-label="Tipo de data do filtro" title="O intervalo pode filtrar movimentos, retornos, cadastro ou distribuição" value={dateField} onChange={e=>setDateField(e.target.value as ProcessoDateField)} className="h-9 rounded-lg border border-input bg-card px-2 text-[11px] text-card-foreground">
+                {Object.entries(PROCESSOS_DATE_FIELDS).map(([key,def])=><option key={key} value={key}>{def.label}</option>)}
+              </select>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-input bg-card px-2 text-[11px] text-muted-foreground">
+                De <input aria-label="Data inicial do intervalo" type="date" max={periodEnd||undefined} value={periodStart} onChange={e=>setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[11px] text-card-foreground outline-none"/>
               </label>
-              <label className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[10px] text-slate-500">
-                Até <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[10px] text-slate-700 dark:text-slate-300 outline-none"/>
+              <label className="flex h-9 items-center gap-1 rounded-lg border border-input bg-card px-2 text-[11px] text-muted-foreground">
+                Até <input aria-label="Data final do intervalo" type="date" min={periodStart||undefined} value={periodEnd} onChange={e=>setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[11px] text-card-foreground outline-none"/>
               </label>
               <button onClick={() => props.onBaOnlyChange(!props.baOnly)} className={cn("h-9 rounded-lg border px-2 text-[11px] font-bold", props.baOnly ? "border-red-400/40 bg-red-500/15 text-red-800 dark:text-red-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 B.A. real
@@ -853,6 +856,10 @@ export function ProcessosCommandCenter(props: Props) {
               </button>
             </div>
             )}
+            {dateActive && <div role={dateValidation||dateError?'alert':'status'} className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px] text-foreground">
+              {dateValidation||dateError|| (dateLoading?'Consultando a carteira inteira pelo intervalo…':activeDateMatches?
+                `${activeDateMatches.totalCount.toLocaleString('pt-BR')} no intervalo de ${PROCESSOS_DATE_FIELDS[dateField].label.toLowerCase()} · ${activeDateMatches.items.length} carregados. Outros filtros usam os resultados carregados.`:'Consultando as datas…')}
+            </div>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <div className="relative min-w-[220px] flex-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -862,7 +869,7 @@ export function ProcessosCommandCenter(props: Props) {
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
               {(focusPreset!=="all" || props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
-                <button onClick={() => { setFocusPreset("all"); props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); }} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                <button onClick={() => { setFocusPreset("all"); props.onQueryChange(""); props.onStatusFilterChange(""); props.onBaOnlyChange(false); props.onSilencioOnlyChange(false); setTribunal(""); setClasse(""); setAssunto(""); setMunicipio(""); setGrau(""); setSistema(""); setResponsavel(""); setNovidade(""); setRisco(""); setPeriodStart(""); setPeriodEnd(""); setDateField("movimento"); }} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X size={12} className="mr-1 inline" />Limpar
                 </button>
               ) : null}
@@ -879,7 +886,7 @@ export function ProcessosCommandCenter(props: Props) {
                 </tr>
               </thead>
               <tbody className="text-[11px]">
-                {props.loading ? (
+                {(dateActive?dateLoading:props.loading) ? (
                   <tr><td colSpan={10} className="py-20 text-center text-slate-500"><Loader2 size={20} className="mx-auto mb-2 animate-spin"/>Carregando carteira…</td></tr>
                 ) : pageRows.length === 0 ? (
                   <tr><td colSpan={10} className="py-20 text-center text-slate-500">{props.searching ? "Buscando na empresa…" : "Nenhum processo encontrado."}</td></tr>
@@ -910,12 +917,17 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] px-3 py-2">
-            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados · {props.totalCount || loaded} na empresa</p>
+            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados · {dateActive?(activeDateMatches?.totalCount??"…"):(props.totalCount||loaded)} {dateActive?"no intervalo":"na empresa"}</p>
             <div className="flex items-center gap-1">
               <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronLeft size={12}/></button>
               <span className="px-2 text-[10px] text-slate-600 dark:text-slate-400">{page} / {pageCount}</span>
               <button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronRight size={12}/></button>
-              {props.hasMore && props.onLoadMore && <button type="button"
+              {dateActive && activeDateMatches?.hasMore && <button type="button"
+                disabled={dateMoreLoading} onClick={()=>void loadMoreDateMatches()}
+                className="ml-2 inline-flex h-7 items-center gap-1 rounded-lg border border-primary bg-primary px-3 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">
+                {dateMoreLoading?'Carregando…':'Carregar mais resultados do intervalo'}
+              </button>}
+              {!dateActive && props.hasMore && props.onLoadMore && <button type="button"
                 disabled={props.loadingMore}
                 onClick={() => void props.onLoadMore?.()}
                 className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[11px] font-semibold text-blue-800 dark:text-blue-100 disabled:opacity-40">
