@@ -26,7 +26,7 @@ export type ExperiencePreferences={
  favoriteTab:string;dashboardPhrase:string;
 };
 export const EXPERIENCE_DEFAULT:ExperiencePreferences={
- theme:'minimal-steel',mode:'light',primary:'#2563EB',
+ theme:'minimal-steel',mode:'light',primary:'#6D1734',
  textColor:'',mutedTextColor:'',backgroundColor:'',cardColor:'',sidebarColor:'',font:'Inter',wallpaper:'',avatarUrl:'',
  sidebarPosition:'left',sidebarBehavior:'fixed',sidebarCompact:false,
  cornerRadius:12,cardStyle:'solid',kpiStyle:'normal',buttonStyle:'rounded',
@@ -51,7 +51,13 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
  return {
   theme:typeof d.theme==='string'&&AUTHORITY_PRESETS.some(p=>p.id===d.theme)?d.theme:EXPERIENCE_DEFAULT.theme,
   mode:select('mode',['light','dark','system'],EXPERIENCE_DEFAULT.mode),
-  primary:hex('primary',EXPERIENCE_DEFAULT.primary),
+  // Existing accounts inherited blue from the former default. Migrate only
+  // that untouched default; preserve explicitly chosen custom colors.
+  primary:(()=>{
+   const value=hex('primary',EXPERIENCE_DEFAULT.primary);
+   return d.theme==='minimal-steel' && /^#(?:2563eb|60a5fa)$/i.test(value)
+    ? EXPERIENCE_DEFAULT.primary : value;
+  })(),
   textColor:hex('textColor',''),mutedTextColor:hex('mutedTextColor',''),
   backgroundColor:hex('backgroundColor',''),cardColor:hex('cardColor',''),sidebarColor:hex('sidebarColor',''),
   font:select('font',['Inter','Roboto','Poppins','Georgia','Arial'],EXPERIENCE_DEFAULT.font),
@@ -91,7 +97,8 @@ export function applyExperiencePrefs(input:ExperiencePreferences){
  const preset=AUTHORITY_PRESETS.find(x=>x.id===p.theme);
  if(preset){
   const base=getPresetColors(preset,dark?'dark':'light');
-  const safe={...base,primary:p.primary,
+  const brandPresetPrimary=p.theme==='minimal-steel' && ['#6D1734','#8A2E50'].includes(p.primary.toUpperCase());
+  const safe={...base,primary:brandPresetPrimary?base.primary:p.primary,
    background:p.backgroundColor||base.background,
    bgSecondary:p.cardColor||base.bgSecondary,
    nav:p.sidebarColor||base.nav,
@@ -99,6 +106,7 @@ export function applyExperiencePrefs(input:ExperiencePreferences){
    fontMuted:p.mutedTextColor||base.fontMuted};
   // Do not persist over preset identity; applyGlobalTheme retains HSL tokens.
   applyGlobalTheme(safe,p.cornerRadius,undefined,undefined,undefined,dark?'dark':'light');
+  root.setAttribute('data-lexis-preset',p.theme);
   localStorage.setItem('lexisPredict_theme_preset',p.theme);
  }
  root.dataset.lexisExperience='1';
