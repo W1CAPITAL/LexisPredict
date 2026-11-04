@@ -31,9 +31,9 @@ function auth(config: Config): Record<string,string> {
 }
 function modelsUrl(endpoint: string) {return endpoint.replace(/\/chat\/completions$/, '/models');}
 
-export async function availableMiniCpmModels(config: Config) {
+export async function availableMiniCpmModels(config: Config, timeoutMs = 5000) {
   const res = await fetch(modelsUrl(config.endpoint), {
-    method: 'GET', headers: auth(config), signal: AbortSignal.timeout(5000), cache: 'no-store',
+    method: 'GET', headers: auth(config), signal: AbortSignal.timeout(Math.max(1000,Math.min(5000,timeoutMs))), cache: 'no-store',
   });
   if (!res.ok) throw new Error('MiniCPM /models HTTP ' + res.status);
   const parsed = await res.json();
@@ -55,11 +55,11 @@ export async function probeMiniCpm() {
 }
 export async function callMiniCpm(
   messages: ChatTurn[],
-  opts: {maxTokens?:number;temperature?:number;images?:VisionImage[]} = {}
+  opts: {maxTokens?:number;temperature?:number;images?:VisionImage[];timeoutMs?:number} = {}
 ) {
   const cfg = miniCpmConfig();
   if (!cfg) throw new Error('MINICPM_BASE_URL não configurada');
-  const models = await availableMiniCpmModels(cfg);
+  const models = await availableMiniCpmModels(cfg,Math.min(3000,opts.timeoutMs??5000));
   const model = cfg.model === 'auto' ? models[0] : models.find(x => x === cfg.model);
   if (!model) throw new Error('MiniCPM não consta em /v1/models');
   const visual = (opts.images || []).length > 0;
@@ -79,7 +79,7 @@ export async function callMiniCpm(
     method:'POST',
     headers:{'Content-Type':'application/json', ...auth(cfg)},
     body:JSON.stringify({model,messages:prepared,stream:false,max_tokens:Math.min(2048, Math.max(32, opts.maxTokens || 512)),temperature:opts.temperature ?? 0.35}),
-    signal:AbortSignal.timeout(cfg.timeoutMs),
+    signal:AbortSignal.timeout(Math.max(1500,Math.min(cfg.timeoutMs,opts.timeoutMs??cfg.timeoutMs))),
     cache:'no-store',
   });
   if (!res.ok) throw new Error('MiniCPM HTTP ' + res.status);
