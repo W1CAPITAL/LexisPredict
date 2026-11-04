@@ -38,6 +38,15 @@ describe('autos via portal oficial (gratuito; somente navegador)',()=>{
    const result=classifyLocalAutosDocument('autos-processuais-completos.pdf');
    expect(result.isConsolidated).toBe(true);
  });
+ it('não corta peças se os nomes dos arquivos não garantem a cronologia',()=>{
+   const docs=['Contestação.pdf','Petição Inicial.pdf','Contrato.pdf'].map((filename,index)=>({
+     id:String(index),filename,kind:classifyLocalAutosDocument(filename).kind
+   }));
+   const picked=selectAutosThroughDefesa(docs);
+   expect(picked.limitedByMetadata).toBe(true);
+   expect(picked.files).toHaveLength(3);
+   expect(picked.cutoffApplied).toBe(false);
+ });
  it('higieniza caminhos de ZIP sem confiar nos caminhos enviados',()=>{
    expect(normalizeAutasFilename('../segredo/001-Peticao.pdf')).toBe('001-Peticao.pdf');
    expect(normalizeAutasFilename('..\\segredo\\002 Contestação.pdf')).toBe('002 Contestação.pdf');
