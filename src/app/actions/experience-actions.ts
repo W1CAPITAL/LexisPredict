@@ -141,8 +141,7 @@ export async function saveOabPreferencesAction(raw:Pick<ExperiencePreferences,
   const {data,error}=await db.from('lexis_user_experience').select('preferences')
     .eq('auth_user_id',uid).eq('empresa_id',tenant).maybeSingle();
   if(error)return {ok:false as const,error:'Não foi possível ler sua personalização.'};
-  if(!data)return {ok:false as const,error:'Conclua primeiro a configuração do seu perfil em Personalização.'};
-  const current=cleanExperiencePrefs(data.preferences);
+  const current=cleanExperiencePrefs(data?.preferences||{});
   const next=cleanExperiencePrefs({
     ...current,
     oabNumber:raw.oabNumber,oabUf:raw.oabUf,
@@ -152,9 +151,15 @@ export async function saveOabPreferencesAction(raw:Pick<ExperiencePreferences,
     oabShowGuide:raw.oabShowGuide,
   });
   // O payload contém só escolhas operacionais. Nunca armazenar .pfx, senha ou PIN.
-  const {error:saveError}=await db.from('lexis_user_experience')
-    .update({preferences:next,updated_at:new Date().toISOString()})
-    .eq('auth_user_id',uid).eq('empresa_id',tenant);
+  // Preserve display name, phone and legal acceptance on existing profiles.
+  // New accounts may save these non-secret choices before completing onboarding.
+  const {error:saveError}=data
+    ?await db.from('lexis_user_experience')
+      .update({preferences:next,updated_at:new Date().toISOString()})
+      .eq('auth_user_id',uid).eq('empresa_id',tenant)
+    :await db.from('lexis_user_experience').insert({
+      auth_user_id:uid,empresa_id:tenant,preferences:next,updated_at:new Date().toISOString()
+    });
   if(saveError)return {ok:false as const,error:'Falha ao salvar as preferências.'};
   return {ok:true as const,preferences:next};
  }catch{return {ok:false as const,error:'Não foi possível atualizar a consulta OAB.'};}
