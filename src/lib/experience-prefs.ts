@@ -36,7 +36,7 @@ export const EXPERIENCE_DEFAULT:ExperiencePreferences={
  cornerRadius:12,cardStyle:'solid',kpiStyle:'normal',buttonStyle:'rounded',
  glass:false,blur:12,density:'comfortable',notifications:'important',
  favoriteTab:'/',dashboardPhrase:'',
- oabNumber:'',oabUf:'',oabCertificateType:'a3',oabPreferredTribunal:'',
+ oabNumber:'',oabUf:'',oabCertificateType:'none',oabPreferredTribunal:'',
  oabDefaultDocuments:'contestacao',oabShowGuide:true,
 };
 
