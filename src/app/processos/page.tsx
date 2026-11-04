@@ -665,7 +665,8 @@ export default function ProcessosEmpresaPage() {
   };
 
   const exportCsv = (exportRows?: LegalCase[]) => {
-    const rowsToExport = exportRows?.length ? exportRows : filtered;
+    // [] é uma seleção filtrada válida: nunca exportar toda a carteira por engano.
+    const rowsToExport = exportRows ?? filtered;
     const head = ["cliente", "protocolo", "advogado", "escritorio", "tribunal", "status", "ultimoRetorno", "indicio_busca_apreensao", "criado_por"];
     const lines = rowsToExport.map((c) =>
       [c.cliente, c.protocolo, c.advogado, c.escritorio, c.tribunal, c.status, c.ultimoRetorno, c.indicio_busca_apreensao ? "SIM" : "NAO", nomeByAuth.get(String(c.created_by || "")) || ""]
