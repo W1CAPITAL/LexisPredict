@@ -260,11 +260,21 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
           className="block h-10 w-full rounded-lg border border-input bg-background px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
       </label>
       {(cnj||(!cnjText.trim()&&court))&&<div className="flex flex-wrap gap-2 items-center">
-        {court?<a href={court.url} target="_blank" rel="noopener noreferrer" 
+        {court?.authenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.authenticatedUrl} target="_blank" rel="noopener noreferrer"
           onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
-          <ExternalLink size={14}/> {cnj?'Copiar CNJ e abrir':'Abrir tribunal favorito'} · {court.tribunal}
-        </a>:<p className="text-xs text-muted-foreground">Tribunal não mapeado. Escolha o portal oficial de seu tribunal e pesquise o CNJ.</p>}
+          <ShieldCheck size={14}/> PJe · entrar com certificado (1º grau)
+        </a>}
+        {court?.secondDegreeAuthenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.secondDegreeAuthenticatedUrl} target="_blank" rel="noopener noreferrer"
+          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/50 bg-card px-4 py-2 text-xs font-bold text-primary hover:bg-muted">
+          <ShieldCheck size={14}/> PJe · 2º grau
+        </a>}
+        {court?<a href={court.url} target="_blank" rel="noopener noreferrer"
+          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted">
+          <ExternalLink size={14}/> Consulta pública · {court.tribunal}
+        </a>:<p className="text-xs text-muted-foreground">Tribunal não mapeado. Acesse o portal oficial e pesquise o CNJ.</p>}
         {cnj&&<Button type="button" size="sm" variant="outline" onClick={()=>{void navigator.clipboard?.writeText(cnj).catch(()=>{});}}>Copiar CNJ</Button>}
         <span className="text-[11px] text-muted-foreground">{court?.isFallback?'Tribunal favorito — informe um CNJ para identificar automaticamente o tribunal correto.':'Consulta pública do tribunal — entre com o certificado no ambiente autenticado quando necessário.'}</span>
       </div>}
