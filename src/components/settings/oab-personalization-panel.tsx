@@ -63,7 +63,7 @@ export function OabPersonalizationPanel(){
        <select className={field} value={prefs.oabUf} onChange={e=>set('oabUf',e.target.value)}><option value="">Não informada</option>{UFS.map(uf=><option key={uf} value={uf}>{uf}</option>)}</select>
       </label>
       <label><span className={label}>Número da OAB (opcional)</span>
-       <input className={field} inputMode="numeric" maxLength={8} autoComplete="off" value={prefs.oabNumber} placeholder="Ex.: 370898" onChange={e=>set('oabNumber',e.target.value.replace(/\D/g,'').slice(0,8))}/>
+       <input className={field} inputMode="numeric" maxLength={14} autoComplete="off" value={prefs.oabNumber} placeholder="Ex.: 52996-A" onChange={e=>set('oabNumber',e.target.value.toUpperCase().replace(/[^0-9A-Z.\-/\s]/g,'').slice(0,14))}/>
       </label>
       <label><span className={label}>Método de acesso habitual</span>
        <select className={field} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as OabPrefs['oabCertificateType'])}>
