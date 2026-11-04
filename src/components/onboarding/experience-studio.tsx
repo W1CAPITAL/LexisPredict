@@ -248,8 +248,8 @@ export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClos
             </select>
           </label>
           <label><span className={labelClass}>Número OAB (opcional)</span>
-            <input inputMode="numeric" autoComplete="off" className={fieldClass} placeholder="Ex.: 370898" maxLength={8}
-              value={prefs.oabNumber} onChange={e=>set('oabNumber',e.target.value.replace(/\D/g,'').slice(0,8))}/>
+            <input inputMode="numeric" autoComplete="off" className={fieldClass} placeholder="Ex.: 52996-A" maxLength={14}
+              value={prefs.oabNumber} onChange={e=>set('oabNumber',e.target.value.toUpperCase().replace(/[^0-9A-Z.\-/\s]/g,'').slice(0,14))}/>
           </label>
           <label><span className={labelClass}>Como você acessa o tribunal?</span>
             <select className={selectClass} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as ExperiencePreferences['oabCertificateType'])}>
