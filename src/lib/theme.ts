@@ -744,13 +744,31 @@ const CHART_HUES: Record<ThemeMode, { success: string; warning: string; destruct
   dark: { success: '#34D399', warning: '#FBBF24', destructive: '#F87171' },
 };
 
-/** Deriva cores de gráfico a partir do hue do primary mantendo harmonia. */
-function deriveCharts(primary: string, mode: ThemeMode): string[] {
+/** Hex used for validating the rendered, rounded CSS HSL chart tokens. */
+export function hslToHex(h: number, saturation: number, lightness: number): string {
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n: number): string => {
+    const k = (n + h / 30) % 12;
+    const value = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(255 * value).toString(16).padStart(2, '0');
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
+}
+
+/** Preserve the 5 visual hue families, but never draw meaningful data
+ * below 3:1 contrast on either the canvas or a chart card. */
+export function deriveCharts(primary: string, mode: ThemeMode, surfaces: string[]): string[] {
   const baseHue = parseInt(hexToHsl(primary).split(' ')[0], 10);
-  const sat = mode === 'light' ? '72%' : '68%';
-  const lums = mode === 'light' ? ['52%', '62%', '45%', '68%', '38%'] : ['58%', '66%', '50%', '74%', '42%'];
+  const saturation = mode === 'light' ? 72 : 68;
+  const lightness = mode === 'light' ? [52, 62, 45, 68, 38] : [58, 66, 50, 74, 42];
   const deltas = [0, 60, 180, 240, 300];
-  return deltas.map((d, i) => `${(baseHue + d) % 360} ${sat} ${lums[i]}`);
+  return deltas.map((delta, index) => {
+    const hex = hslToHex((baseHue + delta) % 360, saturation, lightness[index]);
+    const safe = ensureSurfaceContrast(hex, surfaces, 3.1);
+    return hexToHsl(safe);
+  });
 }
 
 export function applyGlobalTheme(
@@ -839,7 +857,7 @@ export function applyGlobalTheme(
   root.style.setProperty('--warning', hexToHsl(sem.warning));
   root.style.setProperty('--warning-foreground', hexToHsl(getContrastRatio(sem.warning, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
 
-  const charts = deriveCharts(primary, m);
+  const charts = deriveCharts(primary, m, [colors.background, colors.bgSecondary]);
   charts.forEach((c, i) => root.style.setProperty(`--chart-${i + 1}`, c));
 
   const nav = colors.nav || (isLight ? blend('#0B2340',primary,.18) : blend(colors.bgSecondary,'#000000',.25));
