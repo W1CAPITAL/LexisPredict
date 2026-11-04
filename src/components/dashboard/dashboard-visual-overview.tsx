@@ -28,7 +28,7 @@ export type VisualOverviewPoint = { day: string; atendimentos: number };
 type Props = {
   total?: number | null;
   ativos?: number | null;
-  hoje: number;
+  hoje: number | null;
   vencidos?: number | null;
   series?: VisualOverviewPoint[] | null;
   loading?: boolean;
@@ -72,10 +72,10 @@ export function DashboardVisualOverview({
       kind: "active",
     },
     {
-      label: "Programados para hoje",
+      label: "Retornos para hoje",
       value: integer(hoje, loading),
-      detail: "No lote carregado",
-      href: "/tarefas",
+      detail: hoje == null ? "Consulta indisponível" : hoje === 0 ? "Nenhum retorno agendado" : "Na carteira da empresa",
+      href: "/tarefas?filtro=hoje",
       Icon: CalendarCheck2,
       kind: "today",
     },
