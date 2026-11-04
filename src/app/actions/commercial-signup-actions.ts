@@ -4,6 +4,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { normalizePlanId, type PlanId } from "@/lib/planos-pacotes";
+import { publicCommercialSignupEnabled, probeCommercialSignupSchema } from "@/lib/commercial/signup-readiness";
 
 function courtesyTokenHash() {
   // Sem fallback embutido: cortesia só existe quando o proprietário
@@ -49,7 +50,8 @@ async function enforceSignupRateLimit(email: string) {
       .eq("key_hash", item.key)
       .gte("created_at", since);
 
-    if (!error && Number(count || 0) >= item.max) {
+    if (error) return { ok: false as const, error: "Não foi possível verificar os limites de cadastro. Tente novamente mais tarde." };
+    if (Number(count || 0) >= item.max) {
       return {
         ok: false as const,
         error:
@@ -61,14 +63,15 @@ async function enforceSignupRateLimit(email: string) {
   }
 
   try {
-    await admin.from("commercial_signup_attempts").insert(
+    const { error: writeError } = await admin.from("commercial_signup_attempts").insert(
       checks.map((item) => ({
         scope: item.scope,
         key_hash: item.key,
       }))
     );
+    if (writeError) return { ok: false as const, error: "Não foi possível registrar os limites de cadastro. Tente novamente mais tarde." };
   } catch {
-    /* rate limit store is best-effort */
+    return { ok: false as const, error: "Não foi possível registrar os limites de cadastro. Tente novamente mais tarde." };
   }
 
   return { ok: true as const };
@@ -89,7 +92,8 @@ async function enforceTokenValidationRateLimit() {
     .eq("key_hash", key)
     .gte("created_at", since);
 
-  if (!error && Number(count || 0) >= 20) {
+  if (error) return { ok: false as const, error: "Não foi possível validar o limite de tentativas. Tente novamente mais tarde." };
+  if (Number(count || 0) >= 20) {
     return {
       ok: false as const,
       error: "Muitas tentativas de token. Aguarde antes de tentar novamente.",
@@ -97,11 +101,14 @@ async function enforceTokenValidationRateLimit() {
   }
 
   try {
-    await admin.from("commercial_signup_attempts").insert({
+    const { error: writeError } = await admin.from("commercial_signup_attempts").insert({
       scope: "courtesy_token",
       key_hash: key,
     });
-  } catch {}
+    if (writeError) return { ok: false as const, error: "Não foi possível registrar a tentativa de validação." };
+  } catch {
+    return { ok: false as const, error: "Não foi possível registrar a tentativa de validação." };
+  }
 
   return { ok: true as const };
 }
@@ -124,6 +131,16 @@ export type CommercialSignupInput = {
 };
 
 export async function createCommercialAccountAction(input: CommercialSignupInput) {
+  // Pilot onboarding remains assisted until verified e-mail, schema, RLS,
+  // entitlement and payment acceptance tests are completed.
+  if (!publicCommercialSignupEnabled()) {
+    return {
+      ok: false as const,
+      code: "signup_paused",
+      error: "Novos cadastros estão temporariamente em implantação assistida. Solicite acesso à equipe W1 Capital.",
+    };
+  }
+
   const empresaNome = String(input.empresa || "").trim();
   const email = String(input.email || "").trim().toLowerCase();
   const password = String(input.password || "");
@@ -144,6 +161,15 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
   }
 
   const admin = await getSupabaseAdmin();
+  const readiness = await probeCommercialSignupSchema(admin);
+  if (!readiness.ok) {
+    // Fail BEFORE creating an Auth user; do not expose schema details to clients.
+    return {
+      ok: false as const,
+      code: "commercial_schema_not_ready",
+      error: "O cadastro comercial está em manutenção. Solicite implantação assistida à equipe W1.",
+    };
+  }
   const empresaId = randomUUID();
 
   const userMetadata = {
@@ -157,97 +183,24 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     consentimento_ia_revisao_humana: true,
   };
 
-  let authUserId = "";
-  let authWasCreated = false;
-  let authWasRecovered = false;
-
+  // Duplicate e-mail or interrupted signup must NEVER reset another
+  // user's password. Owner verification is handled by Supabase recovery or
+  // an authorized administrator; public signup cannot claim an orphan.
   const { data: createdAuth, error: authError } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    email_confirm: false, // Never mark an arbitrary submitted address as verified.
     user_metadata: userMetadata,
-    app_metadata: {
-      lexis_commercial: true,
-    },
+    app_metadata: { lexis_commercial: true },
   });
-
-  if (!authError && createdAuth.user) {
-    authUserId = createdAuth.user.id;
-    authWasCreated = true;
-  } else {
-    const msg = String(authError?.message || "Falha ao criar usuário.");
-    const alreadyExists = /already.*registered|already.*exists|user.*exists|email.*registered/i.test(msg);
-
-    if (!alreadyExists) {
-      return { ok: false as const, error: msg };
-    }
-
-    // Supabase Auth can contain a user created by an interrupted signup even when
-    // public.usuarios/public.empresas are still empty. Recover only that orphan.
-    const { data: listed, error: listError } = await admin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-
-    if (listError) {
-      return { ok: false as const, error: listError.message };
-    }
-
-    const existingAuth = listed.users.find(
-      (u) => String(u.email || "").trim().toLowerCase() === email
-    );
-
-    if (!existingAuth) {
-      return {
-        ok: false as const,
-        code: "already_exists",
-        error: "O e-mail já está registrado no Auth, mas não foi possível localizar a conta para recuperação.",
-      };
-    }
-
-    const { data: existingProfile, error: profileLookupError } = await admin
-      .from("usuarios")
-      .select("id, empresa_id")
-      .eq("auth_user_id", existingAuth.id)
-      .maybeSingle();
-
-    if (profileLookupError) {
-      return { ok: false as const, error: profileLookupError.message };
-    }
-
-    if (existingProfile?.id) {
-      return {
-        ok: false as const,
-        code: "already_exists",
-        error: "Este e-mail já possui uma conta empresarial configurada. Use a tela de login.",
-      };
-    }
-
-    const { data: recoveredAuth, error: recoverError } =
-      await admin.auth.admin.updateUserById(existingAuth.id, {
-        password,
-        email_confirm: true,
-        user_metadata: {
-          ...(existingAuth.user_metadata || {}),
-          ...userMetadata,
-        },
-        app_metadata: {
-          ...(existingAuth.app_metadata || {}),
-          lexis_commercial: true,
-        },
-      });
-
-    if (recoverError || !recoveredAuth.user) {
-      return {
-        ok: false as const,
-        code: "orphan_recovery_failed",
-        error: recoverError?.message || "Não foi possível recuperar o usuário órfão do Auth.",
-      };
-    }
-
-    authUserId = recoveredAuth.user.id;
-    authWasRecovered = true;
+  if (authError || !createdAuth.user) {
+    return {
+      ok: false as const,
+      code: "signup_requires_review",
+      error: "Não foi possível iniciar o cadastro. Se já existir uma conta, faça login ou recupere o acesso pelo fluxo oficial.",
+    };
   }
+  const authUserId = createdAuth.user.id;
 
   const effectivePlan = courtesy ? requestedPlan : "essencial";
   const billingStatus = courtesy ? "active" : "pending";
@@ -259,11 +212,9 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     try {
       await admin.from("empresas").delete().eq("id", empresaId);
     } catch {}
-    if (authWasCreated) {
-      try {
-        await admin.auth.admin.deleteUser(authUserId);
-      } catch {}
-    }
+    try {
+      await admin.auth.admin.deleteUser(authUserId);
+    } catch {}
   };
 
   const { error: empresaError } = await admin.from("empresas").insert({
@@ -368,14 +319,10 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     await admin.from("commercial_audit_log").insert({
       empresa_id: empresaId,
       actor_user_id: authUserId,
-      event: courtesy
-        ? "subscription.courtesy_token_activated"
-        : authWasRecovered
-          ? "tenant.orphan_auth_recovered"
-          : "tenant.signup_created",
+      event: courtesy ? "subscription.courtesy_token_activated" : "tenant.signup_created",
       payload: {
         requested_plan: requestedPlan,
-        auth_recovered: authWasRecovered,
+        auth_recovered: false,
         effective_plan: effectivePlan,
         billing_status: billingStatus,
         terms_version: String(input.termosVersao || "2026-09-21"),
@@ -390,7 +337,7 @@ export async function createCommercialAccountAction(input: CommercialSignupInput
     requestedPlan,
     courtesy,
     billingStatus,
-    recoveredAuth: authWasRecovered,
+    recoveredAuth: false,
   };
 }
 
