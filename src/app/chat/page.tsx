@@ -236,7 +236,8 @@ export default function AssistentePage() {
           images: img ? [img] : undefined,
           pdfText: pdf?.text,
           pdfName: pdf?.name,
-          max_tokens: 4096,
+          max_tokens: 1400,
+          showThinking: false,
         });
         const unavailable = !res.sucesso && /FALLBACK|MOTORES_INDISPONIVEIS|COLIBRI_INDISPONIVEL|MINICPM_INDISPONIVEL|ALL_PROVIDERS_FAILED|ERROR/i.test(String(res.engineUtilizada || res.engine || ""));
         if (unavailable) {
