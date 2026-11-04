@@ -12,21 +12,21 @@
   --lx-sales-panel: 20px;
   --lx-sales-panel-line: hsl(var(--border) / .78);
   --lx-sales-panel-shadow: 0 3px 9px rgb(15 23 42 / .025), 0 18px 48px rgb(15 23 42 / .04);
-  --lx-sales-canvas-glow: rgb(176 152 255 / .14);
-  --lx-sales-highlight: #fa7b4e;
-  --lx-sales-nav-bg: #141b20;
-  --lx-sales-nav-fg: #e7edf0;
-  --lx-sales-nav-soft: #aebdc3;
-  --lx-sales-nav-selected: #d5fa78;
+  --lx-sales-canvas-glow: rgb(109 23 52 / .095);
+  --lx-sales-highlight: #6D1734;
+  --lx-sales-nav-bg: #3B0B1E;
+  --lx-sales-nav-fg: #FFFFFF;
+  --lx-sales-nav-soft: #D8CBD3;
+  --lx-sales-nav-selected: #6D1734;
 }
 html.dark {
   --lx-sales-panel-line: hsl(var(--border) / .64);
   --lx-sales-panel-shadow: 0 8px 24px rgb(0 0 0 / .11);
-  --lx-sales-canvas-glow: rgb(121 133 148 / .075);
-  --lx-sales-highlight: #d5fa78;
-  --lx-sales-nav-bg: #14191b;
-  --lx-sales-nav-fg: #edf2f0;
-  --lx-sales-nav-soft: #9eada9;
+  --lx-sales-canvas-glow: rgb(138 46 80 / .12);
+  --lx-sales-highlight: #E5AABB;
+  --lx-sales-nav-bg: #3B0B1E;
+  --lx-sales-nav-fg: #FFFFFF;
+  --lx-sales-nav-soft: #D8CBD3;
 }
 /* The route surface is never removed during navigation. Keep the active
  * theme/wallpaper visible beneath skeletons and incoming React content. */
@@ -51,12 +51,12 @@ html.dark:not(.lexis-wallpaper-active) body:has([data-lexis-app-shell]) [data-le
   box-shadow: 6px 0 28px rgb(7 17 25 / .08);
 }
 [data-lexis-commercial-sidebar] > div:first-child {
-  background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
+  background: linear-gradient(160deg, #4B1630 0%, var(--lx-sales-nav-bg) 62%, #260711 100%) !important;
   color: var(--lx-sales-nav-fg) !important;
 }
 html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] > div:first-child,
 html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-lexis-sidebar] > div:first-child {
-  background: linear-gradient(160deg, #202a2d 0%, var(--lx-sales-nav-bg) 62%, #101517 100%) !important;
+  background: linear-gradient(160deg, #4B1630 0%, var(--lx-sales-nav-bg) 62%, #260711 100%) !important;
 }
 [data-lexis-commercial-sidebar] > div:first-child > div:first-child {
   border-bottom-color: rgb(255 255 255 / .08) !important;
@@ -86,14 +86,14 @@ html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-
 }
 [data-lexis-commercial-sidebar] nav a[aria-current="page"] {
   background: var(--lx-sales-nav-selected) !important;
-  border-color: rgb(255 255 255 / .24) !important;
-  color: #1c2620 !important;
-  box-shadow: 0 5px 18px rgb(174 224 91 / .13) !important;
+  border-color: #C9BDC5 !important;
+  color: #FFFFFF !important;
+  box-shadow: inset 3px 0 0 #EDE9ED, 0 5px 18px rgb(38 7 17 / .25) !important;
 }
 html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"],
 html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg),
 [data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg) {
-  color: #19241a !important;
+  color: #FFFFFF !important;
 }
 [data-lexis-commercial-sidebar] nav a[aria-current="page"]::before {
   content: "";
@@ -127,7 +127,7 @@ html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-curre
 }
 [data-lexis-commercial-sidebar] nav :is(a,button):focus-visible,
 [data-lexis-desktop-dock] :is(a,button):focus-visible {
-  outline: 2px solid var(--lx-sales-nav-selected);
+  outline: 2px solid #EDE9ED;
   outline-offset: 2px;
 }
 [data-lexis-commercial-sidebar] nav > div > button {
@@ -292,7 +292,7 @@ html[data-lexis-motion="full"] body[data-lexis-route-arrival="1"] [data-lexis-ro
 /* Mobile remains fully usable; safe areas and touch controls take priority
  * over desktop decoration. */
 [data-lexis-mobile-topbar] {
-  background: linear-gradient(100deg,#242e32,#171e21) !important;
+  background: linear-gradient(100deg,#4B1630,#260711) !important;
   border-color: rgb(255 255 255 / .10) !important;
 }
 [data-lexis-mobile-bottom-nav] {
@@ -340,4 +340,18 @@ html[data-lexis-motion="lite"] [data-lexis-page-skeleton] .lx-skeleton-block {
     backdrop-filter: none;
     background: hsl(var(--card)) !important;
   }
+}
+
+/* Brand badge overrides color-specific legacy avatar utilities. */
+[data-lexis-commercial-topbar] button[aria-label="Abrir menu do perfil"] > div:first-child {
+  background: #6D1734 !important;
+  color: #FFFFFF !important;
+}
+html.dark [data-lexis-commercial-topbar] button[aria-label="Abrir menu do perfil"] > div:first-child {
+  background: #8A2E50 !important;
+  color: #FFFFFF !important;
+}
+[data-lexis-commercial-sidebar] nav a[aria-current="page"] span,
+[data-lexis-commercial-sidebar] nav a[aria-current="page"] svg {
+  color:#FFFFFF !important;
 }
