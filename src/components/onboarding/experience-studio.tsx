@@ -7,6 +7,7 @@ import {getExperienceAction,saveExperienceAction,uploadExperienceImageAction} fr
 import {EXPERIENCE_TERMS,EXPERIENCE_TERMS_VERSION} from '@/lib/experience-terms';
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {AUTHORITY_PRESETS,getPresetColors} from '@/lib/theme';
+import {TODOS_TRIBUNAIS} from '@/lib/tribunais-links';
 
 type ExperienceRecord={
  display_name?:string;display_role?:string;phone?:string;preferences?:unknown;onboarding_version?:number;
@@ -30,7 +31,7 @@ const wallPresets=[
 const tabs=[
  ['/','Dashboard'],['/cases','Meus processos'],['/processos','Processos da empresa'],
  ['/tarefas','Tarefas'],['/whatsapp','WhatsApp'],['/report','Relatórios'],
- ['/agenda','Agenda'],['/dossies','Dossiês'],['/crm','CRM'],
+ ['/agenda','Agenda'],['/dossies','Dossiês'],['/crm','CRM'],['/consulta-oab','Consulta OAB'],
 ] as const;
 const selectClass='w-full rounded-xl border border-border bg-card px-3 py-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50';
 const labelClass='block text-xs font-semibold text-muted-foreground mb-1';
@@ -234,6 +235,48 @@ export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClos
       <label className="flex gap-3 rounded-xl border p-3"><input type="checkbox" checked={prefs.glass} onChange={e=>set('glass',e.target.checked)}/><span className="text-sm">Ativar Glass/Blur nos componentes</span></label>
       <label><span className={labelClass}>Intensidade de blur: {prefs.blur}px</span><input type="range" min="0" max="28" value={prefs.blur} onChange={e=>set('blur',Number(e.target.value))} className="mt-3 w-full"/></label>
       <label className="flex gap-3 rounded-xl border p-3"><input type="checkbox" checked={prefs.sidebarCompact} onChange={e=>set('sidebarCompact',e.target.checked)}/><span className="text-sm">Menu compacto</span></label>
+      <section className="sm:col-span-2 rounded-2xl border border-primary/30 bg-card p-4 space-y-3" aria-label="Preferências de consulta OAB">
+        <div className="space-y-1">
+          <h3 className="text-base font-bold text-foreground">Consulta OAB e certificado</h3>
+          <p className="text-xs leading-5 text-muted-foreground">Configure uma vez seu perfil de consulta. O LexisPredict guarda somente as preferências: nunca o certificado, arquivo .pfx, PIN ou senha.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label><span className={labelClass}>UF de inscrição na OAB</span>
+            <select className={selectClass} value={prefs.oabUf} onChange={e=>set('oabUf',e.target.value)}>
+              <option value="">Não informada</option>
+              {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf=><option value={uf} key={uf}>{uf}</option>)}
+            </select>
+          </label>
+          <label><span className={labelClass}>Número OAB (opcional)</span>
+            <input inputMode="numeric" autoComplete="off" className={fieldClass} placeholder="Ex.: 370898" maxLength={8}
+              value={prefs.oabNumber} onChange={e=>set('oabNumber',e.target.value.replace(/\D/g,'').slice(0,8))}/>
+          </label>
+          <label><span className={labelClass}>Como você acessa o tribunal?</span>
+            <select className={selectClass} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as ExperiencePreferences['oabCertificateType'])}>
+              <option value="a3">Certificado A3 (token/cartão)</option>
+              <option value="a1">Certificado A1 (computador)</option>
+              <option value="none">Acesso público, sem certificado</option>
+            </select>
+          </label>
+          <label><span className={labelClass}>Tribunal de uso frequente</span>
+            <select className={selectClass} value={prefs.oabPreferredTribunal} onChange={e=>set('oabPreferredTribunal',e.target.value)}>
+              <option value="">Detectar pelo CNJ</option>
+              {TODOS_TRIBUNAIS.map(t=><option value={t.codigo} key={t.codigo}>{t.sigla} · {t.nome}</option>)}
+            </select>
+          </label>
+          <label><span className={labelClass}>Quais documentos mostrar por padrão?</span>
+            <select className={selectClass} value={prefs.oabDefaultDocuments} onChange={e=>set('oabDefaultDocuments',e.target.value as ExperiencePreferences['oabDefaultDocuments'])}>
+              <option value="contestacao">Até a possível contestação</option>
+              <option value="todos">Todos os documentos disponíveis</option>
+            </select>
+          </label>
+          <label className="flex gap-2 items-center rounded-xl border border-border p-3">
+            <input type="checkbox" checked={prefs.oabShowGuide} onChange={e=>set('oabShowGuide',e.target.checked)} className="accent-primary"/>
+            <span className="text-sm text-foreground">Mostrar instruções de primeiro acesso</span>
+          </label>
+        </div>
+        <a href="/consulta-oab" className="inline-flex items-center gap-2 text-xs font-bold text-primary underline underline-offset-4">Abrir Consulta OAB <ArrowRight size={14}/></a>
+      </section>
      </div>:null}
      {step===3?<div className="space-y-4">
       <p className="text-sm font-bold">Termos de responsabilidade, licença e tratamento de dados</p>
