@@ -53,6 +53,9 @@ import { cn } from "@/lib/utils";
 import { computeOpsLinha } from "@/lib/ops-linha";
 import { statusEfetivo } from "@/lib/prazo-status";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
+import { isBuscaApreensaoReal } from "@/lib/ba-real";
+import { PROCESSOS_DATE_FIELDS, validateProcessDateRange, type ProcessoDateField } from "@/lib/processos-date-range";
 import { openDjenPublicacaoAction } from "@/app/actions/open-djen-action";
 import { generateDossieProcessoPDFAction } from "@/app/actions/dossie-processo-actions";
 import { consultarOabAction, type OabResult } from "@/app/actions/oab-actions";
@@ -345,6 +348,53 @@ export function ProcessosCommandCenter(props: Props) {
   const [sistema, setSistema] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
+  const [dateField,setDateField]=React.useState<ProcessoDateField>('movimento');
+  const dateActive=Boolean(periodStart||periodEnd);
+  const dateValidation=validateProcessDateRange(periodStart,periodEnd);
+  const dateKey=`${dateField}|${periodStart}|${periodEnd}`;
+  const [dateMatches,setDateMatches]=React.useState<{key:string;items:LegalCase[];totalCount:number;hasMore:boolean}|null>(null);
+  const [dateLoading,setDateLoading]=React.useState(false);
+  const [dateMoreLoading,setDateMoreLoading]=React.useState(false);
+  const [dateError,setDateError]=React.useState('');
+  const dateParams=(offset:number)=>new URLSearchParams({field:dateField,from:periodStart,to:periodEnd,offset:String(offset)});
+  React.useEffect(()=>{
+    if(!dateActive||dateValidation){
+      setDateMatches(null);setDateLoading(false);setDateError('');
+      return;
+    }
+    const controller=new AbortController();
+    const key=dateKey;
+    setDateMatches(null);setDateError('');setDateLoading(true);
+    void fetch('/api/carteira/filtered?'+dateParams(0),{
+      credentials:'same-origin',cache:'no-store',signal:controller.signal,
+    }).then(async response=>{
+      const data=await response.json();
+      if(!response.ok||!data.ok||!Array.isArray(data.cases))throw new Error(data.error||'Falha ao filtrar datas.');
+      if(!controller.signal.aborted)setDateMatches({key,items:data.cases,totalCount:Number(data.totalCount)||0,hasMore:!!data.hasMore});
+    }).catch(error=>{if(!controller.signal.aborted)setDateError(error instanceof Error?error.message:'Erro no filtro.');})
+      .finally(()=>{if(!controller.signal.aborted)setDateLoading(false);});
+    return ()=>controller.abort();
+  },[dateKey,dateActive,dateValidation]);
+  const activeDateMatches=dateMatches?.key===dateKey?dateMatches:null;
+  const sourceItems=dateActive?(activeDateMatches?.items||[]):props.items;
+  async function loadMoreDateMatches(){
+    if(!activeDateMatches?.hasMore||dateMoreLoading||dateLoading)return;
+    const key=dateKey;
+    const offset=activeDateMatches.items.length;
+    setDateMoreLoading(true);setDateError('');
+    try{
+      const response=await fetch('/api/carteira/filtered?'+dateParams(offset),{credentials:'same-origin',cache:'no-store'});
+      const data=await response.json();
+      if(!response.ok||!data.ok||!Array.isArray(data.cases))throw new Error(data.error||'Falha ao carregar mais processos.');
+      setDateMatches(current=>{
+        if(!current||current.key!==key)return current;
+        const existing=new Set(current.items.map(c=>String(c.id||c.protocolo)));
+        const unique=(data.cases as LegalCase[]).filter(c=>!existing.has(String(c.id||c.protocolo)));
+        return {...current,items:[...current.items,...unique],totalCount:Number(data.totalCount)||current.totalCount,hasMore:!!data.hasMore};
+      });
+    }catch(error){setDateError(error instanceof Error?error.message:'Erro ao carregar o intervalo.');}
+    finally{setDateMoreLoading(false);}
+  }
   const [responsavel, setResponsavel] = React.useState("");
   const [novidade, setNovidade] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -356,16 +406,28 @@ export function ProcessosCommandCenter(props: Props) {
   const [insightsOpen,setInsightsOpen]=React.useState(false);
   const PAGE = props.query.trim().length >= 2 ? 200 : 10;
 
-  const tribunais = React.useMemo(() => [...new Set(props.items.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [props.items]);
-  const classes = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
-  const assuntos = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "assunto_nome", "assunto", "tipo"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
-  const municipios = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade"))).filter(Boolean))].sort().slice(0, 80), [props.items]);
-  const graus = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "grau", "grau_nome", "instancia"))).filter(Boolean))].sort(), [props.items]);
-  const sistemas = React.useMemo(() => [...new Set(props.items.map((c) => clean(pick(c, "sistema_nome", "sistema"))).filter(Boolean))].sort(), [props.items]);
-  const responsaveis = React.useMemo(() => [...new Set(props.items.map((c) => ownerName(c, props.ownerNameByAuth)).filter((x) => x && x !== "—"))].sort(), [props.items, props.ownerNameByAuth]);
+  const tribunais = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [sourceItems]);
+  const classes = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [sourceItems]);
+  const assuntos = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "assunto_nome", "assunto", "tipo"))).filter(Boolean))].sort().slice(0, 80), [sourceItems]);
+  const municipios = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "orgaoJulgador_municipio", "municipio", "cidade"))).filter(Boolean))].sort().slice(0, 80), [sourceItems]);
+  const graus = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "grau", "grau_nome", "instancia"))).filter(Boolean))].sort(), [sourceItems]);
+  const sistemas = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "sistema_nome", "sistema"))).filter(Boolean))].sort(), [sourceItems]);
+  const responsaveis = React.useMemo(() => [...new Set(sourceItems.map((c) => ownerName(c, props.ownerNameByAuth)).filter((x) => x && x !== "—"))].sort(), [sourceItems, props.ownerNameByAuth]);
 
   const rows = React.useMemo(() => {
-    return props.items.filter((c) => {
+    return sourceItems.filter((c) => {
+      // Date results were fetched from the entire company. Parent filters
+      // must be reapplied to these rows because props.items is only a page.
+      if(dateActive){
+        const status=props.statusFilter;
+        if((status==='vencido'||status==='Vencido')&&!isCasoVencido(c))return false;
+        if(status&&status!=='vencido'&&status!=='Vencido'&&c.status!==status)return false;
+        if(props.baOnly&&!isBuscaApreensaoReal(c))return false;
+        if(props.silencioOnly&&(caseSilenceDays(c)??0)<45)return false;
+        const term=props.query.trim().toLocaleLowerCase('pt-BR');
+        if(term&&![c.cliente,c.protocolo,c.advogado,c.escritorio,c.tribunal,c.status,c.classe_acao]
+          .some(v=>String(v||'').toLocaleLowerCase('pt-BR').includes(term)))return false;
+      }
       if (tribunal && clean(c.tribunal) !== tribunal) return false;
       const cl = clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"));
       if (classe && cl !== classe) return false;
@@ -381,15 +443,7 @@ export function ProcessosCommandCenter(props: Props) {
       else if (novidade === "djen" && !c.djen_nova_comunicacao) return false;
       else if (novidade === "datajud" && !c.tem_atualizacao_pos_retorno) return false;
       else if (novidade === "sem" && (c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao)) return false;
-      const ajuizamento = parseDate(pick(c, "dataDistribuicao", "dataAjuizamento", "data_ajuizamento"));
-      if (periodStart) {
-        const start = parseDate(periodStart);
-        if (!ajuizamento || !start || ajuizamento < start) return false;
-      }
-      if (periodEnd) {
-        const end = parseDate(periodEnd);
-        if (!ajuizamento || !end || ajuizamento > new Date(end.getTime() + 86399999)) return false;
-      }
+      // SQL already applies the selected De/Até date field on the full portfolio.
       if (focusPreset === "urgent" && riskLabel(c) !== "Alto" && c.status !== "Vencido" && c.status !== "Caso Crítico") return false;
       if (focusPreset === "returns" && !(c.status === "Vencido" || c.status === "É Hoje" || c.status === "Atenção" || (typeof c.diasFaltando === "number" && c.diasFaltando <= 3))) return false;
       if (focusPreset === "djen" && !c.djen_nova_comunicacao && !djenCriticalLabel(c)) return false;
@@ -399,7 +453,7 @@ export function ProcessosCommandCenter(props: Props) {
       if (focusPreset === "ba" && !c.indicio_busca_apreensao) return false;
       return true;
     });
-  }, [props.items, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, focusPreset, props.ownerNameByAuth]);
+  }, [sourceItems, dateActive, props.query, props.statusFilter, props.baOnly, props.silencioOnly, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, focusPreset, props.ownerNameByAuth]);
 
   React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, focusPreset, props.query, props.statusFilter]);
   React.useEffect(() => {
@@ -507,20 +561,20 @@ export function ProcessosCommandCenter(props: Props) {
     }
   }
 
-  const loaded = props.items.length;
-  const silenceCount = React.useMemo(() => props.items.filter((c) => (caseSilenceDays(c) || 0) >= 45).length, [props.items]);
-  const updateCount = React.useMemo(() => props.items.filter((c) => c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao).length, [props.items]);
-  const highRiskCount = React.useMemo(() => props.items.filter((c) => riskLabel(c) === "Alto").length, [props.items]);
-  const noMovementCount = React.useMemo(() => props.items.filter((c) => !clean(latestMovementDate(c))).length, [props.items]);
+  const loaded = sourceItems.length;
+  const silenceCount = React.useMemo(() => sourceItems.filter((c) => (caseSilenceDays(c) || 0) >= 45).length, [sourceItems]);
+  const updateCount = React.useMemo(() => sourceItems.filter((c) => c.tem_novo_andamento || c.tem_atualizacao_pos_retorno || c.djen_nova_comunicacao).length, [sourceItems]);
+  const highRiskCount = React.useMemo(() => sourceItems.filter((c) => riskLabel(c) === "Alto").length, [sourceItems]);
+  const noMovementCount = React.useMemo(() => sourceItems.filter((c) => !clean(latestMovementDate(c))).length, [sourceItems]);
   const sourceCoverage = React.useMemo(()=>{
-    const total=Math.max(1,props.items.length);
-    const datajud=props.items.filter(c=>!!clean(c.datajud_consultado_em)).length;
-    const djen=props.items.filter(c=>!!clean(c.djen_consultado_em)).length;
-    const fresh=props.items.filter(c=>{
+    const total=Math.max(1,sourceItems.length);
+    const datajud=sourceItems.filter(c=>!!clean(c.datajud_consultado_em)).length;
+    const djen=sourceItems.filter(c=>!!clean(c.djen_consultado_em)).length;
+    const fresh=sourceItems.filter(c=>{
       const f=sourceFreshness(c);
       return f.tone==="green"||f.tone==="blue";
     }).length;
-    const hashed=props.items.filter(c=>!!clean(c.datajud_hash)).length;
+    const hashed=sourceItems.filter(c=>!!clean(c.datajud_hash)).length;
     return {
       datajud, djen, fresh, hashed,
       datajudPct:Math.round(datajud/total*100),
@@ -528,16 +582,16 @@ export function ProcessosCommandCenter(props: Props) {
       freshPct:Math.round(fresh/total*100),
       hashPct:Math.round(hashed/total*100),
     };
-  },[props.items]);
+  },[sourceItems]);
   const focusCounts = React.useMemo(()=>({
-    urgent:props.items.filter(c=>riskLabel(c)==="Alto"||c.status==="Vencido"||c.status==="Caso Crítico").length,
-    returns:props.items.filter(c=>c.status==="Vencido"||c.status==="É Hoje"||c.status==="Atenção"||(typeof c.diasFaltando==="number"&&c.diasFaltando<=3)).length,
-    djen:props.items.filter(c=>c.djen_nova_comunicacao||!!djenCriticalLabel(c)).length,
-    updates:props.items.filter(c=>c.tem_novo_andamento||c.tem_atualizacao_pos_retorno||c.djen_nova_comunicacao).length,
-    silence:props.items.filter(c=>(caseSilenceDays(c)||0)>=45).length,
-    sources:props.items.filter(c=>processSourceGapCount(c)>=2).length,
-    ba:props.items.filter(c=>!!c.indicio_busca_apreensao).length,
-  }),[props.items]);
+    urgent:sourceItems.filter(c=>riskLabel(c)==="Alto"||c.status==="Vencido"||c.status==="Caso Crítico").length,
+    returns:sourceItems.filter(c=>c.status==="Vencido"||c.status==="É Hoje"||c.status==="Atenção"||(typeof c.diasFaltando==="number"&&c.diasFaltando<=3)).length,
+    djen:sourceItems.filter(c=>c.djen_nova_comunicacao||!!djenCriticalLabel(c)).length,
+    updates:sourceItems.filter(c=>c.tem_novo_andamento||c.tem_atualizacao_pos_retorno||c.djen_nova_comunicacao).length,
+    silence:sourceItems.filter(c=>(caseSilenceDays(c)||0)>=45).length,
+    sources:sourceItems.filter(c=>processSourceGapCount(c)>=2).length,
+    ba:sourceItems.filter(c=>!!c.indicio_busca_apreensao).length,
+  }),[sourceItems]);
 
   const tribunalData = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -546,7 +600,7 @@ export function ProcessosCommandCenter(props: Props) {
       map.set(key, (map.get(key) || 0) + 1);
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }));
-  }, [props.items]);
+  }, [sourceItems]);
 
   const statusData = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -555,7 +609,7 @@ export function ProcessosCommandCenter(props: Props) {
       map.set(key, (map.get(key) || 0) + 1);
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }));
-  }, [props.items]);
+  }, [sourceItems]);
 
   const monthlyData = React.useMemo(() => {
     const now = new Date();
@@ -578,7 +632,7 @@ export function ProcessosCommandCenter(props: Props) {
       }
     }
     return months;
-  }, [props.items]);
+  }, [sourceItems]);
 
   const silenceBuckets = React.useMemo(() => {
     const buckets = [
@@ -594,7 +648,7 @@ export function ProcessosCommandCenter(props: Props) {
       if (bucket) bucket.value += 1;
     }
     return buckets;
-  }, [props.items]);
+  }, [sourceItems]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE));
   const pageRows = rows.slice((page - 1) * PAGE, page * PAGE);
@@ -779,7 +833,7 @@ export function ProcessosCommandCenter(props: Props) {
               </select>
               <select value={props.statusFilter} onChange={(e) => props.onStatusFilterChange(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Situação · todas</option>
-                {[...new Set(props.items.map((c) => clean(c.status)).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
+                {[...new Set(sourceItems.map((c) => clean(c.status)).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
               </select>
               <select value={risco} onChange={(e) => setRisco(e.target.value)} className="h-9 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] px-2 text-[11px] text-slate-800 dark:text-slate-200">
                 <option value="">Risco · todos</option>
