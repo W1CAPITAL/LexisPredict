@@ -9,7 +9,9 @@ const BASE='https://api.escavador.com/api/v2/processos/numero_cnj';
 const PRIVATE_HEADERS={'Cache-Control':'private, no-store, max-age=0','X-Content-Type-Options':'nosniff','Vary':'Cookie'};
 const JSON_HEADERS={...PRIVATE_HEADERS,'Content-Type':'application/json; charset=utf-8'};
 const response=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:PRIVATE_HEADERS});
-const configured=()=>Boolean(process.env.ESCAVADOR_API_TOKEN||process.env.ESCAVADOR_API_KEY);
+const certificateId=()=>Number(process.env.ESCAVADOR_CERTIFICADO_ID||0);
+const configured=()=>Boolean((process.env.ESCAVADOR_API_TOKEN||process.env.ESCAVADOR_API_KEY)
+  && Number.isSafeInteger(certificateId())&&certificateId()>0);
 function token():string {
  const value=process.env.ESCAVADOR_API_TOKEN||process.env.ESCAVADOR_API_KEY;
  if(!value)throw new Error('ESCAVADOR_NOT_CONFIGURED');
@@ -50,7 +52,7 @@ async function provider(path:string,method:'GET'|'POST'='GET',body?:object,timeo
 }
 function serviceError(e:unknown){
  const raw=e instanceof Error?e.message:'';
- if(raw==='ESCAVADOR_NOT_CONFIGURED')return response({ok:false,error:'Configure a chave Escavador no servidor e o certificado A1 no painel do provedor.'},503);
+ if(raw==='ESCAVADOR_NOT_CONFIGURED')return response({ok:false,error:'Configure a chave ESCAVADOR_API_TOKEN e o ID ESCAVADOR_CERTIFICADO_ID na Vercel; cadastre o certificado A1 no painel do provedor.'},503);
  if(raw.includes('429'))return response({ok:false,error:'Limite de consultas da integração atingido; tente mais tarde.'},429);
  if(raw.includes('401')||raw.includes('403'))return response({ok:false,error:'A integração Escavador recusou as credenciais. Confira o token e a autorização do certificado no provedor.'},502);
  if(raw.includes('402'))return response({ok:false,error:'A integração exige créditos. Nenhum novo pedido será iniciado antes da regularização.'},402);
@@ -76,6 +78,7 @@ export async function GET(request:NextRequest){
  if(action==='config')return response({
   ok:true,configured:configured(),provider:'Escavador API v2',
   certificate:'Certificado A1 do advogado cadastrado diretamente no provedor',
+  certificateIdConfigured:Number.isSafeInteger(certificateId())&&certificateId()>0,
   requiresCredits:true,storedInLexis:false,
  });
  if(!cnj)return response({ok:false,error:'Informe um número CNJ válido.'},400);
@@ -168,8 +171,7 @@ export async function POST(request:NextRequest){
    return response({ok:false,error:'Não envie certificados ou senhas por esta integração.'},400);
  try{
    const body:Record<string,number>={autos:1,utilizar_certificado:1};
-   const id=Number(process.env.ESCAVADOR_CERTIFICADO_ID||0);
-   if(Number.isInteger(id)&&id>0)body.certificado_id=id;
+   body.certificado_id=certificateId();
    const result=await provider(providerUrl(cnj,'solicitar-atualizacao'),'POST',body);
    return response({ok:true,cnj,status:'PENDENTE',solicitado:true,
       pedidoId:result?.id??result?.ultima_verificacao?.id??null,
