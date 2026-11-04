@@ -1,5 +1,5 @@
-import { PROCESSOS_DATE_FIELDS, nextProcessDay, type ProcessoDateField } from './processos-date-range';
 'use server';
+import { PROCESSOS_DATE_FIELDS, nextProcessDay, type ProcessoDateField } from './processos-date-range';
 
 import { supabase, isSupabaseConfigured, UserProfile, UserRole, checkIfSuperAdmin, checkIfSupervisor, checkIfViewer } from './supabase';
 import { LegalCase, formatDateToISO, processarCaso } from './case-logic';
