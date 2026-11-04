@@ -323,3 +323,46 @@ html [data-lexis-sidebar] :is(a,button):focus-visible {
     color: black !important;
   }
 }
+
+/* Especificidade equivalente às regras html.dark do dashboard legado:
+   dark cards/tabs/chart não recebem acentos rosa fixos de outro preset. */
+html.dark [data-lexis-dashboard-home] {
+  --lx-reference-foreground: hsl(var(--foreground));
+  --lx-reference-muted: hsl(var(--muted-foreground));
+  --lx-reference-border: hsl(var(--border));
+  --lx-reference-card-border: hsl(var(--border));
+  --lx-reference-paper: hsl(var(--card));
+  --lx-reference-tooltip: hsl(var(--popover));
+  --lx-reference-chart-color: hsl(var(--ring));
+  --lx-reference-chart-muted: hsl(var(--muted-foreground));
+  --lx-reference-chart-grid: hsl(var(--border));
+}
+html.dark:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-tablist]
+ [role="tab"][data-state="active"] {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+html.dark [data-lexis-dashboard-home] .lx-reference-eyebrow,
+html.dark [data-lexis-dashboard-home] .lx-reference-heading-dot {
+  color: hsl(var(--ring)) !important;
+}
+html.dark [data-lexis-dashboard-home] .lx-reference-metric[data-kind="today"] {
+  --lx-metric-bg: hsl(var(--primary));
+  --lx-metric-fg: hsl(var(--primary-foreground));
+  --lx-metric-sub: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary)) !important;
+}
+/* Hues on text must meet 4.5:1; --ring is >= 3:1, so use the accessible
+   foreground token for small report eyebrow and labels instead. */
+html body[data-lexis-visual-group] [data-lexis-route-content]
+ :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
+  color: hsl(var(--foreground)) !important;
+}
+html.dark body[data-lexis-visual-group] [data-lexis-route-content]
+ :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
+  color: hsl(var(--foreground)) !important;
+}
