@@ -381,17 +381,19 @@ export const AUTHORITY_PRESETS: ThemePreset[] = [
   },
   {
     id: 'minimal-steel',
-    name: 'Minimal Steel',
-    radius: 8,
-    hint: 'Claro/escuro azul suave — padrão operacional',
+    name: 'Vinho e Prata',
+    radius: 10,
+    hint: 'Identidade LexisPredict — vinho profundo, prata e alto contraste',
     colors: {
       light: {
-        background: '#F8FAFC', bgSecondary: '#FFFFFF', foreground: '#0F172A',
-        fontMuted: '#475569', primary: '#2563EB', accent: '#E2E8F0', border: '#CBD5E1',
+        background: '#F4F3F5', bgSecondary: '#FFFFFF', foreground: '#21151A',
+        fontMuted: '#60555C', primary: '#6D1734', accent: '#EDE9ED',
+        border: '#8F858B', nav: '#3B0B1E',
       },
       dark: {
-        background: '#0B1220', bgSecondary: '#111827', foreground: '#F1F5F9',
-        fontMuted: '#94A3B8', primary: '#60A5FA', accent: '#1E293B', border: '#334155',
+        background: '#141015', bgSecondary: '#211A20', foreground: '#F5F2F4',
+        fontMuted: '#C9BDC5', primary: '#8A2E50', accent: '#35252F',
+        border: '#86747F', nav: '#250D18',
       },
     },
   },
@@ -789,7 +791,9 @@ export function applyGlobalTheme(
   root.style.setProperty('--accent-foreground', hexToHsl(safeOnSurface(colors.accent,finalForeground)));
   root.style.setProperty('--border', hexToHsl(colors.border));
   root.style.setProperty('--input', hexToHsl(colors.border));
-  root.style.setProperty('--ring', hexToHsl(primary));
+  // Focus indicators must contrast with their surrounding surface (WCAG 1.4.11).
+  const visibleRing = getContrastRatio(primary, colors.background) >= 3 ? primary : colors.fontMuted;
+  root.style.setProperty('--ring', hexToHsl(visibleRing));
   root.style.setProperty('--radius', `${radius}px`);
 
   root.style.setProperty('--destructive', hexToHsl(sem.destructive));
@@ -811,7 +815,7 @@ export function applyGlobalTheme(
   root.style.setProperty('--sidebar-primary-foreground', hexToHsl(onPrimary));
   root.style.setProperty('--sidebar-accent', hexToHsl(colors.nav ? blend(nav, navForeground, .12) : colors.accent));
   root.style.setProperty('--sidebar-accent-foreground', hexToHsl(navForeground));
-  root.style.setProperty('--sidebar-ring', hexToHsl(primary));
+  root.style.setProperty('--sidebar-ring', hexToHsl(getContrastRatio(primary, nav) >= 3 ? primary : navForeground));
 
   if (bgOpacity !== undefined) root.style.setProperty('--bg-opacity', bgOpacity.toString());
   if (sidebarOpacity !== undefined)
@@ -833,6 +837,7 @@ export function applyPresetById(id: string, mode?: ThemeMode) {
   }
   const m: ThemeMode = mode || getCurrentMode();
   applyGlobalTheme(getPresetColors(preset, m), preset.radius, undefined, undefined, undefined, m);
+  document.documentElement.setAttribute('data-lexis-preset', preset.id);
   if (preset.source === 'sheetspredict') document.documentElement.setAttribute('data-sheetspredict-theme', preset.id.slice('sheetspredict-'.length));
   else document.documentElement.removeAttribute('data-sheetspredict-theme');
   localStorage.setItem(PRESET_STORAGE_KEY, preset.id);
