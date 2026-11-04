@@ -133,7 +133,7 @@ export type CommercialSignupInput = {
 export async function createCommercialAccountAction(input: CommercialSignupInput) {
   // Pilot onboarding remains assisted until verified e-mail, schema, RLS,
   // entitlement and payment acceptance tests are completed.
-  if (!publicCommercialSignupEnabled()) {
+  if (!publicCommercialSignupEnabled(process.env.LEXIS_COMMERCIAL_SIGNUP_ENABLED)) {
     return {
       ok: false as const,
       code: "signup_paused",
