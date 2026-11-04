@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LexisPredict · PJe local</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f9f7f8;color:#27151c;font:13px/1.45 system-ui,sans-serif;width:360px}
+    header{padding:16px;background:#671631;color:white}h1{font-size:15px;margin:0}header p{opacity:.85;font-size:11px;margin:5px 0 0}
+    main{padding:14px;display:grid;gap:11px}.block{border:1px solid #cbbec2;border-radius:10px;padding:12px;background:white}
+    button{font:inherit;cursor:pointer;border:1px solid #7d2443;background:#671631;color:#fff;padding:9px 11px;border-radius:8px;font-weight:700;min-height:38px}
+    button:disabled{opacity:.45;cursor:not-allowed}.action{display:block;text-align:left;width:100%;margin-top:7px}
+    .muted{color:#64515b;font-size:11px}.status{font-weight:600;font-size:12px;overflow-wrap:anywhere}a{color:#671631}
+  </style>
+</head>
+<body>
+ <header><h1>LexisPredict · PJe local</h1><p>Exportação gratuita de autos · certificado fica no seu computador</p></header>
+ <main>
+  <div class="block">
+   <strong>1. Abra os autos autenticados</strong>
+   <p class="muted">Entre no PJe com seu certificado OAB A1/A3 usando PJeOffice Pro. Localize o processo e abra a tela de autos digitais.</p>
+  </div>
+  <div class="block">
+   <strong>2. Escolha a exportação oficial</strong>
+   <p id="state" class="status" role="status">Verificando a aba do tribunal...</p>
+   <div id="actions"></div>
+   <button id="refresh" type="button">Procurar opções novamente</button>
+  </div>
+  <div class="block muted">
+   <strong>3. Importe o download no LexisPredict</strong>
+   <p>Depois que o PJe salvar o PDF ou ZIP, use a seção “Autos judiciais · modo gratuito” do scanner para montar o pacote até a possível contestação.</p>
+   <p>Nunca lê senhas, certificados, cookies ou dados de outras abas. Não assina nem peticiona. Se nenhum botão for identificado, use o download normal do próprio PJe.</p>
+  </div>
+ </main><script src="popup.js"></script>
+</body></html>
