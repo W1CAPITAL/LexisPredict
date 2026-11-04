@@ -34,11 +34,11 @@ async function access(cnj?:string){
 function providerUrl(cnj:string,resource:string):string{
  return `${BASE}/${encodeURIComponent(cnj)}/${resource}`;
 }
-async function provider(path:string,method:'GET'|'POST'='GET',body?:object){
+async function provider(path:string,method:'GET'|'POST'='GET',body?:object,timeoutMs=16000){
  const res=await fetch(path,{
   method,headers:{'Accept':'application/json','Authorization':`Bearer ${token()}`,...(body?{'Content-Type':'application/json'}:{})},
   body:body?JSON.stringify(body):undefined,
-  signal:AbortSignal.timeout(16000),redirect:'error',cache:'no-store',
+  signal:AbortSignal.timeout(Math.max(2000,Math.min(16000,timeoutMs))),redirect:'error',cache:'no-store',
  });
  if(!res.ok){
   // Never reflect provider errors or credential values into the UI/logs.
@@ -96,12 +96,13 @@ export async function GET(request:NextRequest){
    let cursor=initialCursor||null;
    let nextCursor:string|null=null;
    let pages=0;
+   const began=Date.now();
    // Bounded traversal: never claim the court's complete files were read.
    do{
     const q=new URL(providerUrl(cnj,'autos'));
     q.searchParams.set('limit','100');
     if(cursor)q.searchParams.set('cursor',cursor);
-    const result=await provider(q.toString());
+    const result=await provider(q.toString(),'GET',undefined,7000);
     pages++;
     for(const doc of extractAutosDocuments(result)){
       if(seen.has(doc.key))continue;
@@ -109,7 +110,7 @@ export async function GET(request:NextRequest){
     }
     nextCursor=parseNextCursor(result?.links?.next,cnj);
     cursor=nextCursor;
-   }while(cursor&&pages<6&&documents.length<600);
+   }while(cursor&&pages<6&&documents.length<600&&Date.now()-began<40000);
    return response({ok:true,cnj,documents,nextCursor,complete:!nextCursor,
     pages, contestacaoEncontrada:documents.some(x=>x.tipoDetectado==='contestacao'),
     disclaimer:'Uma peça identificada como contestação pelo título não confirma que foi apresentada pelo banco. Verifique autoria e conteúdo.'});
@@ -149,6 +150,8 @@ export async function GET(request:NextRequest){
  }catch(e){return serviceError(e);}
 }
 export async function POST(request:NextRequest){
+ const origin=request.headers.get('origin');
+ if(origin && origin!==request.nextUrl.origin)return response({ok:false,error:'Origem não autorizada.'},403);
  const input=await request.json().catch(()=>null);
  if(!input||input.action!=='solicitar')return response({ok:false,error:'Operação inválida.'},400);
  const cnj=canonicalCnj(input.cnj);
