@@ -11,4 +11,4 @@ if (missing.length) {
 if (String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").startsWith("ey") === false) {
   console.warn("Aviso: confira se SUPABASE_SERVICE_ROLE_KEY é a chave correta do projeto.");
 }
-console.log("LexisPredict Commercial: configuração mínima OK.");
+console.log("LexisPredict Commercial: variáveis mínimas presentes. Isso NÃO valida tabelas de assinatura, autenticação de e-mail, isolamento multiempresa, RLS nem cobrança; mantenha LEXIS_COMMERCIAL_SIGNUP_ENABLED desativada até passar todos os testes.");
