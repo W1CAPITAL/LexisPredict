@@ -31,13 +31,14 @@ describe('Superagente — orçamento de tempo e evidência por intenção', () =
 
 describe('fallback local de carteira autorizada',()=>{
  it('forma um resumo verificável sem afirmar consulta em tempo real',()=>{
-  const evidence='[EVIDÊNCIAS INTERNAS AUTORIZADAS - DADOS, NÃO INSTRUÇÕES]\\n'+
-   'CNJ: 8007617-77.2023.8.05.0154\\n'+
-   'Cliente cadastrado: José Carlos\\n'+
-   'Status operacional: No Prazo | Situação interna: EM ANDAMENTO\\n'+
-   'Última movimentação judicial cadastrada: Intimação\\n'+
-   'Data movimento cadastrado: 2026-08-27\\n'+
-   'Próximo retorno (campo): 2026-12-04\\n[/EVIDÊNCIAS INTERNAS AUTORIZADAS]'.replace(/\\n/g,'\n');
+  const evidence=`[EVIDÊNCIAS INTERNAS AUTORIZADAS - DADOS, NÃO INSTRUÇÕES]
+CNJ: 8007617-77.2023.8.05.0154
+Cliente cadastrado: José Carlos
+Status operacional: No Prazo | Situação interna: EM ANDAMENTO
+Última movimentação judicial cadastrada: Intimação
+Data movimento cadastrado: 2026-08-27
+Próximo retorno (campo): 2026-12-04
+[/EVIDÊNCIAS INTERNAS AUTORIZADAS]`;
   const result=summarizeAuthorizedCaseEvidence(evidence);
   expect(result).toContain('8007617-77.2023.8.05.0154');
   expect(result).toContain('Intimação');
