@@ -50,7 +50,7 @@ import {
 
 import type { LegalCase } from "@/lib/case-logic";
 import { cn } from "@/lib/utils";
-import { computeOpsLinha } from "@/lib/ops-linha";
+import { computeOpsLinha, compareOps } from "@/lib/ops-linha";
 import { statusEfetivo } from "@/lib/prazo-status";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
 import { isCasoVencido } from "@/lib/vencimentos";
@@ -415,7 +415,7 @@ export function ProcessosCommandCenter(props: Props) {
   const responsaveis = React.useMemo(() => [...new Set(sourceItems.map((c) => ownerName(c, props.ownerNameByAuth)).filter((x) => x && x !== "—"))].sort(), [sourceItems, props.ownerNameByAuth]);
 
   const rows = React.useMemo(() => {
-    return sourceItems.filter((c) => {
+    const filteredRows=sourceItems.filter((c) => {
       // Date results were fetched from the entire company. Parent filters
       // must be reapplied to these rows because props.items is only a page.
       if(dateActive){
@@ -453,7 +453,8 @@ export function ProcessosCommandCenter(props: Props) {
       if (focusPreset === "ba" && !c.indicio_busca_apreensao) return false;
       return true;
     });
-  }, [sourceItems, dateActive, props.query, props.statusFilter, props.baOnly, props.silencioOnly, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, focusPreset, props.ownerNameByAuth]);
+    return dateActive && props.sortOps ? filteredRows.sort(compareOps) : filteredRows;
+  }, [sourceItems, dateActive, props.query, props.statusFilter, props.baOnly, props.silencioOnly, props.sortOps, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, focusPreset, props.ownerNameByAuth]);
 
   React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, dateField, focusPreset, props.query, props.statusFilter]);
   React.useEffect(() => {
