@@ -99,6 +99,16 @@ export default function AssistentePage() {
     },
   ]);
   const [input, setInput] = useState("");
+  // Uma seleção de processo no hub de integrações prepara a pergunta
+  // sem gerar análise nem consumir tokens antes de o operador enviar.
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const raw=params.get('cnj')||'';
+    const digits=raw.replace(/\\D/g,'');
+    if(digits.length!==20)return;
+    const masked=digits.slice(0,7)+'-'+digits.slice(7,9)+'.'+digits.slice(9,13)+'.'+digits.slice(13,14)+'.'+digits.slice(14,16)+'.'+digits.slice(16,20);
+    setInput(current=>current.trim()?current:'Fale sobre o processo '+masked);
+  },[]);
   const [activeInstructions, setActiveInstructions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [localProgress, setLocalProgress] = useState<string | null>(null);
