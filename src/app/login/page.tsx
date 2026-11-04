@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +17,6 @@ import {
   TestTube2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTenantBrand } from "@/lib/tenant-brand";
 import Link from "next/link";
@@ -40,7 +38,6 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, profile, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const logoAsset = PlaceHolderImages.find((img) => img.id === "app-logo");
 
   const enterGuest = async () => {
     try {
@@ -152,11 +149,7 @@ export default function LoginPage() {
       <div className="min-h-screen bg-background p-6">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-xl flex-col items-center justify-center text-center">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border bg-card shadow-xl">
-            {logoAsset ? (
-              <Image src={logoAsset.imageUrl} alt="LexisPredict" width={58} height={58} className="object-contain" />
-            ) : (
-              <ShieldCheck className="h-8 w-8 text-sky-600" />
-            )}
+            <span role="img" aria-label="Logotipo LexisPredict" className="lexis-brand-symbol block h-[58px] w-[58px]" />
           </div>
           <h1 className="mt-6 text-2xl font-black tracking-tight">Sessão identificada</h1>
           <p className="mt-2 max-w-md text-sm text-slate-500">
@@ -214,11 +207,7 @@ export default function LoginPage() {
           <div className="relative">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/10 backdrop-blur">
-                {logoAsset ? (
-                  <Image src={logoAsset.imageUrl} alt="LexisPredict" width={36} height={36} className="object-contain" />
-                ) : (
-                  <ShieldCheck className="h-5 w-5 text-cyan-300" />
-                )}
+                <span role="img" aria-label="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" />
               </div>
               <div>
                 <p className="font-black tracking-tight !text-white">{brand.name || "LexisPredict"}</p>
@@ -227,6 +216,7 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-16 max-w-2xl">
+              <span role="img" aria-label="Logo completo LexisPredict, prata sobre vinho" className="lexis-brand-lockup mb-6 block h-[156px] w-[156px] border border-white/15 shadow-xl" />
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">
                 <Sparkles className="h-3.5 w-3.5" />
                 Legal operations platform
@@ -263,11 +253,7 @@ export default function LoginPage() {
             <div className="mb-8 lg:hidden">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border bg-card shadow-sm">
-                  {logoAsset ? (
-                    <Image src={logoAsset.imageUrl} alt="LexisPredict" width={36} height={36} className="object-contain" />
-                  ) : (
-                    <ShieldCheck className="h-5 w-5 text-sky-600" />
-                  )}
+                  <span role="img" aria-label="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" />
                 </div>
                 <div>
                   <p className="font-black">{brand.name || "LexisPredict"}</p>
