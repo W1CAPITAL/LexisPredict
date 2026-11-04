@@ -4,7 +4,7 @@ import * as React from "react";
 import {FileArchive,FileText,Download,ExternalLink,Loader2,Search,ShieldCheck,AlertTriangle,CheckCircle2,FolderOpen} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {canonicalCnj} from "@/lib/autos-oab-logic";
-import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,type AutosLocalItem} from "@/lib/free-autos-utils";
+import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,isPdfBytes,type AutosLocalItem} from "@/lib/free-autos-utils";
 import {loadExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
 import {resolveOabOfficialPortal} from "@/lib/oab-user-flow";
 import Link from "next/link";
@@ -20,6 +20,9 @@ async function extractFirstPageText(bytes:Uint8Array):Promise<{text:string;pages
  try{
    // Dynamic import keeps this heavyweight library outside the initial dashboard/scanner bundle.
    const pdfjs=await import("pdfjs-dist");
+   // Required by PDF.js 4 in Next.js client bundles; otherwise parsing can
+   // silently fail because no workerSrc is configured.
+   pdfjs.GlobalWorkerOptions.workerSrc=new URL("pdfjs-dist/build/pdf.worker.min.mjs",import.meta.url).toString();
    const task=pdfjs.getDocument({data:bytes.slice()});
    const doc=await task.promise;
    try{
@@ -53,6 +56,7 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
  const [notices,setNotices]=React.useState<string[]>([]);
  const [includeAll,setIncludeAll]=React.useState(false);
  const [confirmed,setConfirmed]=React.useState(false);
+ const [copyStatus,setCopyStatus]=React.useState('');
  const inputRef=React.useRef<HTMLInputElement|null>(null);
  const cnj=canonicalCnj(cnjText);
  const court=resolveOabOfficialPortal(cnjText,prefs.oabPreferredTribunal);
@@ -135,6 +139,10 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
      for(const file of sources){
        loaded++;
        setProgress(`Lendo PDF ${loaded}/${sources.length}: ${file.name}`);
+       if(!isPdfBytes(file.bytes)){
+         noticesLocal.push(file.name+": assinatura PDF inválida; arquivo ignorado.");
+         continue;
+       }
        const {text,pages,error:pdfError}=await extractFirstPageText(file.bytes);
        if(pdfError)noticesLocal.push(file.name+": "+pdfError);
        const found=classifyLocalAutosDocument(file.name,text);
@@ -146,6 +154,7 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
          sourceArchive:file.archive,
        });
      }
+     if(!items.length)throw new Error("Nenhum PDF válido foi encontrado. Baixe os autos novamente pelo portal oficial.");
      setFiles(items);
      setNotices(noticesLocal);
      setProgress(`${items.length} PDF(s) analisados no dispositivo. Não houve upload ao servidor.`);
@@ -261,21 +270,22 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
       </label>
       {(cnj||(!cnjText.trim()&&court))&&<div className="flex flex-wrap gap-2 items-center">
         {court?.authenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.authenticatedUrl} target="_blank" rel="noopener noreferrer"
-          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          onClick={()=>setCopyStatus('')}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
           <ShieldCheck size={14}/> PJe · entrar com certificado (1º grau)
         </a>}
         {court?.secondDegreeAuthenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.secondDegreeAuthenticatedUrl} target="_blank" rel="noopener noreferrer"
-          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          onClick={()=>setCopyStatus('')}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/50 bg-card px-4 py-2 text-xs font-bold text-primary hover:bg-muted">
           <ShieldCheck size={14}/> PJe · 2º grau
         </a>}
         {court?<a href={court.url} target="_blank" rel="noopener noreferrer"
-          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          onClick={()=>setCopyStatus('')}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted">
           <ExternalLink size={14}/> Consulta pública · {court.tribunal}
         </a>:<p className="text-xs text-muted-foreground">Tribunal não mapeado. Acesse o portal oficial e pesquise o CNJ.</p>}
-        {cnj&&<Button type="button" size="sm" variant="outline" onClick={()=>{void navigator.clipboard?.writeText(cnj).catch(()=>{});}}>Copiar CNJ</Button>}
+        {cnj&&<Button type="button" size="sm" variant="outline" onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(cnj);setCopyStatus('CNJ copiado.');}catch{setCopyStatus('Selecione e copie o CNJ acima.');}})();}}>Copiar CNJ</Button>}
+        {copyStatus&&<span role="status" className="text-xs text-muted-foreground">{copyStatus}</span>}
         <span className="text-[11px] text-muted-foreground">{court?.isFallback?'Tribunal favorito — informe um CNJ para identificar automaticamente o tribunal correto.':'Consulta pública do tribunal — entre com o certificado no ambiente autenticado quando necessário.'}</span>
       </div>}
       <div className="rounded-xl border border-dashed border-primary/50 bg-primary/5 p-4 space-y-2"
