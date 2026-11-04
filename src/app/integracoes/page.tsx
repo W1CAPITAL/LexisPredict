@@ -343,12 +343,13 @@ export default function IntegracoesPage(){
           <div className="mt-4 flex flex-wrap gap-2">
             <Button size="sm" asChild><Link href="/chat"><Sparkles size={14} className="mr-2"/> Abrir Superagente</Link></Button>
             <Button size="sm" variant="outline" asChild><Link href="/processos">Processos da empresa</Link></Button>
+            <Button size="sm" variant="outline" asChild><Link href="/consulta-oab">Consulta OAB</Link></Button>
             <Button size="sm" variant="outline" asChild><Link href="/dossies">Dossiês</Link></Button>
           </div>
         </section>
       </div>
 
-      <section className={box} aria-label="Busca de processos por advogado">
+      <section className={box} id="busca-advogado" aria-label="Busca de processos por advogado">
         <div className="flex gap-3 items-start">
           <div className="rounded-xl border border-primary/25 bg-primary/10 p-2"><FileSearch size={20} className="text-primary"/></div>
           <div className="flex-1">
