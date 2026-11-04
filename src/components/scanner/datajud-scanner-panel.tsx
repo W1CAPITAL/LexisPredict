@@ -42,7 +42,7 @@ import { usePlano } from '@/hooks/use-plano';
 import { useAdmin } from '@/hooks/use-admin';
 import { planTemScanner } from '@/lib/planos-pacotes';
 
-import { AutosOabFreePanel } from './autos-oab-free-panel';
+import Link from 'next/link';
 
 export function DataJudScannerPanel() {
   const { 
@@ -118,7 +118,7 @@ export function DataJudScannerPanel() {
       "fixed bottom-5 right-5 z-[200] w-[460px] overflow-hidden rounded-2xl border border-[#dbe5f2] bg-white shadow-[0_24px_80px_rgba(7,29,53,.24)] transition-all animate-in slide-in-from-bottom-4 flex flex-col h-[82vh]",
       ui.scanner
     )}>
-      <div className="bg-[linear-gradient(90deg,#082944,#061d35)] !text-white p-4 flex items-center justify-between border-b border-white/10 shrink-0">
+      <div className="bg-[linear-gradient(90deg,#4B1229,#681A38)] !text-white p-4 flex items-center justify-between border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
           <Zap size={18} className={cn("text-primary", (status === 'running' || manualStatus === 'running') && "animate-pulse")} />
           <div>
@@ -170,8 +170,15 @@ export function DataJudScannerPanel() {
              </RadioGroup>
           </section>
 
-          {/* Busca autenticada de autos; não altera os modos DataJud/DJEN já existentes. */}
-          <AutosOabFreePanel />
+          {/* Consulta OAB em espaço dedicado e visível; preserva DataJud/DJEN. */}
+          <Link href="/consulta-oab" className="group flex min-h-16 items-center gap-3 rounded-xl border border-primary/50 bg-primary/10 px-4 py-3 text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <ShieldCheck size={22} className="shrink-0 text-primary" />
+            <span className="flex-1">
+              <strong className="block text-sm font-bold">Consulta OAB · Certificado A1/A3</strong>
+              <span className="mt-1 block text-xs text-muted-foreground">Abrir tribunal pelo CNJ, exportar autos e organizar peças até a possível contestação. Gratuito.</span>
+            </span>
+            <span className="text-xs font-bold text-primary group-hover:underline">Abrir</span>
+          </Link>
 
 
           <section className="px-5 py-4 bg-amber-50/80 border-y-2 border-amber-600/20 space-y-3">
