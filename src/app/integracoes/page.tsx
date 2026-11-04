@@ -155,7 +155,7 @@ export default function IntegracoesPage(){
         {systemError&&<p role="alert" className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm">{systemError}</p>}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {[
-            {title:"WhatsApp",sub:"Operacional",ok:system?.services.whatsapp.available??false},
+            {title:"WhatsApp",sub:"Módulo disponível",ok:system?.services.whatsapp.available??false},
             {title:"Google Agenda",sub:"Agendar manualmente",ok:system?.services.calendar.available??false},
             {title:"Asaas",sub:system?.services.asaas.mode==="production"?"Produção":"Sandbox",ok:system?.services.asaas.available??false},
             {title:"Processos/OAB",sub:"Carteira + DJEN",ok:system?.services.judiciary.available??false},
@@ -330,7 +330,8 @@ export default function IntegracoesPage(){
             {djenCases.map((p,i)=>{
               const cnj=String(p.numeroProcesso||p.numero_processo||"");
               const rawLink=String(p.link||"");
-              const link=rawLink.startsWith("https://")?rawLink:p.hash?"https://comunica.pje.jus.br/consulta?hash="+encodeURIComponent(p.hash):"";
+              const trusted=(()=>{try{const url=new URL(rawLink);return url.protocol==="https:"&&(url.hostname==="jus.br"||url.hostname.endsWith(".jus.br"))?url.href:"";}catch{return "";}})();
+              const link=trusted||(p.hash?"https://comunica.pje.jus.br/consulta?hash="+encodeURIComponent(p.hash):"");
               return <div key={String(p.id||i)} className="rounded-lg border border-border bg-card p-2 text-xs">
                 <p className="font-bold">{cnj||"CNJ não informado"} · {p.siglaTribunal||"DJEN"}</p>
                 <p className="mt-1 text-muted-foreground">{p.data_disponibilizacao||"Data não informada"} · {String(p.texto||"Publicação sem teor").slice(0,170)}</p>
