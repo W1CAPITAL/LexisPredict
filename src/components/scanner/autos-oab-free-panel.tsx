@@ -64,6 +64,22 @@ export function AutosOabFreePanel(){
    const found=canonicalCnj(value);
    if(found)setCnjText(found);
  },[expanded]);
+ async function downloadLocalHelper(){
+   setError("");setProgress("Preparando o auxiliar gratuito do Chrome…");
+   try{
+     const JSZip=(await import("jszip")).default;
+     const archive=new JSZip();
+     const names=["manifest.json","popup.html","popup.js","README.txt"];
+     for(const name of names){
+       const res=await fetch("/lexis-pje-helper/"+name,{cache:"no-store"});
+       if(!res.ok)throw new Error("Arquivo do auxiliar não encontrado: "+name);
+       archive.file(name,await res.text());
+     }
+     const blob=await archive.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:4}});
+     downloadBlob(blob,"LexisPredict-PJe-Local-Gratuito.zip");
+     setProgress("Conector salvo. Descompacte e use chrome://extensions > Carregar sem compactação.");
+   }catch(err){setError(err instanceof Error?err.message:"Não foi possível preparar o conector.");setProgress("");}
+ }
  async function importFiles(list:FileList|null) {
    if(!list?.length||busy)return;
    const incoming=[...Array.from(list)];
@@ -197,6 +213,14 @@ export function AutosOabFreePanel(){
         <a href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" rel="noopener noreferrer" target="_blank" className="text-primary underline inline-flex gap-1 items-center">
           Instruções oficiais do PJeOffice Pro <ExternalLink size={12}/>
         </a>
+        <div className="rounded-lg border border-primary/30 bg-card p-2 space-y-2">
+          <p className="font-semibold">Conector local gratuito para Chrome (computador)</p>
+          <p className="text-[11px] text-muted-foreground">Ajuda a localizar e acionar o botão de download dos autos na própria sessão do PJe. Não substitui o login com certificado, não contorna permissões nem garante suporte a todos os tribunais.</p>
+          <Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>void downloadLocalHelper()}>
+            <Download size={13} className="mr-2"/> Baixar auxiliar Chrome gratuito
+          </Button>
+          <p className="text-[10px] text-muted-foreground">Depois de extrair o ZIP: Chrome → chrome://extensions → Modo do desenvolvedor → Carregar sem compactação. Abra os autos no PJe, clique na extensão e selecione o comando oficial de exportação.</p>
+        </div>
       </div>
       <label htmlFor="autos-free-cnj" className="block text-xs font-semibold space-y-1">
         Número CNJ
