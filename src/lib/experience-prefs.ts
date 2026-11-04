@@ -24,6 +24,10 @@ export type ExperiencePreferences={
  glass:boolean;blur:number;density:'compact'|'comfortable'|'wide';
  notifications:'all'|'important'|'silent';
  favoriteTab:string;dashboardPhrase:string;
+ /** Configuração de uso, nunca credenciais. PJeOffice gerencia o certificado. */
+ oabNumber:string;oabUf:string;oabCertificateType:'a1'|'a3'|'none';
+ oabPreferredTribunal:string;oabDefaultDocuments:'contestacao'|'todos';
+ oabShowGuide:boolean;
 };
 export const EXPERIENCE_DEFAULT:ExperiencePreferences={
  theme:'minimal-steel',mode:'light',primary:'#6D1734',
@@ -32,6 +36,8 @@ export const EXPERIENCE_DEFAULT:ExperiencePreferences={
  cornerRadius:12,cardStyle:'solid',kpiStyle:'normal',buttonStyle:'rounded',
  glass:false,blur:12,density:'comfortable',notifications:'important',
  favoriteTab:'/',dashboardPhrase:'',
+ oabNumber:'',oabUf:'',oabCertificateType:'a3',oabPreferredTribunal:'',
+ oabDefaultDocuments:'contestacao',oabShowGuide:true,
 };
 
 export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
@@ -72,8 +78,20 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
   glass:d.glass===true,blur:number('blur',0,28,12),
   density:select('density',['compact','comfortable','wide'],EXPERIENCE_DEFAULT.density),
   notifications:select('notifications',['all','important','silent'],EXPERIENCE_DEFAULT.notifications),
-  favoriteTab:select('favoriteTab',['/','/cases','/processos','/tarefas','/whatsapp','/report','/agenda','/dossies','/crm'],EXPERIENCE_DEFAULT.favoriteTab),
+  favoriteTab:select('favoriteTab',['/','/cases','/processos','/tarefas','/whatsapp','/report','/agenda','/dossies','/crm','/consulta-oab','/integracoes'],EXPERIENCE_DEFAULT.favoriteTab),
   dashboardPhrase:str('dashboardPhrase',150),
+  oabNumber:str('oabNumber',24).replace(/\D/g,'').slice(0,8),
+  oabUf:(()=>{
+    const value=str('oabUf',3).toUpperCase();
+    return /^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/.test(value)?value:'';
+  })(),
+  oabCertificateType:select('oabCertificateType',['a1','a3','none'],EXPERIENCE_DEFAULT.oabCertificateType),
+  oabPreferredTribunal:(()=>{
+    const code=str('oabPreferredTribunal',5);
+    return /^(8\.\d{2}|4\.\d{2})$/.test(code)?code:'';
+  })(),
+  oabDefaultDocuments:select('oabDefaultDocuments',['contestacao','todos'],EXPERIENCE_DEFAULT.oabDefaultDocuments),
+  oabShowGuide:d.oabShowGuide!==false,
  };
 }
 
