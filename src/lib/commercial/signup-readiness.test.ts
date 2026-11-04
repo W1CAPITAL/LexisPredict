@@ -9,10 +9,10 @@ import {
 
 describe("commercial signup must fail closed before using production auth", () => {
   it("defaults public signup to OFF unless explicitly enabled on the server", () => {
-    expect(publicCommercialSignupEnabled({})).toBe(false);
-    expect(publicCommercialSignupEnabled({ LEXIS_COMMERCIAL_SIGNUP_ENABLED: "TRUE" })).toBe(false);
-    expect(publicCommercialSignupEnabled({ LEXIS_COMMERCIAL_SIGNUP_ENABLED: "1" })).toBe(false);
-    expect(publicCommercialSignupEnabled({ LEXIS_COMMERCIAL_SIGNUP_ENABLED: "true" })).toBe(true);
+    expect(publicCommercialSignupEnabled(undefined)).toBe(false);
+    expect(publicCommercialSignupEnabled("TRUE")).toBe(false);
+    expect(publicCommercialSignupEnabled("1")).toBe(false);
+    expect(publicCommercialSignupEnabled("true")).toBe(true);
   });
 
   it("checks required tables and columns without reading any customer rows", async () => {
@@ -62,14 +62,14 @@ describe("commercial signup must fail closed before using production auth", () =
 
   it("prevents account recovery by unverified email and fail-open rate limit storage", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/actions/commercial-signup-actions.ts"), "utf8");
-    expect(source).toContain("publicCommercialSignupEnabled()");
+    expect(source).toContain("publicCommercialSignupEnabled(process.env.LEXIS_COMMERCIAL_SIGNUP_ENABLED)");
     expect(source).toContain("probeCommercialSignupSchema(admin)");
     expect(source).toContain("email_confirm: false");
     expect(source).not.toContain("admin.auth.admin.listUsers(");
     expect(source).not.toContain("admin.auth.admin.updateUserById(");
     expect(source).toContain("if (writeError) return { ok: false");
     expect(source).toContain("if (error) return { ok: false");
-    const gate = source.indexOf("if (!publicCommercialSignupEnabled())");
+    const gate = source.indexOf("if (!publicCommercialSignupEnabled(process.env.LEXIS_COMMERCIAL_SIGNUP_ENABLED))");
     const create = source.indexOf("admin.auth.admin.createUser(");
     expect(gate).toBeGreaterThan(-1);
     expect(create).toBeGreaterThan(gate);
