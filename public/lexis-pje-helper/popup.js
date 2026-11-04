@@ -4,25 +4,25 @@ const state=document.getElementById('state');
 const actions=document.getElementById('actions');
 const refresh=document.getElementById('refresh');
 
-function labelOf(element) {
-  const parts=[
-    element.getAttribute('title'),
-    element.getAttribute('aria-label'),
-    element.getAttribute('data-original-title'),
-    element.getAttribute('data-tooltip'),
-    element.getAttribute('value'),
-    (element.innerText||element.textContent||'').trim(),
-    element.className&&typeof element.className==='string'?element.className:''
-  ].filter(Boolean);
-  return parts.join(' ').replace(/\s+/g,' ').trim().slice(0,180);
-}
-function safeDownloadControl(label) {
-  const text=label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  if(/assinar|protocolo|peticionar|juntar|enviar|excluir|remover|atualizar|login|sair|autenticar/.test(text))return false;
-  return /(baixar|download|exportar)/.test(text)&&
-    /(autos|documento|processo|arquivo|pdf|inteiro teor)/.test(text);
-}
 function findOnCourtPage() {
+  function labelOf(element) {
+    const parts=[
+      element.getAttribute('title'),
+      element.getAttribute('aria-label'),
+      element.getAttribute('data-original-title'),
+      element.getAttribute('data-tooltip'),
+      element.getAttribute('value'),
+      (element.innerText||element.textContent||'').trim(),
+      element.className&&typeof element.className==='string'?element.className:''
+    ].filter(Boolean);
+    return parts.join(' ').replace(/\s+/g,' ').trim().slice(0,180);
+  }
+  function safeDownloadControl(label) {
+    const text=label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(/assinar|protocolo|peticionar|juntar|enviar|excluir|remover|atualizar|login|sair|autenticar/.test(text))return false;
+    return /(baixar|download|exportar)/.test(text)&&
+      /(autos|documento|processo|arquivo|pdf|inteiro teor)/.test(text);
+  }
   const nodes=Array.from(document.querySelectorAll('button,a,[role="button"],input[type="button"],input[type="submit"]'));
   const picks=[];
   for(const node of nodes){
@@ -37,6 +37,24 @@ function findOnCourtPage() {
   return {count:picks.length,processo:cnj,buttons:picks};
 }
 function clickCourtOption(id) {
+  function labelOf(element) {
+    const parts=[
+      element.getAttribute('title'),
+      element.getAttribute('aria-label'),
+      element.getAttribute('data-original-title'),
+      element.getAttribute('data-tooltip'),
+      element.getAttribute('value'),
+      (element.innerText||element.textContent||'').trim(),
+      element.className&&typeof element.className==='string'?element.className:''
+    ].filter(Boolean);
+    return parts.join(' ').replace(/\s+/g,' ').trim().slice(0,180);
+  }
+  function safeDownloadControl(label) {
+    const text=label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(/assinar|protocolo|peticionar|juntar|enviar|excluir|remover|atualizar|login|sair|autenticar/.test(text))return false;
+    return /(baixar|download|exportar)/.test(text)&&
+      /(autos|documento|processo|arquivo|pdf|inteiro teor)/.test(text);
+  }
   const candidate=document.querySelector('[data-lexis-pje-action="'+String(id)+'"]');
   if(!candidate)return {ok:false,reason:'A página mudou. Procure as opções novamente.'};
   const title=labelOf(candidate);
