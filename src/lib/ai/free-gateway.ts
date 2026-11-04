@@ -331,22 +331,34 @@ export async function freeComplete(opts: {
     );
   };
 
+  // In fast mode no inaccessible provider can consume the entire response
+  // budget. Preserve remaining time for the final public fallback.
   for (const step of ordered) {
+    if (budget!==null && step.id==='gpt4free' && !pref.includes('gpt4free')) continue;
+    const remaining=deadline===null?90000:deadline-Date.now();
+    const reserved=budget===null?0:Math.min(16000,Math.floor(budget*0.48));
+    if (remaining<=reserved+1000) break;
+    const stepTimeout=budget===null?90000:Math.max(1500,Math.min(10000,remaining-reserved));
     try {
-      return await step.run();
+      return await step.run(stepTimeout);
     } catch (e: any) {
       const msg = String(e?.message || e);
       errors.push(`${step.id}: ${msg}`);
-      // Mesmo em exclusive: se esgotou token/quota/auth, tenta o PRÓXIMO motor
       if (exclusive && !isTransient(msg)) break;
     }
   }
 
-  // Pollinations: sempre como último recurso (inclusive se Claude/Groq falharam)
-  try {
-    return await callPollinations(messages);
-  } catch (e: any) {
-    errors.push(`pollinations: ${e?.message || e}`);
+  // Explicit provider-only selections must not leak cases to an unrelated
+  // public provider. In the automatic cascade, use the remaining time.
+  if(!exclusive){
+    const remaining=deadline===null?60000:Math.max(0,deadline-Date.now());
+    if(remaining>=1500){
+      try {
+        return await callPollinations(messages,maxTokens,Math.min(60000,remaining));
+      } catch (e: any) {
+        errors.push(`pollinations: ${e?.message || e}`);
+      }
+    }
   }
 
   throw new Error(
