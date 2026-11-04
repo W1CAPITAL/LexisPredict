@@ -666,3 +666,10 @@ html.dark body :is(button,a,input,select,textarea,[role="button"],[role="tab"],[
   body [data-lexis-document-paper],body [data-report-paper],
   body [data-lexis-document-editor] { background:white !important;color:black !important; }
 }
+
+/* Accent text uses a brighter burgundy tint in dark mode; #8A2E50 itself
+ * has only 2.10:1 on dark cards, below WCAG AA text contrast. */
+html.dark body[data-lexis-visual-group] [data-lexis-route-content]
+ :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
+  color: #E5AABB !important;
+}
