@@ -54,7 +54,7 @@ function extractAnthropicText(raw: any): string {
 
 export async function callMinimax(
   messages: Array<{ role: string; content: string }>,
-  opts?: { max_tokens?: number; temperature?: number; thinking?: boolean }
+  opts?: { max_tokens?: number; temperature?: number; thinking?: boolean; timeoutMs?: number }
 ): Promise<{ text: string; model: string; latencyMs: number; engine: string }> {
   const key = minimaxKey();
   if (!key) throw new Error('MINIMAX_API_KEY ausente');
@@ -63,6 +63,8 @@ export async function callMinimax(
   const max_tokens = opts?.max_tokens ?? 4096;
   const temperature = opts?.temperature ?? 0.4;
   const t0 = Date.now();
+  const deadline = t0 + Math.max(1500, Math.min(90000, opts?.timeoutMs ?? 90000));
+  const remaining = () => Math.max(1000, deadline - Date.now());
 
   // 1) Anthropic-compatible (recomendado pela MiniMax)
   try {
@@ -94,7 +96,7 @@ export async function callMinimax(
         accept: 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(remaining()),
     });
     const raw = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -132,7 +134,7 @@ export async function callMinimax(
       temperature,
       stream: false,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(remaining()),
   });
   const raw2 = await res2.json().catch(() => ({}));
   if (!res2.ok) {
