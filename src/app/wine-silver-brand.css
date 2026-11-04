@@ -214,3 +214,75 @@ html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"]) ::selecti
    color:#60555C !important;
  }
 }
+
+
+/* Dashboard, CRM e relatórios utilizam a mesma identidade do aplicativo.
+   Presets explicitamente personalizados continuam intactos. */
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(.lx-reference-eyebrow,.lx-reference-heading-dot,[data-lexis-dashboard-home] .lx-reference-heading-dot) {
+  color:#6D1734 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(.lx-reference-eyebrow,.lx-reference-heading-dot,[data-lexis-dashboard-home] .lx-reference-heading-dot) {
+  color:#E5AABB !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ .lx-reference-eyebrow-mark {
+  background:var(--lexis-brand-wine) !important;
+  box-shadow:0 0 0 4px hsl(var(--primary) / .12) !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
+  background:#6D1734 !important;color:#fff !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ [data-lexis-crm-shell] [data-lexis-crm-nav] > a[aria-current="page"] {
+  background:#8A2E50 !important;color:#fff !important;
+}
+html:not(.dark):is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ [data-report-surface] {
+  --rv-ink:#21151A;
+  --rv-muted:#60555C;
+  --rv-card:#fff;
+  --rv-line:#8F858B;
+  --rv-bg:#F4F3F5;
+  --rv-wash:#EDE9ED;
+  --rv-shadow:0 5px 18px rgb(59 11 30 / .08);
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ [data-report-surface] {
+  --rv-ink:#F5F2F4;
+  --rv-muted:#C9BDC5;
+  --rv-card:#211A20;
+  --rv-line:#86747F;
+  --rv-bg:#141015;
+  --rv-wash:#35252F;
+  --rv-shadow:0 8px 24px rgb(0 0 0 / .24);
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(
+  [data-report-surface] .rv-hero,
+  [data-report-surface="analyses"] > header,
+  [data-report-surface="complete"] .report-detail-heading
+ ) {
+  background:linear-gradient(125deg,#3B0B1E,#6D1734) !important;
+  color:#fff !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is([data-report-surface] .rv-hero h1 span,[data-report-surface] .rv-hero p,[data-report-surface] .rv-hero .rv-eyebrow) {
+  color:#EDE9ED !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(.rv-button-primary,.rv-segments a[aria-current="page"]) {
+  background:#6D1734 !important;
+  color:#fff !important;
+  border-color:#6D1734 !important;
+}
+html:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
+  color:#6D1734 !important;
+}
+html.dark:is(:not([data-lexis-preset]),[data-lexis-preset="minimal-steel"])
+ :is(.rv-eyebrow,.rv-priority-index,.rv-footer a) {
+  color:#E5AABB !important;
+}
