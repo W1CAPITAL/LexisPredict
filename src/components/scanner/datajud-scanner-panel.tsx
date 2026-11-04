@@ -41,7 +41,7 @@ import { APP_VERSION } from '@/lib/app-changelog';
 import { usePlano } from '@/hooks/use-plano';
 import { useAdmin } from '@/hooks/use-admin';
 import { planTemScanner } from '@/lib/planos-pacotes';
-import { AutosOabScannerPanel } from './autos-oab-panel';
+
 import { AutosOabFreePanel } from './autos-oab-free-panel';
 
 export function DataJudScannerPanel() {
@@ -172,7 +172,7 @@ export function DataJudScannerPanel() {
 
           {/* Busca autenticada de autos; não altera os modos DataJud/DJEN já existentes. */}
           <AutosOabFreePanel />
-          <AutosOabScannerPanel />
+
 
           <section className="px-5 py-4 bg-amber-50/80 border-y-2 border-amber-600/20 space-y-3">
              <p className="text-[9px] font-black uppercase tracking-widest text-amber-900">Escopo da fila</p>
