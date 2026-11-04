@@ -20,7 +20,7 @@ function compact(s: string, max = 12000) {
 }
 
 /** Pollinations — OpenAI-compatible, sem API key (rate limit público) */
-async function callPollinations(messages: FreeMsg[], max_tokens = 2048): Promise<FreeResult> {
+async function callPollinations(messages: FreeMsg[], max_tokens = 2048, timeoutMs = 60000): Promise<FreeResult> {
   const t0 = Date.now();
   // endpoint público documentado pela comunidade Pollinations
   const url = 'https://text.pollinations.ai/openai';
@@ -32,7 +32,7 @@ async function callPollinations(messages: FreeMsg[], max_tokens = 2048): Promise
       messages: messages.map((m) => ({ role: m.role, content: compact(m.content, 6000) })),
       max_tokens,
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(Math.max(1500,Math.min(60000,timeoutMs))),
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -53,7 +53,9 @@ async function callOpenAIShape(
   model: string,
   messages: FreeMsg[],
   label: string,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  maxTokens = 4096,
+  timeoutMs = 90000,
 ): Promise<FreeResult> {
   const t0 = Date.now();
   const res = await fetch(url, {
@@ -66,10 +68,10 @@ async function callOpenAIShape(
     body: JSON.stringify({
       model,
       messages: messages.map((m) => ({ role: m.role, content: compact(m.content, 8000) })),
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       temperature: 0.3,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(Math.max(1500,Math.min(90000,timeoutMs))),
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -80,7 +82,7 @@ async function callOpenAIShape(
   return { text: String(text).trim(), engine: `${label}:${model}`, latencyMs: Date.now() - t0 };
 }
 
-async function callAnthropicDirect(messages: FreeMsg[]): Promise<FreeResult> {
+async function callAnthropicDirect(messages: FreeMsg[], maxTokens = 4096, timeoutMs = 90000): Promise<FreeResult> {
   const key =
     process.env.ANTHROPIC_API_KEY ||
     process.env.CLAUDE_API_KEY ||
@@ -100,11 +102,11 @@ async function callAnthropicDirect(messages: FreeMsg[]): Promise<FreeResult> {
     },
     body: JSON.stringify({
       model: process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       system: system || undefined,
       messages: turns,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(Math.max(1500,Math.min(90000,timeoutMs))),
   });
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -132,7 +134,12 @@ export async function freeComplete(opts: {
   preferred?: string;
   /** Se true, NÃO tenta outros motores após falha do preferido */
   exclusive?: boolean;
+  max_tokens?: number;
+  timeoutMs?: number;
 }): Promise<FreeResult> {
+  const maxTokens=Math.max(128,Math.min(4096,opts.max_tokens??4096));
+  const budget=opts.timeoutMs==null?null:Math.max(12000,Math.min(90000,opts.timeoutMs));
+  const deadline=budget==null?null:Date.now()+budget;
   const messages: FreeMsg[] = [];
   if (opts.system) messages.push({ role: 'system', content: compact(opts.system, 4000) });
   for (const h of (opts.history || []).slice(-8)) {
@@ -148,7 +155,7 @@ export async function freeComplete(opts: {
   }
   const exclusive = !!opts.exclusive && !!pref && pref !== 'auto' && pref !== 'omni' && !pref.includes('omni');
 
-  type Step = { id: string; run: () => Promise<FreeResult> };
+  type Step = { id: string; run: (timeoutMs:number) => Promise<FreeResult> };
   const steps: Step[] = [];
 
   // MiniMax — prioridade alta na cascata Omni
@@ -239,7 +246,7 @@ export async function freeComplete(opts: {
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: compact(`${sys}\n\n${userParts}`, 10000) }] }],
           }),
-          signal: AbortSignal.timeout(90000),
+          signal: AbortSignal.timeout(Math.max(1500,Math.min(90000,timeoutMs))),
         });
         const raw = await res.json().catch(() => ({}));
         if (!res.ok) {
