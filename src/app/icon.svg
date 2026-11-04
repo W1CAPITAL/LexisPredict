@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="LexisPredict">
+  <defs>
+    <linearGradient id="silver" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fff"/><stop offset=".26" stop-color="#9ea2ad"/><stop offset=".48" stop-color="#f8f9fc"/><stop offset=".75" stop-color="#6d7382"/><stop offset="1" stop-color="#e9e9ee"/></linearGradient>
+    <radialGradient id="wine" cx=".5" cy=".4"><stop stop-color="#660d2d"/><stop offset="1" stop-color="#28000f"/></radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="25" fill="url(#wine)"/>
+  <path d="M102 31A47 47 0 0 0 24 33M24 94a47 47 0 0 0 78 0" fill="none" stroke="url(#silver)" stroke-width="7" stroke-linecap="round"/>
+  <text x="16" y="84" fill="url(#silver)" font-family="Georgia,'Times New Roman',serif" font-size="70" font-weight="bold" letter-spacing="-8">LP</text>
+  <path d="M57 31h32M73 23v17M59 42h29M63 42l-7 9h14zm20 0-7 9h14z" stroke="url(#silver)" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>
