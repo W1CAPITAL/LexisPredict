@@ -16,6 +16,7 @@ export const PROCESSOS_LIST_COLUMNS = [
   "edited_by_json:dados->>edited_by",
   "created_at",
   "updated_at",
+  "data_distribuicao",
   "cliente",
   // Somente fragmentos judiciais de revisão; nunca baixar o JSON inteiro na lista.
   "merito_pendencia_json:dados->merito_pendencia_20261022",
