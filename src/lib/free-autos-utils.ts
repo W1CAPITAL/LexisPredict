@@ -48,17 +48,21 @@ function fileOrder(name:string):[number,string] {
   return [prefix?Number(prefix[1]):Number.MAX_SAFE_INTEGER,normalized.toLocaleLowerCase('pt-BR')];
 }
 export function selectAutosThroughDefesa<T extends Pick<AutosLocalItem,'id'|'filename'|'kind'>>(documents:T[]):{
-  files:T[];foundContestacao:boolean;bankDefendantConfirmed:false;limitedByMetadata:boolean;
+  files:T[];foundContestacao:boolean;bankDefendantConfirmed:false;limitedByMetadata:boolean;cutoffApplied:boolean;
 }{
   const sorted=[...documents].sort((a,b)=>{
     const x=fileOrder(a.filename),y=fileOrder(b.filename);
     return x[0]-y[0]||x[1].localeCompare(y[1],'pt-BR',{numeric:true});
   });
   const index=sorted.findIndex(doc=>doc.kind==='contestacao');
-  return {files:index<0?sorted:sorted.slice(0,index+1),
+  const limitedByMetadata=sorted.some(x=>fileOrder(x.filename)[0]===Number.MAX_SAFE_INTEGER);
+  // Never silently discard pleadings with uncertain chronology. Sorting by
+  // alphabet would put 'Contestação' ahead of 'Petição Inicial'.
+  const cutoffApplied=index>=0 && !limitedByMetadata;
+  return {files:cutoffApplied?sorted.slice(0,index+1):sorted,
     foundContestacao:index>=0,
     bankDefendantConfirmed:false,
-    limitedByMetadata:sorted.some(x=>fileOrder(x.filename)[0]===Number.MAX_SAFE_INTEGER),
+    limitedByMetadata,cutoffApplied,
   };
 }
 export function findOfficialAutosPortal(cnj:string):{
