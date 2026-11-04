@@ -8,27 +8,27 @@
  * z-index of sheets/dialogs, or source-of-truth metrics.
  */
 body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"]) {
-  --lx-xr-canvas: #f6f5fc;
-  --lx-xr-card: #ffffff;
-  --lx-xr-mute: #85819a;
-  --lx-xr-border: #eae7f3;
-  --lx-xr-ink: #28253b;
-  --lx-xr-accent: #f47445;
-  --lx-xr-accent-soft: rgb(244 116 69 / .11);
-  --lx-xr-hover: #f2effa;
-  --lx-xr-shadow: 0 3px 11px rgb(57 47 90 / .032),0 16px 39px rgb(54 43 88 / .045);
-  --lx-xr-shadow-hover: 0 7px 24px rgb(57 47 90 / .082);
+  --lx-xr-canvas: hsl(var(--background));
+  --lx-xr-card: hsl(var(--card));
+  --lx-xr-mute: hsl(var(--muted-foreground));
+  --lx-xr-border: hsl(var(--border));
+  --lx-xr-ink: hsl(var(--foreground));
+  --lx-xr-accent: hsl(var(--primary));
+  --lx-xr-accent-soft: hsl(var(--primary) / .11);
+  --lx-xr-hover: hsl(var(--muted));
+  --lx-xr-shadow: 0 3px 11px rgb(59 11 30 / .032),0 16px 39px rgb(59 11 30 / .045);
+  --lx-xr-shadow-hover: 0 7px 24px rgb(59 11 30 / .082);
   --lx-xr-radius: 20px;
 }
 html.dark body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"]) {
-  --lx-xr-canvas: #171d1a;
-  --lx-xr-card: #28302b;
-  --lx-xr-mute: #a8b4ab;
-  --lx-xr-border: #3e4942;
-  --lx-xr-ink: #f2f6ed;
-  --lx-xr-accent: #d5fa78;
-  --lx-xr-accent-soft: rgb(213 250 120 / .10);
-  --lx-xr-hover: #303a32;
+  --lx-xr-canvas: hsl(var(--background));
+  --lx-xr-card: hsl(var(--card));
+  --lx-xr-mute: hsl(var(--muted-foreground));
+  --lx-xr-border: hsl(var(--border));
+  --lx-xr-ink: hsl(var(--foreground));
+  --lx-xr-accent: hsl(var(--primary));
+  --lx-xr-accent-soft: hsl(var(--primary) / .13);
+  --lx-xr-hover: hsl(var(--muted));
   --lx-xr-shadow: 0 4px 21px rgb(0 0 0 / .17);
   --lx-xr-shadow-hover: 0 8px 28px rgb(0 0 0 / .23);
 }
@@ -37,15 +37,15 @@ html:not(.dark):not(.lexis-wallpaper-active)
  body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
  [data-lexis-route-content] {
   background:
-    radial-gradient(ellipse 72% 45% at 96% 0%, rgb(191 194 249 / .20), transparent 83%),
-    radial-gradient(ellipse 67% 45% at -17% 30%, rgb(248 213 234 / .19), transparent 83%),
+    radial-gradient(ellipse 72% 45% at 96% 0%, hsl(var(--primary) / .055), transparent 83%),
+    radial-gradient(ellipse 67% 45% at -17% 30%, hsl(var(--primary) / .035), transparent 83%),
     var(--lx-xr-canvas) !important;
 }
 html.dark:not(.lexis-wallpaper-active)
  body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
  [data-lexis-route-content] {
   background:
-    radial-gradient(ellipse 68% 44% at 92% -4%, rgb(143 157 112 / .10), transparent 82%),
+    radial-gradient(ellipse 68% 44% at 92% -4%, hsl(var(--primary) / .12), transparent 82%),
     var(--lx-xr-canvas) !important;
 }
 body[data-lexis-visual-group] [data-lexis-route-content] main {
@@ -132,35 +132,35 @@ body[data-lexis-visual-group]:not([data-lexis-visual-group="auth"])
 
 /* /processos — first-class CRM workbench, not a legacy table on dark blue. */
 [data-lexis-processos-workspace] {
-  --lx-process-bg: #f8f7fd;
-  --lx-process-panel: #fff;
-  --lx-process-line: #e9e6f2;
-  --lx-process-ink: #26243a;
-  --lx-process-muted: #77778d;
-  --lx-process-tint: #f3f0fa;
-  --lx-process-accent: #f27548;
-  --lx-process-accent-ink: #fff;
-  --lx-process-selected: #f1eaff;
-  --lx-process-shadow: 0 2px 7px rgb(37 32 71 / .028), 0 11px 35px rgb(52 42 89 / .052);
+  --lx-process-bg: hsl(var(--background));
+  --lx-process-panel: hsl(var(--card));
+  --lx-process-line: hsl(var(--border));
+  --lx-process-ink: hsl(var(--card-foreground));
+  --lx-process-muted: hsl(var(--muted-foreground));
+  --lx-process-tint: hsl(var(--muted));
+  --lx-process-accent: hsl(var(--primary));
+  --lx-process-accent-ink: hsl(var(--primary-foreground));
+  --lx-process-selected: hsl(var(--primary) / .10);
+  --lx-process-shadow: 0 2px 7px rgb(59 11 30 / .028), 0 11px 35px rgb(59 11 30 / .052);
   min-width: 0;
   background:
-    radial-gradient(ellipse 65% 31% at 90% 0%,rgb(199 194 250 / .20),transparent 84%),
+    radial-gradient(ellipse 65% 31% at 90% 0%,hsl(var(--primary) / .055),transparent 84%),
     var(--lx-process-bg) !important;
   color: var(--lx-process-ink);
 }
 html.dark [data-lexis-processos-workspace] {
-  --lx-process-bg: #151c19;
-  --lx-process-panel: #27302b;
-  --lx-process-line: #3d4840;
-  --lx-process-ink: #f3f8ef;
-  --lx-process-muted: #afbbb0;
-  --lx-process-tint: #303a33;
-  --lx-process-accent: #d5fa78;
-  --lx-process-accent-ink: #27351b;
-  --lx-process-selected: #3b4a39;
+  --lx-process-bg: hsl(var(--background));
+  --lx-process-panel: hsl(var(--card));
+  --lx-process-line: hsl(var(--border));
+  --lx-process-ink: hsl(var(--card-foreground));
+  --lx-process-muted: hsl(var(--muted-foreground));
+  --lx-process-tint: hsl(var(--muted));
+  --lx-process-accent: hsl(var(--primary));
+  --lx-process-accent-ink: hsl(var(--primary-foreground));
+  --lx-process-selected: hsl(var(--primary) / .18);
   --lx-process-shadow: 0 8px 29px rgb(0 0 0 / .14);
   background:
-    radial-gradient(ellipse 61% 28% at 95% -1%,rgb(149 161 114 / .16),transparent 88%),
+    radial-gradient(ellipse 61% 28% at 95% -1%,hsl(var(--primary) / .11),transparent 88%),
     var(--lx-process-bg) !important;
 }
 [data-lexis-processos-scroll] {
@@ -248,14 +248,14 @@ html.dark [data-lexis-processos-workspace] {
 }
 [data-lexis-processos-hero] {
   background:
-    radial-gradient(ellipse 55% 120% at 95% 0%,rgb(210 197 244 / .17),transparent 75%),
+    radial-gradient(ellipse 55% 120% at 95% 0%,hsl(var(--primary) / .05),transparent 75%),
     var(--lx-process-panel) !important;
   border-color: var(--lx-process-line) !important;
   padding: clamp(15px,2.5vw,26px) !important;
 }
 html.dark [data-lexis-processos-hero] {
   background:
-    radial-gradient(ellipse 55% 140% at 95% 0%,rgb(162 172 113 / .12),transparent 80%),
+    radial-gradient(ellipse 55% 140% at 95% 0%,hsl(var(--primary) / .09),transparent 80%),
     var(--lx-process-panel) !important;
 }
 [data-lexis-processos-hero] h1 {
@@ -306,26 +306,26 @@ html.dark [data-lexis-processos-hero] {
   color:var(--lx-process-ink) !important;
 }
 [data-lexis-processos-kpi]:nth-child(2) {
-  background: #ebefff !important;
+  background:color-mix(in srgb, hsl(var(--primary)) 6%, hsl(var(--card))) !important;
 }
 [data-lexis-processos-kpi]:nth-child(4) {
-  background: #fbefef !important;
+  background:color-mix(in srgb, hsl(var(--primary)) 4%, hsl(var(--card))) !important;
 }
 [data-lexis-processos-kpi]:nth-child(5) {
-  background: #f47745 !important;
-  border-color: #f47745 !important;
+  background:var(--lx-process-accent) !important;
+  border-color:var(--lx-process-accent) !important;
   color: #fff !important;
 }
 html.dark [data-lexis-processos-kpi] {
-  background:#343e36 !important;
-  border-color:#4a564b !important;
+  background:var(--lx-process-tint) !important;
+  border-color:var(--lx-process-line) !important;
 }
-html.dark [data-lexis-processos-kpi]:nth-child(2) {background:#35443a !important;}
-html.dark [data-lexis-processos-kpi]:nth-child(4) {background:#453c34 !important;}
+html.dark [data-lexis-processos-kpi]:nth-child(2) {background:color-mix(in srgb, hsl(var(--primary)) 12%, hsl(var(--card))) !important;}
+html.dark [data-lexis-processos-kpi]:nth-child(4) {background:color-mix(in srgb, hsl(var(--primary)) 7%, hsl(var(--card))) !important;}
 html.dark [data-lexis-processos-kpi]:nth-child(5) {
-  background:#d5fa78 !important;
-  border-color:#d5fa78 !important;
-  color:#263719 !important;
+  background:var(--lx-process-accent) !important;
+  border-color:var(--lx-process-accent) !important;
+  color:var(--lx-process-accent-ink) !important;
 }
 [data-lexis-processos-kpi] p {
   color:inherit !important;
@@ -343,7 +343,7 @@ html.dark [data-lexis-processos-kpi]:nth-child(5) {
   letter-spacing:-.05em;
   color:inherit !important;
 }
-[data-lexis-processos-kpi] p:last-child {font-size:9px !important;opacity:.8;line-height:1.4;}
+[data-lexis-processos-kpi] p:last-child {font-size:11px !important;opacity:1;line-height:1.4;}
 [data-lexis-processos-kpi] svg {color:inherit !important;}
 [data-lexis-processos-extra-metrics] {
   padding:12px 0 0;
