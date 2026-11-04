@@ -69,7 +69,7 @@ export function OabPersonalizationPanel(){
        <select className={field} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as OabPrefs['oabCertificateType'])}>
         <option value="a3">Certificado A3 · token ou cartão</option>
         <option value="a1">Certificado A1 · instalado no computador</option>
-        <option value="none">Somente consulta pública</option>
+        <option value="none">Sem certificado configurado (consulta pública)</option>
        </select>
       </label>
       <label><span className={label}>Tribunal favorito</span>
