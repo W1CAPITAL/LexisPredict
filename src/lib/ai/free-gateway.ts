@@ -162,9 +162,9 @@ export async function freeComplete(opts: {
   if (process.env.MINIMAX_API_KEY || process.env.MINIMAX_KEY) {
     steps.push({
       id: 'minimax',
-      run: async () => {
+      run: async (timeoutMs) => {
         const { callMinimax } = await import('@/lib/ai/minimax');
-        const r = await callMinimax(messages as any, { max_tokens: 4096, temperature: 0.4 });
+        const r = await callMinimax(messages as any, { max_tokens: maxTokens, temperature: 0.4, timeoutMs });
         return { text: r.text, engine: `minimax:${r.model}`, latencyMs: r.latencyMs };
       },
     });
@@ -172,19 +172,20 @@ export async function freeComplete(opts: {
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   if (anthropicKey) {
-    steps.push({ id: 'claude', run: () => callAnthropicDirect(messages) });
+    steps.push({ id: 'claude', run: (timeoutMs) => callAnthropicDirect(messages,maxTokens,timeoutMs) });
   }
   const groq = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
   if (groq) {
     steps.push({
       id: 'groq',
-      run: () =>
+      run: (timeoutMs) =>
         callOpenAIShape(
           'https://api.groq.com/openai/v1/chat/completions',
           groq,
           process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
           messages,
-          'groq'
+          'groq',
+          undefined,maxTokens,timeoutMs,
         ),
     });
   }
@@ -192,7 +193,7 @@ export async function freeComplete(opts: {
   if (or) {
     steps.push({
       id: 'openrouter',
-      run: () =>
+      run: (timeoutMs) =>
         callOpenAIShape(
           'https://openrouter.ai/api/v1/chat/completions',
           or,
@@ -202,7 +203,7 @@ export async function freeComplete(opts: {
           {
             'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://private-assecom.vercel.app',
             'X-Title': 'LexisPredict',
-          }
+          },maxTokens,timeoutMs,
         ),
     });
   }
@@ -213,11 +214,12 @@ export async function freeComplete(opts: {
   if (xai) {
     steps.push({
       id: 'xai',
-      run: async () => {
+      run: async (timeoutMs) => {
         const { callXaiPrestige } = await import('@/lib/ai/xai-prestige');
         const r = await callXaiPrestige(messages as any, {
-          max_tokens: 4096,
+          max_tokens: maxTokens,
           temperature: 0.4,
+          timeoutMs,
         });
         return {
           text: r.text,
@@ -231,7 +233,7 @@ export async function freeComplete(opts: {
   if (gem) {
     steps.push({
       id: 'gemini',
-      run: async () => {
+      run: async (timeoutMs) => {
         const t0 = Date.now();
         const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gem}`;
@@ -245,6 +247,7 @@ export async function freeComplete(opts: {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: compact(`${sys}\n\n${userParts}`, 10000) }] }],
+            generationConfig: { maxOutputTokens: maxTokens },
           }),
           signal: AbortSignal.timeout(Math.max(1500,Math.min(90000,timeoutMs))),
         });
@@ -271,7 +274,7 @@ export async function freeComplete(opts: {
       id: 'nvidia',
       run: async () => {
         const { callNvidiaNim } = await import('@/lib/ai/nvidia-nim');
-        const r = await callNvidiaNim(messages as any, { max_tokens: 4096, temperature: 0.3 });
+        const r = await callNvidiaNim(messages as any, { max_tokens: maxTokens, temperature: 0.3 });
         return { text: r.text, engine: `nvidia:${r.model}`, latencyMs: r.latencyMs };
       },
     });
@@ -283,7 +286,7 @@ export async function freeComplete(opts: {
       id: 'gpt4free',
       run: async () => {
         const { callGpt4Free } = await import('@/lib/ai/gpt4free-gateway');
-        return callGpt4Free(messages as any, { max_tokens: 2048 });
+        return callGpt4Free(messages as any, { max_tokens: maxTokens });
       },
     });
   }
