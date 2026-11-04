@@ -80,7 +80,11 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
   notifications:select('notifications',['all','important','silent'],EXPERIENCE_DEFAULT.notifications),
   favoriteTab:select('favoriteTab',['/','/cases','/processos','/tarefas','/whatsapp','/report','/agenda','/dossies','/crm','/consulta-oab','/integracoes'],EXPERIENCE_DEFAULT.favoriteTab),
   dashboardPhrase:str('dashboardPhrase',150),
-  oabNumber:str('oabNumber',24).replace(/\D/g,'').slice(0,8),
+  oabNumber:(()=>{
+    const raw=str('oabNumber',24).toUpperCase().replace(/[.\s]/g,'');
+    const normalized=/^(\d{1,8})(?:[-/]?([A-Z]))?$/.exec(raw);
+    return normalized?normalized[1]+(normalized[2]||''):raw.replace(/\D/g,'').slice(0,8);
+  })(),
   oabUf:(()=>{
     const value=str('oabUf',3).toUpperCase();
     return /^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/.test(value)?value:'';
