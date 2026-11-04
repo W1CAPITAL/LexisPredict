@@ -25,3 +25,29 @@ export function planChatWork(prompt:string, input?:{hasPdf?:boolean;hasImg?:bool
     return {mode:'case-summary',liveJudicialLookup:false,needExtraResearch:false,allowRepair:false,maxTokens:900};
   return {mode:'general',liveJudicialLookup:false,needExtraResearch:false,allowRepair:false,maxTokens:950};
 }
+
+/** A deterministic, source-labelled safety net. Never synthesize judicial
+ * conclusions from an unverified case, and never claim a live query occurred.
+ */
+export function summarizeAuthorizedCaseEvidence(raw:string):string|null {
+ if(!raw.includes('[EVIDÊNCIAS INTERNAS AUTORIZADAS'))return null;
+ const lines=raw.split(/\r?\n/);
+ const value=(label:string):string|null=>{
+  const line=lines.find(x=>x.startsWith(label+': '));
+  const text=line?.slice(label.length+2).trim();
+  return text && !/^N[aã]o registrad[oa]$/i.test(text) ? text : null;
+ };
+ const cnj=value('CNJ');
+ if(!cnj || !/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(cnj))return null;
+ const cliente=value('Cliente cadastrado');
+ const tribunal=value('Tribunal');
+ const status=value('Status operacional');
+ const mov=value('Última movimentação judicial cadastrada');
+ const dataMov=value('Data movimento cadastrado');
+ const retorno=value('Próximo retorno (campo)');
+ const statusResumo=status?.replace(/\s*\|\s*Situa[cç][aã]o interna:.*/i,'').trim();
+ const head=`Conforme o registro interno do LexisPredict, o processo ${cnj}${cliente?', de '+cliente:''}${tribunal?', no '+tribunal:''}${statusResumo?' está marcado como "'+statusResumo+'"':''}.`;
+ const latest=mov ? `A última movimentação cadastrada${dataMov?' em '+dataMov:''} é: ${mov}.` : 'Não há movimentação judicial identificada nesse resumo.';
+ const follow=retorno?`O próximo retorno interno está registrado para ${retorno}.`:'Não há data de retorno interno informada.';
+ return [head,latest,follow,'Esta informação vem do registro interno e não é uma consulta judicial em tempo real.'].join(' ');
+}
