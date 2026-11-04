@@ -1,0 +1,20 @@
+import {NextResponse} from 'next/server';
+import {getUserContext} from '@/lib/server-db';
+import {W1_EMPRESA_PRINCIPAL_ID} from '@/lib/w1-empresa';
+export const dynamic='force-dynamic';
+export const runtime='nodejs';
+const headers={'Cache-Control':'private, no-store, max-age=0','Vary':'Cookie'};
+export async function GET(){
+ const ctx=await getUserContext();
+ if(!ctx?.auth_id||!ctx?.empresa_id)return NextResponse.json({ok:false,error:'Entre na sua conta.'},{status:401,headers});
+ const company=String(ctx.empresa_id);
+ const allowed=String(process.env.ASAAS_ALLOWED_EMPRESA_ID||W1_EMPRESA_PRINCIPAL_ID);
+ const asaasConfigured=company.toLowerCase()===allowed.toLowerCase()&&!!process.env.ASAAS_API_KEY;
+ return NextResponse.json({ok:true,services:{
+    whatsapp:{available:true,mode:'WhatsApp Web + módulos Lexis existentes',automatic:false},
+    calendar:{available:true,mode:'Google Agenda via confirmação do operador + arquivo ICS',oauthConnected:false},
+    asaas:{available:asaasConfigured,mode:process.env.ASAAS_ENV==='production'?'production':'sandbox',readOnly:true},
+    judiciary:{available:true,mode:'Carteira autenticada + DJEN público',searchByOabCrossCourt:false},
+    ai:{available:true,mode:'Superagente LexisPredict',automaticDecision:false}
+  },financialAccess:ctx.isSuperAdmin||ctx.isSupervisor||ctx.isAdministrador},{headers});
+}
