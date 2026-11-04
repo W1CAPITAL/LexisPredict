@@ -46,5 +46,7 @@ describe('Personalização da consulta OAB',()=>{
   const portal=resolveOabOfficialPortal('8007617-77.2023.8.05.0154','8.26');
   expect(portal?.requiresUserAuth).toBe(true);
   expect(portal?.portalIsPublicConsultation).toBe(true);
+  expect(portal?.authenticatedUrl).toBe('https://pje.tjba.jus.br/pje/login.seam');
+  expect(portal?.secondDegreeAuthenticatedUrl).toBe('https://pje2g.tjba.jus.br/pje/login.seam');
  });
 });
