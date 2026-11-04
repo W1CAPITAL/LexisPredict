@@ -223,10 +223,10 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
     {expanded&&<div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div>
-          <p className="text-xs font-bold text-foreground">{prefs.oabCertificateType==='a1'?'Certificado A1':prefs.oabCertificateType==='a3'?'Certificado A3':'Consulta pública'} · {prefs.oabUf&&prefs.oabNumber?'OAB/'+prefs.oabUf+' '+prefs.oabNumber:'OAB não cadastrada'}</p>
+          <p className="text-xs font-bold text-foreground">{prefs.oabCertificateType==='a1'?'Certificado A1':prefs.oabCertificateType==='a3'?'Certificado A3':'Certificado não configurado'} · {prefs.oabUf&&prefs.oabNumber?'OAB/'+prefs.oabUf+' '+prefs.oabNumber:'OAB não cadastrada'}</p>
           <p className="text-[11px] text-muted-foreground">Preferências salvas no seu perfil, sem senha, PIN ou arquivo do certificado.</p>
         </div>
-        <Link href="/settings?section=Personalizacao" className="rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-bold text-primary hover:bg-muted">Personalizar consulta</Link>
+        <Link href="/settings?section=Oab" className="rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-bold text-primary hover:bg-muted">Personalizar consulta</Link>
       </div>
       <div className="flex flex-wrap gap-2 text-xs">
         <Link href="/integracoes#busca-advogado" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted"><Search size={13} className="mr-1"/> Buscar por advogado</Link>
@@ -234,6 +234,7 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
       </div>
       {prefs.oabShowGuide&&<div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
         <p className="font-semibold">Como usar em três etapas</p>
+        <p className="text-muted-foreground">No PJeOffice Pro, é possível memorizar o certificado selecionado como padrão para não escolhê-lo a cada acesso.</p>
         <p>1. Abra o tribunal pelo CNJ e autentique-se com {prefs.oabCertificateType==='a1'?'seu certificado A1':prefs.oabCertificateType==='a3'?'seu certificado A3': 'o método autorizado'}. 2. Exporte os documentos pelo portal. 3. Importe o PDF ou ZIP aqui para organizar a primeira possível contestação.</p>
         <p className="font-medium">A autenticação ocorre no site do tribunal, nunca no LexisPredict. O auxiliar Chrome só procura o controle de exportação oficial.</p>
         <a href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" rel="noopener noreferrer" target="_blank" className="text-primary underline inline-flex gap-1 items-center">
@@ -248,6 +249,9 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
           <p className="text-[10px] text-muted-foreground">Depois de extrair o ZIP: Chrome → chrome://extensions → Modo do desenvolvedor → Carregar sem compactação. Abra os autos no PJe, clique na extensão e selecione o comando oficial de exportação.</p>
         </div>
       </div>}
+      {!prefs.oabShowGuide&&<Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>void downloadLocalHelper()}>
+        <Download size={13} className="mr-2"/> Baixar auxiliar local PJe (Chrome)
+      </Button>}
       <label htmlFor="autos-free-cnj" className="block text-xs font-semibold space-y-1">
         Número CNJ
         <input id="autos-free-cnj" autoComplete="off" placeholder="0000000-00.0000.0.00.0000"
