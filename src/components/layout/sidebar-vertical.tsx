@@ -69,6 +69,7 @@ const core: NavItem[] = [
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
   { label: "Minhas atividades", href: "/minhas-atividades", icon: ListTodo },
   { label: "CRM", href: "/crm", icon: Users },
+  { label: "Integrações", href: "/integracoes", icon: Zap },
   { label: "Configurações", href: "/settings", icon: Settings },
 ];
 
@@ -176,7 +177,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat"]
+      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/integracoes"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -208,6 +209,7 @@ export function SidebarVertical() {
       "/analises-internas": "Auditorias, dossiês e investigações por CNJ.",
       "/fases-provas": "Localize réplicas, provas e documentos.",
       "/settings": "Conta, equipe e preferências.",
+      "/integracoes": "WhatsApp, Agenda Google, Asaas e pesquisa por advogado.",
       "/processos": "Visão completa da carteira da empresa.",
       "/crm": "Clientes, negócios e acompanhamento comercial.",
       "/gerador-processos": "Cadastre e organize novos processos.",
@@ -307,7 +309,7 @@ export function SidebarVertical() {
         label: "Clientes e negócio",
         description: "WhatsApp, CRM, financeiro e relatórios.",
         icon: MessageCircle,
-        hrefs: ["/whatsapp", "/crm", "/financas", "/report", "/import"],
+        hrefs: ["/whatsapp", "/crm", "/integracoes", "/financas", "/report", "/import"],
       },
       {
         id: "gestao",
