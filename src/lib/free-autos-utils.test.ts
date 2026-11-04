@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {classifyLocalAutosDocument,selectAutosThroughDefesa,findOfficialAutosPortal,normalizeAutasFilename} from './free-autos-utils';
+import {classifyLocalAutosDocument,selectAutosThroughDefesa,findOfficialAutosPortal,normalizeAutasFilename,isPdfBytes} from './free-autos-utils';
 
 describe('autos via portal oficial (gratuito; somente navegador)',()=>{
  it('usa URL segura e oficial para o CNJ de tribunal estadual conhecido',()=>{
@@ -46,6 +46,11 @@ describe('autos via portal oficial (gratuito; somente navegador)',()=>{
    expect(picked.limitedByMetadata).toBe(true);
    expect(picked.files).toHaveLength(3);
    expect(picked.cutoffApplied).toBe(false);
+ });
+ it('rejeita arquivos renomeados para .pdf sem assinatura PDF real',()=>{
+  expect(isPdfBytes(new Uint8Array([37,80,68,70,45,49,46,55]))).toBe(true);
+  expect(isPdfBytes(new Uint8Array([60,104,116,109,108,62]))).toBe(false);
+  expect(isPdfBytes(new Uint8Array([]))).toBe(false);
  });
  it('higieniza caminhos de ZIP sem confiar nos caminhos enviados',()=>{
    expect(normalizeAutasFilename('../segredo/001-Peticao.pdf')).toBe('001-Peticao.pdf');
