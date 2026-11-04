@@ -19,6 +19,7 @@ import './codeandchill-motion.css';
 import './buildindex-motion.css';
 import './report-visual-system.css';
 import './video-fluid-navigation.css';
+import './wine-silver-brand.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
@@ -45,7 +46,7 @@ const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
 }));
 
 export const viewport: Viewport = {
-  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f12' }],
+  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#F4F3F5' }, { media: '(prefers-color-scheme: dark)', color: '#141015' }],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -119,7 +120,7 @@ export default function RootLayout({
                 localStorage.setItem('lexis_dark_mode', String(isDark));
 
                 // Aplica o preset salvo com a paleta do modo atual (evita flash e contraste quebrado)
-                var presetId = localStorage.getItem('lexisPredict_theme_preset');
+                var presetId = localStorage.getItem('lexisPredict_theme_preset') || 'minimal-steel';
                 var preset = null;
                 for (var i = 0; i < PRESETS.length; i++) { if (PRESETS[i].id === presetId) { preset = PRESETS[i]; break; } }
 
@@ -131,7 +132,7 @@ export default function RootLayout({
                       var CC = custom.colors;
                       var fgC = contrast(CC.background, CC.foreground) >= 4.5 ? CC.foreground : (lum(CC.background) > 0.45 ? '#000000' : '#FFFFFF');
                       var mutedC = contrast(CC.background, CC.fontMuted) >= 3 ? CC.fontMuted : (lum(CC.background) > 0.45 ? '#4B5563' : '#9CA3AF');
-                      var onPrimaryC = contrast(CC.primary, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0F172A';
+                      var onPrimaryC = contrast(CC.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#0F172A';
                       setToken('--background', CC.background);
                       setToken('--card', CC.bgSecondary);
                       setToken('--popover', CC.bgSecondary);
@@ -169,7 +170,7 @@ export default function RootLayout({
                   var C = isDark ? preset.dark : preset.light;
                   var fg = contrast(C.background, C.foreground) >= 4.5 ? C.foreground : (lum(C.background) > 0.45 ? '#000000' : '#FFFFFF');
                   var muted = contrast(C.background, C.fontMuted) >= 3 ? C.fontMuted : (lum(C.background) > 0.45 ? '#4B5563' : '#9CA3AF');
-                  var onPrimary = contrast(C.primary, '#FFFFFF') >= 3 ? '#FFFFFF' : '#0F172A';
+                  var onPrimary = contrast(C.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#0F172A';
                   setToken('--background', C.background);
                   setToken('--card', C.bgSecondary);
                   setToken('--popover', C.bgSecondary);
