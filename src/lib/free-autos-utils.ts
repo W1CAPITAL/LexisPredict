@@ -21,6 +21,12 @@ function plain(s:string):string{
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
     .replace(/[_\-]+/g,' ').replace(/\s+/g,' ').trim();
 }
+/** Ignore files with a .pdf extension that are not actually PDFs. */
+export function isPdfBytes(bytes:Uint8Array):boolean{
+  return bytes.length>=5 &&
+    bytes[0]===0x25 && bytes[1]===0x50 && bytes[2]===0x44 &&
+    bytes[3]===0x46 && bytes[4]===0x2d;
+}
 export function normalizeAutasFilename(fileName:string):string {
   const name=String(fileName||'').replace(/\\/g,'/').split('/').pop()||'documento';
   return name.replace(/[\u0000-\u001f<>:"|?*]/g,'').slice(0,140).trim()||'documento';
