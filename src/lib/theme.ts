@@ -37,22 +37,57 @@ export type ThemePreset = {
   colors: ThemePair;
 };
 
-export function getPresetColors(preset: ThemePreset, mode: ThemeMode): ThemeColors {
-  const colors=preset.colors[mode]||preset.colors.light;
-  if(mode==='dark'){
-    // Imported palettes sometimes contain a duplicate light theme in their
-    // dark slot. Enforce an actual dark surface instead of merely changing
-    // the .dark class and leaving cards white or text illegible.
-    const bg=normalize(colors.background);
-    const n=parseInt(bg.slice(1),16);
-    const lum=((n>>16)&255)*.2126+((n>>8)&255)*.7152+(n&255)*.0722;
-    if(lum>150){
-      return {background:'#0B1220',bgSecondary:'#152033',
-        foreground:'#F1F5F9',fontMuted:'#CBD5E1',
-        primary:colors.primary,accent:'#25344D',border:'#34465F',nav:'#080F1B'};
-    }
+/**
+ * Resolve one visible foreground against every surface it may occur on.
+ * Text/labels: WCAG AA 4.5:1. Input, card and focus boundaries: 3:1.
+ * Move the supplied hue only as far toward white/black as needed.
+ * This is shared by the boot snapshot and live theme switch.
+ */
+export function ensureSurfaceContrast(color: string, surfaces: string[], minimum: number): string {
+  const source = normalize(color);
+  const score = (value: string) => Math.min(...surfaces.map(surface => getContrastRatio(value, normalize(surface))));
+  if (score(source) >= minimum) return source;
+  const blackScore = score('#000000');
+  const whiteScore = score('#FFFFFF');
+  const endpoint = blackScore >= whiteScore ? '#000000' : '#FFFFFF';
+  if (Math.max(blackScore, whiteScore) < minimum) return endpoint;
+  let low = 0;
+  let high = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (low + high) / 2;
+    if (score(blend(source, endpoint, mid)) >= minimum) high = mid;
+    else low = mid;
   }
-  return colors;
+  // Small margin avoids rounding to just under the threshold in the browser.
+  return blend(source, endpoint, Math.min(1, high + .002));
+}
+
+export function resolveContrastPalette(colors: ThemeColors): ThemeColors {
+  const surfaces = [colors.background, colors.bgSecondary];
+  return {
+    ...colors,
+    foreground: ensureSurfaceContrast(colors.foreground, surfaces, 4.5),
+    fontMuted: ensureSurfaceContrast(colors.fontMuted, surfaces, 4.5),
+    border: ensureSurfaceContrast(colors.border, surfaces, 3),
+  };
+}
+
+export function getPresetColors(preset: ThemePreset, mode: ThemeMode): ThemeColors {
+  let colors = preset.colors[mode] || preset.colors.light;
+  if (mode === 'dark') {
+    // Imported themes may ship the same light palette for both modes.
+    // Keep their hue while providing a genuinely dark and legible surface.
+    const bg = normalize(colors.background);
+    const n = parseInt(bg.slice(1), 16);
+    const brightness = ((n >> 16) & 255) * .2126 + ((n >> 8) & 255) * .7152 + (n & 255) * .0722;
+    if (brightness > 150) colors = {
+      background: '#0B1220', bgSecondary: '#152033',
+      foreground: '#F1F5F9', fontMuted: '#CBD5E1',
+      primary: colors.primary, accent: '#25344D',
+      border: '#34465F', nav: '#080F1B',
+    };
+  }
+  return resolveContrastPalette(colors);
 }
 
 function normalize(hex: string): string {
@@ -730,6 +765,7 @@ export function applyGlobalTheme(
   const root = document.documentElement;
   const m: ThemeMode = mode || getCurrentMode();
   const isLight = m === 'light';
+  colors = resolveContrastPalette(colors);
 
   // Cada superfície exige SUA própria cor de texto. Usar o texto do canvas
   // sobre cards claros no modo escuro era a causa de branco-sobre-branco.
@@ -792,16 +828,16 @@ export function applyGlobalTheme(
   root.style.setProperty('--border', hexToHsl(colors.border));
   root.style.setProperty('--input', hexToHsl(colors.border));
   // Focus indicators must contrast with their surrounding surface (WCAG 1.4.11).
-  const visibleRing = getContrastRatio(primary, colors.background) >= 3 ? primary : colors.fontMuted;
+  const visibleRing = ensureSurfaceContrast(primary, [colors.background, colors.bgSecondary], 3);
   root.style.setProperty('--ring', hexToHsl(visibleRing));
   root.style.setProperty('--radius', `${radius}px`);
 
   root.style.setProperty('--destructive', hexToHsl(sem.destructive));
-  root.style.setProperty('--destructive-foreground', hexToHsl(isLight ? '#FFFFFF' : '#0F172A'));
+  root.style.setProperty('--destructive-foreground', hexToHsl(getContrastRatio(sem.destructive, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
   root.style.setProperty('--success', hexToHsl(sem.success));
-  root.style.setProperty('--success-foreground', hexToHsl(isLight ? '#FFFFFF' : '#0F172A'));
+  root.style.setProperty('--success-foreground', hexToHsl(getContrastRatio(sem.success, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
   root.style.setProperty('--warning', hexToHsl(sem.warning));
-  root.style.setProperty('--warning-foreground', hexToHsl(isLight ? '#FFFFFF' : '#0F172A'));
+  root.style.setProperty('--warning-foreground', hexToHsl(getContrastRatio(sem.warning, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
 
   const charts = deriveCharts(primary, m);
   charts.forEach((c, i) => root.style.setProperty(`--chart-${i + 1}`, c));
@@ -815,7 +851,7 @@ export function applyGlobalTheme(
   root.style.setProperty('--sidebar-primary-foreground', hexToHsl(onPrimary));
   root.style.setProperty('--sidebar-accent', hexToHsl(colors.nav ? blend(nav, navForeground, .12) : colors.accent));
   root.style.setProperty('--sidebar-accent-foreground', hexToHsl(navForeground));
-  root.style.setProperty('--sidebar-ring', hexToHsl(getContrastRatio(primary, nav) >= 3 ? primary : navForeground));
+  root.style.setProperty('--sidebar-ring', hexToHsl(ensureSurfaceContrast(primary, [nav], 3)));
 
   if (bgOpacity !== undefined) root.style.setProperty('--bg-opacity', bgOpacity.toString());
   if (sidebarOpacity !== undefined)
