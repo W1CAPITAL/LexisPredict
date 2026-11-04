@@ -411,6 +411,15 @@ html.dark [data-lexis-processos-kpi]:nth-child(5) {
   border-color:var(--lx-process-accent) !important;
   color:var(--lx-process-accent-ink) !important;
 }
+[data-lexis-processos-pills] > button[aria-pressed="true"] span {
+  background:color-mix(in srgb,var(--lx-process-accent-ink) 17%,transparent) !important;
+  color:var(--lx-process-accent-ink) !important;
+}
+[data-lexis-processos-pills] > button:not([aria-pressed="true"]) span {
+  background:var(--lx-process-panel) !important;
+  color:var(--lx-process-ink) !important;
+}
+
 [data-lexis-processos-table-wrap] {
   min-width:0;
   max-width:100%;
