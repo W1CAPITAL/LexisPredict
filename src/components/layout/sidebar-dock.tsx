@@ -34,6 +34,7 @@ const primary = [
   ["Agenda", "/agenda", CalendarDays],
   ["Dossiê", "/report", BarChart3],
   ["CRM", "/crm", Kanban],
+  ["Integrações", "/integracoes", Zap],
   ["Config", "/settings", Settings],
 ] as const;
 
@@ -54,6 +55,7 @@ const more = [
   ["Finanças", "/financas", Wallet],
   ["Cálculos", "/calculos", Calculator],
   ["Importar", "/import", Upload],
+  ["Integrações", "/integracoes", Zap],
 ] as const;
 
 export function SidebarDock() {
