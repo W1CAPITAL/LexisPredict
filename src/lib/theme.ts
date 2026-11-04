@@ -849,8 +849,9 @@ export function applyGlobalTheme(
   root.style.setProperty('--sidebar-border', hexToHsl(colors.border));
   root.style.setProperty('--sidebar-primary', hexToHsl(primary));
   root.style.setProperty('--sidebar-primary-foreground', hexToHsl(onPrimary));
-  root.style.setProperty('--sidebar-accent', hexToHsl(colors.nav ? blend(nav, navForeground, .12) : colors.accent));
-  root.style.setProperty('--sidebar-accent-foreground', hexToHsl(navForeground));
+  const navAccent = colors.nav ? blend(nav, navForeground, .12) : colors.accent;
+  root.style.setProperty('--sidebar-accent', hexToHsl(navAccent));
+  root.style.setProperty('--sidebar-accent-foreground', hexToHsl(safeOnSurface(navAccent, navForeground)));
   root.style.setProperty('--sidebar-ring', hexToHsl(ensureSurfaceContrast(primary, [nav], 3)));
 
   if (bgOpacity !== undefined) root.style.setProperty('--bg-opacity', bgOpacity.toString());
