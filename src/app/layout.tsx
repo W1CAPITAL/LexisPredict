@@ -34,15 +34,15 @@ import { PersistentAppShell } from "@/components/layout/persistent-app-shell";
 import { RouteSnapshotWatcher } from "@/components/system/route-snapshot-watcher";
 import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
-import { AUTHORITY_PRESETS, hexToHsl } from '@/lib/theme';
+import { AUTHORITY_PRESETS, hexToHsl, getPresetColors } from '@/lib/theme';
 import { GuestModeBanner } from '@/components/auth/guest-mode-banner';
 
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
   radius: p.radius,
   source: p.source,
-  light: p.colors.light,
-  dark: p.colors.dark,
+  light: getPresetColors(p, 'light'),
+  dark: getPresetColors(p, 'dark'),
 }));
 
 export const viewport: Viewport = {
@@ -131,14 +131,14 @@ export default function RootLayout({
                     if (custom && custom.colors) {
                       var CC = custom.colors;
                       var fgC = contrast(CC.background, CC.foreground) >= 4.5 ? CC.foreground : (lum(CC.background) > 0.45 ? '#000000' : '#FFFFFF');
-                      var mutedC = contrast(CC.background, CC.fontMuted) >= 3 ? CC.fontMuted : (lum(CC.background) > 0.45 ? '#4B5563' : '#9CA3AF');
-                      var onPrimaryC = contrast(CC.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#0F172A';
+                      var mutedC = contrast(CC.background, CC.fontMuted) >= 4.5 ? CC.fontMuted : (lum(CC.background) > 0.45 ? '#4B5563' : '#9CA3AF');
+                      var onPrimaryC = contrast(CC.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000';
                       setToken('--background', CC.background);
                       setToken('--card', CC.bgSecondary);
                       setToken('--popover', CC.bgSecondary);
                       setToken('--secondary', CC.bgSecondary);
                       setToken('--foreground', fgC);
-                      setToken('--card-foreground', fgC);
+                      setToken('--card-foreground', contrast(CC.bgSecondary, fgC) >= 4.5 ? fgC : (contrast(CC.bgSecondary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
                       setToken('--popover-foreground', fgC);
                       setToken('--secondary-foreground', fgC);
                       setToken('--muted-foreground', mutedC);
@@ -169,14 +169,14 @@ export default function RootLayout({
                 if (preset) {
                   var C = isDark ? preset.dark : preset.light;
                   var fg = contrast(C.background, C.foreground) >= 4.5 ? C.foreground : (lum(C.background) > 0.45 ? '#000000' : '#FFFFFF');
-                  var muted = contrast(C.background, C.fontMuted) >= 3 ? C.fontMuted : (lum(C.background) > 0.45 ? '#4B5563' : '#9CA3AF');
-                  var onPrimary = contrast(C.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#0F172A';
+                  var muted = contrast(C.background, C.fontMuted) >= 4.5 ? C.fontMuted : (lum(C.background) > 0.45 ? '#4B5563' : '#9CA3AF');
+                  var onPrimary = contrast(C.primary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000';
                   setToken('--background', C.background);
                   setToken('--card', C.bgSecondary);
                   setToken('--popover', C.bgSecondary);
                   setToken('--secondary', C.bgSecondary);
                   setToken('--foreground', fg);
-                  setToken('--card-foreground', fg);
+                  setToken('--card-foreground', contrast(C.bgSecondary, fg) >= 4.5 ? fg : (contrast(C.bgSecondary, '#FFFFFF') >= 4.5 ? '#FFFFFF' : '#000000'));
                   setToken('--popover-foreground', fg);
                   setToken('--secondary-foreground', fg);
                   setToken('--muted-foreground', muted);
