@@ -88,7 +88,7 @@ html[data-lexis-experience="1"] body:has([data-lexis-commercial-sidebar]) [data-
   background: var(--lx-sales-nav-selected) !important;
   border-color: hsl(var(--sidebar-ring)) !important;
   color: hsl(var(--sidebar-primary-foreground)) !important;
-  box-shadow: inset 3px 0 0 #EDE9ED, 0 5px 18px rgb(38 7 17 / .25) !important;
+  box-shadow: inset 3px 0 0 hsl(var(--sidebar-ring)), 0 5px 18px rgb(0 0 0 / .20) !important;
 }
 html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"],
 html[data-lexis-experience="1"] [data-lexis-commercial-sidebar] nav a[aria-current="page"] :is(span,svg),
