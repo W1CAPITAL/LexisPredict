@@ -97,8 +97,10 @@ export function applyExperiencePrefs(input:ExperiencePreferences){
  const preset=AUTHORITY_PRESETS.find(x=>x.id===p.theme);
  if(preset){
   const base=getPresetColors(preset,dark?'dark':'light');
-  const brandPresetPrimary=p.theme==='minimal-steel' && ['#6D1734','#8A2E50'].includes(p.primary.toUpperCase());
-  const safe={...base,primary:brandPresetPrimary?base.primary:p.primary,
+  // The former default was saved into every profile and must not override
+  // the new selected preset's primary (Ocean, Nord, Graphite, etc.).
+  const untouchedBrandColor=['#6D1734','#8A2E50','#2563EB','#60A5FA'].includes(p.primary.toUpperCase());
+  const safe={...base,primary:untouchedBrandColor?base.primary:p.primary,
    background:p.backgroundColor||base.background,
    bgSecondary:p.cardColor||base.bgSecondary,
    nav:p.sidebarColor||base.nav,
