@@ -1,6 +1,7 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {canonicalCnj,extractAutosDocuments,isSafeAutosKey} from '@/lib/autos-oab-logic';
+import {W1_EMPRESA_PRINCIPAL_ID} from '@/lib/w1-empresa';
 
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
@@ -20,6 +21,10 @@ function token():string {
 async function access(cnj?:string){
  const ctx=await getUserContext();
  if(!ctx?.auth_id||!ctx?.empresa_id)return {error:response({ok:false,error:'Faça login para consultar autos.'},401)};
+ const permittedCompany=String(process.env.ESCAVADOR_ALLOWED_EMPRESA_ID||W1_EMPRESA_PRINCIPAL_ID);
+ if(String(ctx.empresa_id).toLowerCase()!==permittedCompany.toLowerCase()){
+   return {error:response({ok:false,error:'Certificado autorizado somente para a empresa vinculada à integração.'},403)};
+ }
  if(ctx.isViewer||!(ctx.isSuperAdmin||ctx.isSupervisor||ctx.isAdministrador)){
    return {error:response({ok:false,error:'Somente supervisão e administradores podem solicitar autos com certificado.'},403)};
  }
