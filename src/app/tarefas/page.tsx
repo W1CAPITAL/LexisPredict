@@ -172,9 +172,13 @@ export default function TarefasPage() {
   const [search, setSearch] = useState('');
   const searchDebounced = useDebouncedValue(search, 300);
   const remoteSearch = useCompanyProcessSearch(searchDebounced, Boolean(empresaId && authUserId),searchRefreshKey);
-  const taskCases = remoteSearch.active ? remoteSearch.cases : cases;
   // filtros persistidos entre abas
   const [filaFiltro, setFilaFiltro] = useState<'all' | 'hoje' | 'vencido' | 'novidade' | 'problematicos' | 'tranquilos' | 'audiencia' | 'ba' | 'blacklist' | 'tratamento' | 'parados' | 'replica' | 'silencio'>('all');
+  const [todayDueCases,setTodayDueCases]=useState<LegalCase[]|null>(null);
+  const [todayDueLoading,setTodayDueLoading]=useState(false);
+  const [todayDueError,setTodayDueError]=useState('');
+  // Date-filtered queue must not depend on incomplete local cache.
+  const taskCases=filaFiltro==='hoje' ? (todayDueCases??[]) : remoteSearch.active?remoteSearch.cases:cases;
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -214,6 +218,45 @@ export default function TarefasPage() {
   const [soMeusHoje, setSoMeusHoje] = useState(false);
   const [kbIndex, setKbIndex] = useState(0);
   const opsKpis = useMemo(() => computeOpsKpis(cases as any), [cases]);
+
+  useEffect(()=>{
+    if(filaFiltro!=='hoje'||!empresaId||!authUserId){
+      setTodayDueCases(null);
+      setTodayDueLoading(false);
+      setTodayDueError('');
+      return;
+    }
+    const controller=new AbortController();
+    const day=hojeBrasilYmd();
+    setTodayDueLoading(true);
+    setTodayDueCases(null);
+    setTodayDueError('');
+    const loadToday=async()=>{
+      const collected:LegalCase[]=[];
+      let offset=0;
+      let hasMore=true;
+      while(hasMore&&offset<5000&&!controller.signal.aborted){
+        const params=new URLSearchParams({field:'proximo-retorno',from:day,to:day,offset:String(offset)});
+        const response=await fetch('/api/carteira/filtered?'+params.toString(),{
+          credentials:'same-origin',cache:'no-store',signal:controller.signal,
+        });
+        const data=await response.json();
+        if(!response.ok||data?.ok!==true||!Array.isArray(data.cases))
+          throw new Error(data?.error||'Não foi possível consultar os retornos de hoje.');
+        const batch=data.cases as LegalCase[];
+        collected.push(...batch);
+        offset+=batch.length;
+        hasMore=!!data.hasMore&&batch.length>0;
+      }
+      if(!controller.signal.aborted)setTodayDueCases(collected);
+    };
+    void loadToday().catch(error=>{
+      if(!controller.signal.aborted)setTodayDueError(error instanceof Error?error.message:'Falha ao consultar hoje.');
+    }).finally(()=>{
+      if(!controller.signal.aborted)setTodayDueLoading(false);
+    });
+    return ()=>controller.abort();
+  },[filaFiltro,empresaId,authUserId]);
 
   const getTodayKey = () => {
     // Sempre calendário de Brasília (não UTC do toISOString)
@@ -261,7 +304,8 @@ export default function TarefasPage() {
       if (!raw) {
         const q=new URLSearchParams(window.location.search);
         if(q.get("filtro")==="vencido")setFilaFiltro("vencido");
-        if(q.get("search"))setSearch(q.get("search")||"");
+        if(q.get("filtro")==="hoje"){setFilaFiltro("hoje");setSearch("");setOfficeFilter("all");setLawyerFilter("all");}
+        else if(q.get("search"))setSearch(q.get("search")||"");
         return;
       }
       const f = JSON.parse(raw);
@@ -272,7 +316,8 @@ export default function TarefasPage() {
       if (f.sortPrazo) setSortPrazo(f.sortPrazo);
       const q=new URLSearchParams(window.location.search);
       if(q.get("filtro")==="vencido")setFilaFiltro("vencido");
-      if(q.get("search"))setSearch(q.get("search")||"");
+      if(q.get("filtro")==="hoje"){setFilaFiltro("hoje");setSearch("");setOfficeFilter("all");setLawyerFilter("all");}
+      else if(q.get("search"))setSearch(q.get("search")||"");
     } catch { /* ignore */ }
   }, []);
 
@@ -900,7 +945,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
       });
 
     const pending = sortedAll.filter(g => !contactedSet.has(String(g.cliente || '').trim().toUpperCase()));
-    if (remoteSearch.active) {
+    if (remoteSearch.active && filaFiltro!=='hoje') {
       return { focus: sortedAll, backlog: [], completed: [], totalPendingCount: pending.length };
     }
     const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje ? pending.length : dailyMeta;
@@ -1047,7 +1092,10 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                   <SelectItem value="prazo_asc">Próximo prazo</SelectItem>
                 </SelectContent>
               </Select>
-<Button type="button" size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
+{filaFiltro==='hoje' && <span role={todayDueError?'alert':'status'} className="text-[11px] text-muted-foreground">
+                {todayDueError||(todayDueLoading?'Consultando todos os retornos para hoje…':`${todayDueCases?.length||0} retorno(s) agendado(s) para hoje`)}
+              </span>}
+              <Button type="button" size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
                 É hoje
               </Button>
               <Button type="button" size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
