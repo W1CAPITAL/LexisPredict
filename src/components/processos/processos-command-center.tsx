@@ -735,7 +735,7 @@ export function ProcessosCommandCenter(props: Props) {
                 ["sources","Fontes incompletas",focusCounts.sources,Database],
                 ["ba","B.A.",focusCounts.ba,Scale],
               ] as const).filter(([value]) => advancedFiltersOpen || ["all", "urgent", "returns", "updates"].includes(value)).map(([value,label,count,Icon])=>(
-                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-bold transition",focusPreset===value?"border-primary/40 bg-primary/10 text-primary dark:text-[#E5AABB]":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
+                <button key={value} type="button" aria-pressed={focusPreset===value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-bold transition",focusPreset===value?"border-primary/40 bg-primary/10 text-primary dark:text-[#E5AABB]":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
                   <Icon size={11}/>{label}<span className="rounded bg-slate-200 dark:bg-black/20 px-1 text-[9px] tabular-nums">{count}</span>
                 </button>
               ))}
