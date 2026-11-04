@@ -165,8 +165,11 @@ html:not(.lexis-wallpaper-active) [data-lexis-dashboard-home] {
   background: hsl(var(--background)) !important;
   color: hsl(var(--foreground)) !important;
 }
-html [data-lexis-dashboard-home] :is(.lx-reference-heading-dot,.lx-reference-eyebrow) {
-  color: hsl(var(--primary)) !important;
+html [data-lexis-dashboard-home] .lx-reference-eyebrow {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html [data-lexis-dashboard-home] .lx-reference-heading-dot {
+  color: hsl(var(--ring)) !important;
 }
 html [data-lexis-dashboard-home] .lx-reference-eyebrow-mark {
   background: hsl(var(--primary)) !important;
@@ -346,7 +349,9 @@ html.dark [data-lexis-dashboard-home] [data-lexis-dashboard-tablist]
   background: hsl(var(--primary)) !important;
   color: hsl(var(--primary-foreground)) !important;
 }
-html.dark [data-lexis-dashboard-home] .lx-reference-eyebrow,
+html.dark [data-lexis-dashboard-home] .lx-reference-eyebrow {
+  color: hsl(var(--muted-foreground)) !important;
+}
 html.dark [data-lexis-dashboard-home] .lx-reference-heading-dot {
   color: hsl(var(--ring)) !important;
 }
