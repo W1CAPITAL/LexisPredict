@@ -20,7 +20,7 @@ type StatusResponse={
   ok:boolean;
   services:{
     whatsapp:{available:boolean;mode:string;automatic:boolean};
-    calendar:{available:boolean;mode:string;oauthConnected:boolean};
+    calendar:{available:boolean;mode:string;oauthConfigured:boolean};
     asaas:{available:boolean;mode:string;readOnly:boolean};
     judiciary:{available:boolean;mode:string;searchByOabCrossCourt:boolean};
     ai:{available:boolean;mode:string;automaticDecision:boolean};
@@ -68,6 +68,23 @@ export default function IntegracoesPage(){
  },[]);
  const [calendar,setCalendar]=React.useState<CalendarEventInput>({title:"Retorno de acompanhamento processual",date:"",time:"",cnj:"",notes:""});
  const calendarLink=React.useMemo(()=>{try{return buildCalendarEventUrl(calendar);}catch{return null;}},[calendar]);
+ const [googleConnection,setGoogleConnection]=React.useState<{connected:boolean;configured:boolean}|null>(null);
+ const [googleBusy,setGoogleBusy]=React.useState(false);
+ const [googleError,setGoogleError]=React.useState("");
+ const [googleNotice,setGoogleNotice]=React.useState("");
+ const [googleEvents,setGoogleEvents]=React.useState<Array<{id:string;summary:string;when:string;link:string|null}>|null>(null);
+ React.useEffect(()=>{
+   const controller=new AbortController();
+   const response=new URLSearchParams(window.location.search).get('google');
+   if(response==='connected')setGoogleNotice('Sua conta Google foi conectada. Agora você pode criar eventos nesta Agenda.');
+   else if(response)setGoogleError('O Google não concluiu a conexão ('+response+'). Revise autorização e credenciais.');
+   void fetch('/api/integracoes/calendar/events?status=1',{cache:'no-store',credentials:'same-origin',signal:controller.signal})
+     .then(x=>x.json()).then(x=>{
+       if(!controller.signal.aborted&&x.ok)setGoogleConnection({connected:!!x.connected,configured:!!x.configured});
+     }).catch(()=>{});
+   return ()=>controller.abort();
+ },[]);
+
  const [lawyer,setLawyer]=React.useState("");
  const [lawyerBusy,setLawyerBusy]=React.useState(false);
  const [lawyerError,setLawyerError]=React.useState("");
@@ -120,6 +137,43 @@ export default function IntegracoesPage(){
       totalCount:Number(data.totalCount)||0,hasMore:!!data.hasMore,offset:Number(data.offset)||0});
   }catch(e){setAsaasError(e instanceof Error?e.message:"Falha no Asaas.");}
   finally{setAsaasBusy(false);}
+ }
+ async function createGoogleEvent(){
+  if(!calendarLink||!googleConnection?.connected||googleBusy)return;
+  setGoogleBusy(true);setGoogleError("");setGoogleNotice("");
+  try{
+    const response=await fetch('/api/integracoes/calendar/events',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({event:calendar})
+    });
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível criar o compromisso.');
+    setGoogleNotice(data.alreadyExists?'O evento já estava cadastrado (sem duplicação).':'Compromisso criado na sua Agenda Google.');
+    await readGoogleEvents();
+  }catch(e){setGoogleError(e instanceof Error?e.message:'Erro ao criar evento.');}
+  finally{setGoogleBusy(false);}
+ }
+ async function readGoogleEvents(){
+  setGoogleError("");
+  try{
+    const response=await fetch('/api/integracoes/calendar/events',{cache:'no-store',credentials:'same-origin'});
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'Falha ao consultar agenda.');
+    setGoogleEvents(Array.isArray(data.items)?data.items:[]);
+  }catch(e){setGoogleError(e instanceof Error?e.message:'Falha na consulta.');}
+ }
+ async function unlinkGoogle(){
+  if(!googleConnection?.connected||googleBusy)return;
+  setGoogleBusy(true);setGoogleError("");
+  try{
+    const response=await fetch('/api/integracoes/calendar/events',{method:'DELETE',credentials:'same-origin'});
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível desconectar.');
+    setGoogleConnection({connected:false,configured:!!googleConnection.configured});
+    setGoogleNotice('A autorização foi removida do LexisPredict. Seus eventos permanecem no Google.');
+    setGoogleEvents(null);
+  }catch(e){setGoogleError(e instanceof Error?e.message:'Falha ao desconectar.');}
+  finally{setGoogleBusy(false);}
  }
  function downloadIcs(){
   if(!calendarLink)return;
@@ -194,7 +248,7 @@ export default function IntegracoesPage(){
               <h2 className="font-bold text-base">Agenda Google</h2>
               <p className="text-xs text-muted-foreground">Agende retornos, reuniões ou compromissos jurídicos sem pagar por API.</p>
             </div>
-            <Badge variant="outline">Com confirmação</Badge>
+            <Badge variant="outline">{googleConnection?.connected?"Google conectado":"Confirmação manual"}</Badge>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="col-span-2 block space-y-1 text-xs font-semibold">Compromisso
@@ -215,7 +269,30 @@ export default function IntegracoesPage(){
               <Button size="sm" disabled>Preencha título e data</Button>}
             <Button size="sm" variant="outline" disabled={!calendarLink} onClick={downloadIcs}><Download size={14} className="mr-2"/> Exportar .ics</Button>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">O evento é criado na sua própria Agenda após confirmação. Sincronização bidirecional automática exige conexão OAuth, ainda não ativada no app.</p>
+          <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-bold">Sincronização direta autorizada (OAuth)</p>
+            {!googleConnection?.configured?<p className="text-xs text-muted-foreground">Configuração pendente do aplicativo Google Cloud: GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET, GOOGLE_CALENDAR_REDIRECT_URI e GOOGLE_CALENDAR_ENCRYPTION_KEY, na Vercel. O agendamento gratuito via link e ICS acima já funciona.</p>:
+             googleConnection.connected?
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={!calendarLink||googleBusy} onClick={()=>void createGoogleEvent()}>
+                  {googleBusy?<Loader2 size={14} className="mr-2 animate-spin"/>:<CheckCircle2 size={14} className="mr-2"/>}
+                  Salvar direto no Google
+                </Button>
+                <Button size="sm" variant="outline" onClick={()=>void readGoogleEvents()} disabled={googleBusy}>Ver próximos eventos</Button>
+                <Button size="sm" variant="ghost" onClick={()=>void unlinkGoogle()} disabled={googleBusy}>Desconectar</Button>
+              </div>:
+              <Button size="sm" asChild><a href="/api/integracoes/calendar/connect"><ExternalLink size={13} className="mr-2"/> Conectar minha conta Google</a></Button>}
+            {googleNotice&&<p role="status" className="text-xs font-medium text-foreground">{googleNotice}</p>}
+            {googleError&&<p role="alert" className="text-xs text-destructive">{googleError}</p>}
+            {googleEvents&&<div className="max-h-36 overflow-y-auto space-y-1">
+              <p className="text-[11px] text-muted-foreground">Próximos eventos da sua Agenda (máx. 15)</p>
+              {googleEvents.map(e=><div key={e.id} className="border-b border-border py-1 text-xs">
+                {e.summary||"Evento sem título"} <span className="text-muted-foreground">· {e.when}</span>
+              </div>)}
+              {!googleEvents.length&&<p className="text-xs text-muted-foreground">Nenhum evento encontrado.</p>}
+            </div>}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">O link abre o evento para confirmar; o modo conectado poderá criar diretamente após seu clique. Não existe sincronização automática permanente de prazos sem sua autorização.</p>
         </section>
 
         <section className={box} aria-label="Asaas financeiro">
