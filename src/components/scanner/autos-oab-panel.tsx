@@ -48,7 +48,7 @@ export function AutosOabScannerPanel(){
    return API+'?'+p;
  };
  const resetDocs=()=>{
-   current.current++;setDocuments([]);setStatus(null);setNextCursor(null);
+   current.current++;setBusy(null);setDocuments([]);setStatus(null);setNextCursor(null);
    setComplete(false);setError('');setAuthorized(false);setAcceptedCosts(false);
  };
  const loadAutos=async(cursor?:string|null)=>{
@@ -137,7 +137,7 @@ export function AutosOabScannerPanel(){
          className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring text-xs"/>
       </label>
       <div className="space-y-2">
-        <label className="flex items-start gap-2 text-[11px] text-foreground"><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)} className="mt-0.5 accent-primary"/> Confirmo que o advogado tem autorização para consultar os autos deste processo.</label>
+        <label className="flex items-start gap-2 text-[11px] text-foreground"><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)} className="mt-0.5 accent-primary"/> Confirmo a autorização do advogado e o envio deste CNJ ao provedor Escavador para buscar os autos.</label>
         <label className="flex items-start gap-2 text-[11px] text-foreground"><input type="checkbox" checked={acceptedCosts} onChange={e=>setAcceptedCosts(e.target.checked)} className="mt-0.5 accent-primary"/> Entendo que esta busca autenticada pode gerar cobrança na API contratada.</label>
       </div>
       <div className="flex flex-wrap gap-2">
