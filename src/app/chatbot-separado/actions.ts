@@ -46,6 +46,7 @@ export async function perguntarChatbotIndependente(
     pdfName?: string;
     temperature?: number;
     max_tokens?: number;
+    showThinking?: boolean;
   }
 ) {
   try {
@@ -65,7 +66,7 @@ export async function perguntarChatbotIndependente(
       pdfName: opts?.pdfName,
       temperature: opts?.temperature,
       max_tokens: opts?.max_tokens ?? 4096,
-      showThinking: true,
+      showThinking: opts?.showThinking !== false,
     });
 
     return {
