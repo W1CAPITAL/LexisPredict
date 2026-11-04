@@ -19,8 +19,8 @@ export const REQUIRED_COMMERCIAL_RELATIONS = [
  * require verified-email onboarding, tenant isolation, revocation, payment/
  * activation and security-advisor gates to pass independently first.
  */
-export function publicCommercialSignupEnabled(env: { LEXIS_COMMERCIAL_SIGNUP_ENABLED?: string } = process.env): boolean {
-  return env.LEXIS_COMMERCIAL_SIGNUP_ENABLED === "true";
+export function publicCommercialSignupEnabled(flag?: string): boolean {
+  return flag === "true";
 }
 
 type ProbeClient = {
