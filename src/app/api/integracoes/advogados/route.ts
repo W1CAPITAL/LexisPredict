@@ -11,7 +11,7 @@ export async function GET(request:NextRequest){
  if(!name)return NextResponse.json({ok:false,error:'Informe o nome completo ou parte do nome do advogado, com ao menos 3 letras.'},{status:400,headers});
  const db=await getSupabaseAdmin();
  let query=db.from('processos')
-  .select('id,protocolo_ref,cliente,tribunal,advogado,status,status_interno,datajud_ultimo_nome,datajud_ultimo_movimento,updated_at,created_by')
+  .select('id,protocolo_ref,cliente,tribunal,advogado,status,status_interno,proximo_retorno,datajud_ultimo_nome,datajud_ultimo_movimento,updated_at,created_by')
   .eq('empresa_id',ctx.empresa_id)
   .ilike('advogado','%'+name+'%')
   .order('updated_at',{ascending:false}).limit(60);
@@ -27,7 +27,7 @@ export async function GET(request:NextRequest){
    tribunal:String(item.tribunal||'').slice(0,35),advogado:String(item.advogado||'').slice(0,100),
    status:String(item.status_interno||item.status||'').slice(0,65),
    ultimaMovimentacao:String(item.datajud_ultimo_nome||'').slice(0,200),
-   dataMovimento:item.datajud_ultimo_movimento||null
+   dataMovimento:item.datajud_ultimo_movimento||null,proximoRetorno:item.proximo_retorno||null
  }));
  return NextResponse.json({ok:true,records,count:records.length,partial:records.length>=60,
    source:'carteira_autorizada',notice:'Busca na carteira da sua empresa, não varredura completa de todos os tribunais.'},{headers});
