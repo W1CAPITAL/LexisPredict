@@ -84,6 +84,9 @@ export function AutosOabFreePanel(){
          for(const entry of all){
            if(entry.dir||!SUPPORTED.test(entry.name))continue;
            if(sources.length>=MAX_ENTRIES)throw new Error("Mais de 250 PDFs. Divida o pacote em lotes.");
+           const declaredSize=Number((entry as typeof entry & {_data?:{uncompressedSize?:number}})._data?.uncompressedSize||0);
+           if(declaredSize>MAX_SINGLE)throw new Error("Documento comprimido declara tamanho acima de 35 MB.");
+           if(total+declaredSize>MAX_TOTAL)throw new Error("ZIP ultrapassa o limite de 150 MB descompactados.");
            const bytes=await entry.async("uint8array");
            if(bytes.byteLength>MAX_SINGLE)throw new Error("Documento extraído maior que 35 MB.");
            total+=bytes.byteLength;
@@ -150,6 +153,8 @@ export function AutosOabFreePanel(){
        autoriaDaContestacaoPeloBancoConfirmada:false,
        ordemDaListaInferidaPorNomes:unsequenced,
        documentosConsolidadosNaoRecortados:consolidated,
+       recorteEfetivamenteAplicado:selected.cutoffApplied&&!includeAll,
+       limiteSeOrdenacaoIncompleta:unsequenced,
        arquivos:output.map((x,i)=>({
          ordem:i+1,nome:x.filename,tipo:x.kind,fonteZip:x.sourceArchive||null,
          paginas:x.pages||null,tamanho:x.bytes.byteLength,
@@ -165,11 +170,12 @@ export function AutosOabFreePanel(){
        "Primeira possível contestação: "+(selected.foundContestacao?"detectada por título/texto inicial":"não identificada"),
        "Banco como autor da contestação: NÃO confirmado.",
        "PDF consolidado: "+(consolidated?"SIM - não foi feito corte interno de páginas":"NÃO identificado"),
+       "Recorte automático realmente aplicado: "+(selected.cutoffApplied&&!includeAll?"SIM":"NÃO - preservadas as peças disponíveis"),
        "Ordem com metadados incompletos: "+(unsequenced?"SIM":"NÃO"),
        "Não utilizar como prova de juntada ou certidão judicial sem verificar o portal.",
      ].join("\n"));
      const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:3}});
-     downloadBlob(blob,`autos-${cnj.replace(/\D/g,"")}-${includeAll?"integral":"ate-contestacao"}.zip`);
+     downloadBlob(blob,`autos-${cnj.replace(/\D/g,"")}-${includeAll?"integral":selected.cutoffApplied&&!consolidated?"ate-contestacao":"triagem-sem-corte"}.zip`);
      setProgress(`Pacote com ${output.length} documento(s) salvo localmente.`);
    }catch(e){setError(e instanceof Error?e.message:"Falha ao criar ZIP.");}
    finally{setBusy(false);}
@@ -222,8 +228,9 @@ export function AutosOabFreePanel(){
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><AlertTriangle size={14}/> Contestação não identificada</span>}
         </div>
         <p className="text-[11px] text-muted-foreground">
-          A ordem é inferida pelos números nos nomes dos arquivos. Uma possível contestação é identificada pelo título ou cabeçalho; não há confirmação de que o banco a tenha apresentado.
-          {consolidated?" Arquivos integrais/consolidados não serão cortados por página.":""}
+          Uma possível contestação é identificada pelo título ou cabeçalho; não há confirmação de que o banco a tenha apresentado.
+          {unsequenced?" Os nomes não garantem a ordem cronológica: por segurança, nenhuma peça será descartada automaticamente.":" A ordem é determinada pelos números prefixados nos nomes."}
+          {consolidated?" PDFs integrais/consolidados não serão cortados por página.":""}
         </p>
         {notices.length>0&&<details className="text-[11px] text-muted-foreground"><summary className="cursor-pointer">{notices.length} aviso(s) de leitura</summary><div className="space-y-1 mt-2">{notices.slice(0,10).map((t,i)=><p key={i}>{t}</p>)}</div></details>}
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={includeAll} onChange={e=>setIncludeAll(e.target.checked)} className="accent-primary"/> Incluir peças posteriores à contestação (autos integrais)</label>
@@ -240,7 +247,7 @@ export function AutosOabFreePanel(){
           Confirmo que os documentos pertencem ao CNJ informado e tenho autorização para tratá-los.
         </label>
         <Button type="button" className="w-full" disabled={!ready} onClick={()=>void saveZip()}>
-          <Download size={14} className="mr-2"/> Baixar pacote {includeAll?"integral":"até possível contestação"} · grátis
+          <Download size={14} className="mr-2"/> Baixar pacote {includeAll?"integral":selected.cutoffApplied&&!consolidated?"até possível contestação":"de triagem sem corte"} · grátis
         </Button>
         <p className="text-[10px] text-muted-foreground">Nenhuma consulta autenticada é executada pela nuvem. O acesso aos autos ocorre somente no portal judicial aberto e autenticado pelo próprio advogado; esta ferramenta processa os arquivos depois do download.</p>
       </div>}
