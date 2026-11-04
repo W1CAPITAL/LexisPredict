@@ -25,7 +25,7 @@ export async function GET(request:NextRequest){
  url.searchParams.set('prompt','consent');
  url.searchParams.set('state',state);
  const response=NextResponse.redirect(url,{headers:{'Cache-Control':'no-store'}});
- response.cookies.set('lexis_google_calendar_state',state,{
+ response.cookies.set('lexis_google_calendar_state',state+'|'+ctx.auth_id+'|'+ctx.empresa_id,{
    httpOnly:true,secure:true,sameSite:'lax',path:'/api/integracoes/calendar',maxAge:600
  });
  return response;
