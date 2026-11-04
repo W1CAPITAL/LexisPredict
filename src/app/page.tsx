@@ -465,7 +465,7 @@ export default function Dashboard() {
                   novidades={portfolioSummary?.novidades ?? metrics.countNovoAndamento}
                   baixas={portfolioSummary?.baixas ?? metrics.countEncerradoTribunal}
                   encerradosCarteira={portfolioSummary?.encerrados ?? metrics.countEncerradoCarteira}
-                  hoje={metrics.countHoje}
+                  hoje={retornosHoje?.date===hojeBrasilISO()?retornosHoje.count:null}
                   riskScore={metrics.riskScore}
                   cases={cases}
                   editadosSemana={metrics.countEditadosApp ?? metrics.countAuditadosSemana ?? 0}
