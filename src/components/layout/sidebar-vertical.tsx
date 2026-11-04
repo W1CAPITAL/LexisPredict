@@ -63,6 +63,7 @@ const core: NavItem[] = [
   { label: "Vencidos", href: "/vencidos", icon: ShieldAlert },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
+  { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel },
   { label: "Superagente", href: "/chat", icon: Bot },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
@@ -177,7 +178,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/integracoes"]
+      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -210,6 +211,7 @@ export function SidebarVertical() {
       "/fases-provas": "Localize réplicas, provas e documentos.",
       "/settings": "Conta, equipe e preferências.",
       "/integracoes": "WhatsApp, Agenda Google, Asaas e pesquisa por advogado.",
+      "/consulta-oab": "Acesse os portais de tribunais e organize as peças com certificado OAB.",
       "/processos": "Visão completa da carteira da empresa.",
       "/crm": "Clientes, negócios e acompanhamento comercial.",
       "/gerador-processos": "Cadastre e organize novos processos.",
