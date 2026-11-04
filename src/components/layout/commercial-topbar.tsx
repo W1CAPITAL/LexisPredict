@@ -131,7 +131,7 @@ export function CommercialTopbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-muted px-4 text-primary">
+        <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-muted px-4 text-foreground">
           <Crown className="h-4 w-4" />
           <div className="leading-none">
             <p className="text-xs font-black">Plano {PLAN_LABEL[plan]}</p>
