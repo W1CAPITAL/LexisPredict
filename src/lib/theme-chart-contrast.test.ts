@@ -9,7 +9,7 @@ describe('Theme charts: visual data contrast', () => {
       const tokens = deriveCharts(c.primary, mode, [c.background, c.bgSecondary]);
       expect(tokens).toHaveLength(5);
       for (const token of tokens) {
-        const [h, saturation, lightness] = token.split(' ').map(Number);
+        const [h, saturation, lightness] = token.split(' ').map(value => Number.parseFloat(value));
         const hex = hslToHex(h, saturation, lightness);
         expect(getContrastRatio(hex,c.background)).toBeGreaterThanOrEqual(3);
         expect(getContrastRatio(hex,c.bgSecondary)).toBeGreaterThanOrEqual(3);
