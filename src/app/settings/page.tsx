@@ -2,6 +2,7 @@
 import { Crown } from 'lucide-react';
 import { NavLayoutNomePanel } from "@/components/settings/nav-layout-nome-panel";
 import { ExperienceSettingsPanel } from '@/components/onboarding/experience-studio';
+import { OabPersonalizationPanel } from '@/components/settings/oab-personalization-panel';
 import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
 import { SecurityLimitsPanel } from "@/components/settings/security-limits-panel";
 
@@ -672,6 +673,7 @@ export default function SettingsPage() {
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
                 { id: "Experiencia", label: "Perfil, celular e termos", icon: <User size={14} />, keywords: "personalizacao personalidade perfil experiencia boas vindas nome cargo celular telefone whatsapp consentimento termos assinatura aceite lgpd visual" },
+                { id: "Oab", label: "OAB e certificado", icon: <Fingerprint size={14} />, keywords: "oab certificado digital advogado tribunal pje consulta autos personalizacao a1 a3" },
                 { id: "Banca", label: "Banca", icon: <Gavel size={14} />, keywords: "advogado oab banca" },
                 { id: "Knowledge", label: "Conhecimento", icon: <BookOpen size={14} />, keywords: "conhecimento base docs scripts" },
                 { id: "Engine", label: "Núcleo IA", icon: <Cpu size={14} />, keywords: "ia motor neural engine modelo" },
@@ -724,6 +726,9 @@ export default function SettingsPage() {
 
               {activeTab === 'Experiencia' && (
                 <ExperienceSettingsPanel />
+              )}
+              {activeTab === 'Oab' && (
+                <OabPersonalizationPanel />
               )}
 
                             {activeTab === 'Conta' && (
