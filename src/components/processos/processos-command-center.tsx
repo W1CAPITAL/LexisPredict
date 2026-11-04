@@ -455,7 +455,7 @@ export function ProcessosCommandCenter(props: Props) {
     });
   }, [sourceItems, dateActive, props.query, props.statusFilter, props.baOnly, props.silencioOnly, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, focusPreset, props.ownerNameByAuth]);
 
-  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, focusPreset, props.query, props.statusFilter]);
+  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, dateField, focusPreset, props.query, props.statusFilter]);
   React.useEffect(() => {
     if (!rows.length) {
       setSelectedId("");
