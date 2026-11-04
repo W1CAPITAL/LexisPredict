@@ -38,7 +38,7 @@ export function isXaiConfigured(): boolean {
 
 export async function callXaiPrestige(
   messages: Array<{ role: string; content: string }>,
-  opts?: { model?: string; max_tokens?: number; temperature?: number }
+  opts?: { model?: string; max_tokens?: number; temperature?: number; timeoutMs?: number }
 ): Promise<XaiResult> {
   const key = xaiKey();
   if (!key) throw new Error('XAI_GROK_PRESTIGE_API_KEY / XAI_API_KEY ausente');
@@ -64,7 +64,7 @@ export async function callXaiPrestige(
       temperature: opts?.temperature ?? 0.4,
       stream: false,
     }),
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(Math.max(1500,Math.min(90000,opts?.timeoutMs??90000))),
   });
 
   const raw = await res.json().catch(() => ({}));
