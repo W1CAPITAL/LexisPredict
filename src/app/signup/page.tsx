@@ -239,6 +239,9 @@ export default function SignupPage() {
 
         <main data-lexis-auth-form className="flex items-center justify-center p-4 sm:p-7 lg:p-10 xl:p-14">
           <div className="w-full max-w-3xl">
+            <div role="note" className="mb-5 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm font-medium leading-relaxed text-amber-950 dark:border-amber-600/60 dark:bg-amber-900/20 dark:text-amber-100">
+              <strong>Primeiras implantações assistidas.</strong> O cadastro de novos escritórios depende da liberação técnica e comercial da W1. Preencher o formulário não efetua cobrança nem garante ativação imediata.
+            </div>
             <div className="mb-7 lg:hidden">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border bg-card">
