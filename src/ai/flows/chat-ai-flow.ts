@@ -20,6 +20,7 @@ import { lexisAgentGuidance } from '@/lib/ai/lexis-agent-router';
 import { superAgentInstructions, detectSuperAgentTask } from '@/lib/ai/lexis-superagent';
 import { compactAgentGuidance } from '@/lib/agents/studio';
 import { retrieveAuthorizedCaseEvidence } from '@/lib/ai/lexis-superagent-evidence';
+import { planChatWork } from '@/lib/ai/chat-performance';
 import { retrieveNeedleEvidence, retrieveCuratedLexisEvidence, formatKnowledgeEvidence } from '@/lib/ai/needle-rag';
 
 const SYSTEM_FULL = `Voce e o Assistente LexisPredict — util para QUALQUER pergunta (processos ou nao).
@@ -139,6 +140,9 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   }
   const detectedTask = detectSuperAgentTask(pergunta);
   const simple = detectedTask === 'geral' && isSimplePrompt(pergunta, hasImg || hasPdf);
+  const workPlan = planChatWork(pergunta,{hasPdf,hasImg});
+  const generationTokens = simple ? 120 : Math.min(Math.max(160,input.max_tokens??workPlan.maxTokens),workPlan.maxTokens);
+  const wantThinking = input.showThinking !== false;
   const preferred = normalizeAssistantMotorChoice(input.preferred || input.preferredModel);
   const cognitivePlan = buildCognitivePlan({
     text: pergunta || (hasPdf ? 'ler documento' : 'analisar imagem'),
@@ -181,7 +185,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const cnj = extractCnjFromText(pergunta + ' ' + (input.pdfText || '').slice(0, 500))
     || (fromCarteira ? fromCarteira.replace(/\D/g,'') : null);
 
-  if (cnj && !String(tribunalCtx).trim()) {
+  if (cnj && !String(tribunalCtx).trim() && (workPlan.liveJudicialLookup || input.baClaudeDjen)) {
     try {
       const { fetchDjenComunicacoes } = await import('@/lib/djen');
       const cnjFmt =
@@ -212,7 +216,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   // Pesquisa DataJud oficial sob pedido de verificação processual, com
   // orçamento curto de servidor. Não presumir que o índice corresponde aos
   // autos completos ou que ausência de movimentos comprova ausência de atos.
-  if(cnj && /consult|pesquis|investig|dossi[eê]|atualiz|movimenta|senten[cç]a|tr[aâ]nsito/i.test(pergunta)){
+  if(cnj && workPlan.liveJudicialLookup){
     try{
       const {fetchDataJud}=await import('@/lib/datajud');
       const result=await fetchDataJud(cnj,1,{fast:true,cloudBudget:true});
@@ -238,7 +242,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
 
   // Pesquisa externa é opcional e só ocorre quando o usuário pede expressamente
   // consulta a uma URL pública jurídica, com chave Spider no servidor.
-  if (!simple) {
+  if (workPlan.needExtraResearch) {
     const { spiderPublicSources } = await import('@/lib/ai/research/spider-sources');
     const publicSources = await spiderPublicSources(pergunta);
     if (publicSources.length) {
@@ -263,20 +267,22 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
   const revisionalSystem = revisionalHint ? `\n\n${revisionalHint}` : '';
   const bpmnHint = bpmnSkillContext(pergunta + ' ' + String(input.pdfText || '').slice(0, 4000));
   const bpmnSystem = bpmnHint ? `\n\n${bpmnHint}` : '';
-  const khojContext = simple ? '' : await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000));
+  const khojContext = workPlan.needExtraResearch ? await khojLegalContext(pergunta, String(input.pdfText || '').slice(0, 9000)) : '';
   const khojSystem = khojContext ? `\n\n${khojContext}` : '';
-  const skillSystem = lexisAgentGuidance(pergunta)+ '\n\n'+superAgentInstructions(pergunta);
-  const teamSystem = simple ? '' : compactAgentGuidance(pergunta);
+  const skillSystem = workPlan.mode==='case-summary'
+    ? '\nRESUMO DE PROCESSO: utilize apenas as evidências internas autorizadas fornecidas. Informe CNJ/cliente, último andamento e data cadastrados, situação operacional e próximo retorno. Não trate dados internos como atualização judicial ao vivo. Máximo 2 parágrafos curtos, sem texto repetido. Não invente decisão, prazo judicial, trânsito ou andamento. Aponte contradições entre indicadores.'
+    : lexisAgentGuidance(pergunta)+'\n\n'+superAgentInstructions(pergunta);
+  const teamSystem = workPlan.needExtraResearch ? compactAgentGuidance(pergunta) : '';
   // Pesquisa legal não envia dados da carteira. Só o identificador da norma sai ao GitHub.
-  const legislationEvidence = simple ? null : await retrieveLegislationEvidence(pergunta);
+  const legislationEvidence = workPlan.needExtraResearch ? await retrieveLegislationEvidence(pergunta) : null;
   const legislationSystem = formatLegislationEvidence(legislationEvidence);
   // Internal curated knowledge is available without tokens.
   // Needle is a separate optional RAG source for safe, generic questions only:
   // never send PDFs, images, case IDs, or personal data to an external index.
-  const evidence = simple ? [] : [
+  const evidence = workPlan.needExtraResearch ? [
     ...retrieveCuratedLexisEvidence(pergunta),
     ...await retrieveNeedleEvidence(pergunta,{hasAttachment:hasPdf || hasImg || Boolean(cnj)}),
-  ];
+  ] : [];
   const evidenceSystem = formatKnowledgeEvidence(evidence);
 
 
@@ -284,12 +290,12 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     const r = await runCascade({
       preferred,
       forceEngineId: preferred === 'auto' ? undefined : preferred,
-      surface: simple ? 'chat-fast' : 'chat',
-      system: (simple ? SYSTEM_FAST : SYSTEM_FULL) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + teamSystem + legislationSystem + evidenceSystem,
+      surface: simple ? 'chat-fast' : workPlan.mode==='case-summary' ? 'chat-summary' : 'chat',
+      system: (simple ? SYSTEM_FAST : SYSTEM_FULL + (wantThinking ? '' : '\n\nResponda apenas com o texto final, sem tags, sem seção de pensamentos e sem repetir a resposta.')) + planHint + revisionalSystem + bpmnSystem + khojSystem + skillSystem + teamSystem + legislationSystem + evidenceSystem,
       messages: history,
       images: input.images,
       temperature: simple ? 0.5 : input.temperature ?? 0.35,
-      max_tokens: simple ? 120 : input.max_tokens ?? 4096,
+      max_tokens: generationTokens,
     });
 
     let parsed = parseThinkingAnswer(r.text);
@@ -303,7 +309,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
     let tokens = r.tokens || 0;
 
     // Só gasta uma segunda chamada quando a primeira saída é claramente inválida.
-    if (!simple && !gate.ok && preferred === 'auto') {
+    if (!simple && workPlan.allowRepair && !gate.ok && preferred === 'auto') {
       const repair = await runCascade({
         preferred: 'auto',
         surface: 'chat-repair',
@@ -317,7 +323,7 @@ export async function chatAIFlow(input: ChatAiInput): Promise<ChatAiOutput> {
         ],
         images: input.images,
         temperature: 0.25,
-        max_tokens: input.max_tokens ?? 4096,
+        max_tokens: generationTokens,
       });
       parsed = parseThinkingAnswer(repair.text);
       gate = runQualityGate({ text: parsed.answer });
