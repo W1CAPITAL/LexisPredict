@@ -105,7 +105,7 @@ type Props = {
 type DetailTab = "overview" | "movements" | "deadlines" | "parties" | "documents" | "ai";
 type FocusPreset = "all" | "urgent" | "returns" | "djen" | "updates" | "silence" | "sources" | "ba";
 
-const COLORS = ["#4f7cff", "#7c5cff", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#94a3b8"];
+const COLORS = ["#6D1734", "#81707A", "#9A536C", "#C09AA8", "#594954", "#A0798B", "#424247"];
 
 function clean(value: unknown) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -658,7 +658,7 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {props.canScan && props.onScan ? (
-              <Button onClick={props.onScan} size="sm" className="h-8 bg-blue-600 text-[11px] font-bold hover:bg-blue-500">
+              <Button onClick={props.onScan} size="sm" className="h-8 bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90">
                 <RefreshCcw size={13} className="mr-1.5" />{props.scannerLabel || "Atualizar DataJud"}
               </Button>
             ) : null}
@@ -673,7 +673,7 @@ export function ProcessosCommandCenter(props: Props) {
             <Button onClick={() => props.onExportCsv(rows)} variant="outline" size="sm" className="h-8 border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10">
               <Download size={12} className="mr-1.5" />Exportar CSV
             </Button>
-            <Button asChild size="sm" className="h-8 bg-violet-600 text-[11px] font-bold hover:bg-violet-500">
+            <Button asChild size="sm" className="h-8 bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90">
               <Link href={selected ? `/report?processo=${encodeURIComponent(selected.protocolo)}` : "/report"}>
                 <Sparkles size={12} className="mr-1.5" />Gerar relatório IA
               </Link>
@@ -735,7 +735,7 @@ export function ProcessosCommandCenter(props: Props) {
                 ["sources","Fontes incompletas",focusCounts.sources,Database],
                 ["ba","B.A.",focusCounts.ba,Scale],
               ] as const).filter(([value]) => advancedFiltersOpen || ["all", "urgent", "returns", "updates"].includes(value)).map(([value,label,count,Icon])=>(
-                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-bold transition",focusPreset===value?"border-blue-400/35 bg-blue-500/15 text-blue-800 dark:text-blue-100":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
+                <button key={value} onClick={()=>setFocusPreset(value)} className={cn("flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-bold transition",focusPreset===value?"border-primary/40 bg-primary/10 text-primary dark:text-[#E5AABB]":"border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[.025] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:text-slate-200")}>
                   <Icon size={11}/>{label}<span className="rounded bg-slate-200 dark:bg-black/20 px-1 text-[9px] tabular-nums">{count}</span>
                 </button>
               ))}
@@ -802,9 +802,9 @@ export function ProcessosCommandCenter(props: Props) {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <div className="relative min-w-[220px] flex-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input value={props.query} onChange={(e) => props.onQueryChange(e.target.value)} placeholder="Buscar CNJ, cliente, advogado, tribunal, assunto…" className="h-9 w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] pl-9 pr-3 text-[10px] text-slate-900 dark:text-white outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-blue-400/50" />
+                <input value={props.query} onChange={(e) => props.onQueryChange(e.target.value)} placeholder="Buscar CNJ, cliente, advogado, tribunal, assunto…" className="h-9 w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] pl-9 pr-3 text-[10px] text-slate-900 dark:text-white outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-primary/50" />
               </div>
-              <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[11px] font-bold", props.sortOps ? "border-blue-400/40 bg-blue-500/15 text-blue-800 dark:text-blue-200" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
+              <button onClick={() => props.onSortOpsChange(!props.sortOps)} className={cn("h-9 rounded-lg border px-3 text-[11px] font-bold", props.sortOps ? "border-primary/40 bg-primary/10 text-primary dark:text-[#E5AABB]" : "border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1930] text-slate-700 dark:text-slate-300")}>
                 <Filter size={12} className="mr-1 inline" />Prioridade ops
               </button>
               {(focusPreset!=="all" || props.query || props.statusFilter || tribunal || classe || assunto || municipio || grau || sistema || responsavel || novidade || risco || periodStart || periodEnd || props.baOnly || props.silencioOnly) ? (
@@ -837,7 +837,7 @@ export function ProcessosCommandCenter(props: Props) {
                   const priority = riskLabel(c);
                   const situacaoAtual=statusEfetivo(c);
                   return (
-                    <tr key={id} data-selected={selectedRow ? "true" : undefined} tabIndex={0} aria-label={`Abrir detalhes de ${c.cliente || fmtCnj(c.protocolo)}`} onClick={() => { setSelectedId(id); setTab("overview"); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(id); setTab("overview"); } }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-blue-500/[.07]", selectedRow && "bg-blue-600/[.14] ring-1 ring-inset ring-blue-400/20")}>
+                    <tr key={id} data-selected={selectedRow ? "true" : undefined} tabIndex={0} aria-label={`Abrir detalhes de ${c.cliente || fmtCnj(c.protocolo)}`} onClick={() => { setSelectedId(id); setTab("overview"); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(id); setTab("overview"); } }} className={cn("cursor-pointer border-b border-slate-100 dark:border-white/[.055] transition-colors hover:bg-primary/[.06]", selectedRow && "bg-primary/[.10] ring-1 ring-inset ring-primary/25")}>
                       <td className="px-2 py-2 font-mono font-bold text-cyan-700 dark:text-cyan-300">{fmtCnj(c.protocolo)}</td>
                       <td className="max-w-[150px] truncate px-2 py-2 font-semibold text-slate-800 dark:text-slate-200" title={c.cliente}>{c.cliente || "—"}</td>
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-300">{c.tribunal || "—"}</td>
@@ -907,8 +907,8 @@ export function ProcessosCommandCenter(props: Props) {
                     <YAxis tick={{fill:"#64748b",fontSize:8}} axisLine={false} tickLine={false} width={26}/>
                     <RechartsTooltip contentStyle={{background:"hsl(var(--card))",color:"hsl(var(--card-foreground))",border:"1px solid hsl(var(--border))",fontSize:10}}/>
                     <Legend wrapperStyle={{fontSize:8}}/>
-                    <Line type="monotone" dataKey="movimentacoes" name="DataJud" stroke="#4f7cff" strokeWidth={2} dot={false}/>
-                    <Line type="monotone" dataKey="publicacoes" name="DJEN" stroke="#a855f7" strokeWidth={2} dot={false}/>
+                    <Line type="monotone" dataKey="movimentacoes" name="DataJud" stroke="#6D1734" strokeWidth={2} dot={false}/>
+                    <Line type="monotone" dataKey="publicacoes" name="DJEN" stroke="#81707A" strokeWidth={2} dot={false}/>
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -928,7 +928,7 @@ export function ProcessosCommandCenter(props: Props) {
                   </div>
                   {(!props.canManageItem || props.canManageItem(selected)) ?
                     <div className="flex shrink-0 flex-col gap-1">
-                      <Button size="sm" onClick={() => props.onEdit(selected)} className="h-8 bg-blue-600 px-2 text-[10px] text-white">Editar</Button>
+                      <Button size="sm" onClick={() => props.onEdit(selected)} className="h-8 bg-primary px-2 text-[10px] text-primary-foreground">Editar</Button>
                       {props.onDelete && <Button size="sm" variant="outline" onClick={() => props.onDelete?.(selected)} className="h-8 border-red-500/30 px-2 text-[10px] text-red-600 dark:text-red-300 hover:bg-red-500/10">Excluir</Button>}
                       <Button size="sm" variant="outline" onClick={() => props.onAttend(selected)} className="h-8 px-2 text-[10px]">Atendimento</Button>
                       {isCasoEncerrado(selected) && props.onReopen ?
@@ -951,7 +951,7 @@ export function ProcessosCommandCenter(props: Props) {
                 {([
                   ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
-                  <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-blue-600 text-white":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
+                  <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-primary text-primary-foreground":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
                 ))}
               </div>
 
@@ -1047,7 +1047,7 @@ export function ProcessosCommandCenter(props: Props) {
                   <button type="button"
                     disabled={!selectedCnj||!!activeHistory?.loading}
                     onClick={()=>void consultAllMovementHistory()}
-                    className="mb-2 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-blue-700 disabled:opacity-60">
+                    className="mb-2 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-3 py-2 text-[11px] font-black text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60">
                     {activeHistory?.loading?<Loader2 size={14} className="animate-spin"/>:<RefreshCcw size={14}/>}
                     {activeHistory?.loading?'Consultando DataJud e DJEN…':'Consultar todos os movimentos'}
                   </button>
@@ -1234,7 +1234,7 @@ export function ProcessosCommandCenter(props: Props) {
                       </div>
                     )}
                   </Panel>
-                  <Button asChild className="w-full bg-violet-600 text-[11px] hover:bg-violet-500"><Link href={`/veredito?processo=${encodeURIComponent(selected.protocolo)}`}><Sparkles size={12} className="mr-1"/>Abrir análise IA</Link></Button>
+                  <Button asChild className="w-full bg-primary text-primary-foreground text-[11px] hover:bg-primary/90"><Link href={`/veredito?processo=${encodeURIComponent(selected.protocolo)}`}><Sparkles size={12} className="mr-1"/>Abrir análise IA</Link></Button>
                   <Button asChild variant="outline" className="w-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-700 dark:text-slate-300"><Link href={`/report?processo=${encodeURIComponent(selected.protocolo)}`}><BarChart3 size={12} className="mr-1"/>Gerar relatório</Link></Button>
                 </div>
               ) : null}
