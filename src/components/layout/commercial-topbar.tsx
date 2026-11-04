@@ -83,15 +83,15 @@ export function CommercialTopbar() {
   return (
     <header
       data-lexis-commercial-topbar
-      className="fixed right-0 top-0 z-30 hidden h-16 items-center border-b border-[#C5BAC1] bg-white/95 px-5 backdrop-blur-xl md:flex"
+      className="fixed right-0 top-0 z-30 hidden h-16 items-center border-b border-border bg-card/95 px-5 backdrop-blur-xl md:flex"
     >
       <form onSubmit={submit} className="relative w-[min(34vw,560px)] min-w-[300px]">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#60555C]" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar processos, clientes, publicações ou tarefas..."
-          className="h-10 w-full rounded-xl border border-[#8F858B] bg-[#F4F3F5] pl-11 pr-4 text-sm font-medium text-[#21151A] outline-none transition focus:border-[#6D1734] focus:bg-white focus:ring-4 focus:ring-[#6D1734]/10"
+          className="h-10 w-full rounded-xl border border-input bg-background pl-11 pr-4 text-sm font-medium text-foreground outline-none transition focus:border-ring focus:bg-white focus:ring-4 focus:ring-ring/15"
         />
       </form>
 
@@ -100,19 +100,19 @@ export function CommercialTopbar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex h-10 min-w-[240px] items-center gap-3 rounded-xl border border-[#8F858B] bg-white px-4 text-left shadow-[0_2px_8px_rgba(16,36,71,.03)] transition hover:border-[#8F858B] hover:bg-[#F4F3F5]"
+              className="flex h-10 min-w-[240px] items-center gap-3 rounded-xl border border-input bg-white px-4 text-left shadow-[0_2px_8px_rgba(16,36,71,.03)] transition hover:border-input hover:bg-muted"
               title="Empresa atual"
               aria-label="Abrir seletor de empresa"
             >
-              <Building2 className="h-4 w-4 shrink-0 text-[#453039]" />
-              <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#21151A]">
+              <Building2 className="h-4 w-4 shrink-0 text-foreground" />
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-foreground">
                 {companyName}
               </span>
-              <ChevronDown className="h-4 w-4 text-[#60555C]" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 rounded-xl">
-            <DropdownMenuLabel className="text-xs text-[#60555C]">Empresa ativa</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Empresa ativa</DropdownMenuLabel>
             <DropdownMenuItem className="gap-2 font-semibold" disabled>
               <Check className="h-4 w-4 text-emerald-600" />
               <span className="truncate">{companyName}</span>
@@ -125,17 +125,17 @@ export function CommercialTopbar() {
               <Settings className="h-4 w-4" />
               Configurações da empresa
             </DropdownMenuItem>
-            <div className="px-2 py-1.5 text-[11px] leading-4 text-[#60555C]">
+            <div className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
               No momento há uma única empresa vinculada a este acesso.
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex h-10 items-center gap-2 rounded-xl border border-[#8F858B] bg-[#EDE9ED] px-4 text-[#6D1734]">
+        <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-muted px-4 text-primary">
           <Crown className="h-4 w-4" />
           <div className="leading-none">
             <p className="text-xs font-black">Plano {PLAN_LABEL[plan]}</p>
-            <p className="mt-1 text-[8px] font-black uppercase tracking-[.16em] text-[#60555C]">
+            <p className="mt-1 text-[8px] font-black uppercase tracking-[.16em] text-muted-foreground">
               ambiente ativo
             </p>
           </div>
@@ -147,23 +147,23 @@ export function CommercialTopbar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex min-w-[170px] items-center gap-3 rounded-xl px-2 py-1 text-left transition hover:bg-[#EDE9ED]"
+              className="flex min-w-[170px] items-center gap-3 rounded-xl px-2 py-1 text-left transition hover:bg-muted"
               aria-label="Abrir menu do perfil"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#6D1734] text-sm font-black text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-black text-primary-foreground">
                 {cosmeticAvatar?<img src={cosmeticAvatar} alt="Foto do perfil" className="h-full w-full rounded-full object-cover"/>:initials || "LP"}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-[#21151A]">{cosmeticName || profile?.nome || "Usuário"}</p>
-                <p className="truncate text-[11px] font-medium text-[#60555C]">{cosmeticRole || profile?.cargo || "Equipe jurídica"}</p>
+                <p className="truncate text-sm font-black text-foreground">{cosmeticName || profile?.nome || "Usuário"}</p>
+                <p className="truncate text-[11px] font-medium text-muted-foreground">{cosmeticRole || profile?.cargo || "Equipe jurídica"}</p>
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-[#60555C]" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64 rounded-xl">
             <DropdownMenuLabel>
-              <p className="truncate text-sm font-bold text-[#21151A]">{profile?.nome || "Usuário"}</p>
-              <p className="truncate text-[11px] font-normal text-[#60555C]">{profile?.email || ""}</p>
+              <p className="truncate text-sm font-bold text-foreground">{profile?.nome || "Usuário"}</p>
+              <p className="truncate text-[11px] font-normal text-muted-foreground">{profile?.email || ""}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2" onClick={() => router.push("/settings?section=Conta")}>
