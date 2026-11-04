@@ -131,3 +131,31 @@ export async function updateExperienceAppearanceAction(patch:{mode?:'light'|'dar
   return {ok:!saveError};
  }catch{return {ok:false as const}}
 }
+
+
+/** Atualiza somente preferências OAB, sem passar por aceite contratual, nem receber certificados. */
+export async function saveOabPreferencesAction(raw:Pick<ExperiencePreferences,
+ 'oabNumber'|'oabUf'|'oabCertificateType'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>){
+ try{
+  const {db,uid,tenant}=await currentActor();
+  const {data,error}=await db.from('lexis_user_experience').select('preferences')
+    .eq('auth_user_id',uid).eq('empresa_id',tenant).maybeSingle();
+  if(error)return {ok:false as const,error:'Não foi possível ler sua personalização.'};
+  if(!data)return {ok:false as const,error:'Conclua primeiro a configuração do seu perfil em Personalização.'};
+  const current=cleanExperiencePrefs(data.preferences);
+  const next=cleanExperiencePrefs({
+    ...current,
+    oabNumber:raw.oabNumber,oabUf:raw.oabUf,
+    oabCertificateType:raw.oabCertificateType,
+    oabPreferredTribunal:raw.oabPreferredTribunal,
+    oabDefaultDocuments:raw.oabDefaultDocuments,
+    oabShowGuide:raw.oabShowGuide,
+  });
+  // O payload contém só escolhas operacionais. Nunca armazenar .pfx, senha ou PIN.
+  const {error:saveError}=await db.from('lexis_user_experience')
+    .update({preferences:next,updated_at:new Date().toISOString()})
+    .eq('auth_user_id',uid).eq('empresa_id',tenant);
+  if(saveError)return {ok:false as const,error:'Falha ao salvar as preferências.'};
+  return {ok:true as const,preferences:next};
+ }catch{return {ok:false as const,error:'Não foi possível atualizar a consulta OAB.'};}
+}
