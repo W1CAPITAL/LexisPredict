@@ -166,7 +166,7 @@ export function AutosOabScannerPanel(){
         <a href="https://api.escavador.com/certificados" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1">
          Configurar certificado A1 no provedor <ExternalLink size={12}/>
         </a>
-        <p className="text-[11px]">A equipe de administração também precisa configurar <code>ESCAVADOR_API_TOKEN</code> na Vercel. Cada solicitação pode consumir créditos do provedor.</p>
+        <p className="text-[11px]">A administração deve configurar <code>ESCAVADOR_API_TOKEN</code> e <code>ESCAVADOR_CERTIFICADO_ID</code> na Vercel (ID do certificado A1 cadastrado no provedor). Cada solicitação pode consumir créditos.</p>
       </div>
       {setup && !setup.configured && <p role="status" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-foreground">
         Integração ainda não configurada: falta a chave privada da API no servidor. O scanner DataJud/DJEN continua disponível normalmente.
