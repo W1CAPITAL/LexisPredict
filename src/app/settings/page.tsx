@@ -700,8 +700,8 @@ export default function SettingsPage() {
                     className={cn(
                       "shrink-0 flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl text-[13px] sm:text-sm font-bold border transition-colors lg:w-full",
                       activeTab === item.id
-                        ? "border-[#cfe0ff] bg-[#eef5ff] text-[#145bd7]"
-                        : "border-transparent bg-transparent text-[#607590] hover:bg-[#f5f8fc] hover:text-[#18365f]"
+                        ? "border-primary/40 bg-primary/10 text-foreground"
+                        : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
                     {item.icon}
