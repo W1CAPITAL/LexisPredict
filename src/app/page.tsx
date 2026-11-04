@@ -11,7 +11,7 @@ import {
   countAuditadosTribunalSemana,
 } from "@/lib/processos-auditados";
 
-import { statusEfetivo } from "@/lib/prazo-status";
+import { statusEfetivo, hojeBrasilISO } from "@/lib/prazo-status";
 import { isSentencaProcedente, isSentencaImprocedente } from "@/lib/merito-detect";
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { Dashboard as EfferdPanelRaw } from "@/components/dashboard/efferd-dashboard-panel";
@@ -105,6 +105,8 @@ export default function Dashboard() {
   const { courtHealthMap, runInitialHealthCheck } = useDataJudScanStore();
   const [loading, setLoading] = useState(false);
   const [portfolioSummary, setPortfolioSummary] = useState<CarteiraSnapshot | null>(null);
+  const [retornosHoje,setRetornosHoje]=useState<{date:string;count:number}|null>(null);
+  const [retornosHojeLoading,setRetornosHojeLoading]=useState(false);
   const [historicoEquipe,setHistoricoEquipe]=useState<AtendimentosHistorico|null>(null);
   const [carteiraError, setCarteiraError] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -183,6 +185,46 @@ export default function Dashboard() {
     const timer=window.setInterval(onVisible,60_000);
     return()=>{active=false;window.clearInterval(timer);window.removeEventListener("focus",onVisible);window.removeEventListener("lexis-carteira-updated",onVisible);};
   },[(profile as any)?.empresa_id]);
+
+  // Count scheduled returns from the whole tenant rather than the initial dashboard page.
+  // Same source as the "É hoje" queue. Network errors never become a false zero.
+  useEffect(()=>{
+    const empresaId=String((profile as any)?.empresa_id||'');
+    const userId=String((profile as any)?.auth_user_id||'');
+    if(!empresaId||!userId){setRetornosHoje(null);return;}
+    let active=true;
+    let controller:AbortController|null=null;
+    const refresh=()=>{
+      controller?.abort();
+      controller=new AbortController();
+      const signal=controller.signal;
+      const date=hojeBrasilISO();
+      setRetornosHoje(previous=>previous?.date===date?previous:null);
+      setRetornosHojeLoading(true);
+      const params=new URLSearchParams({field:'proximo-retorno',from:date,to:date,offset:'0'});
+      void fetch('/api/carteira/filtered?'+params.toString(),{
+        credentials:'same-origin',cache:'no-store',signal,
+      }).then(async response=>{
+        const result=await response.json();
+        if(!response.ok||result?.ok!==true||!Number.isFinite(Number(result.totalCount)))throw new Error('Retornos indisponíveis');
+        if(active&&!signal.aborted)setRetornosHoje({date,count:Math.max(0,Number(result.totalCount))});
+      }).catch(()=>{
+        if(active&&!signal.aborted)setRetornosHoje(null);
+      }).finally(()=>{
+        if(active&&!signal.aborted)setRetornosHojeLoading(false);
+      });
+    };
+    refresh();
+    const onFocus=()=>{if(!document.hidden)refresh();};
+    window.addEventListener('focus',onFocus);
+    window.addEventListener('lexis-carteira-updated',onFocus);
+    const interval=window.setInterval(onFocus,120_000);
+    return ()=>{
+      active=false;controller?.abort();window.clearInterval(interval);
+      window.removeEventListener('focus',onFocus);
+      window.removeEventListener('lexis-carteira-updated',onFocus);
+    };
+  },[(profile as any)?.empresa_id,(profile as any)?.auth_user_id]);
 
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
@@ -370,8 +412,8 @@ export default function Dashboard() {
               total={portfolioSummary?.total ?? null}
               ativos={portfolioSummary?.ativos ?? null}
               vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}
-              hoje={metrics.countHoje}
-              loading={loading}
+              hoje={retornosHoje?.date===hojeBrasilISO()?retornosHoje.count:null}
+              loading={loading||retornosHojeLoading}
               series={historicoEquipe?.dias?.map((d) => ({
                 day: d.day,
                 atendimentos: d.atendimentos,
