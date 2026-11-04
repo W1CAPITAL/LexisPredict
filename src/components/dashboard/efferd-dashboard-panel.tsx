@@ -140,7 +140,7 @@ export type LexisDashboardProps = {
   baixas?: number;
   /** Encerrados operacionais (status ENCERRADO na carteira). */
   encerradosCarteira?: number;
-  hoje?: number;
+  hoje?: number | null;
   riskScore?: number;
   className?: string;
   compact?: boolean;
@@ -160,7 +160,7 @@ export function Dashboard({
   novidades,
   baixas = 0,
   encerradosCarteira = 0,
-  hoje = 0,
+  hoje = null,
   riskScore,
   className,
   compact = false,
@@ -245,11 +245,11 @@ export function Dashboard({
       hint: "Movimento após retorno",
     },
     {
-      label: "É hoje",
-      value: hoje,
+      label: "Retornos para hoje",
+      value: hoje ?? "—",
       icon: <Clock size={16} />,
-      tone: hoje > 0 ? "warn" : "default",
-      hint: "Retornos e prazos na lista atualmente carregada",
+      tone: (hoje ?? 0) > 0 ? "warn" : "default",
+      hint: "Próximos retornos na carteira da empresa; não são tarefas do CRM.",
     },
     {
       label: "Baixas tribunal",
