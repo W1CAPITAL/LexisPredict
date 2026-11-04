@@ -4,7 +4,10 @@ import * as React from "react";
 import {FileArchive,FileText,Download,ExternalLink,Loader2,Search,ShieldCheck,AlertTriangle,CheckCircle2,FolderOpen} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {canonicalCnj} from "@/lib/autos-oab-logic";
-import {classifyLocalAutosDocument,findOfficialAutosPortal,normalizeAutasFilename,selectAutosThroughDefesa,type AutosLocalItem} from "@/lib/free-autos-utils";
+import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,type AutosLocalItem} from "@/lib/free-autos-utils";
+import {loadExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
+import {resolveOabOfficialPortal} from "@/lib/oab-user-flow";
+import Link from "next/link";
 
 const MB=1024*1024;
 const MAX_ARCHIVE=60*MB;
@@ -39,9 +42,10 @@ function downloadBlob(data:Blob,name:string){
  document.body.appendChild(a);a.click();a.remove();
  window.setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
-export function AutosOabFreePanel(){
+export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:boolean}={}){
  const [cnjText,setCnjText]=React.useState("");
- const [expanded,setExpanded]=React.useState(false);
+ const [expanded,setExpanded]=React.useState(defaultExpanded);
+ const [prefs,setPrefs]=React.useState<ExperiencePreferences>(EXPERIENCE_DEFAULT);
  const [files,setFiles]=React.useState<AutosLocalItem[]>([]);
  const [busy,setBusy]=React.useState(false);
  const [progress,setProgress]=React.useState("");
@@ -51,7 +55,17 @@ export function AutosOabFreePanel(){
  const [confirmed,setConfirmed]=React.useState(false);
  const inputRef=React.useRef<HTMLInputElement|null>(null);
  const cnj=canonicalCnj(cnjText);
- const court=cnj?findOfficialAutosPortal(cnj):null;
+ const court=resolveOabOfficialPortal(cnjText,prefs.oabPreferredTribunal);
+ React.useEffect(()=>{
+   const sync=()=>{
+     const next=loadExperiencePrefs();
+     setPrefs(next);
+     setIncludeAll(next.oabDefaultDocuments==='todos');
+   };
+   sync();
+   window.addEventListener('lexis-experience-updated',sync);
+   return ()=>window.removeEventListener('lexis-experience-updated',sync);
+ },[]);
  const selected=React.useMemo(()=>selectAutosThroughDefesa(files),[files]);
  const output=includeAll?selectAutosThroughDefesa(files.map(f=>({...f,kind:"outro" as const}))).files: selected.files;
  const consolidated=output.some(f=>f.isConsolidated);
@@ -201,15 +215,27 @@ export function AutosOabFreePanel(){
     <button type="button" className="w-full flex items-start gap-3 text-left" onClick={()=>setExpanded(v=>!v)} aria-expanded={expanded}>
       <ShieldCheck size={19} className="shrink-0 mt-0.5 text-primary"/>
       <span className="flex-1 space-y-1">
-        <strong className="block text-sm">Autos judiciais · modo gratuito</strong>
-        <span className="block text-[11px] text-muted-foreground">Use o PJe com o certificado do advogado e organize os PDFs até a possível contestação, sem API ou assinatura paga.</span>
+        <strong className="block text-sm">Consulta OAB · autos do processo</strong>
+        <span className="block text-[11px] text-muted-foreground">Abra o tribunal pelo CNJ, use seu certificado no portal e organize automaticamente as peças exportadas, sem API paga.</span>
       </span>
       <span className="text-xs text-primary font-bold">{expanded?"Fechar":"Abrir"}</span>
     </button>
     {expanded&&<div className="space-y-3">
-      <div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
-        <p className="font-semibold">1. Abra o tribunal e autentique-se normalmente</p>
-        <p>O certificado A1 ou A3 permanece no computador do advogado, usando o PJeOffice Pro ou o gerenciador exigido pelo tribunal. Faça a consulta pelo CNJ e use a função oficial de baixar autos/documentos.</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <div>
+          <p className="text-xs font-bold text-foreground">{prefs.oabCertificateType==='a1'?'Certificado A1':prefs.oabCertificateType==='a3'?'Certificado A3':'Consulta pública'} · {prefs.oabUf&&prefs.oabNumber?'OAB/'+prefs.oabUf+' '+prefs.oabNumber:'OAB não cadastrada'}</p>
+          <p className="text-[11px] text-muted-foreground">Preferências salvas no seu perfil, sem senha, PIN ou arquivo do certificado.</p>
+        </div>
+        <Link href="/settings?section=Personalizacao" className="rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-bold text-primary hover:bg-muted">Personalizar consulta</Link>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Link href="/integracoes#busca-advogado" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted"><Search size={13} className="mr-1"/> Buscar por advogado</Link>
+        <a href="https://cna.oab.org.br/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted">Verificar inscrição OAB <ExternalLink size={12} className="ml-1"/></a>
+      </div>
+      {prefs.oabShowGuide&&<div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
+        <p className="font-semibold">Como usar em três etapas</p>
+        <p>1. Abra o tribunal pelo CNJ e autentique-se com {prefs.oabCertificateType==='a1'?'seu certificado A1':prefs.oabCertificateType==='a3'?'seu certificado A3': 'o método autorizado'}. 2. Exporte os documentos pelo portal. 3. Importe o PDF ou ZIP aqui para organizar a primeira possível contestação.</p>
+        <p className="font-medium">A autenticação ocorre no site do tribunal, nunca no LexisPredict. O auxiliar Chrome só procura o controle de exportação oficial.</p>
         <a href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" rel="noopener noreferrer" target="_blank" className="text-primary underline inline-flex gap-1 items-center">
           Instruções oficiais do PJeOffice Pro <ExternalLink size={12}/>
         </a>
@@ -221,22 +247,28 @@ export function AutosOabFreePanel(){
           </Button>
           <p className="text-[10px] text-muted-foreground">Depois de extrair o ZIP: Chrome → chrome://extensions → Modo do desenvolvedor → Carregar sem compactação. Abra os autos no PJe, clique na extensão e selecione o comando oficial de exportação.</p>
         </div>
-      </div>
+      </div>}
       <label htmlFor="autos-free-cnj" className="block text-xs font-semibold space-y-1">
         Número CNJ
         <input id="autos-free-cnj" autoComplete="off" placeholder="0000000-00.0000.0.00.0000"
-          value={cnjText} onChange={e=>{setCnjText(e.target.value);setFiles([]);setConfirmed(false);setProgress("");setError("");}}
+          value={cnjText} onBlur={()=>{if(cnj)setCnjText(cnj);}}
+          onChange={e=>{setCnjText(e.target.value);setFiles([]);setConfirmed(false);setProgress("");setError("");}}
           className="block h-10 w-full rounded-lg border border-input bg-background px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
       </label>
-      {cnj && <div className="flex flex-wrap gap-2 items-center">
-        {court?<a href={court.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-primary bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
-          <ExternalLink size={13}/> Abrir {court.tribunal} · {court.sistema.toUpperCase()}
-        </a>:<p className="text-xs text-muted-foreground">Tribunal não mapeado para abertura automática. Acesse o portal oficial de sua Justiça.</p>}
-        <span className="text-[10px] text-muted-foreground">Pesquise pelo CNJ no portal. O certificado não é lido pelo LexisPredict.</span>
+      {(cnj||(!cnjText.trim()&&court))&&<div className="flex flex-wrap gap-2 items-center">
+        {court?<a href={court.url} target="_blank" rel="noopener noreferrer" 
+          onClick={()=>{if(cnj&&navigator.clipboard)void navigator.clipboard.writeText(cnj).catch(()=>{});}}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
+          <ExternalLink size={14}/> {cnj?'Copiar CNJ e abrir':'Abrir tribunal favorito'} · {court.tribunal}
+        </a>:<p className="text-xs text-muted-foreground">Tribunal não mapeado. Escolha o portal oficial de seu tribunal e pesquise o CNJ.</p>}
+        {cnj&&<Button type="button" size="sm" variant="outline" onClick={()=>{void navigator.clipboard?.writeText(cnj).catch(()=>{});}}>Copiar CNJ</Button>}
+        <span className="text-[11px] text-muted-foreground">{court?.isFallback?'Tribunal favorito — informe um CNJ para identificar automaticamente o tribunal correto.':'Consulta pública do tribunal — entre com o certificado no ambiente autenticado quando necessário.'}</span>
       </div>}
-      <div className="rounded-lg border border-border p-3 space-y-2">
-        <p className="font-semibold text-xs">2. Importe o que o tribunal disponibilizou</p>
-        <p className="text-xs text-muted-foreground">Selecione PDFs individuais ou ZIP exportado no PJe. Eles são lidos apenas nesta aba e não enviados ao Supabase, à Vercel nem a APIs de terceiros.</p>
+      <div className="rounded-xl border border-dashed border-primary/50 bg-primary/5 p-4 space-y-2"
+           onDragOver={event=>event.preventDefault()}
+           onDrop={event=>{event.preventDefault();void importFiles(event.dataTransfer.files);}}>
+        <p className="font-semibold text-sm text-foreground">Importar os autos · PDF ou ZIP</p>
+        <p className="text-xs text-muted-foreground">Escolha os documentos exportados pelo tribunal ou arraste-os para esta área. O sistema analisa os PDFs automaticamente após a seleção, só neste dispositivo.</p>
         <input ref={inputRef} type="file" multiple accept=".pdf,.zip,application/pdf,application/zip"
           aria-label="Selecionar PDFs ou ZIP dos autos" onChange={e=>void importFiles(e.currentTarget.files)}
           className="block w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:font-semibold file:text-primary-foreground"/>
