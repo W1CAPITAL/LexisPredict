@@ -5,11 +5,11 @@ import {resolveOabOfficialPortal} from './oab-user-flow';
 describe('Personalização da consulta OAB',()=>{
  it('mantém preferências compatíveis com perfis antigos',()=>{
   const prefs=cleanExperiencePrefs({theme:'minimal-steel'});
-  expect(prefs.oabCertificateType).toBe('a3');
+  expect(prefs.oabCertificateType).toBe('none');
   expect(prefs.oabPreferredTribunal).toBe('');
   expect(prefs.oabDefaultDocuments).toBe('contestacao');
   expect(prefs.oabShowGuide).toBe(true);
-  expect(EXPERIENCE_DEFAULT.oabCertificateType).toBe('a3');
+  expect(EXPERIENCE_DEFAULT.oabCertificateType).toBe('none');
  });
  it('não permite arquivo de certificado, senha, URL ou script em campos OAB',()=>{
   const prefs=cleanExperiencePrefs({
@@ -20,7 +20,7 @@ describe('Personalização da consulta OAB',()=>{
     oabDefaultDocuments:'ambos',
     oabShowGuide:false
   });
-  expect(prefs.oabCertificateType).toBe('a3');
+  expect(prefs.oabCertificateType).toBe('none');
   expect(prefs.oabNumber).toBe('370898');
   expect(prefs.oabUf).toBe('');
   expect(prefs.oabPreferredTribunal).toBe('');
