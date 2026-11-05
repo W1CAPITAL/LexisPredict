@@ -7,7 +7,7 @@ import {canonicalCnj} from "@/lib/autos-oab-logic";
 import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,isPdfBytes,type AutosLocalItem} from "@/lib/free-autos-utils";
 import {loadExperiencePrefs,applyExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
 import {saveOabPreferencesAction} from "@/app/actions/experience-actions";
-import {certificateProviders,getCertificateProvider} from "@/lib/oab-certificate-providers";
+import {certificateProviders,getCertificateProvider,recommendedCertificateType} from "@/lib/oab-certificate-providers";
 import {resolveOabOfficialPortal} from "@/lib/oab-user-flow";
 import Link from "next/link";
 
@@ -96,7 +96,8 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
  async function chooseProvider(next:ExperiencePreferences['oabCertificateProvider']){
    if(providerSaving)return;
    setProviderMessage('');
-   const changed={...prefs,oabCertificateProvider:next};
+   const changed={...prefs,oabCertificateProvider:next,
+     oabCertificateType:recommendedCertificateType(next,prefs.oabCertificateType)};
    setPrefs(changed);setProviderSaving(true);
    try{
      const result=await saveOabPreferencesAction({
