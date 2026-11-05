@@ -14,6 +14,13 @@ describe('Conector local gratuito do PJe',()=>{
    expect(code).toContain('chrome.scripting.executeScript');
    expect(code).not.toMatch(/document.cookie|\.getAll\(|fetch\(|XMLHttpRequest|sendBeacon/);
  });
+ it('também localiza login oficial com certificado, sem autenticar ou assinar sozinho',()=>{
+   const code=readFileSync(root+'popup.js','utf8');
+   expect(code).toContain('safeLoginControl');
+   expect(code).toContain('Acessar com certificado');
+   expect(code).toContain('kind');
+   expect(code).not.toMatch(/privateKey|PKCS12|readFile|certutil|PIN.*getElementById/);
+ });
  it('não executa download sem escolha explícita do usuário',()=>{
    const code=readFileSync(root+'popup.js','utf8');
    expect(code).toContain("button.addEventListener('click'");
