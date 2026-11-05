@@ -104,6 +104,7 @@ const ALWAYS = new Set([
   "/login",
   "/signup",
   "/settings",
+  "/consulta-oab",
   "/planos",
   "/onboarding",
   "/termos",
