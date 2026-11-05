@@ -6,6 +6,8 @@ on:
     paths:
       - 'src/lib/experience-prefs.ts'
       - 'src/lib/experience-oab.test.ts'
+      - 'src/lib/planos-pacotes.ts'
+      - 'src/lib/planos-oab.test.ts'
       - 'src/lib/oab-user-flow.ts'
       - 'src/lib/free-autos-utils*'
       - 'src/lib/autos-oab-logic*'
@@ -35,6 +37,6 @@ jobs:
       - name: Instalar dependências
         run: pnpm install --frozen-lockfile
       - name: Testes OAB/tribunais/arquivos locais
-        run: pnpm exec vitest run src/lib/experience-oab.test.ts src/lib/free-autos-utils.test.ts src/lib/autos-oab-logic.test.ts src/lib/pje-local-helper.test.ts
+        run: pnpm exec vitest run src/lib/experience-oab.test.ts src/lib/planos-oab.test.ts src/lib/free-autos-utils.test.ts src/lib/autos-oab-logic.test.ts src/lib/pje-local-helper.test.ts
       - name: Compilar tipos do projeto
         run: pnpm exec tsc --noEmit
