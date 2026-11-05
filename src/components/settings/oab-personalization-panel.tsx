@@ -7,10 +7,12 @@ import {Button} from '@/components/ui/button';
 import {getExperienceAction,saveOabPreferencesAction} from '@/app/actions/experience-actions';
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {TODOS_TRIBUNAIS} from '@/lib/tribunais-links';
+import {certificateProviders,getCertificateProvider} from '@/lib/oab-certificate-providers';
 
-type OabPrefs=Pick<ExperiencePreferences,'oabNumber'|'oabUf'|'oabCertificateType'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>;
+type OabPrefs=Pick<ExperiencePreferences,'oabNumber'|'oabUf'|'oabCertificateType'|'oabCertificateProvider'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>;
 const oabKeys=(x:ExperiencePreferences):OabPrefs=>({
  oabNumber:x.oabNumber,oabUf:x.oabUf,oabCertificateType:x.oabCertificateType,
+ oabCertificateProvider:x.oabCertificateProvider,
  oabPreferredTribunal:x.oabPreferredTribunal,oabDefaultDocuments:x.oabDefaultDocuments,oabShowGuide:x.oabShowGuide
 });
 const field='w-full min-h-10 rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -65,6 +67,13 @@ export function OabPersonalizationPanel(){
       <label><span className={label}>Número da OAB (opcional)</span>
        <input className={field} inputMode="numeric" maxLength={14} autoComplete="off" value={prefs.oabNumber} placeholder="Ex.: 52996-A" onChange={e=>set('oabNumber',e.target.value.toUpperCase().replace(/[^0-9A-Z.\-/\s]/g,'').slice(0,14))}/>
       </label>
+      <label className="sm:col-span-2"><span className={label}>De onde você usa seu certificado?</span>
+        <select className={field} value={prefs.oabCertificateProvider} onChange={e=>set('oabCertificateProvider',e.target.value as OabPrefs['oabCertificateProvider'])}>
+          {certificateProviders.map(provider=><option key={provider.id} value={provider.id}>{provider.label}</option>)}
+        </select>
+        <span className="mt-1 block text-xs text-muted-foreground">{getCertificateProvider(prefs.oabCertificateProvider).description}</span>
+        <a href={getCertificateProvider(prefs.oabCertificateProvider).setupUrl} rel="noopener noreferrer" target="_blank" className="mt-1 inline-flex items-center gap-1 text-xs text-primary underline">Como configurar no computador <ExternalLink size={12}/></a>
+      </label>
       <label><span className={label}>Método de acesso habitual</span>
        <select className={field} value={prefs.oabCertificateType} onChange={e=>set('oabCertificateType',e.target.value as OabPrefs['oabCertificateType'])}>
         <option value="a3">Certificado A3 · token ou cartão</option>
@@ -91,7 +100,7 @@ export function OabPersonalizationPanel(){
     </div>
     <div className="rounded-xl border border-primary/25 bg-primary/5 p-3 text-xs leading-5 text-foreground">
      <p className="font-bold">Seu certificado permanece no tribunal</p>
-     <p className="text-muted-foreground">O LexisPredict não consegue operar o PJeOffice diretamente, porque esse assinador atende aplicações de domínios judiciais e governamentais. O login deve ser feito na própria página do tribunal. A consulta OAB organiza os arquivos depois da exportação.</p>
+     <p className="text-muted-foreground">VIDaaS, Bird ID e certificados do Windows são utilizados no aplicativo ou assinador configurado pelo advogado. O PJeOffice Pro atende diretamente aplicações judiciais e governamentais. O LexisPredict abre o portal oficial, mas não extrai chaves privadas ou executa assinaturas em seu nome.</p>
      <a className="mt-1 inline-flex items-center gap-1 text-primary underline" href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" target="_blank" rel="noopener noreferrer">Guia oficial de instalação do PJeOffice Pro <ExternalLink size={12}/></a>
     </div>
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
