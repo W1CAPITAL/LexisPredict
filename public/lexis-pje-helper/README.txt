@@ -12,9 +12,12 @@ COMO USAR
 1. Entre no PJe do tribunal com o certificado OAB (PJeOffice Pro).
 2. Abra os autos digitais do processo desejado.
 3. Clique no icone LexisPredict da extensao no Chrome.
-4. Escolha o comando OFICIAL de download de documentos/autos exibido.
-5. Se o PJe abrir outra janela, escolha TODOS os documentos e confirme nela.
-6. Baixe o PDF/ZIP oficial e importe-o no scanner LexisPredict, modo gratuito.
+4. Se ainda não estiver autenticado, selecione o botão OFICIAL de entrada com certificado.
+   O PJeOffice Pro, VIDaaS Connect, Bird ID Desktop ou certificados A1/A3
+   configurados no computador farão a seleção/autorização, se compatíveis.
+5. Com os autos abertos, acione a opção de download oficial identificada.
+6. Se o PJe abrir outra janela, escolha TODOS os documentos e confirme nela.
+7. Baixe o PDF/ZIP oficial e importe-o no scanner LexisPredict, modo gratuito.
 
 LIMITES
 - A extensao NAO entra no tribunal por conta propria; o advogado autentica a sessao.
