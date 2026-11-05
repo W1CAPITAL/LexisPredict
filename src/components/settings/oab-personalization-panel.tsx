@@ -7,7 +7,7 @@ import {Button} from '@/components/ui/button';
 import {getExperienceAction,saveOabPreferencesAction} from '@/app/actions/experience-actions';
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {TODOS_TRIBUNAIS} from '@/lib/tribunais-links';
-import {certificateProviders,getCertificateProvider} from '@/lib/oab-certificate-providers';
+import {certificateProviders,getCertificateProvider,recommendedCertificateType,type OabCertificateProviderId} from '@/lib/oab-certificate-providers';
 
 type OabPrefs=Pick<ExperiencePreferences,'oabNumber'|'oabUf'|'oabCertificateType'|'oabCertificateProvider'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>;
 const oabKeys=(x:ExperiencePreferences):OabPrefs=>({
@@ -68,7 +68,10 @@ export function OabPersonalizationPanel(){
        <input className={field} inputMode="numeric" maxLength={14} autoComplete="off" value={prefs.oabNumber} placeholder="Ex.: 52996-A" onChange={e=>set('oabNumber',e.target.value.toUpperCase().replace(/[^0-9A-Z.\-/\s]/g,'').slice(0,14))}/>
       </label>
       <label className="sm:col-span-2"><span className={label}>De onde você usa seu certificado?</span>
-        <select className={field} value={prefs.oabCertificateProvider} onChange={e=>set('oabCertificateProvider',e.target.value as OabPrefs['oabCertificateProvider'])}>
+        <select className={field} value={prefs.oabCertificateProvider} onChange={e=>setPrefs(prev=>({...prev,
+           oabCertificateProvider:e.target.value as OabCertificateProviderId,
+           oabCertificateType:recommendedCertificateType(e.target.value as OabCertificateProviderId,prev.oabCertificateType),
+         }))}>
           {certificateProviders.map(provider=><option key={provider.id} value={provider.id}>{provider.label}</option>)}
         </select>
         <span className="mt-1 block text-xs text-muted-foreground">{getCertificateProvider(prefs.oabCertificateProvider).description}</span>
