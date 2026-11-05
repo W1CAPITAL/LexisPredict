@@ -1,0 +1,40 @@
+name: Validar Consulta OAB e Personalização
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/experience-prefs.ts'
+      - 'src/lib/experience-oab.test.ts'
+      - 'src/lib/oab-user-flow.ts'
+      - 'src/lib/free-autos-utils*'
+      - 'src/lib/autos-oab-logic*'
+      - 'src/lib/pje-local-helper.test.ts'
+      - 'src/components/scanner/autos-oab-free-panel.tsx'
+      - 'src/components/settings/oab-personalization-panel.tsx'
+      - 'src/components/onboarding/experience-studio.tsx'
+      - 'src/app/actions/experience-actions.ts'
+      - 'src/app/consulta-oab/**'
+      - '.github/workflows/oab-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Instalar pnpm
+        run: npm install --global pnpm@10.20.0
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+      - name: Testes OAB/tribunais/arquivos locais
+        run: pnpm exec vitest run src/lib/experience-oab.test.ts src/lib/free-autos-utils.test.ts src/lib/autos-oab-logic.test.ts src/lib/pje-local-helper.test.ts
+      - name: Compilar tipos do projeto
+        run: pnpm exec tsc --noEmit
