@@ -135,7 +135,7 @@ export async function updateExperienceAppearanceAction(patch:{mode?:'light'|'dar
 
 /** Atualiza somente preferências OAB, sem passar por aceite contratual, nem receber certificados. */
 export async function saveOabPreferencesAction(raw:Pick<ExperiencePreferences,
- 'oabNumber'|'oabUf'|'oabCertificateType'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>){
+ 'oabNumber'|'oabUf'|'oabCertificateType'|'oabCertificateProvider'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>){
  try{
   const {db,uid,tenant}=await currentActor();
   const {data,error}=await db.from('lexis_user_experience').select('preferences')
@@ -146,6 +146,7 @@ export async function saveOabPreferencesAction(raw:Pick<ExperiencePreferences,
     ...current,
     oabNumber:raw.oabNumber,oabUf:raw.oabUf,
     oabCertificateType:raw.oabCertificateType,
+    oabCertificateProvider:raw.oabCertificateProvider,
     oabPreferredTribunal:raw.oabPreferredTribunal,
     oabDefaultDocuments:raw.oabDefaultDocuments,
     oabShowGuide:raw.oabShowGuide,
