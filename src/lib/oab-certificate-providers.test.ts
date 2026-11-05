@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs} from './experience-prefs';
-import {getCertificateProvider,certificateProviders} from './oab-certificate-providers';
+import {getCertificateProvider,certificateProviders,recommendedCertificateType} from './oab-certificate-providers';
 
 describe('Certificados OAB via aplicativos locais',()=>{
  it('mantém preferências anteriores sem assumir uma credencial instalada',()=>{
@@ -23,6 +23,12 @@ describe('Certificados OAB via aplicativos locais',()=>{
    expect(cleanExperiencePrefs({oabCertificateProvider:id}).oabCertificateProvider).toBe(id);
    expect(getCertificateProvider(id).connectionVerified).toBe(false);
   }
+ });
+ it('pré-seleciona A3 quando o advogado escolhe um certificado em nuvem',()=>{
+   expect(recommendedCertificateType('vidaas','none')).toBe('a3');
+   expect(recommendedCertificateType('birdid','a1')).toBe('a3');
+   expect(recommendedCertificateType('pjeoffice','a1')).toBe('a1');
+   expect(recommendedCertificateType('windows','none')).toBe('none');
  });
  it('não inclui endpoints locais ou leitura de chave privada na configuração',()=>{
   for(const provider of certificateProviders){
