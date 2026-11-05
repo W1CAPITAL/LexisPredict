@@ -29,7 +29,7 @@ function findOnCourtPage() {
     // by password, sign, file a petition, or trigger a generic button.
     if(/assinar|peticionar|protocolar|juntar|excluir|remover|enviar|senha|password/.test(text))return false;
     return /\b(entrar|acessar|login|autenticar)\b/.test(text)&&
-      /(certificado digital|certificado eletronico|pjeoffice|assinador digital)/.test(text);
+      /(certificado(?: digital| eletronico)?|pjeoffice|assinador digital)/.test(text);
   }
   const nodes=Array.from(document.querySelectorAll('button,a,[role="button"],input[type="button"],input[type="submit"]'));
   const picks=[];
@@ -70,7 +70,7 @@ function clickCourtOption(id) {
     // by password, sign, file a petition, or trigger a generic button.
     if(/assinar|peticionar|protocolar|juntar|excluir|remover|enviar|senha|password/.test(text))return false;
     return /\b(entrar|acessar|login|autenticar)\b/.test(text)&&
-      /(certificado digital|certificado eletronico|pjeoffice|assinador digital)/.test(text);
+      /(certificado(?: digital| eletronico)?|pjeoffice|assinador digital)/.test(text);
   }
   const candidate=document.querySelector('[data-lexis-pje-action="'+String(id)+'"]');
   if(!candidate)return {ok:false,reason:'A página mudou. Procure as opções novamente.'};
