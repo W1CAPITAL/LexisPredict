@@ -26,6 +26,7 @@ export type ExperiencePreferences={
  favoriteTab:string;dashboardPhrase:string;
  /** Configuração de uso, nunca credenciais. PJeOffice gerencia o certificado. */
  oabNumber:string;oabUf:string;oabCertificateType:'a1'|'a3'|'none';
+ oabCertificateProvider:'auto'|'pjeoffice'|'vidaas'|'birdid'|'windows';
  oabPreferredTribunal:string;oabDefaultDocuments:'contestacao'|'todos';
  oabShowGuide:boolean;
 };
@@ -36,7 +37,7 @@ export const EXPERIENCE_DEFAULT:ExperiencePreferences={
  cornerRadius:12,cardStyle:'solid',kpiStyle:'normal',buttonStyle:'rounded',
  glass:false,blur:12,density:'comfortable',notifications:'important',
  favoriteTab:'/',dashboardPhrase:'',
- oabNumber:'',oabUf:'',oabCertificateType:'none',oabPreferredTribunal:'',
+ oabNumber:'',oabUf:'',oabCertificateType:'none',oabCertificateProvider:'auto',oabPreferredTribunal:'',
  oabDefaultDocuments:'contestacao',oabShowGuide:true,
 };
 
@@ -90,6 +91,7 @@ export function cleanExperiencePrefs(raw:unknown):ExperiencePreferences{
     return /^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/.test(value)?value:'';
   })(),
   oabCertificateType:select('oabCertificateType',['a1','a3','none'],EXPERIENCE_DEFAULT.oabCertificateType),
+  oabCertificateProvider:select('oabCertificateProvider',['auto','pjeoffice','vidaas','birdid','windows'],EXPERIENCE_DEFAULT.oabCertificateProvider),
   oabPreferredTribunal:(()=>{
     const code=str('oabPreferredTribunal',5);
     return /^(8\.\d{2}|4\.\d{2})$/.test(code)?code:'';
