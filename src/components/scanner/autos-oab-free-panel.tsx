@@ -24,7 +24,7 @@ async function extractFirstPageText(bytes:Uint8Array):Promise<{text:string;pages
    // can be processed in the browser without loading code from a CDN.
    const port=new Worker(new URL("./autos-pdf.worker.js",import.meta.url),{type:"module"});
    try{
-     const worker=new pdfjs.PDFWorker({port});
+     const worker: InstanceType<typeof pdfjs.PDFWorker> = pdfjs.PDFWorker.fromPort({port});
      try{
        const task=pdfjs.getDocument({data:bytes.slice(),worker});
        try{
