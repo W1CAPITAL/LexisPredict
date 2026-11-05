@@ -19,7 +19,9 @@ describe('autos via portal oficial (gratuito; somente navegador)',()=>{
  });
  it('detecta contestação apenas quando o título ou início de peça traz identificação',()=>{
    expect(classifyLocalAutosDocument('002 - documento.pdf','CONTESTAÇÃO\nBanco requerido vem apresentar sua defesa.').kind).toBe('contestacao');
+   expect(classifyLocalAutosDocument('documento.pdf','Poder Judiciário\nCONTESTAÇÃO:\nBanco requerido').kind).toBe('contestacao');
    expect(classifyLocalAutosDocument('documento.pdf','O autor aguardou contestação em março.').kind).toBe('outro');
+   expect(classifyLocalAutosDocument('Anexo - Réplica.pdf','CONTESTAÇÃO\nTrecho citado.').kind).toBe('outro');
  });
  it('classifica a inicial e mantém anexos até a contestação em ordem jurídica',()=>{
    const items=['003 Contestação.pdf','002 Contrato.pdf','001 Petição Inicial.pdf','004 Réplica.pdf'].map((filename,index)=>({

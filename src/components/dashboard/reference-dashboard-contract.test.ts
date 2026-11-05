@@ -29,18 +29,18 @@ describe("Dashboard visual reference contract", () => {
     expect(home).toContain("data-testid=\"merit-counters\"");
     expect(home).toContain("<BiCompliancePanel");
     expect(home).toContain('value="connectivity"');
-    for (const path of ["/cases", "/tarefas", "/vencidos"]) {
+    for (const path of ["/cases", "/tarefas?filtro=hoje", "/vencidos"]) {
       expect(overview).toContain(`href: "${path}"`);
     }
     expect(overview).toContain('href="/report"');
   });
 
-  it("styles dark charcoal and lavender/orange light references without another route", () => {
+  it("styles the current W1 palette in both themes without another route", () => {
     expect(layout).toContain("import './reference-dashboard.css'");
     expect(css).toContain("html.dark [data-lexis-reference-overview]");
     expect(css).toContain("html:not(.dark):not(.lexis-wallpaper-active)");
-    expect(css).toContain("--lx-metric-bg:#f46d3c");
-    expect(css).toContain("--lx-metric-bg:#d5fa78");
+    expect(css).toContain('--lx-metric-bg:#6D1734');
+    expect(css).toContain('--lx-metric-bg:#8A2E50');
     expect(css).toContain("@media(max-width:767px)");
     expect(css).toContain("prefers-reduced-motion:reduce");
   });
