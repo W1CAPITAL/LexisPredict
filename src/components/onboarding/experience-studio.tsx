@@ -8,7 +8,7 @@ import {EXPERIENCE_TERMS,EXPERIENCE_TERMS_VERSION} from '@/lib/experience-terms'
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {AUTHORITY_PRESETS,getPresetColors} from '@/lib/theme';
 import {TODOS_TRIBUNAIS} from '@/lib/tribunais-links';
-import {certificateProviders} from '@/lib/oab-certificate-providers';
+import {certificateProviders,recommendedCertificateType,type OabCertificateProviderId} from '@/lib/oab-certificate-providers';
 
 type ExperienceRecord={
  display_name?:string;display_role?:string;phone?:string;preferences?:unknown;onboarding_version?:number;
@@ -253,7 +253,11 @@ export function ExperienceStudio({wizard,initialStep=0,record,user,onDone,onClos
               value={prefs.oabNumber} onChange={e=>set('oabNumber',e.target.value.toUpperCase().replace(/[^0-9A-Z.\-/\s]/g,'').slice(0,14))}/>
           </label>
           <label><span className={labelClass}>Aplicativo do certificado</span>
-            <select className={selectClass} value={prefs.oabCertificateProvider} onChange={e=>set('oabCertificateProvider',e.target.value as ExperiencePreferences['oabCertificateProvider'])}>
+            <select className={selectClass} value={prefs.oabCertificateProvider} onChange={e=>{
+               const provider=e.target.value as OabCertificateProviderId;
+               set('oabCertificateProvider',provider);
+               set('oabCertificateType',recommendedCertificateType(provider,prefs.oabCertificateType));
+             }}>
               {certificateProviders.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}
             </select>
           </label>
