@@ -89,6 +89,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado'
+import { isAtendidoHoje } from '@/lib/atendimento-semana'
 import { EncerradosRevisaoQueue } from '@/components/dashboard/encerrados-revisao-queue'
 import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
@@ -206,8 +207,33 @@ export default function Dashboard() {
         credentials:'same-origin',cache:'no-store',signal,
       }).then(async response=>{
         const result=await response.json();
-        if(!response.ok||result?.ok!==true||!Number.isFinite(Number(result.totalCount)))throw new Error('Retornos indisponíveis');
-        if(active&&!signal.aborted)setRetornosHoje({date,count:Math.max(0,Number(result.totalCount))});
+        if(!response.ok||result?.ok!==true||!Array.isArray(result.cases))throw new Error('Retornos indisponíveis');
+        // O total bruto inclui registros já atendidos ou encerrados. Contar a fila
+        // acionável, paginando todos os resultados, sem confiar no totalCount.
+        const allCases: any[] = [...result.cases];
+        let offset = allCases.length;
+        while(result.hasMore && offset < 100000 && !signal.aborted) {
+          const nextParams = new URLSearchParams({field:'proximo-retorno',from:date,to:date,offset:String(offset)});
+          const nextResponse = await fetch('/api/carteira/filtered?'+nextParams.toString(),{
+            credentials:'same-origin',cache:'no-store',signal,
+          });
+          const nextPage = await nextResponse.json();
+          if(!nextResponse.ok||nextPage?.ok!==true||!Array.isArray(nextPage.cases)||nextPage.cases.length===0)
+            throw new Error('Retornos incompletos');
+          allCases.push(...nextPage.cases);
+          offset += nextPage.cases.length;
+          result.hasMore = nextPage.hasMore;
+        }
+        if(result.hasMore)throw new Error('Retornos incompletos');
+        const pendingClients = new Set<string>();
+        for(const item of allCases) {
+          if(isCasoEncerrado(item))continue;
+          if(isAtendidoHoje(item.ultimoRetorno || item.ultimo_retorno) &&
+             !item.tem_novo_andamento && !item.tem_atualizacao_pos_retorno && !item.djen_nova_comunicacao)continue;
+          const key=String(item.cliente||item.cliente_nome||item.protocolo||item.id||'').trim().toUpperCase();
+          if(key)pendingClients.add(key);
+        }
+        if(active&&!signal.aborted)setRetornosHoje({date,count:pendingClients.size});
       }).catch(()=>{
         if(active&&!signal.aborted)setRetornosHoje(null);
       }).finally(()=>{
