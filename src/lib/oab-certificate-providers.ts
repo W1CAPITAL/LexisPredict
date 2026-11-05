@@ -53,3 +53,10 @@ export const certificateProviders:readonly OabCertificateProvider[]=[
 export function getCertificateProvider(value:string):OabCertificateProvider{
  return certificateProviders.find(x=>x.id===value)||certificateProviders[0];
 }
+
+/** A cloud certificate is A3. Signer software and OS stores may hold A1 or A3. */
+export function recommendedCertificateType(
+ provider:OabCertificateProviderId,previous:'a1'|'a3'|'none'
+):'a1'|'a3'|'none' {
+ return provider==='vidaas'||provider==='birdid'?'a3':previous;
+}
