@@ -380,6 +380,7 @@ export default function IntegracoesPage(){
                 <div className="flex flex-wrap gap-2 items-start">
                   {c.cnj&&<Button size="sm" variant="outline" asChild><Link href={"/processos?search="+encodeURIComponent(c.cnj)}>Ver processo</Link></Button>}
                   {c.cnj&&<Button size="sm" asChild><Link href={"/chat?cnj="+encodeURIComponent(c.cnj)}><Sparkles size={13} className="mr-1"/> Analisar IA</Link></Button>}
+                  {c.cnj&&<Button size="sm" variant="outline" asChild><Link href={"/consulta-oab?cnj="+encodeURIComponent(c.cnj)}><ShieldCheck size={13} className="mr-1"/> Abrir autos</Link></Button>}
                   {c.proximoRetorno&&<Button size="sm" variant="outline" onClick={()=>addReturn(c)}><CalendarDays size={13} className="mr-1"/> Agendar retorno</Button>}
                 </div>
               </div>
