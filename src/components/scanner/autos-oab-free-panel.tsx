@@ -20,17 +20,22 @@ async function extractFirstPageText(bytes:Uint8Array):Promise<{text:string;pages
  try{
    // Dynamic import keeps this heavyweight library outside the initial dashboard/scanner bundle.
    const pdfjs=await import("pdfjs-dist");
-   // Required by PDF.js 4 in Next.js client bundles; otherwise parsing can
-   // silently fail because no workerSrc is configured.
-   pdfjs.GlobalWorkerOptions.workerSrc=new URL("pdfjs-dist/build/pdf.worker.min.mjs",import.meta.url).toString();
-   const task=pdfjs.getDocument({data:bytes.slice()});
-   const doc=await task.promise;
+   // Bundle the matching PDF.js worker with the application so that PDFs
+   // can be processed in the browser without loading code from a CDN.
+   const port=new Worker(new URL("./autos-pdf.worker.js",import.meta.url),{type:"module"});
    try{
-     const page=await doc.getPage(1);
-     const text=await page.getTextContent();
-     const lines=text.items.map(item=>("str" in item?String(item.str):""));
-     return {text:lines.join(" ").slice(0,4000),pages:doc.numPages};
-   } finally { await task.destroy(); }
+     const worker=new pdfjs.PDFWorker({port});
+     try{
+       const task=pdfjs.getDocument({data:bytes.slice(),worker});
+       try{
+         const doc=await task.promise;
+         const page=await doc.getPage(1);
+         const text=await page.getTextContent();
+         const parts=text.items.map(item=>"str" in item ? item.str+(item.hasEOL?"\n":" ") : "");
+         return {text:parts.join("").slice(0,4000),pages:doc.numPages};
+       } finally { await task.destroy(); }
+     } finally { worker.destroy(); }
+   } finally { port.terminate(); }
  }catch{
    return {text:"",pages:0,error:"Este PDF não tem texto extraível na primeira página, está protegido ou exige OCR."};
  }

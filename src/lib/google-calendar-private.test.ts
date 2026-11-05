@@ -20,6 +20,6 @@ describe('Google Agenda OAuth privado e idempotente',()=>{
   const e=googleCalendarEventPayload('user-1',{title:'Retorno',date:'2026-11-20',time:'09:30',cnj:'8007617-77.2023.8.05.0154'});
   expect(e.start.dateTime).toBe('2026-11-20T09:30:00');
   expect(e.start.timeZone).toBe('America/Sao_Paulo');
-  expect(e.attendees).toBeUndefined();
+  expect(e).not.toHaveProperty('attendees');
  });
 });

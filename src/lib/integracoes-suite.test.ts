@@ -28,7 +28,7 @@ describe('Suite de integrações LexisPredict',()=>{
  it('retorna apenas campos de cobrança permitidos na interface, sem dados bancários sensíveis',()=>{
    const mapped=mapAsaasPayment({id:'pay_abc',value:150,status:'PENDING',dueDate:'2026-11-10',billingType:'PIX',invoiceUrl:'https://www.asaas.com/i/test',creditCardToken:'secret',customer:'cus_x'});
    expect(mapped).toMatchObject({id:'pay_abc',value:150,status:'PENDING'});
-   expect('creditCardToken' in mapped).toBe(false);
-   expect('customer' in mapped).toBe(false);
+   expect(mapped).not.toHaveProperty('creditCardToken');
+   expect(mapped).not.toHaveProperty('customer');
  });
 });

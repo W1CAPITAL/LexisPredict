@@ -15,8 +15,8 @@ describe("CodeXR visual parity and safe card consolidation", () => {
   it("styles all registered operational route groups without changing their routing", () => {
     expect(layout).toContain("import './code-xr-unified.css';");
     expect(css).toContain("body[data-lexis-visual-group]");
-    expect(css).toContain('--lx-xr-accent: #f47445;');
-    expect(css).toContain('--lx-xr-accent: #d5fa78;');
+    expect(css).toContain('--lx-xr-accent: hsl(var(--primary));');
+    expect(css).toContain('html.dark body[data-lexis-visual-group]');
     expect(css).toContain("prefers-reduced-motion:reduce");
     expect(css).toContain("@media print");
     expect(routeGroups).toContain('"workspace"');

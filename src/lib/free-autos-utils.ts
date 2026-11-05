@@ -36,9 +36,12 @@ export function classifyLocalAutosDocument(filename:string,preview=''):LocalAuto
   const begins=plain(preview.slice(0,1200)).slice(0,500);
   const isConsolidated=/\b(autos (processuais|digitais|completos|integral|do processo)|processo (integral|completo)|inteiro teor|baixar autos)\b/.test(name);
   const exclude=/\b(replica|impugnacao|manifestacao|resposta a contestacao|contrarrazoes|apelacao|recurso|analise da contestacao|despacho|sentenca)\b/.test(name);
-  const asHeading=/^(?:poder judiciario.{0,100})?(?:exmo.{0,200})?(?:[a-z\s]{0,65})?(?:contestacao|defesa do reu|peca de defesa)\b/.test(begins);
-  const isDefense=(!exclude && /\b(contestacao|defesa do reu|peca de defesa)\b/.test(name)) ||
-    (name.match(/^(?:\d+[.\s-]+)?(?:documento|peca|anexo)\b/) && asHeading);
+  const genericFilename=/^(?:\d+[.\s-]+)?(?:documento|peca|anexo)\b/.test(name);
+  const headingArea=preview.length>500 ? preview.slice(0,500).replace(/[^\n]*$/,'') : preview;
+  const hasDefenseHeading=headingArea.split(/\r?\n/).some(line=>
+    /^(?:contestacao|defesa do reu|peca de defesa)\s*[:.]?$/.test(plain(line)));
+  const isDefense=!exclude && (/\b(contestacao|defesa do reu|peca de defesa)\b/.test(name) ||
+    (genericFilename && hasDefenseHeading));
   const isInicial=/\b(peticao inicial|exordial|peca inaugural|peticao de inicio)\b/.test(name) ||
     (!isDefense && /^(?:\d+[.\s-]+)?(?:peticao inicial|exordial)\b/.test(begins));
   return {
