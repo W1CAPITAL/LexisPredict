@@ -5,7 +5,9 @@ import {FileArchive,FileText,Download,ExternalLink,Loader2,Search,ShieldCheck,Al
 import {Button} from "@/components/ui/button";
 import {canonicalCnj} from "@/lib/autos-oab-logic";
 import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,isPdfBytes,type AutosLocalItem} from "@/lib/free-autos-utils";
-import {loadExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
+import {loadExperiencePrefs,applyExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
+import {saveOabPreferencesAction} from "@/app/actions/experience-actions";
+import {certificateProviders,getCertificateProvider} from "@/lib/oab-certificate-providers";
 import {resolveOabOfficialPortal} from "@/lib/oab-user-flow";
 import Link from "next/link";
 
@@ -62,6 +64,10 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
  const [includeAll,setIncludeAll]=React.useState(false);
  const [confirmed,setConfirmed]=React.useState(false);
  const [copyStatus,setCopyStatus]=React.useState('');
+ const [providerSaving,setProviderSaving]=React.useState(false);
+ const [providerMessage,setProviderMessage]=React.useState('');
+ const provider=getCertificateProvider(prefs.oabCertificateProvider);
+ const canLoginWithCertificate=prefs.oabCertificateProvider!=='auto'||prefs.oabCertificateType!=='none';
  const inputRef=React.useRef<HTMLInputElement|null>(null);
  const cnj=canonicalCnj(cnjText);
  const court=resolveOabOfficialPortal(cnjText,prefs.oabPreferredTribunal);
@@ -87,6 +93,29 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
    const found=canonicalCnj(value);
    if(found)setCnjText(found);
  },[expanded]);
+ async function chooseProvider(next:ExperiencePreferences['oabCertificateProvider']){
+   if(providerSaving)return;
+   setProviderMessage('');
+   const changed={...prefs,oabCertificateProvider:next};
+   setPrefs(changed);setProviderSaving(true);
+   try{
+     const result=await saveOabPreferencesAction({
+       oabNumber:changed.oabNumber,oabUf:changed.oabUf,
+       oabCertificateType:changed.oabCertificateType,
+       oabCertificateProvider:changed.oabCertificateProvider,
+       oabPreferredTribunal:changed.oabPreferredTribunal,
+       oabDefaultDocuments:changed.oabDefaultDocuments,
+       oabShowGuide:changed.oabShowGuide,
+     });
+     if(!result.ok)throw new Error(result.error||'Não foi possível salvar o provedor.');
+     applyExperiencePrefs(result.preferences);
+     setPrefs(result.preferences);
+     setProviderMessage('Aplicativo padrão salvo. Confirme o login no tribunal.');
+   }catch(err){
+     setPrefs(prefs);
+     setProviderMessage(err instanceof Error?err.message:'Falha ao salvar.');
+   }finally{setProviderSaving(false);}
+ }
  async function downloadLocalHelper(){
    setError("");setProgress("Preparando o auxiliar gratuito do Chrome…");
    try{
@@ -237,11 +266,27 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
     {expanded&&<div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div>
-          <p className="text-xs font-bold text-foreground">{prefs.oabCertificateType==='a1'?'Certificado A1':prefs.oabCertificateType==='a3'?'Certificado A3':'Certificado não configurado'} · {prefs.oabUf&&prefs.oabNumber?'OAB/'+prefs.oabUf+' '+prefs.oabNumber:'OAB não cadastrada'}</p>
+          <p className="text-xs font-bold text-foreground">{provider.label} · {prefs.oabUf&&prefs.oabNumber?'OAB/'+prefs.oabUf+' '+prefs.oabNumber:'OAB não cadastrada'}</p>
           <p className="text-[11px] text-muted-foreground">Preferências salvas no seu perfil, sem senha, PIN ou arquivo do certificado.</p>
         </div>
         <Link href="/settings?section=Oab" className="rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-bold text-primary hover:bg-muted">Personalizar consulta</Link>
       </div>
+      <section className="rounded-xl border border-border bg-muted/20 p-3 space-y-2" aria-label="Aplicativo do certificado digital">
+        <label htmlFor="lexis-oab-provider" className="block text-xs font-bold text-foreground">Qual aplicativo usa seu certificado?</label>
+        <select id="lexis-oab-provider" value={prefs.oabCertificateProvider}
+          disabled={providerSaving}
+          onChange={event=>void chooseProvider(event.target.value as ExperiencePreferences['oabCertificateProvider'])}
+          className="w-full min-h-11 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {certificateProviders.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <p className="text-xs text-muted-foreground">{provider.instruction}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <a href={provider.setupUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline">Configurar {provider.label} <ExternalLink size={12}/></a>
+          <span className="text-[11px] text-muted-foreground">Disponibilidade local não verificada pelo navegador</span>
+        </div>
+        {providerSaving&&<p role="status" className="text-xs text-muted-foreground">Salvando preferência…</p>}
+        {providerMessage&&<p role="status" className="text-xs text-foreground">{providerMessage}</p>}
+      </section>
       <div className="flex flex-wrap gap-2 text-xs">
         <Link href="/integracoes#busca-advogado" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted"><Search size={13} className="mr-1"/> Buscar por advogado</Link>
         <a href="https://cna.oab.org.br/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted">Verificar inscrição OAB <ExternalLink size={12} className="ml-1"/></a>
@@ -249,14 +294,14 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
       {prefs.oabShowGuide&&<div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
         <p className="font-semibold">Como usar em três etapas</p>
         <p className="text-muted-foreground">No PJeOffice Pro, é possível memorizar o certificado selecionado como padrão para não escolhê-lo a cada acesso.</p>
-        <p>1. Abra o tribunal pelo CNJ e autentique-se com {prefs.oabCertificateType==='a1'?'seu certificado A1':prefs.oabCertificateType==='a3'?'seu certificado A3': 'o método autorizado'}. 2. Exporte os documentos pelo portal. 3. Importe o PDF ou ZIP aqui para organizar a primeira possível contestação.</p>
-        <p className="font-medium">A autenticação ocorre no site do tribunal, nunca no LexisPredict. O auxiliar Chrome só procura o controle de exportação oficial.</p>
+        <p>1. Abra o tribunal pelo CNJ e autentique-se com {provider.label}. 2. Exporte os documentos pelo portal. 3. Importe o PDF ou ZIP aqui para organizar a primeira possível contestação.</p>
+        <p className="font-medium">A autenticação ocorre no site do tribunal, nunca no LexisPredict. O auxiliar Chrome pode acionar um botão oficial de login por certificado ou exportação, após você escolher a ação.</p>
         <a href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" rel="noopener noreferrer" target="_blank" className="text-primary underline inline-flex gap-1 items-center">
           Instruções oficiais do PJeOffice Pro <ExternalLink size={12}/>
         </a>
         <div className="rounded-lg border border-primary/30 bg-card p-2 space-y-2">
           <p className="font-semibold">Conector local gratuito para Chrome (computador)</p>
-          <p className="text-[11px] text-muted-foreground">Ajuda a localizar e acionar o botão de download dos autos na própria sessão do PJe. Não substitui o login com certificado, não contorna permissões nem garante suporte a todos os tribunais.</p>
+          <p className="text-[11px] text-muted-foreground">Ajuda a localizar e acionar os botões oficiais de certificado e de download na aba do PJe. Não substitui o login com certificado, não contorna permissões nem garante suporte a todos os tribunais.</p>
           <Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>void downloadLocalHelper()}>
             <Download size={13} className="mr-2"/> Baixar auxiliar Chrome gratuito
           </Button>
@@ -274,12 +319,12 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
           className="block h-10 w-full rounded-lg border border-input bg-background px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"/>
       </label>
       {(cnj||(!cnjText.trim()&&court))&&<div className="flex flex-wrap gap-2 items-center">
-        {court?.authenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.authenticatedUrl} target="_blank" rel="noopener noreferrer"
+        {court?.authenticatedUrl&&canLoginWithCertificate&&<a href={court.authenticatedUrl} target="_blank" rel="noopener noreferrer"
           onClick={()=>setCopyStatus('')}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
           <ShieldCheck size={14}/> PJe · entrar com certificado (1º grau)
         </a>}
-        {court?.secondDegreeAuthenticatedUrl&&prefs.oabCertificateType!=='none'&&<a href={court.secondDegreeAuthenticatedUrl} target="_blank" rel="noopener noreferrer"
+        {court?.secondDegreeAuthenticatedUrl&&canLoginWithCertificate&&<a href={court.secondDegreeAuthenticatedUrl} target="_blank" rel="noopener noreferrer"
           onClick={()=>setCopyStatus('')}
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/50 bg-card px-4 py-2 text-xs font-bold text-primary hover:bg-muted">
           <ShieldCheck size={14}/> PJe · 2º grau
