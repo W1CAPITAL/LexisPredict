@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {Sidebar} from "@/components/layout/sidebar";
 import {AutosOabFreePanel} from "@/components/scanner/autos-oab-free-panel";
+import {OabDiscoveryPanel} from "@/components/scanner/oab-discovery-panel";
 import {ArrowLeft,FileSearch,ShieldCheck,Settings2,Globe2} from "lucide-react";
 
 export default function ConsultaOabPage(){
@@ -40,6 +41,7 @@ export default function ConsultaOabPage(){
          </div>
        </div>
        <AutosOabFreePanel defaultExpanded/>
+       <OabDiscoveryPanel/>
        <p className="text-xs leading-5 text-muted-foreground">
          O modo gratuito não consulta sigilo nem acessa a sessão autenticada por conta própria. O advogado deve ter autorização nos autos e confirmar o login no tribunal. O LexisPredict não substitui a conferência de documentos, datas ou autoria das peças.
        </p>
