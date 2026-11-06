@@ -1,3 +1,5 @@
+import {assessEvidenceTrace} from './truth-policy';
+
 export type LegalDocumentKind =
   | 'peticao-inicial'
   | 'peticao-generica'
@@ -169,7 +171,7 @@ function warningsFor(kind: LegalDocumentKind, d: LegalDocumentData): string[] {
     'pugnacao','notificacao-extrajudicial','apelacao','recurso-inominado','embargos-declaracao',
     'cumprimento-sentenca'].includes(kind);
   const hasClaims=[d.fatos,d.fundamentos,d.decisao].some(value=>String(value||'').trim().length>12);
-  if(requiresSources&&hasClaims&&!String(d.referenciasProvas||'').trim())
+  if(requiresSources&&hasClaims&&assessEvidenceTrace(d.referenciasProvas).status==='ausente')
     w.push('Rastreabilidade: identifique o documento, página/evento ou fonte oficial que sustenta fatos e fundamentos. A fonte informada não é verificada automaticamente.');
   if (kind === 'cumprimento-sentenca' && !d.memoriaCalculo) w.push('Cumprimento: inclua demonstrativo discriminado e atualizado do crédito.');
   if (kind === 'impugnacao-cumprimento' && /excesso/i.test(String(d.fundamentos||'')) && !d.memoriaCalculo) w.push('Se alegar excesso de execução, informe o valor entendido como correto e o demonstrativo.');
