@@ -1,5 +1,6 @@
 "use client";
 import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import {AssinafyPrepareDocument} from "@/components/documents/assinafy-prepare-document";
 import type { DocumentCase } from "@/app/actions/document-case-actions";
 import { clientAsParte } from "@/lib/documents/document-case-prefill";
 
@@ -683,6 +684,8 @@ export default function LegalDocumentGeneratorPage() {
                 Nova minuta
               </Button>
             </div>
+
+            <AssinafyPrepareDocument texto={draft} titulo={template.label} sub={form.processo ? `Processo ${form.processo}` : "Minuta editável"}/>
 
             <div className="border-l-4 border-[#6f1d2b] bg-[#fffaf0] p-4 text-xs leading-5 text-[#655b52]">
               <b>Referência de projeto:</b> a estrutura prioriza cabeçalho claro, seções numeradas, pedidos individualizados e área de assinatura, seguindo o padrão documental fornecido. O conteúdo jurídico continua dependente dos fatos, documentos, decisão e prazo do caso concreto.
