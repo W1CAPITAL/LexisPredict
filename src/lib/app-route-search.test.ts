@@ -6,6 +6,7 @@ describe('Busca única do LexisPredict em todos os módulos',()=>{
   expect(matchesAppRouteSearch('assinatura assinafy','Peças jurídicas','/documents/generator')).toBe(true);
   expect(matchesAppRouteSearch('assinafy assinatura','Documentos','/documents')).toBe(true);
   expect(matchesAppRouteSearch('pje office','Consulta OAB','/consulta-oab')).toBe(true);
+  expect(matchesAppRouteSearch('vidaas mac','Consulta OAB','/consulta-oab')).toBe(true);
   expect(matchesAppRouteSearch('revisão de provas','Réplica e provas','/fases-provas')).toBe(true);
   expect(matchesAppRouteSearch('agenda google','Integrações','/integracoes')).toBe(true);
   expect(matchesAppRouteSearch('cobrança asaas','Integrações','/integracoes')).toBe(true);
