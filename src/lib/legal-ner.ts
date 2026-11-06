@@ -1,5 +1,7 @@
 
 
+import {cnpjValido} from './cpf-cnpj';
+
 export type LegalEntityKind =
   | 'cnj'
   | 'cpf'
@@ -36,7 +38,7 @@ export type LegalNerResult = {
 const CNJ_RE =
   /\b(\d{7})-?(\d{2})\.?(\d{4})\.?(\d)\.?(\d{2})\.?(\d{4})\b/g;
 const CPF_RE = /\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/g;
-const CNPJ_RE = /\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/g;
+const CNPJ_RE = /\b([A-Z0-9]{2}\.?[A-Z0-9]{3}\.?[A-Z0-9]{3}\/?[A-Z0-9]{4}-?\d{2})\b/gi;
 const OAB_RE =
   /\bOAB\s*[/:]?\s*(?:([A-Z]{2})\s*[/:]?\s*)?(\d{2,7})(?:\s*\/\s*([A-Z]{2}))?\b/gi;
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -170,10 +172,10 @@ export function extractLegalEntities(text: string): LegalNerResult {
     if (d.length === 11 && !pjeIdSet.has(d)) push('cpf', m[1], m.index, d);
   }
 
-  const cnpjRe = new RegExp(CNPJ_RE.source, 'g');
+  const cnpjRe = new RegExp(CNPJ_RE.source, 'gi');
   while ((m = cnpjRe.exec(src))) {
-    const d = onlyDigits(m[1]);
-    if (d.length === 14) push('cnpj', m[1], m.index, d);
+    const normalized=m[1].toUpperCase().replace(/[.\/\s-]/g,'');
+    if (cnpjValido(normalized)) push('cnpj', m[1], m.index, normalized);
   }
 
   const oabRe = new RegExp(OAB_RE.source, 'gi');
