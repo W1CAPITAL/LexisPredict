@@ -142,3 +142,38 @@ Assinatura em tribunal (PJeOffice/VIDaaS/A3) **não é** a mesma coisa que assin
 ### Verificação antes do merge
 
 `pnpm exec vitest run src/lib/cnj-higiene.test.ts src/lib/oab-discovery.test.ts src/lib/documents/assinafy-upload.test.ts src/lib/legal-document-generator.test.ts`; `pnpm run typecheck`; `pnpm run build`. Fazer teste manual na UI e com conta Assinafy de homologação/autorizada antes de prometer transação externa.
+
+## Rodada 3 — Aplicação transversal (sem novas abas ou duplicação de telas)
+
+O usuário reforçou que as melhorias não se limitam à OAB. Esta rodada **usa estruturas que já existem**, sem copiar CRMs inteiros nem criar novos sistemas paralelos.
+
+### Onde funciona
+
+| Camada atual | Melhoria transversal | Limite observável |
+| --- | --- | --- |
+| Ctrl+K global (component \`lexis-command-palette\`) | Busca Assinafy, PDF, evidências, OAB, PJeOffice, calendário, Asaas, CRM, relatórios; atalho para CNJ com DV válido | Abre a rota existente, não faz consulta judicial nem exibe processo sem permissão; usa filtros de plano/operador |
+| Menu vertical/móvel e dock | Busca por palavras da capacidade, usando mesmo índice de \`app-route-search.ts\` | Mantém visibilidade de acordo com plano/perfil do menu |
+| Processos e carteira | Atalho de CNJ detecta a rota da carteira conforme acesso (\`/cases\` ou \`/processos\`) | Não garante que exista registro; a consulta ainda depende de escopo |
+| Documentos | O hub \`/documents\` destaca a mesma central de peças e preparo Assinafy; \`/documents/generator\` concentra a criação e validação | Não duplica editor, não envia convite de assinatura automaticamente |
+| Integrações | O estado de Assinafy aparece no resumo existente \`/integracoes\` com link para o editor de documentos | Só indica disponível com credencial de servidor e autorização administrativa da empresa |
+| IA / Superagente | Usa instrução de rastreabilidade compartilhada de \`truth-policy.ts\` | Não comprova fontes não consultadas pela ferramenta |
+| Agentes para CRM, processos, relatórios, documentos e gestão | \`recommendAgentTeamForRoute\` acrescenta o mesmo critério de evidências aos checks dos playbooks | Critério de planejamento; **não reescreve** automaticamente dados ou relatórios históricos |
+| Gerador de peças | \`warningsFor\` lê a validação de rastreabilidade da política central | Fonte anotada pelo operador continua **não verificada**, não afirma pesquisa oficial |
+
+### Arquitetura
+
+- \`src/lib/app-route-search.ts\` contém apenas metadados/aliases para **rotas já existentes** e busca CNJ formatado com validação; sem API, segredo ou banco.
+- \`src/lib/truth-policy.ts\` é a política central de origem e grau de certeza; reutilizada pelas peças, prompt de agentes e playbooks multi-rota.
+- \`src/app/api/integracoes/status/route.ts\` mantém consulta somente leitura do estado de provedores; não retorna tokens.
+- \`src/components/system/client-chrome.tsx\` monta a paleta global sem aguardar os serviços de segundo plano; a navegação móvel preserva seu menu próprio.
+
+### Não implementado nesta rodada
+
+- Não houve implantação de Judicex ou AuditorProcessual como novo backend Python, nem RAG em todos os processos; reuso de política de provas é incremental.
+- Não houve instalação de cliente Flatpak em máquinas dos advogados.
+- Não houve conexão OAuth automática da Assinafy, nem criação de signatários, assinaturas, convites, contratos ou webhooks.
+- Dados históricos de CRM, relatórios e processos não foram reprocessados.
+
+### Critério de pronto
+
+CI completo (TypeScript + Vitest + build); conferir menu móvel, Ctrl+K, isolamento por plano/empresa, ausência de novas abas e ações externas somente por confirmação humana. PR permanece em rascunho até validação da experiência real e, para Assinafy, acesso autorizado.
