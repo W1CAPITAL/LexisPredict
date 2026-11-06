@@ -4,6 +4,7 @@ import {matchesAppRouteSearch,resolveQuickCnjSearch,routeKeywords} from './app-r
 describe('Busca única do LexisPredict em todos os módulos',()=>{
  it('encontra funções pelas palavras do trabalho e mantém a rota já existente',()=>{
   expect(matchesAppRouteSearch('assinatura assinafy','Peças jurídicas','/documents/generator')).toBe(true);
+  expect(matchesAppRouteSearch('assinafy assinatura','Documentos','/documents')).toBe(true);
   expect(matchesAppRouteSearch('pje office','Consulta OAB','/consulta-oab')).toBe(true);
   expect(matchesAppRouteSearch('revisão de provas','Réplica e provas','/fases-provas')).toBe(true);
   expect(matchesAppRouteSearch('agenda google','Integrações','/integracoes')).toBe(true);
