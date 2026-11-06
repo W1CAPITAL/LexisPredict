@@ -260,7 +260,7 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
       <ShieldCheck size={19} className="shrink-0 mt-0.5 text-primary"/>
       <span className="flex-1 space-y-1">
         <strong className="block text-sm">Consulta OAB · autos do processo</strong>
-        <span className="block text-[11px] text-muted-foreground">Abra o tribunal pelo CNJ, use seu certificado no portal e organize automaticamente as peças exportadas, sem API paga.</span>
+        <span className="block text-[11px] text-muted-foreground">Abra o tribunal pelo CNJ, use seu certificado no próprio PJe e importe os PDFs exportados. Sem extensão Chrome ou API paga.</span>
       </span>
       <span className="text-xs text-primary font-bold">{expanded?"Fechar":"Abrir"}</span>
     </button>
@@ -293,25 +293,30 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
         <a href="https://cna.oab.org.br/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted">Verificar inscrição OAB <ExternalLink size={12} className="ml-1"/></a>
       </div>
       {prefs.oabShowGuide&&<div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
-        <p className="font-semibold">Como usar em três etapas</p>
+        <p className="font-semibold">Como usar em três etapas, sem extensão do Chrome</p>
         <p className="text-muted-foreground">No PJeOffice Pro, é possível memorizar o certificado selecionado como padrão para não escolhê-lo a cada acesso.</p>
         <p>1. Abra o tribunal pelo CNJ e autentique-se com {provider.label}. 2. Exporte os documentos pelo portal. 3. Importe o PDF ou ZIP aqui para organizar a primeira possível contestação.</p>
         <p className="font-medium">A autenticação ocorre no site do tribunal, nunca no LexisPredict. O auxiliar Chrome pode acionar um botão oficial de login por certificado ou exportação, após você escolher a ação.</p>
         <a href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" rel="noopener noreferrer" target="_blank" className="text-primary underline inline-flex gap-1 items-center">
           Instruções oficiais do PJeOffice Pro <ExternalLink size={12}/>
         </a>
-        <div className="rounded-lg border border-primary/30 bg-card p-2 space-y-2">
-          <p className="font-semibold">Conector local gratuito para Chrome (computador)</p>
+        <details className="rounded-lg border border-border bg-card p-2 space-y-2">
+          <summary className="cursor-pointer font-semibold">Opcional: auxiliar avançado para Chrome</summary>
+          <p className="mt-2 text-[11px] text-muted-foreground">Não é necessário instalar nada no Chrome. Use o botão do tribunal, faça login pelo certificado no próprio PJe e importe os arquivos baixados.</p>
           <p className="text-[11px] text-muted-foreground">Ajuda a localizar e acionar os botões oficiais de certificado e de download na aba do PJe. Não substitui o login com certificado, não contorna permissões nem garante suporte a todos os tribunais.</p>
           <Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>void downloadLocalHelper()}>
             <Download size={13} className="mr-2"/> Baixar auxiliar Chrome gratuito
           </Button>
-          <p className="text-[10px] text-muted-foreground">Depois de extrair o ZIP: Chrome → chrome://extensions → Modo do desenvolvedor → Carregar sem compactação. Abra os autos no PJe, clique na extensão e selecione o comando oficial de exportação.</p>
-        </div>
+          <p className="text-[10px] text-muted-foreground">Se optar pelo auxiliar: extraia o ZIP, abra chrome://extensions, ative Modo do desenvolvedor e escolha Carregar sem compactação. Selecione a pasta extraída e abra os autos no PJe.</p>
+        </details>
       </div>}
-      {!prefs.oabShowGuide&&<Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>void downloadLocalHelper()}>
-        <Download size={13} className="mr-2"/> Baixar auxiliar local PJe (Chrome)
-      </Button>}
+      {!prefs.oabShowGuide&&<details className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+        <summary className="cursor-pointer font-semibold">Auxiliar Chrome (opcional, não necessário)</summary>
+        <p className="my-2 text-muted-foreground">Para a consulta comum, abra o tribunal e importe aqui os PDFs exportados. Se quiser o auxiliar, depois de baixar o ZIP extraia-o e use chrome://extensions → Modo do desenvolvedor → Carregar sem compactação.</p>
+        <Button type="button" size="sm" variant="outline" onClick={()=>void downloadLocalHelper()}>
+          <Download size={13} className="mr-2"/> Baixar auxiliar opcional
+        </Button>
+      </details>}
       <label htmlFor="autos-free-cnj" className="block text-xs font-semibold space-y-1">
         Número CNJ
         <input id="autos-free-cnj" autoComplete="off" placeholder="0000000-00.0000.0.00.0000"
