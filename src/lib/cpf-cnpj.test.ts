@@ -22,3 +22,21 @@ describe('cnpjValido', () => {
     expect(cnpjValido('123')).toBe(false);
   });
 });
+
+describe('cnpjValido — formato alfanumérico Receita Federal 2026', () => {
+  it('preserva CNPJ numérico validado anteriormente', () => {
+    expect(cnpjValido('11.222.333/0001-81')).toBe(true);
+    expect(cnpjValido('11.222.333/0001-82')).toBe(false);
+  });
+  it('aceita letras nas primeiras 12 posições e DV numérico, sem quebrar formatação', () => {
+    expect(cnpjValido('12ABC34501DE35')).toBe(true);
+    expect(cnpjValido('12.ABC.345/01DE-35')).toBe(true);
+    expect(cnpjValido('12.abc.345/01de-35')).toBe(true);
+  });
+  it('rejeita dígitos errados, caracteres extras e máscaras malformadas', () => {
+    expect(cnpjValido('12ABC34501DE36')).toBe(false);
+    expect(cnpjValido('12ABC34501DE3X')).toBe(false);
+    expect(cnpjValido('CNPJ: 12ABC34501DE35')).toBe(false);
+    expect(cnpjValido('12ABC34501DE35<script>')).toBe(false);
+  });
+});
