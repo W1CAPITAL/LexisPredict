@@ -31,7 +31,7 @@ export function OabDiscoveryPanel(){
   document.body.appendChild(a);a.click();a.remove();
   window.setTimeout(()=>URL.revokeObjectURL(url),2000);
  }
- return <section id="descoberta-oab" className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-4" aria-labelledby="descoberta-oab-titulo">
+ return <section id="descoberta-oab" className="rounded-xl border border-border bg-muted/20 p-3 space-y-4" aria-labelledby="descoberta-oab-titulo">
   <div className="space-y-2">
    <h2 id="descoberta-oab-titulo" className="text-lg font-bold">Descobrir processos pela OAB — importação assistida</h2>
    <p className="text-sm text-muted-foreground">Abra o portal oficial, faça a consulta por OAB ou advogado e copie a lista de processos. Cole o resultado abaixo: o LexisPredict extrai apenas números CNJ com dígito verificador válido. Sem extensão ou acesso ao seu certificado.</p>
