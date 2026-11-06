@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStoredCasesPageForEmpresa, getSupabaseAdmin, getUserContext } from '@/lib/server-db';
+import { getStoredCasesPageForEmpresa, getUserContext } from '@/lib/server-db';
+import {getPortfolioSnapshotCached,getMeritoSnapshotCached,getRetornoSnapshotCached} from '@/lib/portfolio-snapshot';
 
 /**
  * Paginated, tenant-authenticated HTTP endpoint. Avoids large Next Server Action
@@ -33,7 +34,6 @@ export async function GET(request: NextRequest) {
     const includeDetails = u.searchParams.get('details') === '1';
     const offset = safeInt(u.searchParams.get('offset'), 0, 100000);
     const empresaId = String(ctx.empresa_id);
-    const db = await getSupabaseAdmin();
 
     const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
     const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
@@ -43,18 +43,18 @@ export async function GET(request: NextRequest) {
         includeDetails,
         validatedContext: ctx,
       }),
-      // RPC runs one indexed SQL aggregation in Postgres, not three large JSON
-      // downloads over the network. It is callable only with service_role.
-      withSummary ? db.rpc('lexis_portfolio_snapshot', {
-        p_empresa: empresaId,
-        p_owner: scope === 'empresa' || ctx.caseScope === 'empresa' ? null : ctx.auth_id,
-      }) : Promise.resolve({ data: null, error: null }),
-      withSummary ? db.rpc('lexis_merito_snapshot',{
-        p_empresa:empresaId,p_owner:ownerScope
-      }) : Promise.resolve({data:null,error:null}),
-      withSummary ? db.rpc('lexis_retorno_snapshot',{
-        p_empresa:empresaId,p_owner:ownerScope,p_dias:30
-      }) : Promise.resolve({data:null,error:null}),
+      withSummary ? getPortfolioSnapshotCached(empresaId,ownerScope)
+        .then(data=>({data:[data],error:null}))
+        .catch(error=>({data:null,error:{code:'portfolio_snapshot_unavailable',message:String(error)}}))
+        : Promise.resolve({data:null,error:null}),
+      withSummary ? getMeritoSnapshotCached(empresaId,ownerScope)
+        .then(data=>({data,error:null}))
+        .catch(error=>({data:null,error:{code:'merito_snapshot_unavailable',message:String(error)}}))
+        : Promise.resolve({data:null,error:null}),
+      withSummary ? getRetornoSnapshotCached(empresaId,ownerScope)
+        .then(data=>({data,error:null}))
+        .catch(error=>({data:null,error:{code:'retorno_snapshot_unavailable',message:String(error)}}))
+        : Promise.resolve({data:null,error:null}),
     ]);
     let snapshot: Snapshot = { ...EMPTY };
     if (!withSummary) {

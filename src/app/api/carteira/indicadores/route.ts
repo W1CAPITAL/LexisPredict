@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
+import { getUserContext } from "@/lib/server-db";
+import {getPortfolioSnapshotCached} from "@/lib/portfolio-snapshot";
 
 /**
  * Totais independentes da lista paginada de processos.
@@ -25,19 +26,16 @@ export async function GET(request: NextRequest) {
     // Fora dela, o usuário não pode forçar escopo ampliado.
     const requested = new URL(request.url).searchParams.get("scope");
     const allCompany = requested === "empresa" || ctx.caseScope === "empresa";
-    const db = await getSupabaseAdmin();
-    const { data, error } = await db.rpc("lexis_portfolio_snapshot", {
-      p_empresa: String(ctx.empresa_id),
-      p_owner: allCompany ? null : String(ctx.auth_id),
-    });
-    if (error || !Array.isArray(data) || !data[0]) {
-      console.error("[carteira/indicadores] erro de resumo", error);
+    let row:Record<string,unknown>;
+    try {
+      row=await getPortfolioSnapshotCached(String(ctx.empresa_id),allCompany?null:String(ctx.auth_id));
+    } catch (error) {
+      console.error("[carteira/indicadores] resumo indisponível", error instanceof Error?error.message:'unknown');
       return NextResponse.json(
         { ok: false, error: "Não foi possível consultar os indicadores atuais." },
         { status: 503, headers }
       );
     }
-    const row = data[0] as Record<string, unknown>;
     return NextResponse.json({
       ok: true,
       indicadores: {

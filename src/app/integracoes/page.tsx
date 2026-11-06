@@ -248,7 +248,7 @@ export default function IntegracoesPage(){
               <h2 className="font-bold text-base">Agenda Google</h2>
               <p className="text-xs text-muted-foreground">Agende retornos, reuniões ou compromissos jurídicos sem pagar por API.</p>
             </div>
-            <Badge variant="outline">{googleConnection?.connected?"Google conectado":"Confirmação manual"}</Badge>
+            <Badge variant="outline">{googleConnection?.connected?"Google conectado":"Funciona sem API"}</Badge>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="col-span-2 block space-y-1 text-xs font-semibold">Compromisso
@@ -265,13 +265,13 @@ export default function IntegracoesPage(){
             </label>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {calendarLink?<Button asChild size="sm"><a href={calendarLink} target="_blank" rel="noopener noreferrer"><CalendarDays size={14} className="mr-2"/> Adicionar ao Google <ExternalLink size={12} className="ml-1"/></a></Button>:
+            {calendarLink?<Button asChild size="sm"><a href={calendarLink} target="_blank" rel="noopener noreferrer"><CalendarDays size={14} className="mr-2"/> Abrir no Google Agenda (sem API) <ExternalLink size={12} className="ml-1"/></a></Button>:
               <Button size="sm" disabled>Preencha título e data</Button>}
             <Button size="sm" variant="outline" disabled={!calendarLink} onClick={downloadIcs}><Download size={14} className="mr-2"/> Exportar .ics</Button>
           </div>
           <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-bold">Sincronização direta autorizada (OAuth)</p>
-            {!googleConnection?.configured?<p className="text-xs text-muted-foreground">Configuração pendente do aplicativo Google Cloud: GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET, GOOGLE_CALENDAR_REDIRECT_URI e GOOGLE_CALENDAR_ENCRYPTION_KEY, na Vercel. O agendamento gratuito via link e ICS acima já funciona.</p>:
+            <p className="text-xs font-bold">Conexão direta opcional</p>
+            {!googleConnection?.configured?<p className="text-xs text-muted-foreground">Para agendar, use o botão acima: ele abre o Google Agenda pronto para sua confirmação, sem precisar configurar API. A sincronização direta ainda não está conectada ao aplicativo; é uma função separada que exige autorização segura da conta.</p>:
              googleConnection.connected?
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={!calendarLink||googleBusy} onClick={()=>void createGoogleEvent()}>
@@ -300,19 +300,20 @@ export default function IntegracoesPage(){
             <div className="rounded-xl border border-primary/25 bg-primary/10 p-2"><Wallet size={20} className="text-primary"/></div>
             <div className="flex-1">
               <h2 className="font-bold text-base">Asaas · cobranças e recebíveis</h2>
-              <p className="text-xs text-muted-foreground">Consulta segura de cobranças existentes, com Sandbox de testes.</p>
+              <p className="text-xs text-muted-foreground">Acesse sua conta Asaas diretamente ou consulte os lançamentos integrados quando a empresa estiver conectada.</p>
             </div>
-            <Badge variant="outline">{system?.services.asaas.available?"Configurado":"Sem chave"}</Badge>
+            <Badge variant="outline">{system?.services.asaas.available?"Consulta integrada":"Acesso manual"}</Badge>
           </div>
           <div className="mt-3 rounded-xl border border-border p-3 text-xs text-muted-foreground">
-            <span className="font-bold text-foreground">Modo somente leitura:</span> nenhuma cobrança será emitida, cancelada ou paga por esta tela. Na Vercel, a administração configura a chave privada <code className="text-foreground">ASAAS_API_KEY</code> e, para testes, <code>ASAAS_ENV=sandbox</code>.
+            <span className="font-bold text-foreground">Segurança:</span> esta tela não realiza cobranças, pagamentos nem alterações externas. Sem autorização da conta Asaas, utilize o acesso direto abaixo. A consulta de recebíveis dentro do LexisPredict exige uma conexão privada autorizada pelo administrador do Asaas; não há como obter essa autorização automaticamente do navegador.
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" disabled={asaasBusy||!system?.services.asaas.available||!system?.financialAccess} onClick={()=>void queryAsaas(0)}>
               {asaasBusy?<Loader2 size={14} className="mr-2 animate-spin"/>:<RefreshCw size={14} className="mr-2"/>} Consultar cobranças
             </Button>
             <Button size="sm" variant="outline" asChild><Link href="/crm/financeiro">Financeiro Lexis</Link></Button>
-            <Button size="sm" variant="outline" asChild><a href="https://sandbox.asaas.com" target="_blank" rel="noopener noreferrer">Abrir Sandbox <ExternalLink size={12} className="ml-1"/></a></Button>
+            <Button size="sm" variant="outline" asChild><a href="https://www.asaas.com/" target="_blank" rel="noopener noreferrer">Abrir minha conta Asaas <ExternalLink size={12} className="ml-1"/></a></Button>
+            <Button size="sm" variant="outline" asChild><a href="https://sandbox.asaas.com" target="_blank" rel="noopener noreferrer">Ambiente de testes <ExternalLink size={12} className="ml-1"/></a></Button>
           </div>
           {asaasError&&<p role="alert" className="mt-3 text-xs text-destructive">{asaasError}</p>}
           {asaasData&&<div className="mt-3 space-y-2">
@@ -353,10 +354,10 @@ export default function IntegracoesPage(){
         <div className="flex gap-3 items-start">
           <div className="rounded-xl border border-primary/25 bg-primary/10 p-2"><FileSearch size={20} className="text-primary"/></div>
           <div className="flex-1">
-            <h2 className="font-bold text-lg">Localizar processos pelo nome do advogado</h2>
-            <p className="text-xs text-muted-foreground">Cruza os registros da sua carteira e permite pesquisar publicações recentes no DJEN oficial. As duas fontes são mostradas separadamente.</p>
+            <h2 className="font-bold text-lg">Buscar advogado na carteira e no DJEN</h2>
+            <p className="text-xs text-muted-foreground">Localiza processos internos pelos campos atuais e antigos de advogado. O DJEN mostra publicações de um período, não uma relação completa de processos por OAB.</p>
           </div>
-          <Badge variant="outline">Consulta gratuita</Badge>
+          <Badge variant="outline">Carteira interna + publicações</Badge>
         </div>
         <form onSubmit={queryLawyer} className="mt-4 flex flex-wrap gap-2">
           <label className="flex-1 min-w-[220px] text-xs font-semibold space-y-1">Nome do advogado
@@ -385,7 +386,7 @@ export default function IntegracoesPage(){
                 </div>
               </div>
             </div>)}
-            {!lawyerCases.length&&<p className="text-sm text-muted-foreground">Nenhum processo deste advogado na carteira visível. Isso não significa que ele não tenha processos em outros tribunais.</p>}
+            {!lawyerCases.length&&<p className="text-sm text-muted-foreground">Nenhum registro encontrado na carteira autorizada. Consulte também a inscrição no Cadastro Nacional da Advocacia e os portais oficiais dos tribunais: resultados vazios aqui não significam ausência de processos.</p>}
           </div>
         </div>}
         <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 space-y-3">
@@ -425,7 +426,7 @@ export default function IntegracoesPage(){
       </section>
 
       <section className="rounded-xl border border-border bg-muted/20 p-4 text-xs leading-5 text-muted-foreground">
-        <p className="flex items-start gap-2"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-primary"/><span><strong className="text-foreground">Integrações verificáveis.</strong> O WhatsApp depende da sessão conectada; a Agenda abre um evento para confirmação; o Asaas só consulta se houver chave de API; a busca por advogado usa a carteira da empresa e publicações do DJEN. Monitoramento externo integral por OAB, cobrança automatizada e sincronização bidirecional ainda exigem configuração ou serviços adicionais. Nenhum envio, cobrança ou cadastro externo é realizado automaticamente por esta tela.</span></p>
+        <p className="flex items-start gap-2"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-primary"/><span><strong className="text-foreground">Integrações verificáveis.</strong> O WhatsApp depende da sessão conectada; a Agenda abre um evento para confirmação; o Asaas só consulta se houver chave de API; a busca por advogado usa a carteira da empresa e publicações do DJEN. Monitoramento externo integral por OAB e sincronização automática ainda exigem autorização dos serviços responsáveis. O agendamento manual no Google e o acesso direto ao Asaas funcionam sem API no LexisPredict. Nenhum envio, cobrança ou cadastro externo é realizado automaticamente por esta tela.</span></p>
       </section>
     </div>
   </main>
