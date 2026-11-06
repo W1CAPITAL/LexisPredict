@@ -19,7 +19,7 @@ export default function ConsultaOabPage(){
            <div>
              <p className="text-xs font-semibold uppercase tracking-widest text-primary">LexisPredict · Tribunal</p>
              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Consulta OAB</h1>
-             <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">Localize o portal pelo número do processo, entre com o certificado do advogado e organize as peças judiciais sem pagar por uma API de autos.</p>
+             <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">Consulte processos pelo número CNJ ou encontre números nas listas por OAB dos tribunais. Organize documentos sem extensão obrigatória no Chrome.</p>
            </div>
          </div>
          <Link href="/settings?section=Oab" className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-card px-3 py-2 text-xs font-semibold text-primary hover:bg-muted">
@@ -40,8 +40,8 @@ export default function ConsultaOabPage(){
            <p className="mt-1 text-xs text-muted-foreground">Importe PDF/ZIP dos autos para montar um pacote local de peças até a possível contestação.</p>
          </div>
        </div>
-       <AutosOabFreePanel defaultExpanded/>
        <OabDiscoveryPanel/>
+       <AutosOabFreePanel defaultExpanded/>
        <p className="text-xs leading-5 text-muted-foreground">
          O modo gratuito não consulta sigilo nem acessa a sessão autenticada por conta própria. O advogado deve ter autorização nos autos e confirmar o login no tribunal. O LexisPredict não substitui a conferência de documentos, datas ou autoria das peças.
        </p>
