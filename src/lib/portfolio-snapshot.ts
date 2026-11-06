@@ -4,7 +4,7 @@ import {getSupabaseAdmin} from '@/lib/server-db';
 /**
  * Short-lived, tenant+owner scoped database summaries.
  * Every caller MUST authenticate the user and derive company/owner server-side.
- * Five seconds of caching avoids repeated costly JSON scans when the dashboard
+ * Thirty seconds of caching avoids repeated costly JSON scans when the dashboard
  * and portfolio open at once. Failures are never treated as zero counts.
  */
 export const getPortfolioSnapshotCached = unstable_cache(
@@ -18,7 +18,7 @@ export const getPortfolioSnapshotCached = unstable_cache(
       throw new Error('portfolio_snapshot_unavailable');
     }
     return data[0] as Record<string,unknown>;
-  },['lexis-portfolio-snapshot-v2'],{revalidate:5}
+  },['lexis-portfolio-snapshot-v2'],{revalidate:30}
 );
 export const getMeritoSnapshotCached = unstable_cache(
   async (empresaId:string,ownerId:string|null) => {
@@ -28,7 +28,7 @@ export const getMeritoSnapshotCached = unstable_cache(
     });
     if(error||!data||typeof data!=='object')throw new Error('merito_snapshot_unavailable');
     return data as Record<string,unknown>;
-  },['lexis-merito-snapshot-v2'],{revalidate:5}
+  },['lexis-merito-snapshot-v2'],{revalidate:30}
 );
 export const getRetornoSnapshotCached = unstable_cache(
   async (empresaId:string,ownerId:string|null) => {
@@ -38,5 +38,5 @@ export const getRetornoSnapshotCached = unstable_cache(
     });
     if(error||!data||typeof data!=='object')throw new Error('retorno_snapshot_unavailable');
     return data as Record<string,unknown>;
-  },['lexis-retorno-snapshot-v2'],{revalidate:5}
+  },['lexis-retorno-snapshot-v2'],{revalidate:30}
 );
