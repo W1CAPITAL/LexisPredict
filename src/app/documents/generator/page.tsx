@@ -94,6 +94,7 @@ const initial: LegalDocumentData = {
   descontos: "",
   memoriaCalculo: "",
   observacoes: "",
+  referenciasProvas: "",
   specialPowers: [],
   permiteSubstabelecer: true,
   clienteCienteSemReserva: false,
@@ -605,6 +606,13 @@ export default function LegalDocumentGeneratorPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase text-[#6f1d2b]">Fundamentos</Label>
                     <Textarea value={form.fundamentos||""} onChange={(e)=>set("fundamentos",e.target.value)} rows={9} className="rounded-none border-[#b89b5e]/60 bg-white"/>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-[#6f1d2b]">Referências das provas e fundamentos (controle interno)</Label>
+                    <Textarea value={form.referenciasProvas||""} onChange={(e)=>set("referenciasProvas",e.target.value)} rows={3}
+                      placeholder="Ex.: Contrato.pdf, cláusula 8, p. 3; evento 12, decisão de 04/11/2026; fonte oficial e data da consulta."
+                      className="rounded-none border-[#b89b5e]/60 bg-white"/>
+                    <p className="text-xs text-[#655b52]">Registre qual fonte sustenta cada tese. Este campo não comprova autenticidade, vigência nem consulta oficial. Revise os documentos e as citações antes de protocolar.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase text-[#6f1d2b]">Pedidos / requerimentos</Label>
