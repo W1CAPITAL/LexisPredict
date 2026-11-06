@@ -8,7 +8,7 @@ const ALIASES:Readonly<Record<string,string>>={
  '/cases':'cnj processo cliente carteira meus casos acompanhamento dados',
  '/processos':'cnj processos empresa carteira advogado buscar advogado',
  '/consulta-oab':'oab pje office pjeoffice certificado digital token a1 a3 vidaas vidass consulta autos tribunal pesquisa por advogado',
- '/fases-provas':'prova evidencias replica análise de autos cronologia auditoria jurídica tese documento fonte',
+ '/fases-provas':'prova provas evidencias réplica revisão análise de autos cronologia auditoria jurídica tese documento fonte',
  '/documents':'central documentos procuração substabelecimento contrato assinatura peças',
  '/documents/generator':'petição minuta procuração substabelecimento peças pdf rtf assinafy assinatura eletrônica preparar documento provas fundamentos revisão',
  '/documents/investigacao':'investigação documental análise de autos documentos',
