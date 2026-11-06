@@ -24,6 +24,12 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {matchesAppRouteSearch,resolveQuickCnjSearch} from "@/lib/app-route-search";
+import {useAuth} from "@/components/auth/auth-provider";
+import {useAdmin} from "@/hooks/use-admin";
+import {usePlano} from "@/hooks/use-plano";
+import {filterNavByPlan} from "@/lib/planos-pacotes";
+import {operatorRouteAllowed,canViewCompanyCaseList} from "@/lib/roles";
 
 type Item = { label: string; href: string; icon: React.ElementType; keywords?: string };
 
@@ -38,7 +44,13 @@ const ITEMS: Item[] = [
   { label: "Radar predatória", href: "/investigacao-predatoria", icon: ShieldAlert, keywords: "numopede" },
   { label: "Dossiê / Relatório", href: "/report", icon: BarChart3, keywords: "report" },
   { label: "Agenda", href: "/agenda", icon: CalendarDays, keywords: "prazos" },
-  { label: "Documentos", href: "/documents", icon: FileText, keywords: "procuracao" },
+  { label: "Documentos", href: "/documents", icon: FileText, keywords: "procuracao contratos" },
+  { label: "Editor de peças e assinatura", href: "/documents/generator", icon: FileText, keywords: "pdf minuta assinafy assinatura eletrônica prova fonte" },
+  { label: "Réplica e provas", href: "/fases-provas", icon: FileText, keywords: "auditoria evidencias contraditorio" },
+  { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel, keywords: "pje certificado tribunal" },
+  { label: "Integrações", href: "/integracoes", icon: Settings, keywords: "asaas google calendar assinafy" },
+  { label: "Dossiês", href: "/dossies", icon: FileText, keywords: "provas cronologia" },
+  { label: "CRM", href: "/crm", icon: Briefcase, keywords: "clientes atendimento comercial" },
   { label: "Superagente", href: "/chat", icon: Bot, keywords: "ia chatbot investigacao dossie atendimento relatorio predictlm" },
   { label: "Importar", href: "/import", icon: Upload, keywords: "csv planilha" },
   { label: "Configurações", href: "/settings", icon: Settings, keywords: "senha tema" },
@@ -50,6 +62,10 @@ export function LexisCommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0);
   const returnFocus = useRef<HTMLElement | null>(null);
   const router = useRouter();
+  const {profile}=useAuth();
+  const {role,isSuperAdmin}=useAdmin();
+  const {plan}=usePlano();
+  const canSeeCompany=canViewCompanyCaseList(profile as any);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -74,15 +90,15 @@ export function LexisCommandPalette() {
   }, [open]);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return ITEMS;
-    return ITEMS.filter(
-      (i) =>
-        i.label.toLowerCase().includes(s) ||
-        i.href.includes(s) ||
-        (i.keywords || "").includes(s)
-    );
-  }, [q]);
+    const permitted=filterNavByPlan(ITEMS,isSuperAdmin?"maximo":plan)
+      .filter(item=>(role!=="Operador"||operatorRouteAllowed(item.href))&&
+         (item.href!=="/processos"||canSeeCompany));
+    const destination=canSeeCompany?"/processos":"/cases";
+    const cnj=resolveQuickCnjSearch(q,destination);
+    if(cnj) return [{label:"Localizar processo por CNJ",href:cnj,icon:Briefcase,keywords:"consulta processual"}];
+    if(!q.trim()) return permitted;
+    return permitted.filter(item=>matchesAppRouteSearch(q,item.label,item.href,item.keywords));
+  }, [q,isSuperAdmin,plan,role,canSeeCompany]);
 
   const go = useCallback(
     (href: string) => {
