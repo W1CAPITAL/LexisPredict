@@ -470,7 +470,7 @@ export default function Dashboard() {
                   totalProcessos={portfolioSummary?.total ?? cases.length}
                   ativos={portfolioSummary?.ativos ?? metrics.activeTotal}
                   pendentes={(portfolioSummary?.novidades ?? metrics.countNovoAndamento) + metrics.countHoje}
-                  vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}
+                  vencidos={portfolioSummary?.vencidos ?? null}
                   novidades={portfolioSummary?.novidades ?? metrics.countNovoAndamento}
                   baixas={portfolioSummary?.baixas ?? metrics.countEncerradoTribunal}
                   encerradosCarteira={portfolioSummary?.encerrados ?? metrics.countEncerradoCarteira}
