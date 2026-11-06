@@ -12,7 +12,7 @@ describe('Dashboard e fila consultam o mesmo total acionável',()=>{
   const dashboard=readFileSync('src/app/page.tsx','utf8');
   const tasks=readFileSync('src/app/tarefas/page.tsx','utf8');
   expect(dashboard).toContain('loadAllDuePages(');
-  expect(tasks).toContain('loadAllDuePages(');
+  expect(tasks).toMatch(/loadAllDuePages(?:<LegalCase>)?\\(/);
   expect(tasks).not.toContain('while(hasMore&&offset<5000');
  });
 });
