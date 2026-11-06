@@ -82,7 +82,7 @@ export function DashboardVisualOverview({
     {
       label: "Retornos vencidos",
       value: integer(vencidos, loading),
-      detail: "Não são prazos judiciais",
+      detail: vencidos == null ? "Consulta indisponível" : "Não são prazos judiciais",
       href: "/vencidos",
       Icon: ShieldAlert,
       kind: "overdue",
