@@ -13,6 +13,7 @@ type UploadReply={ok:boolean;documentId?:string;status?:string;error?:string};
 export function AssinafyPrepareDocument({texto,titulo,sub}:{texto:string;titulo:string;sub:string}){
  const [configured,setConfigured]=React.useState<boolean|null>(null);
  const [busy,setBusy]=React.useState(false);
+ const requestInFlight=React.useRef(false);
  const [confirmed,setConfirmed]=React.useState(false);
  const [result,setResult]=React.useState<{id:string;status:string}|null>(null);
  const [message,setMessage]=React.useState("");
@@ -27,7 +28,8 @@ export function AssinafyPrepareDocument({texto,titulo,sub}:{texto:string;titulo:
  React.useEffect(()=>{setResult(null);setConfirmed(false);setMessage("");},[texto,titulo,sub]);
 
  async function prepare(){
-  if(busy||!confirmed||!texto.trim()||!configured)return;
+  if(requestInFlight.current||busy||!confirmed||!texto.trim()||!configured)return;
+  requestInFlight.current=true;
   setBusy(true);setMessage("");setResult(null);
   try{
    const generated=await gerarPecaTextoPDFAction({texto:texto.trim(),titulo,sub});
@@ -44,17 +46,17 @@ export function AssinafyPrepareDocument({texto,titulo,sub}:{texto:string;titulo:
    setConfirmed(false);
   }catch(e){
    setMessage(e instanceof Error?e.message:"Erro no preparo da assinatura.");
-  }finally{setBusy(false);}
+  }finally{requestInFlight.current=false;setBusy(false);}
  }
  return <details className="rounded-none border border-[#b89b5e]/70 bg-[#fffaf0] p-4 text-xs">
   <summary className="cursor-pointer font-bold text-[#6f1d2b]">Assinatura eletrônica · preparar na Assinafy</summary>
   <div className="mt-3 space-y-3">
-   <p className="text-[#655b52]">Usa o PDF da minuta revisada nesta tela. O preparo salva o documento no workspace Assinafy vinculado ao escritório, mas não envia convite, notificação ou cobrança automaticamente.</p>
+   <p className="text-[#655b52]">Usa o PDF da minuta revisada nesta tela. O preparo salva o documento no workspace Assinafy vinculado ao escritório, mas não envia convite ou notificação automaticamente. O preparo pode consumir cota do plano Assinafy.</p>
    {configured===null?<p role="status">Verificando conexão…</p>:
     !configured?<p role="status" className="text-amber-800">Assinafy não conectada à conta autorizada do escritório. O PDF continua disponível para exportação; nenhum arquivo foi enviado.</p>:
     <label className="flex items-start gap-2 text-[#493b34]">
      <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-0.5" disabled={busy}/>
-     <span>Revisei o PDF e autorizo explicitamente enviar uma cópia à conta Assinafy do escritório para preparação de assinatura. Entendo que isso ainda não notifica signatários.</span>
+     <span>Revisei o PDF e autorizo explicitamente enviar uma cópia à conta Assinafy do escritório para preparação de assinatura. Entendo que isso ainda não notifica signatários e pode consumir cota do plano Assinafy.</span>
     </label>}
    {configured&&<button type="button" disabled={busy||!confirmed||!texto.trim()} onClick={()=>void prepare()} className="rounded-md bg-[#6f1d2b] px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50">
     {busy?"Preparando documento…":"Preparar PDF na Assinafy"}
