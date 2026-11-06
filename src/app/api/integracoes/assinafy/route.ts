@@ -41,6 +41,8 @@ export async function POST(request:NextRequest){
  if(!auth.ok)return fail(auth.error,auth.status);
  const config=credentials();
  if(!config)return fail('Assinafy ainda não vinculada à administração. Não foi enviado nenhum documento.',503);
+ const origin=request.headers.get('origin');
+ if(origin&&origin!==request.nextUrl.origin)return fail('Origem da solicitação não autorizada.',403);
  const contentType=request.headers.get('content-type')||'';
  if(!contentType.toLowerCase().startsWith('multipart/form-data;'))return fail('Envie o PDF como formulário.',415);
  const requestSize=Number(request.headers.get('content-length')||0);
