@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cpfValido, cnpjValido } from './cpf-cnpj';
+import { cpfValido, cnpjValido, normalizarCnpj } from './cpf-cnpj';
 
 describe('cpfValido', () => {
   it('aceita CPF válido conhecido', () => {
@@ -39,4 +39,13 @@ describe('cnpjValido — formato alfanumérico Receita Federal 2026', () => {
     expect(cnpjValido('CNPJ: 12ABC34501DE35')).toBe(false);
     expect(cnpjValido('12ABC34501DE35<script>')).toBe(false);
   });
+});
+
+describe('normalizarCnpj',()=>{
+ it('preserva letras em maiúsculas na pesquisa e nos cadastros',()=>{
+   expect(normalizarCnpj('12.abc.345/01de-35')).toBe('12ABC34501DE35');
+ });
+ it('não descarta letras de um CNPJ válido silenciosamente',()=>{
+   expect(normalizarCnpj('11.222.333/0001-81')).toBe('11222333000181');
+ });
 });
