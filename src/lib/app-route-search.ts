@@ -14,7 +14,7 @@ const ALIASES:Readonly<Record<string,string>>={
  '/documents/investigacao':'investigação documental análise de autos documentos',
  '/dossies':'dossiê cronologia evidências fatos processos prova auditoria',
  '/chat':'superagente inteligência artificial jurídica auditoria provas documentos fontes fundamentação ai',
- '/integracoes':'asaas financeiro google calendar agenda oauth assinafy assinatura eletrônica api integrações',
+ '/integracoes':'asaas cobrança financeiro google calendar agenda oauth assinafy assinatura eletrônica api integrações',
  '/agenda':'agenda retorno prazo calendário google calendar compromisso',
  '/crm':'crm clientes comercial funil relacionamento contrato proposta',
  '/crm/financeiro':'financeiro cobrança asaas recebíveis conciliação pagamentos',
