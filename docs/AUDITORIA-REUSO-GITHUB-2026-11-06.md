@@ -198,7 +198,10 @@ CI completo (TypeScript + Vitest + build); conferir menu móvel, Ctrl+K, isolame
 4. \`src/lib/app-route-search.ts\`: busca global existente encontra suporte a VIDaaS Mac e direciona à página OAB atual.
 5. \`src/lib/truth-policy.ts\`: a política de fontes e provas compartilhada pelos agentes passa a explicitar que conteúdo extraído de documentos/anexos/e-mail **não é instrução do operador**. Isso não implementa o detector de ocultação do projeto com licença restritiva.
 
-**Fora de escopo / não concluído:** leitor integrado em tempo real aos autos do PJe, conexão PKCS#11 local, instalador de certificados, modo offline de análise PDF escondido, OCR, ações em massa dentro do tribunal, importação automática com login, e integração BrasilAPI para novo CNPJ alfanumérico. Esses itens dependem de fontes autorizadas, arquitetura local e revisão de privacidade. Nunca alegar que o site web lê certificados locais ou envia documentos sigilosos sem autorização.
+6. `src/app/actions/crm-agent-actions.ts`: o agente CRM e a chamada já existente à BrasilAPI usam o CNPJ normalizado e validado, inclusive com letras; a documentação da BrasilAPI declara aceitar 14 caracteres alfanuméricos, mas não houve consulta real de uma empresa neste desenvolvimento.
+7. `src/lib/enrichment-lookup.ts`: a integração opcional de enriquecimento preserva CNPJs alfanuméricos válidos recebidos da fonte externa (não gera ou inventa CPF/CNPJ).
+
+**Fora de escopo / não concluído:** leitor integrado em tempo real aos autos do PJe, conexão PKCS#11 local, instalador de certificados, modo offline de análise PDF escondido, OCR, ações em massa dentro do tribunal, importação automática com login. Esses itens dependem de fontes autorizadas, arquitetura local e revisão de privacidade. Nunca alegar que o site web lê certificados locais ou envia documentos sigilosos sem autorização.
 
 **Fonte normativa:** https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/documentos-tecnicos/cnpj ; PJeOffice oficial: https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/
 
