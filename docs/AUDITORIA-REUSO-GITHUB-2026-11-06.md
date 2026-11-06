@@ -1,0 +1,115 @@
+# Auditoria de reuso de repositórios para LexisPredict — 06/11/2026
+
+## Escopo e critérios
+
+Inventário dos URLs fornecidos pelo usuário. Avaliação por metadados públicos, estrutura/README de projetos selecionados, inspeção da implementação atual do LexisPredict e revisão pontual de código de referência. **Não é auditoria de segurança completa de todos os terceiros**, nem aprovação automática de implantação. As licenças assinaladas são as identificadas no GitHub durante a triagem; licença não informada no metadado deve ser conferida no repositório e nos arquivos antes de copiar código.
+
+Critérios: utilidade jurídica real, maturidade, licença compatível com software proprietário, segurança/LGPD, requisitos de APIs e infraestrutura, não duplicar o que Lexis já tem, possibilidade de testes e reversibilidade.
+
+## Mudanças efetivamente desenvolvidas nesta branch
+
+- Corrige `src/lib/cnj-higiene.ts`: dígito verificador CNJ (Resolução 65/2008), concatenando **00** antes de calcular módulo 97. Corrige rejeição de CNJs legítimos.
+- Testes de regressão `src/lib/cnj-higiene.test.ts` com dois números de exemplo públicos retirados de `tests/test_cnj.py` do MAAT.
+- `src/lib/oab-discovery.ts`: importa texto colado do portal, extrai números CNJ, valida dígito/estrutura, deduplica e sinaliza truncamento; não consulta certificado nem resolve CAPTCHA.
+- `src/components/scanner/oab-discovery-panel.tsx`: painel na página `/consulta-oab` com links dos portais, copiar/baixar TXT. Os dados digitados permanecem no navegador; não são inseridos automaticamente na carteira.
+- Atribuição e licença MIT em `docs/THIRD_PARTY_OAB_MAAT.md`.
+
+### Limites indispensáveis
+
+**DataJud público não fornece pesquisa universal por OAB/nome do advogado.** Consulta por OAB precisa de portais oficiais ou fornecedor autorizado. A ausência no DataJud/DJEN/carteira não comprova inexistência de processo. O painel desenvolvido é **descoberta assistida**, não integração com certificado. Certificados A1/A3 em PJeOffice, VIDaaS, Bird ID ou Windows exigem autenticação no portal e aplicativo autorizado; não se pode capturar PIN, cookies, sessão, nem contornar CAPTCHA.
+
+## Inventário — maior prioridade
+
+| Código e origem | Decisão | Reuso concreto e ressalva |
+| --- | --- | --- |
+| [MAAT Monitor](https://github.com/Dramorimrodrigues/maat-monitor) — MIT | **Implementado parcialmente** | Algoritmo CNJ, descoberta por OAB via colagem, heurística de radar de novidades; não copiar monitor Python/SQLite inteiro para Next.js |
+| [AuditorProcessual](https://github.com/lucianumm/AuditorProcessual) — MIT | **Avaliar integração** | Matriz de fatos/provas/teses, pesquisa oficial verificada, versionamento de peças; manter validação humana |
+| [Judicex](https://github.com/JustVugg/judicex) — Apache-2.0 | **Avaliar integração** | RAG com evidências, verificadores e rastreabilidade; Python como worker opcional, sem migrar CRM |
+| [claude-for-legal](https://github.com/anthropics/claude-for-legal) — Apache-2.0 | **Adaptar workflows** | Roteiros de revisão, diligência, contratos, contencioso; localizar para legislação brasileira e revisão de advogado |
+| [legal-br](https://github.com/manfredjr/legal-br) — MIT | **Adaptar workflows** | LGPD, direito do consumidor/digital, consultas a bases oficiais; validar conteúdo jurídico |
+| [bug-frame](https://github.com/vmatheus3/bug-frame) — MIT | **Experimento controlado** | Captura de bug visual e contexto para equipe técnica; exigir login, permissão, mascarar dados de clientes e logs |
+| [agente-dra-julia-advocacia](https://github.com/JeffersonMFti/agente-dra-julia-advocacia) — MIT | **Adaptar workflows** | Webhook verificado, anti-replay, triagem documentos/áudio, revisão humana antes de qualquer mensagem |
+| [google-calendar-mcp](https://github.com/nspady/google-calendar-mcp) — MIT | **Referência, não embutir MCP** | Contas múltiplas, timezone e testes de OAuth; Lexis já dispõe de endpoint OAuth e eventos |
+| [General-Legal/legal-templates](https://github.com/General-Legal/legal-templates) — CC0 | **Exemplos, não peças prontas** | Estrutura de minutas, revisão para Brasil, competência e requisitos de cada tribunal |
+| [awesome-n8n-templates](https://github.com/enescingoz/awesome-n8n-templates) — licença a conferir | **Workflows selecionados** | Somente JSONs aprovados, em instância n8n isolada, validar credenciais e licenças por arquivo |
+| [OmniCloud](https://github.com/dimartarmizi/OmniCloud) — MIT | **Fase futura** | Adaptadores de provedores de drive; não unificar tokens sem isolamento por empresa |
+
+## Inventário — análise jurídica, bases de dados, CRMs
+
+| Projeto | Decisão | Motivo |
+| --- | --- | --- |
+| [dadosjusbr/api](https://github.com/dadosjusbr/api) | Referência setorial | Dados administrativos/remuneratórios do Judiciário, **não** motor de autos |
+| [jusbrasil/op-cliente](https://github.com/jusbrasil/op-cliente) | Referência apenas | Cliente Digesto, projeto arquivado e API comercial dependente de autorização |
+| [okfn-brasil/open-jus](https://github.com/okfn-brasil/open-jus) | Não integrar | LGPL-3.0, arquivado, dados financeiros de Justiça e arquitetura antiga |
+| [claujs/buscaprocessos-api](https://github.com/claujs/buscaprocessos-api) | Provedor opcional | Repositório de documentação de **API comercial** de intimação OAB/processos, exige chave e condições comerciais |
+| [felCardoso/LexManager](https://github.com/felCardoso/LexManager) | Não copiar | CRM Flask redundante e licença a conferir |
+| [neimaciel/crm-juridico](https://github.com/neimaciel/crm-juridico) | Não copiar | Protótipo CRM redundante, licença a conferir |
+| [DevCaioSouza/CRM-Advocacia-Freelancer](https://github.com/DevCaioSouza/CRM-Advocacia-Freelancer) | Não copiar | CRM TypeScript redundante, licença a conferir |
+| [Andersonfrfilho/ai-legal-assistant](https://github.com/Andersonfrfilho/ai-legal-assistant) | Pesquisa | Avaliar testes, licença e veracidade antes de adaptar |
+| [devfullcycle/techweekia9-multi-agents-rag](https://github.com/devfullcycle/techweekia9-multi-agents-rag) | Conceito | RAG multiagentes experimental; dados isolados por escritório |
+| [rogeriotravagin/escritorio-ia](https://github.com/rogeriotravagin/escritorio-ia) | Conceito | Fluxo de agentes jurídicos, licença não confirmada |
+| [llSourcell/InstantLegalDotAI](https://github.com/llSourcell/InstantLegalDotAI) | Referência | Gerador genérico de documentos jurídicos, requer localização |
+| [jespimentel/ia_e_justica_criminal](https://github.com/jespimentel/ia_e_justica_criminal) | Não integrar | Material de aula, não módulo operacional |
+| [araguaci/lawfare-timeline](https://github.com/araguaci/lawfare-timeline) | Não integrar | Portal cronológico de notícias, não processo do cliente |
+| [juridico-create/extensao_jusbrasil](https://github.com/juridico-create/extensao_jusbrasil) | Não copiar | Extensão de extração de terceiros, licença/permissão do site a conferir |
+| [RamosJSouza/extensao_jusbrasil](https://github.com/RamosJSouza/extensao_jusbrasil) | Não copiar | Mesmo tipo de extensão e riscos de autenticação/termos |
+| [Guilhermesena-dev/CONSULTA_API_JUSBR](https://github.com/Guilhermesena-dev/CONSULTA_API_JUSBR) | Avaliação posterior | Cliente não-oficial; requer documentação de contrato/licença da API |
+| [rusakovichma/jusbrelay](https://github.com/rusakovichma/jusbrelay) | Descartado | Driver de dispositivos USB relay; não tem relação com Jusbrasil |
+
+## Inventário — integrações, nuvem, produtividade e tecnologia
+
+| Projeto | Decisão | Motivo |
+| --- | --- | --- |
+| [DevLucasLourenco/AllWhatsPy](https://github.com/DevLucasLourenco/AllWhatsPy) | Evitar produção | Selenium sobre WhatsApp Web é frágil; preferir canais autorizados e confirmação de envio |
+| [ellencrist/Save-Organize-Email-Files](https://github.com/ellencrist/Save-Organize-Email-Files) | Conceito | Outlook, não Gmail; usar Gmail OAuth/API, sem baixar anexos indiscriminadamente |
+| [GuilhermeVideira/Projeto-Automacao-de-Processos](https://github.com/GuilhermeVideira/Projeto-Automacao-de-Processos) | Referência | Automação genérica Python, sem vantagem clara sobre fluxos atuais |
+| [henriquetourinho/batedor](https://github.com/henriquetourinho/batedor) — GPL-3.0 | Referência, não copiar | Monitor Linux separado; incompatibilidade provável com produto proprietário |
+| [mateuscacabuenaPUCRS/FundamentosProcessamentoParaleloDistribuido](https://github.com/mateuscacabuenaPUCRS/FundamentosProcessamentoParaleloDistribuido) | Não integrar | Exercícios acadêmicos paralelismo, não produto |
+| [hypit-ai/hypit](https://github.com/hypit-ai/hypit) | Não integrar | Conteúdo de marketing/alteração de vídeos, licença não confirmada |
+| [routatic/proxy](https://github.com/routatic/proxy) — AGPL-3.0 | Não integrar | Roteador LLM sob AGPL, complexidade/licenciamento e credenciais |
+| [ebouther/opencode-unlimited-proxy](https://github.com/ebouther/opencode-unlimited-proxy) | Não integrar | Proposta de rotacionar IP para superar 403/limites do provedor |
+| [FishBottle7/opencode2dsh](https://github.com/FishBottle7/opencode2dsh) | Não integrar | Plugin de modelos gratuitos, não backend jurídico estável |
+| [qybaihe/bla](https://github.com/qybaihe/bla) | Não integrar | Defesa adversarial por confusão de agentes, risco à confiabilidade |
+| [franklinbaldo/leandro](https://github.com/franklinbaldo/leandro) — MIT | Pesquisa | Formalização Lean4 de normas jurídicas, experimental |
+| [ai-to-ai/auto-gmail-creator](https://github.com/ai-to-ai/auto-gmail-creator) | Não integrar | Criação massiva de contas; sem necessidade legítima operacional |
+| [ShadowHackrs/gmail-account-creator](https://github.com/ShadowHackrs/gmail-account-creator) | Não integrar | Contorno de verificações Google, risco de bloqueio/abuso |
+| [kkris0/auth-memory](https://github.com/kkris0/auth-memory) — MIT | Não integrar | Extensão para lembrar conta Google em sites, não substitui OAuth |
+| [adhocore/goic](https://github.com/adhocore/goic) — MIT | Não integrar | OIDC em Go não é necessário na pilha Next.js atual |
+| [Jawad-Jamil/Sign-in-with-google](https://github.com/Jawad-Jamil/Sign-in-with-google) | Não integrar | Tutorial de autenticação com armazenamento local inseguro para tokens |
+| [sourcecodebd/React-Firebase-oAuth-with-localStorage](https://github.com/sourcecodebd/React-Firebase-oAuth-with-localStorage) | Não integrar | Tutorial antigo/redudante, padrões de auth incompatíveis |
+| [Prakashsaw/Expense-Management-System](https://github.com/Prakashsaw/Expense-Management-System) | Não integrar | Financeiro MERN genérico, duplicaria estrutura e permissões |
+| [api-evangelist/asaas](https://github.com/api-evangelist/asaas) | Referência | Catálogo não oficial da API; usar documentação oficial Asaas |
+| [jrolfs/google-calendar-amf](https://github.com/jrolfs/google-calendar-amf) | Não integrar | Exemplo legado AppEngine/Flex/AMF (2012) |
+| [xixianloux/google-account-automanager](https://github.com/xixianloux/google-account-automanager) | Não integrar | Automação de contas não resolve integração de calendário |
+| [c-herrmann206738739/gemini-advanced-setup-guide](https://github.com/c-herrmann206738739/gemini-advanced-setup-guide) | Não integrar | Guia de assinatura, não componente confiável de produção |
+| [Data-Horde/gdrivac](https://github.com/Data-Horde/gdrivac) | Não integrar | Script de reparação de links Drive de 2021 |
+
+## Outros links fornecidos
+
+- [Organização jusbrasil](https://github.com/jusbrasil): explorar apenas clientes e SDKs com contratos de API verificáveis; GitHub não concede licença de acesso à plataforma comercial.
+- [Organização Mika-Project](https://github.com/Mika-Project): sem relação prática com CRM jurídico.
+- [Organização Liquid4All](https://github.com/Liquid4All): somente estudo de modelos pequenos e custo de inferência, caso surja demanda.
+- [Organização asaasdev](https://github.com/asaasdev): referências oficiais/SDK; priorizar a documentação oficial de API Asaas.
+- [Issue vLLM #64645](https://github.com/vllm-project/vllm/issues/64645): acompanhar como proposta/compatibilidade, não base de implantação.
+- [Marketplace Google Workspace user para GitHub Org](https://github.com/marketplace/actions/google-workspace-user-to-github-org-user): automação de identidade GitHub, não agenda de clientes.
+- [Marketplace Sync GitHub to Google Calendar](https://github.com/marketplace/sync-github-to-google-calendar): eventos de repositório, não compromissos processuais.
+- [Tópico google-calendar-api](https://github.com/topics/google-calendar-api): índice, não dependência instalável.
+
+## Integração por ondas
+
+1. **Correção de integridade:** rodar testes de regressão CNJ, suite Vitest e typecheck; revisar importações antigas que não conferem DV. Revisar UI de OAB em preview e consolidar atribuição MIT. Não publicar sem avaliação de CI.
+2. **Consulta processual:** usar DataJud para CNJs conhecidos; validar DJEN/portais oficiais para publicações; pesquisa OAB apenas nos portais ou por provedor contratado e autorizado; nunca misturar "0 na carteira" com "0 processos no mundo".
+3. **Inteligência jurídica com provas:** comparar AuditorProcessual, Judicex e claude-for-legal em lote de casos anonimizados, com citações por parágrafo e prova/contraprova; restringir redação jurídica à aprovação de advogado.
+4. **Integrações já existentes:** aprimorar status OAuth Google Calendar e monitoramento de token; no Asaas, verificar no servidor `ASAAS_API_KEY`, ambiente e autorização por empresa. Usar endpoints oficiais, webhooks verificados/idempotentes. Nenhum código do GitHub cria as credenciais ou dispensa o consentimento da conta.
+5. **Atendimento/infra:** testar Bugframe em equipe interna com dados privados mascarados; importar no máximo templates n8n revisados, com limites, logs, segurança, rollback e aprovação explícita antes de enviar mensagens.
+
+## Bloqueios e testes antes de merge
+
+- `pnpm test` ou `pnpm exec vitest run src/lib/cnj-higiene.test.ts src/lib/oab-discovery.test.ts`
+- `pnpm typecheck` e `pnpm build`
+- Teste visual no navegador da página `/consulta-oab` usando caso público sem dados pessoais.
+- Isolamento por empresa, RLS e privilégios do financeiro intactos.
+- Nenhum acesso silencioso a certificado, PIN, CAPTCHA, sessão judicial ou conta externa.
+- Revisão jurídica/manual de qualquer descoberta de processo.
+
+**Situação:** código está nesta branch de revisão. Nenhuma integração externa foi conectada automaticamente, nenhuma configuração de produção foi alterada e nenhum deploy deve ser presumido.
