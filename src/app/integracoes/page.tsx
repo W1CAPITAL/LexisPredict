@@ -22,6 +22,7 @@ type StatusResponse={
     whatsapp:{available:boolean;mode:string;automatic:boolean};
     calendar:{available:boolean;mode:string;oauthConfigured:boolean};
     asaas:{available:boolean;mode:string;readOnly:boolean};
+    assinafy:{available:boolean;mode:string;automaticSignatures:boolean};
     judiciary:{available:boolean;mode:string;searchByOabCrossCourt:boolean};
     ai:{available:boolean;mode:string;automaticDecision:boolean};
   };
@@ -207,11 +208,12 @@ export default function IntegracoesPage(){
           <Badge variant="outline" className="border-primary/30 text-foreground">Painel operacional</Badge>
         </div>
         {systemError&&<p role="alert" className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm">{systemError}</p>}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {[
             {title:"WhatsApp",sub:"Módulo disponível",ok:system?.services.whatsapp.available??false},
             {title:"Google Agenda",sub:"Agendar manualmente",ok:system?.services.calendar.available??false},
             {title:"Asaas",sub:system?.services.asaas.mode==="production"?"Produção":"Sandbox",ok:system?.services.asaas.available??false},
+            {title:"Assinafy",sub:"Preparo de PDF",ok:system?.services.assinafy?.available??false},
             {title:"Processos/OAB",sub:"Carteira + DJEN",ok:system?.services.judiciary.available??false},
             {title:"IA",sub:"Superagente",ok:system?.services.ai.available??false},
           ].map(v=><div key={v.title} className="rounded-xl border border-border bg-card px-3 py-3">
@@ -219,6 +221,10 @@ export default function IntegracoesPage(){
             <p className="mt-1 text-[11px] text-muted-foreground">{!system?"Consultando…":v.ok?v.sub:"Aguardando conexão"}</p>
           </div>)}
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Assinafy prepara documentos para assinatura no <Link className="font-semibold text-primary underline" href="/documents/generator">gerador já existente</Link>.
+          {!system?.services.assinafy?.available?" A conta ainda não está conectada para esta empresa ou perfil.":" A preparação exige revisão e confirmação; convites não são enviados automaticamente."}
+        </p>
       </header>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
