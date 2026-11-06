@@ -158,7 +158,11 @@ export default function SettingsPage() {
     const id = window.setTimeout(() => setSettingsBoot(false), 180);
     try {
       const section = new URLSearchParams(window.location.search).get("section");
-      if (section) setActiveTab(["Personalizacao","Hardware","Perfil","Termos","Consentimentos","Celular"].includes(section) ? "Experiencia" : section);
+      if (section) {
+        const normalized = section.toLowerCase();
+        setActiveTab(normalized === "oab" || normalized === "personalizar-oab" ? "Oab" :
+          ["personalizacao","hardware","perfil","termos","consentimentos","celular"].includes(normalized) ? "Experiencia" : section);
+      }
     } catch {
       /* query preference is best effort */
     }
