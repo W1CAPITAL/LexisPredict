@@ -1,3 +1,5 @@
+import {cnpjValido,normalizarCnpj} from './cpf-cnpj';
+
 /**
  * Enrichment (tel / e-mail / CPF / endereço) — **100% OPCIONAL**.
  *
@@ -95,7 +97,7 @@ export async function lookupEnrichment(input: {
       telefone: String(data.telefone || data.phone || "").trim() || undefined,
       email: String(data.email || "").trim() || undefined,
       cpf: String(data.cpf || "").replace(/\D/g, "") || undefined,
-      cnpj: String(data.cnpj || "").replace(/\D/g, "") || undefined,
+      cnpj: cnpjValido(String(data.cnpj || '')) ? normalizarCnpj(String(data.cnpj || '')) : undefined,
       endereco: String(data.endereco || data.complemento || "").trim() || undefined,
       cep: String(data.cep || "").trim() || undefined,
       bairro: String(data.bairro || "").trim() || undefined,
