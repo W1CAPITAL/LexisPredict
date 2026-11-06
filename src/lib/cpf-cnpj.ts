@@ -22,8 +22,12 @@ export function cpfValido(raw: string): boolean {
  * Mantém compatibilidade integral com CNPJ numérico.
  * https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/documentos-tecnicos/cnpj
  */
+export function normalizarCnpj(raw:string):string {
+  return String(raw||'').toUpperCase().replace(/[.\/\s-]/g,'');
+}
+
 export function cnpjValido(raw: string): boolean {
-  const cnpj=String(raw||'').toUpperCase().replace(/[.\/\s-]/g,'');
+  const cnpj=normalizarCnpj(raw);
   if(!/^[A-Z0-9]{12}[0-9]{2}$/.test(cnpj) || /^(.)\1{13}$/.test(cnpj))return false;
 
   const w1=[5,4,3,2,9,8,7,6,5,4,3,2];
