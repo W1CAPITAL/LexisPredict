@@ -26,14 +26,21 @@ export function OabPersonalizationPanel(){
  const [success,setSuccess]=React.useState('');
  React.useEffect(()=>{
   let cancelled=false;
+  // A consulta ao servidor pode demorar: mantenha o formulário editável desde o início.
+  setPrefs(oabKeys(cleanExperiencePrefs(loadExperiencePrefs())));
   void (async()=>{
-   const result=await getExperienceAction();
-   if(cancelled)return;
-   if(result.ok){
-     const current=cleanExperiencePrefs(result.profile?.preferences||loadExperiencePrefs());
-     setPrefs(oabKeys(current));
-   } else setError(result.error||'Não foi possível carregar a personalização.');
-   setLoading(false);
+   try {
+    const result=await getExperienceAction();
+    if(cancelled)return;
+    if(result.ok){
+      const current=cleanExperiencePrefs(result.profile?.preferences||loadExperiencePrefs());
+      setPrefs(oabKeys(current));
+    } else setError(result.error||'Não foi possível sincronizar as preferências. Você ainda pode editar e salvar.');
+   }catch{
+    if(!cancelled)setError('Não foi possível sincronizar as preferências. Você ainda pode editar e salvar.');
+   }finally{
+    if(!cancelled)setLoading(false);
+   }
   })();
   return ()=>{cancelled=true;};
  },[]);
@@ -56,9 +63,9 @@ export function OabPersonalizationPanel(){
  return <section className="space-y-5" aria-label="Personalização OAB">
   <header className="space-y-2">
    <h2 className="text-xl font-bold flex items-center gap-2"><ShieldCheck size={20} className="text-primary"/> Consulta OAB e certificado</h2>
-   <p className="text-sm text-muted-foreground">Escolha uma vez como você consulta os tribunais. Sua inscrição OAB e preferências ficam vinculadas ao perfil; senha, PIN e certificado não são solicitados nem armazenados.</p>
+   <p className="text-sm text-muted-foreground">Escolha uma vez como você consulta os tribunais. Sua inscrição OAB e preferências ficam vinculadas ao perfil; senha, PIN e certificado não são solicitados nem armazenados. Não é preciso instalar extensão no Chrome para usar a consulta oficial.</p>
   </header>
-  {loading?<p className="text-sm flex items-center gap-2"><Loader2 size={15} className="animate-spin"/> Carregando preferências…</p>:
+  {loading&&<p role="status" className="text-xs flex items-center gap-2 text-muted-foreground"><Loader2 size={15} className="animate-spin"/> Sincronizando preferências. Você já pode preencher o formulário.</p>}
    <div className="space-y-4">
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <label><span className={label}>UF da OAB</span>
@@ -112,6 +119,6 @@ export function OabPersonalizationPanel(){
       <Button disabled={busy} onClick={()=>void save()}>{busy?<Loader2 size={14} className="mr-2 animate-spin"/>:<Settings2 size={14} className="mr-2"/>} Salvar preferências OAB</Button>
       <Button asChild variant="outline"><Link href="/consulta-oab">Abrir consulta OAB</Link></Button>
     </div>
-   </div>}
+   </div>
  </section>;
 }
