@@ -96,7 +96,7 @@ export function ClientChrome() {
   const [agentReady, setAgentReady] = useState(false);
   const [tourReady, setTourReady] = useState(false);
   const [deferredReady, setDeferredReady] = useState(false);
-  const [desktopExtras, setDesktopExtras] = useState(false);
+
 
   useEffect(() => {
     const enableScanner = () => setScannerReady(true);
@@ -121,12 +121,6 @@ export function ClientChrome() {
 
     const fallback = window.setTimeout(() => setDeferredReady(true), 7000);
 
-    // Recursos exclusivamente de desktop não entram no bundle crítico do celular.
-    const media = window.matchMedia("(min-width: 768px)");
-    const syncDesktop = () => setDesktopExtras(media.matches);
-    syncDesktop();
-    media.addEventListener?.("change", syncDesktop);
-
     return () => {
       window.removeEventListener("lexis-need-scanner", enableScanner);
       window.removeEventListener("lexis-open-agents", enableAgents);
@@ -135,7 +129,6 @@ export function ClientChrome() {
       if (idleCallback != null && "cancelIdleCallback" in window) {
         (window as any).cancelIdleCallback(idleCallback);
       }
-      media.removeEventListener?.("change", syncDesktop);
     };
   }, [pathname]);
 
@@ -143,6 +136,7 @@ export function ClientChrome() {
     <>
       <FluidMotionController />
       <NavProgress />
+      <LexisCommandPalette />
       <ExperienceGate />
 
       {tourReady ? <GuidedTour /> : null}
@@ -159,7 +153,6 @@ export function ClientChrome() {
               <ChatRealtimeNotify />
             </>
           ) : null}
-          {desktopExtras ? <LexisCommandPalette /> : null}
         </>
       ) : null}
     </>
