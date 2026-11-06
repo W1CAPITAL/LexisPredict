@@ -76,6 +76,7 @@ import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { CaseResumoChip } from '@/components/cases/case-resumo-chip'
 import { AndamentoLeigoBlock } from '@/components/ops/andamento-leigo'
 import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
+import {loadAllDuePages,summarizeActionableDueCases} from '@/lib/today-due-consistency';
 import { computeKpiCarteira } from '@/lib/kpi-carteira';
 import { countEditadosAppSemana, countEditadosAppHoje, countAuditadosNestaSemana, countAuditadosHoje, countAuditadosTribunalSemana, patchAtendimentoComEdicao, patchAuditoriaEdicao } from '@/lib/processos-auditados';
 import {
@@ -178,7 +179,8 @@ export default function TarefasPage() {
   const [todayDueLoading,setTodayDueLoading]=useState(false);
   const [todayDueError,setTodayDueError]=useState('');
   // Date-filtered queue must not depend on incomplete local cache.
-  const taskCases=filaFiltro==='hoje' ? (todayDueCases??[]) : remoteSearch.active?remoteSearch.cases:cases;
+  const todayDueSummary=useMemo(()=>summarizeActionableDueCases(todayDueCases??[]),[todayDueCases]);
+  const taskCases=filaFiltro==='hoje' ? todayDueSummary.pendingCases : remoteSearch.active?remoteSearch.cases:cases;
   const [baHitDigits, setBaHitDigits] = useState<string[]>([]);
   const [officeFilter, setOfficeFilter] = useState('all');
   const [lawyerFilter, setLawyerFilter] = useState('all');
@@ -232,10 +234,7 @@ export default function TarefasPage() {
     setTodayDueCases(null);
     setTodayDueError('');
     const loadToday=async()=>{
-      const collected:LegalCase[]=[];
-      let offset=0;
-      let hasMore=true;
-      while(hasMore&&offset<5000&&!controller.signal.aborted){
+      const collected=await loadAllDuePages<LegalCase>(async offset=>{
         const params=new URLSearchParams({field:'proximo-retorno',from:day,to:day,offset:String(offset)});
         const response=await fetch('/api/carteira/filtered?'+params.toString(),{
           credentials:'same-origin',cache:'no-store',signal:controller.signal,
@@ -243,11 +242,8 @@ export default function TarefasPage() {
         const data=await response.json();
         if(!response.ok||data?.ok!==true||!Array.isArray(data.cases))
           throw new Error(data?.error||'Não foi possível consultar os retornos de hoje.');
-        const batch=data.cases as LegalCase[];
-        collected.push(...batch);
-        offset+=batch.length;
-        hasMore=!!data.hasMore&&batch.length>0;
-      }
+        return {cases:data.cases as LegalCase[],hasMore:!!data.hasMore};
+      },{maxCases:5000,signal:controller.signal});
       if(!controller.signal.aborted)setTodayDueCases(collected);
     };
     void loadToday().catch(error=>{
@@ -1093,7 +1089,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                 </SelectContent>
               </Select>
 {filaFiltro==='hoje' && <span role={todayDueError?'alert':'status'} className="text-[11px] text-muted-foreground">
-                {todayDueError||(todayDueLoading?'Consultando todos os retornos para hoje…':`${todayDueCases?.length||0} retorno(s) agendado(s) para hoje`)}
+                {todayDueError||(todayDueLoading?'Consultando todos os retornos para hoje…':`${todayDueSummary.clientCount} cliente(s) com retorno pendente hoje`)}
               </span>}
               <Button type="button" size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
                 É hoje
