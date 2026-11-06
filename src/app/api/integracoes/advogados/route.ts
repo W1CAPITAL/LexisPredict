@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {normalizeLawyerSearch} from '@/lib/integracoes-suite';
+import {LAWYER_SEARCH_COLUMNS,mergeLawyerSearchResults,type LawyerSearchField} from '@/lib/lawyer-portfolio-search';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie'};
@@ -20,7 +21,7 @@ export async function GET(request:NextRequest){
  // filter expressions (apostrophes and punctuation can break .or() filters).
  const columns='id,protocolo_ref,cliente,tribunal,advogado,advogado_json:dados->>advogado,advogado_alt:dados->>ADVOGADO,status,status_interno,proximo_retorno,datajud_ultimo_nome,datajud_ultimo_movimento,updated_at,created_by';
  const searchTerm='%'+name+'%';
- const searchField=async(field:'advogado'|'dados->>advogado'|'dados->>ADVOGADO')=>{
+ const searchField=async(field:LawyerSearchField)=>{
    let query=db.from('processos')
      .select(columns)
      .eq('empresa_id',ctx.empresa_id)
@@ -29,23 +30,14 @@ export async function GET(request:NextRequest){
    if(ownerRestricted)query=query.in('created_by',permittedIds);
    return await query;
  };
- const responses=await Promise.all([
-   searchField('advogado'),searchField('dados->>advogado'),searchField('dados->>ADVOGADO')
- ]);
+ const responses=await Promise.all(LAWYER_SEARCH_COLUMNS.map(field=>searchField(field)));
  if(responses.some(r=>r.error)){
    console.error('[integracoes/advogados] Falha na busca por nome',responses.map(r=>r.error?.code||null));
    return NextResponse.json({ok:false,error:'Erro ao consultar a carteira do escritório.'},{status:503,headers});
  }
- const seen=new Map<string,Record<string,any>>();
- for(const response of responses){
-   for(const item of response.data||[]){
-     const key=String(item.id);
-     if(!seen.has(key))seen.set(key,item);
-   }
- }
- const data=Array.from(seen.values())
-   .sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))).slice(0,60);
- const partial=seen.size>60||responses.some(r=>(r.data?.length||0)>=61);
+ const merged=mergeLawyerSearchResults(responses.map(r=>r.data||[]));
+ const data=merged.rows;
+ const partial=merged.partial;
  const records=(data||[]).map(item=>({
    id:item.id,cnj:String(item.protocolo_ref||''),cliente:String(item.cliente||'').slice(0,110),
    tribunal:String(item.tribunal||'').slice(0,35),advogado:String(item.advogado||item.advogado_json||item.advogado_alt||'').slice(0,100),
