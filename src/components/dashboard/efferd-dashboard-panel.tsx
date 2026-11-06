@@ -135,7 +135,7 @@ export type LexisDashboardProps = {
   totalProcessos: number;
   ativos?: number;
   pendentes: number;
-  vencidos: number;
+  vencidos: number | null;
   novidades: number;
   baixas?: number;
   /** Encerrados operacionais (status ENCERRADO na carteira). */
