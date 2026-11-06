@@ -47,7 +47,7 @@ describe("CodeXR visual parity and safe card consolidation", () => {
 
   it("removes old duplicate metric cards but keeps the newer real-data cards", () => {
     expect(home).toContain("<DashboardVisualOverview");
-    expect(home).toContain('vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}');
+    expect(home).toContain('vencidos={portfolioSummary?.vencidos ?? null}');
     expect(home).not.toContain('StatCard title={t.statusHoje}');
     expect(home).not.toContain('StatCard title={t.statusVencido}');
     expect(home).not.toContain('StatCard title="Risco Global"');
