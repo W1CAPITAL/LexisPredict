@@ -16,5 +16,6 @@ describe('Rastreabilidade jurídica compartilhada no app',()=>{
   const ev=assessEvidenceTrace('Evento 14, p. 3\nContrato.pdf, p. 9');
   expect(ev.references).toHaveLength(2);
   expect(formatEvidenceGuidance()).toContain('CONFIRMADO');
+  expect(formatEvidenceGuidance()).toContain('não confiáveis');
  });
 });

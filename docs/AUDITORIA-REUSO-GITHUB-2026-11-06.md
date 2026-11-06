@@ -177,3 +177,32 @@ O usuário reforçou que as melhorias não se limitam à OAB. Esta rodada **usa 
 ### Critério de pronto
 
 CI completo (TypeScript + Vitest + build); conferir menu móvel, Ctrl+K, isolamento por plano/empresa, ausência de novas abas e ações externas somente por confirmação humana. PR permanece em rascunho até validação da experiência real e, para Assinafy, acesso autorizado.
+
+## Rodada 4 — Documentos brasileiros, leitor PJe e VIDaaS macOS
+
+**Não criar outra aba.** Reforçar utilidades centrais reaproveitadas nos formulários, gerador de peças, extração documental e busca global.
+
+| Referência | Licença/acesso confirmado | Decisão de implementação |
+| --- | --- | --- |
+| [sophismartai-sudo/raio-x-documental](https://github.com/sophismartai-sudo/raio-x-documental) | Licença própria **não comercial, sem derivações**; proíbe incorporar/replicar o método em produto pago | **NÃO copiar, adaptar, incorporar, redistribuir ou reproduzir a lógica**. Eventual licença comercial exige autorização expressa do titular. A regra genérica de tratar documentos como dados não confiáveis é prática independente de segurança, sem aproveitar o código ou detecção do projeto |
+| [brazanation/php-documents](https://github.com/brazanation/php-documents) | MIT declarado em \`composer.json\` e README; código PHP | Reaproveitar comportamento de documentos brasileiros com validação centralizada; **não incorporar runtime PHP**. Confirmar referências com a Receita, pois normas mudam |
+| [brazanation/go-documents](https://github.com/brazanation/go-documents) | MIT; pacote Go | Testes e comportamento de identificadores BR como referência; **não embarcar Go** em aplicação Next.js sem backend Go existente |
+| [marcosmarf27/pje-ia](https://github.com/marcosmarf27/pje-ia) | Repositório da **documentação**; código da extensão **privado** | Referência de experiência: origem por peça/folha, leitor sem IA, revisão humana, análise de lote com confirmação. **Não copiar código privado, não alegar integração PJe automática**. Melhorar continuamente visualizador e peças já existentes |
+| [raphaelmsnoronha/vidaas-pjeoffice-mac](https://github.com/raphaelmsnoronha/vidaas-pjeoffice-mac) | MIT; Objective-C, script local e binário compilado por terceiro | Apenas **orientação opcional** na personalização OAB existente para problemas de VIDaaS/PJeOffice no Mac. Sem baixar/executar script no servidor ou navegador, sem pedir PIN/chave, sem afirmar compatibilidade geral |
+
+### Ações implementadas nesta branch
+
+1. \`src/lib/cpf-cnpj.ts\`: ampliada a função **existente** \`cnpjValido\` para CNPJ tradicional e alfanumérico 2026. Usa documentação técnica oficial da Receita Federal: caracteres ASCII menos 48 e pesos de módulo 11. Ainda rejeita tamanho incorreto, DV inválido e entradas malformadas. Mesma função já atende o validador existente de peças/documentos; nenhuma segunda biblioteca de validadores foi criada.
+2. \`src/lib/legal-ner.ts\`: reconhecimento de CNPJ alfanumérico no extrator central de entidades (documentos, IA), com confirmação do DV para evitar identificar strings aleatórias como CNPJ. O texto original e o valor normalizado permanecem distinguidos.
+3. \`src/components/settings/oab-personalization-panel.tsx\`: orientação Mac com link direto ao repositório comunitário e **alerta sobre alteração dos drivers do PJeOffice**. A configuração da OAB continua no mesmo local.
+4. \`src/lib/app-route-search.ts\`: busca global existente encontra suporte a VIDaaS Mac e direciona à página OAB atual.
+5. \`src/lib/truth-policy.ts\`: a política de fontes e provas compartilhada pelos agentes passa a explicitar que conteúdo extraído de documentos/anexos/e-mail **não é instrução do operador**. Isso não implementa o detector de ocultação do projeto com licença restritiva.
+
+6. `src/app/actions/crm-agent-actions.ts`: o agente CRM e a chamada já existente à BrasilAPI usam o CNPJ normalizado e validado, inclusive com letras; a documentação da BrasilAPI declara aceitar 14 caracteres alfanuméricos, mas não houve consulta real de uma empresa neste desenvolvimento.
+7. `src/lib/enrichment-lookup.ts`: a integração opcional de enriquecimento preserva CNPJs alfanuméricos válidos recebidos da fonte externa (não gera ou inventa CPF/CNPJ).
+
+**Fora de escopo / não concluído:** leitor integrado em tempo real aos autos do PJe, conexão PKCS#11 local, instalador de certificados, modo offline de análise PDF escondido, OCR, ações em massa dentro do tribunal, importação automática com login. Esses itens dependem de fontes autorizadas, arquitetura local e revisão de privacidade. Nunca alegar que o site web lê certificados locais ou envia documentos sigilosos sem autorização.
+
+**Fonte normativa:** https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/documentos-tecnicos/cnpj ; PJeOffice oficial: https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/
+
+**Verificação:** Vitest (\`cpf-cnpj.test.ts\`, \`legal-ner-cnpj-2026.test.ts\`, \`truth-policy.test.ts\`, \`app-route-search.test.ts\`), typecheck, build; somente merge depois da validação.

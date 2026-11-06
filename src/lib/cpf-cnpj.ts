@@ -17,20 +17,26 @@ export function cpfValido(raw: string): boolean {
   return r === Number(d[10]);
 }
 
-/** Valida dígito verificador de CNPJ (13º e 14º). */
+/** CNPJ alfanumérico (12 posições letras/dígitos, 2 DVs numéricos).
+ * Cálculo oficial da RFB: valor ASCII - 48 e módulo 11 com pesos 2–9.
+ * Mantém compatibilidade integral com CNPJ numérico.
+ * https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/documentos-tecnicos/cnpj
+ */
+export function normalizarCnpj(raw:string):string {
+  return String(raw||'').toUpperCase().replace(/[.\/\s-]/g,'');
+}
+
 export function cnpjValido(raw: string): boolean {
-  const d = String(raw || '').replace(/\D/g, '');
-  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
-  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  let sum = 0;
-  for (let i = 0; i < 12; i++) sum += Number(d[i]) * w1[i];
-  let r = sum % 11;
-  const d12 = r < 2 ? 0 : 11 - r;
-  if (d12 !== Number(d[12])) return false;
-  sum = 0;
-  for (let i = 0; i < 13; i++) sum += Number(d[i]) * w2[i];
-  r = sum % 11;
-  const d13 = r < 2 ? 0 : 11 - r;
-  return d13 === Number(d[13]);
+  const cnpj=normalizarCnpj(raw);
+  if(!/^[A-Z0-9]{12}[0-9]{2}$/.test(cnpj) || /^(.)\1{13}$/.test(cnpj))return false;
+
+  const w1=[5,4,3,2,9,8,7,6,5,4,3,2];
+  const w2=[6,5,4,3,2,9,8,7,6,5,4,3,2];
+  const values=[...cnpj].map(ch=>ch.charCodeAt(0)-48);
+  const digit=(count:number,weights:readonly number[])=>{
+    const sum=values.slice(0,count).reduce((total,v,i)=>total+v*weights[i],0);
+    const remainder=sum%11;
+    return remainder<2?0:11-remainder;
+  };
+  return values[12]===digit(12,w1)&&values[13]===digit(13,w2);
 }
