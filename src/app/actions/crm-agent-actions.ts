@@ -12,6 +12,8 @@ import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
 import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
 import {retrieveLegislationEvidence} from "@/lib/legal/leis-repository";
+import {cnpjValido,normalizarCnpj} from '@/lib/cpf-cnpj';
+import {extractLegalEntities} from '@/lib/legal-ner';
 
 async function ctx() {
   const c = await getUserContext();
@@ -614,10 +616,10 @@ export async function runCrmAgentAction(input: {
   }
 
   // CNPJ enrich (só se agente ou CNPJ explícito)
-  if (agentId === "enriquecer-contato" || (/\d{14}/.test(String(input.cnpj || promptRaw).replace(/\D/g, "")) && /cnpj|empresa|raz[aã]o/.test(q))) {
-    const rawC = input.cnpj || promptRaw;
-    const cnpj = String(rawC).replace(/\D/g, "").slice(0, 14);
-    if (cnpj.length === 14) {
+  const detectedCnpj = input.cnpj ? normalizarCnpj(input.cnpj) : (extractLegalEntities(promptRaw).byKind.cnpj?.[0]||'');
+  if (agentId === "enriquecer-contato" || (cnpjValido(detectedCnpj) && /cnpj|empresa|raz[aã]o/.test(q))) {
+    const cnpj = detectedCnpj;
+    if (cnpjValido(cnpj)) {
       const br = await agentBrasilApiCnpjAction(cnpj);
       logs.push({
         agent_id: agentId,
@@ -833,10 +835,10 @@ export async function runCrmAgentAction(input: {
 export async function agentBrasilApiCnpjAction(cnpjRaw: string) {
   const c = await ctx();
   if (!c) return { success: false, error: "Sessão." };
-  const cnpj = String(cnpjRaw || "").replace(/\D/g, "");
-  if (cnpj.length !== 14) return { success: false, error: "CNPJ inválido (14 dígitos)." };
+  const cnpj = normalizarCnpj(cnpjRaw);
+  if (!cnpjValido(cnpj)) return { success: false, error: "CNPJ inválido (formato ou dígitos verificadores)." };
   try {
-    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${encodeURIComponent(cnpj)}`, {
       next: { revalidate: 86400 },
     });
     if (!res.ok) return { success: false, error: `BrasilAPI HTTP ${res.status}` };
