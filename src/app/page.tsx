@@ -420,7 +420,7 @@ export default function Dashboard() {
             <DashboardVisualOverview
               total={portfolioSummary?.total ?? null}
               ativos={portfolioSummary?.ativos ?? null}
-              vencidos={portfolioSummary?.vencidos ?? metrics.countVencido}
+              vencidos={portfolioSummary?.vencidos ?? null}
               hoje={retornosHoje?.date===hojeBrasilISO()?retornosHoje.count:null}
               loading={loading||retornosHojeLoading}
               series={historicoEquipe?.dias?.map((d) => ({
