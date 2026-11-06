@@ -44,6 +44,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import {loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
+import {matchesAppRouteSearch} from '@/lib/app-route-search';
 
 type NavItem = {
   label: string;
@@ -266,7 +267,7 @@ export function SidebarVertical() {
       .filter(
         (item) =>
           !q ||
-          `${item.label} ${item.description} ${item.href}`.toLowerCase().includes(q),
+          matchesAppRouteSearch(q,item.label,item.href,item.description),
       );
   }, [mainItems, mobileExtraItems, query]);
 
