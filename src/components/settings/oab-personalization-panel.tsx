@@ -112,6 +112,7 @@ export function OabPersonalizationPanel(){
      <p className="font-bold">Seu certificado permanece no tribunal</p>
      <p className="text-muted-foreground">VIDaaS, Bird ID e certificados do Windows são utilizados no aplicativo ou assinador configurado pelo advogado. O PJeOffice Pro atende diretamente aplicações judiciais e governamentais. O LexisPredict abre o portal oficial, mas não extrai chaves privadas ou executa assinaturas em seu nome.</p>
      <a className="mt-1 inline-flex items-center gap-1 text-primary underline" href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" target="_blank" rel="noopener noreferrer">Guia oficial de instalação do PJeOffice Pro <ExternalLink size={12}/></a>
+     <p className="mt-2 text-muted-foreground">No Linux, o projeto comunitário <a className="text-primary underline" href="https://github.com/LLawli/flatpak-adv-br" target="_blank" rel="noopener noreferrer">flatpak-adv-br</a> documenta drivers e ponte de certificado para navegadores e PJeOffice. É opcional, não integra certificados ao LexisPredict e não cobre VIDaaS como recurso testado. Não é necessário no Windows.</p>
     </div>
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     {success&&<p role="status" className="flex items-center gap-2 text-sm text-foreground"><CheckCircle2 size={15} className="text-primary"/>{success}</p>}

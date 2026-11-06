@@ -11,7 +11,8 @@ export function cnjDvValido(digits20: string): boolean {
     const dv = d.slice(7, 9);
     const rest = d.slice(9); // AAAA J TR OOOO
     if (rest.length !== 11) return false;
-    const calc = String(98n - (BigInt(seq + rest) % 97n)).padStart(2, "0");
+    // CNJ módulo 97: concatenar 00 após NNNNNNN+AAAA+J+TR+OOOO antes do resto.
+    const calc = String(98n - (BigInt(seq + rest + "00") % 97n)).padStart(2, "0");
     return calc === dv;
   } catch {
     return false;

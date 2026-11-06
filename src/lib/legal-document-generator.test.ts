@@ -25,6 +25,21 @@ const base: LegalDocumentData = {
   pedidos: "Requer o acolhimento dos pedidos cabíveis.",
 };
 
+describe("trilha de fontes — revisão de provas e fundamentos", () => {
+  it("avisa sobre falta de origem em peças com narrativa jurídica", () => {
+    const result=buildLegalDocument("peticao-inicial",{...base,referenciasProvas:""});
+    expect(result.warnings.some(w=>w.includes("Rastreabilidade"))).toBe(true);
+  });
+  it("aceita referências fornecidas sem afirmar que foram verificadas automaticamente", () => {
+    const result=buildLegalDocument("peticao-inicial",{...base,referenciasProvas:"Contrato 2.pdf, páginas 3-4; consulta oficial 04/11/2026"});
+    expect(result.warnings.some(w=>w.includes("Rastreabilidade"))).toBe(false);
+  });
+  it("não exige trilha de provas para procuração simples", () => {
+    const result=buildLegalDocument("procuracao",{...base,referenciasProvas:""});
+    expect(result.warnings.some(w=>w.includes("Rastreabilidade"))).toBe(false);
+  });
+});
+
 describe("legal document generator", () => {
   it("contains every requested core document family", () => {
     const ids = new Set(LEGAL_DOCUMENT_TEMPLATES.map((x) => x.id));

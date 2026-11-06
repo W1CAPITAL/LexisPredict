@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { operatorRouteAllowed, canViewCompanyCaseList } from "@/lib/roles";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import {loadExperiencePrefs} from '@/lib/experience-prefs';
+import {matchesAppRouteSearch} from '@/lib/app-route-search';
 
 const primary = [
   ["Painel", "/", LayoutDashboard],
@@ -108,7 +109,7 @@ export function SidebarDock() {
     return filterNavByPlan(items, isSuperAdmin ? "maximo" : plan).filter(
       (item) =>
         (role !== "Operador" || operatorRouteAllowed(item.href)) &&
-        (!q || `${item.label} ${item.href}`.toLowerCase().includes(q)),
+        (!q || matchesAppRouteSearch(q,item.label,item.href)),
     );
   }, [role, isSupervisor, isSuperAdmin, plan, query]);
 

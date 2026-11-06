@@ -3,6 +3,8 @@
  * Avaliação por módulo construída a partir das rotas src/app do LexisPredict.
  * Inspiração: msitarzewski/agency-agents + addyosmani/agent-skills.
  */
+import {formatEvidenceGuidance} from '../truth-policy';
+
 export type RoutePlaybook={
  id:string;
  title:string;
@@ -85,7 +87,7 @@ export function recommendAgentTeamForRoute(path:string){
   path,
   playbooks:chosen,
   specialists:Array.from(new Set(chosen.flatMap(p=>p.specialists))),
-  checks:Array.from(new Set(chosen.map(p=>p.evidence))),
+  checks:Array.from(new Set([...chosen.map(p=>p.evidence),formatEvidenceGuidance()])),
   readOnlyByDefault:true,
   modelRequired:false,
  };

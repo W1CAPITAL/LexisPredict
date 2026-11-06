@@ -3,6 +3,7 @@
 import * as React from "react";
 import {FileArchive,FileText,Download,ExternalLink,Loader2,Search,ShieldCheck,AlertTriangle,CheckCircle2,FolderOpen} from "lucide-react";
 import {Button} from "@/components/ui/button";
+import {OabDiscoveryPanel} from "@/components/scanner/oab-discovery-panel";
 import {canonicalCnj} from "@/lib/autos-oab-logic";
 import {classifyLocalAutosDocument,normalizeAutasFilename,selectAutosThroughDefesa,isPdfBytes,type AutosLocalItem} from "@/lib/free-autos-utils";
 import {loadExperiencePrefs,applyExperiencePrefs,EXPERIENCE_DEFAULT,type ExperiencePreferences} from "@/lib/experience-prefs";
@@ -292,6 +293,7 @@ export function AutosOabFreePanel({defaultExpanded=false}:{defaultExpanded?:bool
         <Link href="/integracoes#busca-advogado" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted"><Search size={13} className="mr-1"/> Buscar por advogado</Link>
         <a href="https://cna.oab.org.br/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-2 font-semibold text-foreground hover:bg-muted">Verificar inscrição OAB <ExternalLink size={12} className="ml-1"/></a>
       </div>
+      <OabDiscoveryPanel/>
       {prefs.oabShowGuide&&<div className="rounded-lg bg-muted/40 border border-border p-3 text-xs space-y-2">
         <p className="font-semibold">Como usar em três etapas, sem extensão do Chrome</p>
         <p className="text-muted-foreground">No PJeOffice Pro, é possível memorizar o certificado selecionado como padrão para não escolhê-lo a cada acesso.</p>

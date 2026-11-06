@@ -1,3 +1,5 @@
+import {assessEvidenceTrace} from './truth-policy';
+
 export type LegalDocumentKind =
   | 'peticao-inicial'
   | 'peticao-generica'
@@ -69,6 +71,8 @@ export type LegalDocumentData = {
   descontos?: string;
   memoriaCalculo?: string;
   observacoes?: string;
+  /** Índice de origem das afirmações: documento, páginas/eventos e fontes oficiais (revisão humana). */
+  referenciasProvas?: string;
   specialPowers?: string[];
   permiteSubstabelecer?: boolean;
   clienteCienteSemReserva?: boolean;
@@ -162,6 +166,13 @@ function warningsFor(kind: LegalDocumentKind, d: LegalDocumentData): string[] {
   if (kind === 'procuracao' && !(d.specialPowers || []).length) w.push('Nenhum poder especial do art. 105 do CPC foi selecionado; atos excepcionais não devem ser presumidos.');
   if (kind === 'mle-tjsp' && !d.dadosBancariosConferidos) w.push('MLE: os dados bancários/PIX ainda não foram marcados como conferidos.');
   if (kind === 'mle-tjsp' && !d.beneficiario) w.push('MLE: informe o beneficiário/credor.');
+  // AuditorProcessual: trilha de evidência, sem classificar fontes não verificadas como confirmadas.
+  const requiresSources=['peticao-inicial','peticao-generica','replica','impugnacao','impugnacao-cumprimento',
+    'pugnacao','notificacao-extrajudicial','apelacao','recurso-inominado','embargos-declaracao',
+    'cumprimento-sentenca'].includes(kind);
+  const hasClaims=[d.fatos,d.fundamentos,d.decisao].some(value=>String(value||'').trim().length>12);
+  if(requiresSources&&hasClaims&&assessEvidenceTrace(d.referenciasProvas).status==='ausente')
+    w.push('Rastreabilidade: identifique o documento, página/evento ou fonte oficial que sustenta fatos e fundamentos. A fonte informada não é verificada automaticamente.');
   if (kind === 'cumprimento-sentenca' && !d.memoriaCalculo) w.push('Cumprimento: inclua demonstrativo discriminado e atualizado do crédito.');
   if (kind === 'impugnacao-cumprimento' && /excesso/i.test(String(d.fundamentos||'')) && !d.memoriaCalculo) w.push('Se alegar excesso de execução, informe o valor entendido como correto e o demonstrativo.');
   return w;

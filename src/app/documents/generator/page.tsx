@@ -1,5 +1,6 @@
 "use client";
 import { DocumentsCarteiraPicker } from "@/components/documents/documents-carteira-picker";
+import {AssinafyPrepareDocument} from "@/components/documents/assinafy-prepare-document";
 import type { DocumentCase } from "@/app/actions/document-case-actions";
 import { clientAsParte } from "@/lib/documents/document-case-prefill";
 
@@ -93,6 +94,7 @@ const initial: LegalDocumentData = {
   descontos: "",
   memoriaCalculo: "",
   observacoes: "",
+  referenciasProvas: "",
   specialPowers: [],
   permiteSubstabelecer: true,
   clienteCienteSemReserva: false,
@@ -606,6 +608,13 @@ export default function LegalDocumentGeneratorPage() {
                     <Textarea value={form.fundamentos||""} onChange={(e)=>set("fundamentos",e.target.value)} rows={9} className="rounded-none border-[#b89b5e]/60 bg-white"/>
                   </div>
                   <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-[#6f1d2b]">Referências das provas e fundamentos (controle interno)</Label>
+                    <Textarea value={form.referenciasProvas||""} onChange={(e)=>set("referenciasProvas",e.target.value)} rows={3}
+                      placeholder="Ex.: Contrato.pdf, cláusula 8, p. 3; evento 12, decisão de 04/11/2026; fonte oficial e data da consulta."
+                      className="rounded-none border-[#b89b5e]/60 bg-white"/>
+                    <p className="text-xs text-[#655b52]">Registre qual fonte sustenta cada tese. Este campo não comprova autenticidade, vigência nem consulta oficial. Revise os documentos e as citações antes de protocolar.</p>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase text-[#6f1d2b]">Pedidos / requerimentos</Label>
                     <Textarea value={form.pedidos||""} onChange={(e)=>set("pedidos",e.target.value)} rows={9} className="rounded-none border-[#b89b5e]/60 bg-white"/>
                   </div>
@@ -683,6 +692,8 @@ export default function LegalDocumentGeneratorPage() {
                 Nova minuta
               </Button>
             </div>
+
+            <AssinafyPrepareDocument texto={draft} titulo={template.label} sub={form.processo ? `Processo ${form.processo}` : "Minuta editável"}/>
 
             <div className="border-l-4 border-[#6f1d2b] bg-[#fffaf0] p-4 text-xs leading-5 text-[#655b52]">
               <b>Referência de projeto:</b> a estrutura prioriza cabeçalho claro, seções numeradas, pedidos individualizados e área de assinatura, seguindo o padrão documental fornecido. O conteúdo jurídico continua dependente dos fatos, documentos, decisão e prazo do caso concreto.

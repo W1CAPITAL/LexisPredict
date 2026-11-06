@@ -12,6 +12,13 @@ describe('especialidades Lexis por rota',()=>{
   }
   expect(ROUTE_INVENTORY.length).toBeGreaterThan(65);
  });
+ it('uses the same evidence rule in CRM, reports, process, IA and documents',()=>{
+  for(const route of ['/crm','/report','/processos','/chat','/documents/generator']){
+   const result=recommendAgentTeamForRoute(route);
+   expect(result.checks.join(' ')).toContain('CONFIRMADO');
+   expect(result.checks.join(' ')).toContain('fonte');
+  }
+ });
  it('does not infer unknown admin permissions or auto-run a model',()=>{
   expect(playbooksForRoute('/route-not-existing')).toEqual([]);
   expect(recommendAgentTeamForRoute('/chat').modelRequired).toBe(false);

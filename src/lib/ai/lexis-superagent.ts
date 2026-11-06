@@ -3,6 +3,8 @@
  * Não consulta banco, não envia mensagens e não presume que fontes foram lidas.
  * Inspirado nos gates de evidência do Lexis AI Suite e PredictLM.
  */
+import {formatEvidenceGuidance} from '../truth-policy';
+
 export type SuperAgentTask='atendimento'|'dossie'|'investigacao'|'relatorio'|'analise-processual'|'geral';
 
 export function detectSuperAgentTask(raw:string):SuperAgentTask{
@@ -66,6 +68,7 @@ export function superAgentInstructions(prompt:string):string{
  const incisive=requestedIncisiveMode(prompt);
  const core=`
 SUPERAGENTE JURÍDICO LEXISPREDICT | PERFIL DE TRABALHO
+${formatEvidenceGuidance()}
 - Execute raciocínio operacional especializado por tarefas, não invente que ferramentas executaram ações.
 - Antes de responder sobre um caso, procure o CNJ na carteira autorizada, contexto oficial DataJud/DJEN e evidências disponíveis.
 - Não peça CNJ ao cliente: busque por nome/correspondências internas; se não houver identificação segura, envie apenas saudação e avise que irá conferir; nunca invente andamento.
