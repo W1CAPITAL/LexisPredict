@@ -345,7 +345,7 @@ export default function DocumentGenerator() {
                   <FileText size={22} />
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-widest mb-1 text-[#6f1d2b]">Central de Peças Jurídicas</p>
-                <p className="text-[10px] font-bold uppercase text-black/50 mb-3">17 modelos · editor livre · PDF + RTF · importar processo</p>
+                <p className="text-[10px] font-bold uppercase text-black/50 mb-3">17 modelos · editor livre · PDF + RTF · evidências · Assinafy opcional</p>
                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-[#6f1d2b]">
                   Abrir gerador completo <ArrowRight size={12} />
                 </span>
