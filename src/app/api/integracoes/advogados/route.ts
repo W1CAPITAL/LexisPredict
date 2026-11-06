@@ -10,25 +10,49 @@ export async function GET(request:NextRequest){
  const name=normalizeLawyerSearch(request.nextUrl.searchParams.get('nome')||'');
  if(!name)return NextResponse.json({ok:false,error:'Informe o nome completo ou parte do nome do advogado, com ao menos 3 letras.'},{status:400,headers});
  const db=await getSupabaseAdmin();
- let query=db.from('processos')
-  .select('id,protocolo_ref,cliente,tribunal,advogado,status,status_interno,proximo_retorno,datajud_ultimo_nome,datajud_ultimo_movimento,updated_at,created_by')
-  .eq('empresa_id',ctx.empresa_id)
-  .ilike('advogado','%'+name+'%')
-  .order('updated_at',{ascending:false}).limit(60);
- if(ctx.caseScope!=='empresa'&&!ctx.isSuperAdmin&&!ctx.isSupervisor){
-  const ids=[ctx.auth_id,ctx.profile_id].filter((x):x is string=>!!x);
-  if(!ids.length)return NextResponse.json({ok:true,records:[],count:0,partial:false,source:'carteira_autorizada'},{headers});
-  query=query.in('created_by',ids);
+ const permittedIds=[ctx.auth_id,ctx.profile_id].filter((x):x is string=>!!x);
+ const ownerRestricted=ctx.caseScope!=='empresa'&&!ctx.isSuperAdmin&&!ctx.isSupervisor;
+ if(ownerRestricted&&!permittedIds.length)
+   return NextResponse.json({ok:true,records:[],count:0,partial:false,source:'carteira_autorizada'},{headers});
+
+ // The legacy portfolio can store the lawyer in either a typed column or JSON.
+ // Query each field separately to avoid embedding the name in raw PostgREST
+ // filter expressions (apostrophes and punctuation can break .or() filters).
+ const columns='id,protocolo_ref,cliente,tribunal,advogado,advogado_json:dados->>advogado,advogado_alt:dados->>ADVOGADO,status,status_interno,proximo_retorno,datajud_ultimo_nome,datajud_ultimo_movimento,updated_at,created_by';
+ const searchTerm='%'+name+'%';
+ const searchField=async(field:'advogado'|'dados->>advogado'|'dados->>ADVOGADO')=>{
+   let query=db.from('processos')
+     .select(columns)
+     .eq('empresa_id',ctx.empresa_id)
+     .ilike(field,searchTerm)
+     .order('updated_at',{ascending:false}).limit(61);
+   if(ownerRestricted)query=query.in('created_by',permittedIds);
+   return await query;
+ };
+ const responses=await Promise.all([
+   searchField('advogado'),searchField('dados->>advogado'),searchField('dados->>ADVOGADO')
+ ]);
+ if(responses.some(r=>r.error)){
+   console.error('[integracoes/advogados] Falha na busca por nome',responses.map(r=>r.error?.code||null));
+   return NextResponse.json({ok:false,error:'Erro ao consultar a carteira do escritório.'},{status:503,headers});
  }
- const {data,error}=await query;
- if(error)return NextResponse.json({ok:false,error:'Erro ao consultar a carteira do escritório.'},{status:503,headers});
+ const seen=new Map<string,Record<string,any>>();
+ for(const response of responses){
+   for(const item of response.data||[]){
+     const key=String(item.id);
+     if(!seen.has(key))seen.set(key,item);
+   }
+ }
+ const data=Array.from(seen.values())
+   .sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))).slice(0,60);
+ const partial=seen.size>60||responses.some(r=>(r.data?.length||0)>=61);
  const records=(data||[]).map(item=>({
    id:item.id,cnj:String(item.protocolo_ref||''),cliente:String(item.cliente||'').slice(0,110),
-   tribunal:String(item.tribunal||'').slice(0,35),advogado:String(item.advogado||'').slice(0,100),
+   tribunal:String(item.tribunal||'').slice(0,35),advogado:String(item.advogado||item.advogado_json||item.advogado_alt||'').slice(0,100),
    status:String(item.status_interno||item.status||'').slice(0,65),
    ultimaMovimentacao:String(item.datajud_ultimo_nome||'').slice(0,200),
    dataMovimento:item.datajud_ultimo_movimento||null,proximoRetorno:item.proximo_retorno||null
  }));
- return NextResponse.json({ok:true,records,count:records.length,partial:records.length>=60,
-   source:'carteira_autorizada',notice:'Busca na carteira da sua empresa, não varredura completa de todos os tribunais.'},{headers});
+ return NextResponse.json({ok:true,records,count:records.length,partial,
+   source:'carteira_autorizada',notice:'Busca apenas na carteira autorizada, inclusive campos antigos de advogado. Não equivale à pesquisa de processos por OAB nos tribunais.'},{headers});
 }
