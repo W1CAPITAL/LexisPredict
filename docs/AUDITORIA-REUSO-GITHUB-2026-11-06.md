@@ -113,3 +113,32 @@ Critérios: utilidade jurídica real, maturidade, licença compatível com softw
 - Revisão jurídica/manual de qualquer descoberta de processo.
 
 **Situação:** código está nesta branch de revisão. Nenhuma integração externa foi conectada automaticamente, nenhuma configuração de produção foi alterada e nenhum deploy deve ser presumido.
+
+
+## Rodada 2 — Assinafy, certificados Linux e evolução **sem duplicar abas**
+
+| Repositório | Uso no LexisPredict | Status desta branch |
+| --- | --- | --- |
+| [flatpak-adv-br](https://github.com/LLawli/flatpak-adv-br), GPL-3.0 | Aplicativo **Linux** para drivers PKCS#11, assinadores e PJeOffice; integração no computador do advogado, não no backend Next.js. VIDaaS permanece não testado/indisponível nesse projeto. Não copiar GPL/instalador para o SaaS. | Link informativo **na personalização OAB existente**, sem instalar nada |
+| [assinafy/typescript-sdk](https://github.com/assinafy/typescript-sdk), MIT, pacote `@assinafy/sdk` | Contrato de PDF, limite 25 MiB, multipart `file`, autenticação `X-Api-Key`, `accounts/{account}/documents`, distinção entre upload e assignment. | **Adaptado** em `/api/integracoes/assinafy` sem adicionar pacote/lockfile; fluxo de **preparo apenas**, sem notificação |
+| [assinafy/mcp-server](https://github.com/assinafy/mcp-server), MIT | Host remoto com OAuth 2.1 por workspace e ferramentas de assinatura/contratos. | **Não embutir outro servidor** nem inventar conexão sem consentimento do workspace |
+| [assinafy/n8n-nodes-assinafy](https://github.com/assinafy/n8n-nodes-assinafy), MIT | Node e Trigger para fluxos n8n de assinaturas e webhooks. | Reservar para instância n8n já autorizada; nenhum fluxo paralelo criado |
+
+### Implementação real na estrutura existente
+
+- `/consulta-oab`: o utilitário de colar números CNJ está **embutido no painel existente `AutosOabFreePanel`**, não é mais outra seção irmã nem uma nova página.
+- `/documents/generator`: o editor existente recebe a opção **Assinatura eletrônica · preparar na Assinafy**. PDF gerado pela mesma ação do exportador atual, revisto e confirmado pelo operador; backend verifica autenticação, cargo, empresa permitida, tamanho e `%PDF-`, além de impedir convites automáticos. Retorna ID e status, sem afirmar que alguém assinou.
+- `legal-document-generator.ts`: o mesmo editor passa a registrar **Referências das provas e fundamentos** e avisa quando uma narrativa jurídica é criada sem origem identificada. A referência digitada é **não verificada**; não cria nova análise por IA nem substitui análise profissional. Inspirado no fluxo fato→prova→fundamento do AuditorProcessual.
+- `OabPersonalizationPanel`: link opcional de compatibilidade Linux do flatpak-adv-br.
+
+### Configuração e limites (não são etapas inventadas como concluídas)
+
+A integração Assinafy só opera com duas credenciais válidas de uma conta e workspace autorizados, em **variáveis privadas de servidor**, e escopo de empresa definido; `ASSINAFY_API_KEY`, `ASSINAFY_ACCOUNT_ID` e, opcionalmente, `ASSINAFY_ALLOWED_EMPRESA_ID` (por padrão apenas empresa principal W1). Nenhuma chave foi criada, descoberta ou inserida na Vercel nesta branch. Nenhum PDF foi enviado pela automação durante o desenvolvimento.
+
+O envio do PDF **não cria assignment**, signatário, assinatura nem convite: para concluir a assinatura, o operador precisa acessar a conta Assinafy e definir essas opções, custos e autorização. Integração OAuth de cliente por empresa, reconciliação de estados e Webhooks com validação de assinatura exigem etapa posterior com consentimento de workspace e armazenamento isolado por tenant. O MCP remoto também exige OAuth explícito e não deve ser usado como atalho para consentimento.
+
+Assinatura em tribunal (PJeOffice/VIDaaS/A3) **não é** a mesma coisa que assinatura eletrônica contratual na Assinafy; as integrações permanecem separadas e identificadas.
+
+### Verificação antes do merge
+
+`pnpm exec vitest run src/lib/cnj-higiene.test.ts src/lib/oab-discovery.test.ts src/lib/documents/assinafy-upload.test.ts src/lib/legal-document-generator.test.ts`; `pnpm run typecheck`; `pnpm run build`. Fazer teste manual na UI e com conta Assinafy de homologação/autorizada antes de prometer transação externa.
