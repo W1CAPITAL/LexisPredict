@@ -68,7 +68,11 @@ export async function openHiggsfieldModels(opts:Options={}):Promise<HiggsModel[]
   const data=await readJson(await request('/api/models',opts));
   const rows=Array.isArray(data.model_list)?data.model_list:[];
   return rows.filter((x):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x))
-    .filter(x=>typeof x.id==='string'&&typeof x.label==='string').slice(0,250).map(x=>{
+    .filter(x=>typeof x.id==='string'&&typeof x.label==='string')
+    // This editor currently supplies text only: don't expose models requiring an uploaded first frame.
+    .filter(x=>!Array.isArray(x.media_slots)||!x.media_slots.some(
+      (slot:unknown)=>!!slot&&typeof slot==='object'&&(slot as {required?:boolean}).required===true))
+    .slice(0,250).map(x=>{
       const duration=x.duration&&typeof x.duration==='object'&&'options'in x.duration?(x.duration as {options?:unknown}).options:undefined;
       const aspect=x.aspect_ratio&&typeof x.aspect_ratio==='object'&&'options'in x.aspect_ratio?(x.aspect_ratio as {options?:unknown}).options:undefined;
       return {id:String(x.id),label:String(x.label).slice(0,120),provider:typeof x.provider==='string'?x.provider:'',
