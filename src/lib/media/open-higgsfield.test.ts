@@ -45,6 +45,19 @@ describe('Open-Higgsfield protected integration',()=>{
     expect(JSON.parse(String((call!.init.body as FormData).get('settings'))).duration).toBe('5');
     expect(calls.filter(x=>x.url.endsWith('/api/generate'))).toHaveLength(1);
   });
+  it('treats an uncertain upstream submission as review-required, not a safe retry',async()=>{
+    const uncertainFetch:typeof fetch=async(url,init={})=>{
+      if(String(url).endsWith('/api/models'))return fakeFetch(url,init);
+      if(String(url).endsWith('/api/generate'))
+        return Response.json({accepted:false,recovery_required:true,task_id:'uncertain_1'},{status:503});
+      throw Error('Unexpected URL');
+    };
+    const result=await openHiggsfieldGenerate({modelId:'veo-3',prompt:'Uma cena de demonstração.'},
+      {env,fetcher:uncertainFetch});
+    expect(result.accepted).toBe(false);
+    expect(result.recoveryRequired).toBe(true);
+    expect(result.taskId).toBe('uncertain_1');
+  });
   it('never submits when disabled or model is unavailable',async()=>{
     calls.length=0;
     await expect(openHiggsfieldGenerate({modelId:'veo-3',prompt:'uma cena'},{env:{
