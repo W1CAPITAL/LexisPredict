@@ -42,13 +42,13 @@ async function request(path:string, opts:Options&{method?:'GET'|'POST';body?:Bod
     redirect:'error',cache:'no-store',signal:AbortSignal.timeout(opts.timeout||12000)
   });
 }
-async function readJson(res:Response):Promise<Record<string,unknown>> {
+async function readJson(res:Response,allowUncertain=false):Promise<Record<string,unknown>> {
   const body=await res.text();
   if(body.length>2_000_000) throw Error('Resposta do estúdio muito grande.');
   let value:unknown;
   try{value=JSON.parse(body);}catch{throw Error('Resposta inválida do estúdio.');}
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Resposta inválida do estúdio.');
-  if(!res.ok){
+  if(!res.ok && !(allowUncertain && (value as Record<string,unknown>).recovery_required===true)){
     const code=(value as Record<string,unknown>).error;
     throw Error('Open-Higgsfield HTTP '+res.status+(typeof code==='string'&&/^ERR_[A-Z0-9_]+$/.test(code)?': '+code:''));
   }
@@ -90,7 +90,7 @@ export async function openHiggsfieldGenerate(input:unknown,opts:Options={}) {
   form.set('settings',JSON.stringify({...(v.duration?{duration:v.duration}:{}),
     ...(v.aspectRatio?{aspectRatio:v.aspectRatio}:{})}));
   // Do not retry: a timed-out generation may already have incurred a charge.
-  const data=await readJson(await request('/api/generate',{...opts,method:'POST',body:form,timeout:270000}));
+  const data=await readJson(await request('/api/generate',{...opts,method:'POST',body:form,timeout:270000}),true);
   const taskId=typeof data.task_id==='string'?data.task_id:'';
   if(data.recovery_required===true)return{accepted:false,recoveryRequired:true,taskId:taskId||undefined,
     error:'Resultado incerto. Consulte histórico antes de reenviar.'};
