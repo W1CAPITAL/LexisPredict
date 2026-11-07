@@ -187,6 +187,11 @@ export default function AiLabPage() {
           </div>
         </section>
 
+        <Link href="/ai-lab/higgsfield" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d1aac1] bg-[#fff0f6] p-4 text-[#5e173a] hover:border-[#9f3359]">
+          <span><strong className="block text-sm">Open-Higgsfield · Estúdio de vídeos</strong>
+            <span className="text-xs text-[#8d4b69]">Acesso privado ao gerador multiprovedor, com status de tarefas e download. Exige instância segura e credenciais.</span></span>
+          <ExternalLink className="h-4 w-4 shrink-0"/>
+        </Link>
         <Link href="/estudio-agentes" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#c9c5ef] bg-[#f0edff] p-4 text-[#29205c] hover:border-[#9285e9]">
           <span><strong className="block text-sm">Agent Studio • especialistas por módulo</strong><span className="text-xs text-[#61558b]">Planeje agentes por aba, revise gates de qualidade e analise contratos HAR sem consumir memória com LLM.</span></span>
           <ExternalLink className="h-4 w-4 shrink-0"/>
