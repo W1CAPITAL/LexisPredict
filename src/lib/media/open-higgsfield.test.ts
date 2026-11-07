@@ -32,6 +32,14 @@ describe('Open-Higgsfield protected integration',()=>{
     expect((await openHiggsfieldModels({env,fetcher:fakeFetch}))[0].ratios).toEqual(['9:16']);
     expect((await openHiggsfieldTask('task_123',{env,fetcher:fakeFetch})).readyToDownload).toBe(true);
   });
+  it('does not offer image-required models to a text-only editor',async()=>{
+    const imageModelFetch:typeof fetch=async()=>Response.json({model_list:[
+      {id:'text-video',label:'Text to video',provider:'google',media_slots:[]},
+      {id:'image-video',label:'Image to video',provider:'google',media_slots:[{id:'first',required:true,kind:'image'}]}
+    ]});
+    const models=await openHiggsfieldModels({env,fetcher:imageModelFetch});
+    expect(models.map(m=>m.id)).toEqual(['text-video']);
+  });
   it('posts exactly one multipart generation with protected origin',async()=>{
     calls.length=0;
     const result=await openHiggsfieldGenerate({modelId:'veo-3',prompt:'Mostre um vídeo dinâmico.',duration:'5',
