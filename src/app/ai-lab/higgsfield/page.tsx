@@ -49,6 +49,14 @@ export default function HiggsfieldStudio(){
         <h1 className="text-3xl font-semibold">Open-Higgsfield</h1>
         <p className="text-sm text-slate-300">Gere cenas para Reels. Demonstrações comerciais devem utilizar também gravações reais dos projetos.</p>
       </header>
+      <section className="rounded-2xl border border-[#944469]/40 bg-[#291622] p-4 text-sm text-[#eadce5]">
+        <p className="font-semibold">Reel completo = vídeo real + movimento + voz natural + edição.</p>
+        <p className="mt-2 text-[#cbb6c3]">O Open-Higgsfield produz cenas. Para combinar capturas reais dos seus projetos, vídeos Genjutsu e áudio do VoiceStudio em um MP4 vertical com legendas e mixagem, use o editor W1 Reel Studio. Ele requer um executor com FFmpeg, materiais autorizados e revisão do áudio antes de publicar.</p>
+        <a href="https://github.com/W1CAPITAL/SITE/tree/main/scripts/reel-studio" target="_blank" rel="noopener noreferrer"
+          className="mt-3 inline-flex rounded-lg border border-[#bf7194] px-3 py-2 font-semibold text-[#ffc4df] hover:bg-[#68334f]">
+          Abrir editor de Reels e instruções
+        </a>
+      </section>
       <section className="space-y-5 rounded-2xl border border-white/15 bg-white/[.05] p-5">
         <p role="status" className="text-sm text-slate-300">
           {!status?'Verificando configuração…':status.ready?
