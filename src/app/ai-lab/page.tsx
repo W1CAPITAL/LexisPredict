@@ -187,6 +187,11 @@ export default function AiLabPage() {
           </div>
         </section>
 
+        <Link href="/ai-lab/ferramentas-criativas" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#bc879d] bg-[#fff5f8] p-4 text-[#5e173a] hover:border-[#8f2f50]">
+          <span><strong className="block text-sm">Estúdio criativo W1 · Ferramentas e Projetos</strong>
+            <span className="text-xs text-[#8d4b69]">Open-Higgsfield, Genjutsu, VoiceStudio, Hypit, Shorts e MotionSmith com situação real de cada integração. Acesso privado.</span></span>
+          <ExternalLink className="h-4 w-4 shrink-0"/>
+        </Link>
         <Link href="/ai-lab/higgsfield" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d1aac1] bg-[#fff0f6] p-4 text-[#5e173a] hover:border-[#9f3359]">
           <span><strong className="block text-sm">Open-Higgsfield · Estúdio de vídeos</strong>
             <span className="text-xs text-[#8d4b69]">Acesso privado ao gerador multiprovedor, com status de tarefas e download. Exige instância segura e credenciais.</span></span>
