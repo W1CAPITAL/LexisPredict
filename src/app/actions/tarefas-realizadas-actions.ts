@@ -93,14 +93,28 @@ export async function editarTarefaRealizadaAction(formData: FormData): Promise<v
   }
 
   const db = await getSupabaseAdmin();
-  const vinculo = await buscarProcessoId(db, String(ctx.empresa_id), tarefa.protocolo_ref);
-  if (vinculo.erro) redirect(`${retorno}&erro=consulta`);
+  const { data: anterior, error: leituraErro } = await db.from("tarefas_realizadas")
+    .select("protocolo_ref,processo_id")
+    .eq("id", id)
+    .eq("empresa_id", ctx.empresa_id)
+    .eq("responsavel_auth_user_id", ctx.auth_id)
+    .maybeSingle();
+  if (leituraErro || !anterior) redirect(`${retorno}&erro=editar`);
+
+  // Preserve o vínculo existente quando somente texto, categoria ou data mudarem.
+  // Ao trocar ou remover o CNJ, recalcule o vínculo com a própria empresa.
+  let processoId = anterior.processo_id ?? null;
+  if (tarefa.protocolo_ref !== String(anterior.protocolo_ref || "")) {
+    const vinculo = await buscarProcessoId(db, String(ctx.empresa_id), tarefa.protocolo_ref);
+    if (vinculo.erro) redirect(`${retorno}&erro=consulta`);
+    processoId = vinculo.processo_id;
+  }
 
   const { data, error } = await db.from("tarefas_realizadas")
     .update({
       ...tarefa,
       protocolo_ref: tarefa.protocolo_ref || null,
-      processo_id: vinculo.processo_id,
+      processo_id: processoId,
     })
     .eq("id", id)
     .eq("empresa_id", ctx.empresa_id)
