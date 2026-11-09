@@ -3,12 +3,13 @@ import { getReportIdentity } from "@/lib/report/report-identity";
 import { getSupabaseAdmin, getUserContext } from "@/lib/server-db";
 import { canViewCompanyAnalyses } from "@/lib/roles";
 import { AnalisesPdfExportButton } from "@/components/analises-internas/pdf-export-button";
+import { EditarAtividadeForm } from "@/components/atividades/editar-atividade-form";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
 
 export default async function AnalisesInternasPage({searchParams}:{
-  searchParams:Promise<{q?:string;cat?:string;pagina?:string;atividadesPagina?:string;acoesPagina?:string}>
+  searchParams:Promise<{q?:string;cat?:string;pagina?:string;atividadesPagina?:string;acoesPagina?:string;editado?:string;erro?:string}>
 }) {
   const ctx=await getUserContext();
   // A rota é acessível a todo colaborador autenticado, mas conteúdo e KPIs
@@ -35,7 +36,7 @@ export default async function AnalisesInternasPage({searchParams}:{
     .select("id,protocolo_ref,descricao,categoria,origem,data_atividade,nivel_conferencia,processo_id,responsavel_nome",{count:"exact"})
     .eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario);
   let tarefasQuery=admin.from("tarefas_realizadas")
-    .select("id,titulo,descricao,categoria,data_realizacao,protocolo_ref,origem",{count:"exact"})
+    .select("id,titulo,descricao,categoria,data_realizacao,protocolo_ref,origem,contato_cliente_confirmado",{count:"exact"})
     .eq("empresa_id",empresa).eq("responsavel_auth_user_id",usuario);
   let acoesQuery=admin.from("auditoria_logs_app")
     .select("id,action,created_at,protocolo_ref",{count:"exact"})
@@ -89,6 +90,8 @@ export default async function AnalisesInternasPage({searchParams}:{
           <div key={String(l)} className="rounded-xl border border-white/20 bg-white/10 p-3"><strong className="text-2xl">{v}</strong><p className="mt-1 text-xs text-slate-300">{l}</p></div>)}
       </div>
     </header>
+    {param.editado?<p role="status" className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">Atividade atualizada com sucesso.</p>:null}
+    {param.erro?<p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">Não foi possível salvar a edição. Confira os campos e tente novamente.</p>:null}
     <div className="flex flex-wrap gap-2">{grupos.map(([key,label])=>
       <Link key={key||"all"} href={link(1,key)} className={`rounded-full border px-3 py-2 text-xs font-semibold ${cat===key?"bg-blue-700 border-blue-700 text-white":"border-border bg-card text-foreground hover:bg-muted"}`}>{label}</Link>)}
     </div>
@@ -142,6 +145,7 @@ export default async function AnalisesInternasPage({searchParams}:{
           <h3 className="mt-2 font-semibold">{item.titulo}</h3>
           {item.descricao?<p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{item.descricao}</p>:null}
           {item.protocolo_ref?<p className="mt-2 font-mono text-xs">CNJ: {item.protocolo_ref}</p>:null}
+          <EditarAtividadeForm atividade={item} destino="analises-internas" pagina={pagina} atividadesPagina={atividadesPagina} />
         </article>)}</div>}
       <div className="flex items-center justify-between text-sm">
         <span>{atividadesCount||0} atividades · página {atividadesPagina}</span>
