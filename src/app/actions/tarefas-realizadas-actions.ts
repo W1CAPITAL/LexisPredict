@@ -84,7 +84,7 @@ export async function editarTarefaRealizadaAction(formData: FormData): Promise<v
   const paginaAtividades = Math.max(1, Math.min(99, Number(formData.get("atividadesPagina")) || 1));
   const paginaAcoes = Math.max(1, Math.min(99, Number(formData.get("acoesPagina")) || 1));
   const filtroCategoria = String(formData.get("cat") || "").replace(/[^a-z_]/g, "").slice(0, 50);
-  const filtroBusca = String(formData.get("q") || "").replace(/[^0-9A-Za-z.\\- ]/g, "").slice(0, 80);
+  const filtroBusca = String(formData.get("q") || "").replace(/[^0-9A-Za-z. -]/g, "").slice(0, 80);
   const retorno = destino === "/analises-internas"
     ? `${destino}?pagina=${pagina}&atividadesPagina=${paginaAtividades}&acoesPagina=${paginaAcoes}&cat=${encodeURIComponent(filtroCategoria)}&q=${encodeURIComponent(filtroBusca)}`
     : `${destino}?pagina=${pagina}`;
