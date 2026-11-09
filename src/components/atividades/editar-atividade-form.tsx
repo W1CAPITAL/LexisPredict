@@ -12,12 +12,15 @@ type AtividadeEditavel = {
 };
 
 export function EditarAtividadeForm({
-  atividade, destino, pagina = 1, atividadesPagina = 1,
+  atividade, destino, pagina = 1, atividadesPagina = 1, acoesPagina = 1, q = "", cat = "",
 }: {
   atividade: AtividadeEditavel;
   destino: "minhas-atividades" | "analises-internas";
   pagina?: number;
   atividadesPagina?: number;
+  acoesPagina?: number;
+  q?: string;
+  cat?: string;
 }) {
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
@@ -33,6 +36,9 @@ export function EditarAtividadeForm({
         <input type="hidden" name="destino" value={destino} />
         <input type="hidden" name="pagina" value={pagina} />
         <input type="hidden" name="atividadesPagina" value={atividadesPagina} />
+        <input type="hidden" name="acoesPagina" value={acoesPagina} />
+        <input type="hidden" name="q" value={q} />
+        <input type="hidden" name="cat" value={cat} />
         <label className="block font-semibold">
           Título *
           <input name="titulo" required minLength={4} maxLength={180} defaultValue={atividade.titulo || ""}
