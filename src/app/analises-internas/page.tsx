@@ -145,7 +145,7 @@ export default async function AnalisesInternasPage({searchParams}:{
           <h3 className="mt-2 font-semibold">{item.titulo}</h3>
           {item.descricao?<p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{item.descricao}</p>:null}
           {item.protocolo_ref?<p className="mt-2 font-mono text-xs">CNJ: {item.protocolo_ref}</p>:null}
-          <EditarAtividadeForm atividade={item} destino="analises-internas" pagina={pagina} atividadesPagina={atividadesPagina} />
+          <EditarAtividadeForm atividade={item} destino="analises-internas" pagina={pagina} atividadesPagina={atividadesPagina} acoesPagina={acoesPagina} q={q} cat={cat} />
         </article>)}</div>}
       <div className="flex items-center justify-between text-sm">
         <span>{atividadesCount||0} atividades · página {atividadesPagina}</span>
