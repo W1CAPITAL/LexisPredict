@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
 import { registrarTarefaRealizadaAction } from "@/app/actions/tarefas-realizadas-actions";
 import { JurisTimesheetSection } from "@/components/atividades/timesheet-integrado";
+import { EditarAtividadeForm } from "@/components/atividades/editar-atividade-form";
 import { getAtividadesRegistradasPorResponsavel, type AtividadesResponsavelResumo } from "@/lib/atividades-registradas";
 
 export const dynamic="force-dynamic";
@@ -37,7 +38,7 @@ const dataBr=(value?:string|null)=>{
  return match?match[3]+"/"+match[2]+"/"+match[1]:value;
 };
 
-export default async function MinhasAtividades({searchParams}:{searchParams:Promise<{salvo?:string;erro?:string;pagina?:string}>}){
+export default async function MinhasAtividades({searchParams}:{searchParams:Promise<{salvo?:string;editado?:string;erro?:string;pagina?:string}>}){
  const ctx=await getUserContext();
  if(!ctx.auth_id||!ctx.empresa_id)return <main className="p-8"><Link href="/login">Entrar</Link></main>;
  const qs=await searchParams;
@@ -103,6 +104,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
    </div>
   </header>
   {qs.salvo?<p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-emerald-600">Atividade salva no Supabase.</p>:null}
+  {qs.editado?<p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-emerald-600">Atividade atualizada com sucesso.</p>:null}
   {qs.erro?<p role="alert" className="rounded-lg bg-red-500/10 p-3 text-red-600">Verifique os campos e tente novamente.</p>:null}
   <div className="grid gap-5 lg:grid-cols-2">
    <section className="rounded-2xl border border-border bg-card p-6">
@@ -154,6 +156,7 @@ export default async function MinhasAtividades({searchParams}:{searchParams:Prom
          <div><span className="text-muted-foreground">Próximo prazo</span><p className="font-semibold">{dataBr(processo.proximo_prazo)}</p></div>
         </div>:a.processo_id||a.protocolo_ref?<div className="mt-2 text-xs text-amber-700 dark:text-amber-300"><p>{a.protocolo_ref&&cnjsAmbiguos.has(String(a.protocolo_ref))?"Há mais de um processo cadastrado com este CNJ; o sistema não escolheu um vínculo automaticamente.":"Há referência de processo neste registro, mas o cadastro correspondente não foi localizado com segurança."}</p>{a.protocolo_ref?<p className="mt-1 break-all font-mono">CNJ informado na atividade: {a.protocolo_ref}</p>:null}{a.processo_id?<p className="mt-1">ID do processo: {a.processo_id}</p>:null}</div>:<p className="mt-2 text-xs text-muted-foreground">Esta atividade não possui processo vinculado.</p>}
        </div>
+       <EditarAtividadeForm atividade={a} destino="minhas-atividades" pagina={pagina} />
       </article>;
      })}
     </div>
