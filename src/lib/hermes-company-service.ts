@@ -1,13 +1,12 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
-import { freeComplete } from '@/lib/ai/free-gateway';
-import { superAgentInstructions } from '@/lib/ai/lexis-superagent';
+import {buildHermesVerifiedMeeting} from '@/lib/hermes-verified-meeting';
 import type {HermesOfficeEvent} from '@/lib/hermes-agent-route';
 import {normalizeHermesDiagnostics,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import {classifyHermesReturnDate} from '@/lib/hermes-return-date';
 import {brazilToday} from '@/lib/wa-daily-return-policy';
 import {
-  buildHermesOfficeIntelligence,makeHermesMeetingPrompt,
+  buildHermesOfficeIntelligence,
   sanitizeHermesMeetingOutput,describeHermesCaseHealth,
   type HermesCaseHealth,type HermesOfficeMetrics,
 } from '@/lib/hermes-company-intelligence';
@@ -29,7 +28,14 @@ export async function getHermesCompanyDaily(empresaId:string):Promise<HermesOffi
    .select('empresa_id,day,metrics,meeting_note,meeting_engine,meeting_status,meeting_error_code,meeting_attempts,meeting_claimed_at,updated_at')
    .eq('empresa_id',empresaId).order('day',{ascending:false}).limit(1).maybeSingle();
  if(error)throw Error('O painel Hermes não conseguiu ler o resumo diário.');
- return data as HermesOfficeDailyRow|null;
+ const row=data as HermesOfficeDailyRow|null;
+ if(row?.metrics && (row.meeting_status==='ready'||row.meeting_status==='unavailable')){
+   // Show current evidence rather than a stale free-model note, even if figures changed today.
+   const evidence=await getHermesPortfolioDiagnostics(empresaId).catch(()=>null);
+   return {...row,meeting_note:buildHermesVerifiedMeeting(row.metrics,row.day,evidence),
+     meeting_engine:'auditoria-evidencias-v2',meeting_status:'ready'};
+ }
+ return row;
 }
 
 
@@ -104,24 +110,11 @@ export async function runHermesCompanyMeeting(empresaId:string,day:string){
         'A reunião está em execução ou aguardando intervalo entre tentativas.'};
  }
  const m=claimed as Partial<HermesOfficeMetrics>;
- const fallback=buildHermesOfficeIntelligence(m,day).meeting.map(x=>x.speaker+': '+x.text).join('\n');
- let note=fallback,engine='regras-verificadas',state:'ready'|'unavailable'='ready',errorCode:string|null=null;
- try{
-   const reply=await freeComplete({
-     user:makeHermesMeetingPrompt(m,day),
-     system:superAgentInstructions('relatorio')+
-       '\nREUNIÃO HERMES: Produza quatro falas curtas, uma por linha, identificadas EXATAMENTE como Gerência:, Supervisão:, Processos:, Comunicação:. A gerência abre com uma prioridade; a supervisão questiona a qualidade das fontes, processos responde com evidências agregadas, e comunicação define um próximo passo revisável. Use somente os números informados. Não invente descobertas, pessoas substituídas nem chance judicial. Não mostre dados pessoais, não envie mensagens e não execute ações.',
-     preferred:'groq',max_tokens:320,timeoutMs:40000
-   });
-   const clean=sanitizeHermesMeetingOutput(reply.text);
-   if(clean.length<35)throw Error('Modelo não produziu síntese utilizável');
-   note=clean;engine=String(reply.engine||'motor-superagente').slice(0,100);
- }catch(error){
-   state='unavailable';
-   errorCode=classifyHermesModelFailure(error);
-   // The bounded rule-based agenda is preserved, but the model did not participate.
-   console.warn('[Hermes] reunião IA não concluída:',errorCode);
- }
+ const evidence=await getHermesPortfolioDiagnostics(empresaId).catch(()=>null);
+ const note=buildHermesVerifiedMeeting(m,day,evidence);
+ const engine='auditoria-evidencias-v2';
+ const state:'ready'='ready';
+ const errorCode=null;
  const {error}=await db.from('hermes_office_daily').update({
    meeting_note:note,meeting_engine:engine,meeting_status:state,meeting_error_code:errorCode,
    updated_at:new Date().toISOString(),
