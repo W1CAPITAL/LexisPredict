@@ -1,4 +1,4 @@
-import { LoaderCircle } from "lucide-react";
+import { SwarmLoadingIndicator } from "@/components/ui/swarm-loading-indicator";
 
 /**
  * Suspense fallback shared by the dashboard and heavy list routes.
@@ -22,7 +22,7 @@ export default function PageLoader({ label = "Abrindo…" }: { label?: string })
           <div className="lx-skeleton-block h-3 w-72 max-w-[72vw]" />
         </div>
         <div className="flex items-center gap-2 rounded-full border border-border/70 bg-card px-4 py-2 text-xs font-semibold text-muted-foreground">
-          <LoaderCircle className="h-4 w-4 text-primary motion-safe:animate-spin" aria-hidden="true" />
+          <SwarmLoadingIndicator compact />
           {label}
         </div>
       </div>
