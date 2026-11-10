@@ -38,6 +38,7 @@ export function HermesExport({record,cases,events}:{
     className="h3d-button" title="PDF consolidado do escritório, com os indicadores e o acompanhamento Hermes">
    <FileText size={16}/> Extrair relatório PDF
   </a>
+  <button type="button" className="h3d-button h3d-button-muted" onClick={()=>window.print()} title="Salvar em PDF pelo navegador os painéis já autorizados do Hermes"><FileText size={16}/> Salvar tela em PDF</button>
   <button type="button" className="h3d-button h3d-button-muted" onClick={downloadCsv} disabled={!record}>
     <FileDown size={16}/> Exportar CSV
   </button>
