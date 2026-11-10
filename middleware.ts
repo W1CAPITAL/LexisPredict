@@ -16,6 +16,7 @@ const ROLE_WEIGHT: Record<string, number> = {
 }
 
 const SUPERVISOR_ONLY = ['/supervisao', '/auditoria', '/team', '/report/completo']
+const MANAGEMENT_ONLY = ['/projetos']
 const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 
 const PUBLIC_API = [
@@ -35,6 +36,7 @@ const MACHINE_AUTH_API = new Set([
   '/api/cron/wa-movement',
   '/api/cron/wa-daily-return',
   '/api/cron/hermes-returns',
+  '/api/cron/hermes-office-meeting',
   '/api/cron/wa-full-portfolio',
   '/api/cron/wa-deep-closure',
   '/api/cron/experience-welcome',
@@ -100,6 +102,11 @@ export async function middleware(request: NextRequest) {
   const isGuest = request.cookies.get('lexis_guest')?.value === '1'
 
   if (isGuest && !isAuthPage) {
+    if (starts(path, MANAGEMENT_ONLY)) {
+      const blocked = NextResponse.redirect(new URL('/login', request.url))
+      blocked.headers.set('Cache-Control', 'private, no-store')
+      return applySecurityHeaders(blocked)
+    }
     response.headers.set('Cache-Control', 'private, no-store')
     response.headers.set('X-Lexis-Guest', '1')
     return applySecurityHeaders(response)
@@ -226,10 +233,12 @@ h1{font-size:24px;line-height:1.25;margin:8px 0 14px}p{line-height:1.65;color:#4
       const isSuperAdmin = role === 'Superadmin'
       if (isTenantSetupPage && isSuperAdmin) return redirect('/')
       const supervisorPath = starts(path, SUPERVISOR_ONLY)
+      const managementPath = starts(path, MANAGEMENT_ONLY)
       const superPath = starts(path, SUPERADMIN_ONLY)
       const roleWeight = ROLE_WEIGHT[role] || 0
 
-      if ((superPath && !isSuperAdmin) || (supervisorPath && roleWeight < ROLE_WEIGHT.Supervisor)) {
+      if ((superPath && !isSuperAdmin) || (supervisorPath && roleWeight < ROLE_WEIGHT.Supervisor) ||
+          (managementPath && roleWeight < ROLE_WEIGHT.Administrador)) {
         return isApi ? json({ ok: false, error: 'forbidden' }, 403) : redirect('/')
       }
 
