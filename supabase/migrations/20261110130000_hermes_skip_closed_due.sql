@@ -15,6 +15,8 @@ as $$
     where p.empresa_id is not null
       and p.proximo_retorno <= p_today
       and upper(btrim(coalesce(p.status_interno, ''))) <> 'ENCERRADO'
+      and upper(btrim(coalesce(p.status, ''))) <> 'ENCERRADO'
+      and upper(btrim(coalesce(p.dados->>'situacao', ''))) <> 'ENCERRADO'
       and (r.id is null
         or (r.state = 'unavailable' and r.attempted_at < now() - interval '4 hours')
         or (r.state = 'scanning' and r.attempted_at < now() - interval '15 minutes'))
