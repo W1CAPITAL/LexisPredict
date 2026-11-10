@@ -225,3 +225,53 @@
 @media (prefers-reduced-motion: reduce) {
   .h3d-robot-head { animation: none !important; }
 }
+
+/* Hermes Company: miniature offices and meeting furniture use CSS only; no GPU renderer. */
+.h3d-room-division{position:absolute;left:4%;width:92%;height:8px;top:33%;border:1px solid #b89ba8;border-radius:6px;background:linear-gradient(90deg,#9b758b,#3e3045 70%,#917082);box-shadow:0 8px 0 #211825,0 13px 11px #170f2060;pointer-events:none}
+.h3d-room-bottom{top:65%}
+.h3d-glass-partition{position:absolute;left:52%;top:4%;height:29%;width:6px;background:linear-gradient(#b2a7c1,#516070);box-shadow:6px 5px 0 #323149,11px 5px 5px #08060a70;opacity:.75;pointer-events:none}
+.h3d-boardroom{position:absolute;top:35%;left:37%;width:27%;height:28%;border:3px solid #ab8298;border-radius:15px;background:radial-gradient(ellipse at center,#573c51 0,#302739 88%);box-shadow:inset 0 0 0 3px #311c30,0 10px 8px #17101d70;pointer-events:none;transform-style:preserve-3d}
+.h3d-conference-table{position:absolute;inset:24% 13%;display:block;border-radius:48%;border:3px solid #bea4b3;background:linear-gradient(110deg,#816274,#3d3040);box-shadow:0 9px 0 #201724,0 16px 14px #120c17a5}
+.h3d-conference-table i,.h3d-conference-table b{position:absolute;top:42%;height:12%;width:12%;border-radius:50%;background:#e2bfd0;border:1px solid #fee3ef;box-shadow:0 0 10px #fff3}
+.h3d-conference-table i{left:28%}.h3d-conference-table b{right:28%}
+.h3d-conference-chair{position:absolute;display:block;width:29px;height:17px;border-radius:9px;background:linear-gradient(120deg,#c5adb9,#57415a);border:2px solid #eccddb;box-shadow:0 6px 0 #2d2030,0 10px 8px #100a1680}
+.h3d-chair-n{top:8%;left:41%}.h3d-chair-s{bottom:8%;left:41%}.h3d-chair-w{top:42%;left:0;transform:rotate(90deg)}.h3d-chair-e{top:42%;right:0;transform:rotate(-90deg)}
+.h3d-meeting-monitor{position:absolute;top:-9px;left:32%;padding:2px 8px;font-size:7px;font-weight:900;letter-spacing:.13em;color:#f7d7e5;background:#301c30;border:1px solid #be91a8;border-radius:5px;box-shadow:0 0 6px #f3c1da50}
+.h3d-lounge{position:absolute;left:2%;top:32%;width:24%;height:28%;pointer-events:none}
+.h3d-sofa{display:block;position:absolute;top:11%;left:0;width:69%;height:23%;border-radius:9px;border:3px solid #d6b7c7;background:#805166;box-shadow:0 8px 0 #402e42,0 13px 10px #100a1540}
+.h3d-coffee{display:block;position:absolute;top:45%;left:18%;width:55%;height:30%;border-radius:40%;border:3px solid #ab94a4;background:#433141;box-shadow:0 8px 0 #2a1a2b}
+.h3d-plant{position:absolute;width:23px;height:23px;border-radius:50%;border:4px solid #826d64;background:radial-gradient(circle,#a8d0aa 0 17%,#2e7154 22%,#1c4c39 65%,#263723 80%);box-shadow:0 4px 0 #3d303b,0 7px 4px #160d1888}
+.h3d-lounge .h3d-plant{right:-2px;bottom:5px}.h3d-plant-n{top:5%;right:3%}.h3d-plant-s{bottom:5%;left:5%}
+.h3d-reception{position:absolute;bottom:9%;left:36%;width:28%;height:37px;display:grid;place-items:center;border:2px solid #d4a6b9;border-radius:8px;background:linear-gradient(135deg,#713951,#2d2234);color:#ffe4f1;font-size:11px;font-weight:900;letter-spacing:.2em;box-shadow:0 8px 0 #241927,0 16px 8px #130b1490;pointer-events:none}
+.h3d-reception i{position:absolute;bottom:3px;width:46%;height:3px;background:#ba8a9f}
+.h3d-desk[data-pending="true"] .h3d-agent-pawn{animation:h3d-worker-walk 13s cubic-bezier(.4,0,.6,1) infinite}
+.h3d-desk[data-pending="true"] .h3d-robot-arm-right{transform-origin:top center;animation:h3d-worker-type 1.4s ease-in-out infinite alternate}
+.h3d-desk[data-pending="true"] .h3d-robot-leg-left{animation:h3d-worker-step 1.2s ease-in-out infinite alternate}
+.h3d-desk[data-pending="true"] .h3d-robot-leg-right{animation:h3d-worker-step 1.2s ease-in-out .6s infinite alternate}
+@keyframes h3d-worker-walk{0%,12%,95%,100%{transform:translate3d(0,0,42px) rotateX(-43deg)}25%{transform:translate3d(12px,-6px,42px) rotateX(-43deg)}48%{transform:translate3d(21px,9px,42px) rotateX(-43deg)}70%{transform:translate3d(-8px,6px,42px) rotateX(-43deg)}}
+@keyframes h3d-worker-type{from{transform:rotateZ(-14deg)}to{transform:rotateZ(-60deg)}}
+@keyframes h3d-worker-step{from{transform:rotateZ(-15deg)}to{transform:rotateZ(14deg)}}
+.h3d-company-panel{color:#fff}
+.h3d-kpi,.h3d-panel-card{border:1px solid rgba(222,184,204,.22);background:linear-gradient(145deg,#392435,#1c1927 87%);box-shadow:0 12px 34px #07050955;border-radius:20px}
+.h3d-kpi{padding:16px;display:flex;flex-direction:column;gap:3px;min-height:133px}
+.h3d-meeting-line,.h3d-department{display:block;border:1px solid #edccdd20;background:#ffffff09;padding:12px;border-radius:13px}
+.h3d-department{transition:background .15s,border-color .15s}
+.h3d-department:hover{background:#ffffff19;border-color:#eec7d877}
+.h3d-page[data-low-power="true"] .h3d-agent-pawn,.h3d-page[data-low-power="true"] .h3d-robot-head,.h3d-page[data-low-power="true"] .h3d-robot-arm,.h3d-page[data-low-power="true"] .h3d-robot-leg{animation:none!important;filter:none!important}
+@media(prefers-reduced-motion:reduce){.h3d-page .h3d-agent-pawn,.h3d-page .h3d-robot-arm,.h3d-page .h3d-robot-leg,.h3d-page .h3d-robot-head{animation:none!important}}
+@media(max-width:767px){.h3d-boardroom{width:28%;left:36%;top:36%}.h3d-conference-chair{width:19px;height:13px}.h3d-room-division{height:5px}.h3d-reception{height:27px;font-size:7px}.h3d-meeting-monitor{font-size:5px}.h3d-lounge{opacity:.75}}
+
+/* Miniature council avatars. Their speech text is shown only from recorded data in the panel. */
+.h3d-meeting-bot{position:absolute;display:block;height:27px;width:23px;top:7%;left:14%;border-radius:8px 8px 5px 5px;border:2px solid #e9c8d8;background:linear-gradient(130deg,#d7b1c4,#77536c);box-shadow:0 5px 0 #402739,0 8px 7px #100a1680;transform:translateZ(22px)}
+.h3d-meeting-bot::before{content:'';position:absolute;left:5px;top:-7px;width:9px;height:6px;border-radius:50%;background:#eac5d8;box-shadow:0 0 7px #e7adc9}
+.h3d-meeting-bot i,.h3d-meeting-bot b{position:absolute;display:block;top:8px;width:5px;height:5px;border-radius:50%;background:#532740}
+.h3d-meeting-bot i{left:3px}.h3d-meeting-bot b{right:3px}
+.h3d-meeting-bot-2{left:auto;right:14%;top:6%;background:linear-gradient(130deg,#c9d0da,#62798a)}
+.h3d-meeting-bot-3{top:auto;bottom:7%;left:42%;background:linear-gradient(130deg,#f3d9b1,#8f705d)}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot{animation:h3d-conference-talk 2.4s ease-in-out infinite alternate}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot-2{animation-delay:.65s}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot-3{animation-delay:1.3s}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-monitor{box-shadow:0 0 14px #efc0d5}
+@keyframes h3d-conference-talk{from{transform:translate3d(0,0,22px) rotateZ(-6deg)}to{transform:translate3d(3px,-3px,22px) rotateZ(8deg)}}
+@media(prefers-reduced-motion:reduce){.h3d-meeting-bot{animation:none!important}}
+.h3d-page[data-low-power="true"] .h3d-meeting-bot{animation:none!important}

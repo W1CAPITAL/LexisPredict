@@ -11,6 +11,8 @@ import {ReportSmartOverview} from "@/components/report/report-smart-overview";
 import {TeamReport,type EquipeRelatorio} from "@/components/report/team-report";
 import {ReportExecutiveDashboard} from "@/components/report/report-executive-dashboard";
 import {getAtividadesRegistradasCount,getAtividadesRegistradasPorResponsavel} from "@/lib/atividades-registradas";
+import { getHermesCompanyDaily,getHermesCaseHealth } from "@/lib/hermes-company-service";
+import { HermesCompanyReport } from "@/components/report/hermes-company-report";
 
 export const dynamic="force-dynamic";
 export const revalidate=0;
@@ -46,6 +48,9 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
+ const [hermesCompany,hermesCases]=canViewTeam?await Promise.all([
+  getHermesCompanyDaily(empresaId).catch(()=>null),getHermesCaseHealth(empresaId).catch(()=>[])
+ ]):[null,[]];
  const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult,atividadesPorResponsavelResult,identityResult]=await Promise.allSettled([
   getHistoricoAtendimentosEmpresa(empresaId,periodo),
   db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
@@ -139,6 +144,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??null
       }))}
     />
+    {canViewTeam && <HermesCompanyReport row={hermesCompany} cases={hermesCases}/>}
     {!canViewTeam && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
     {canViewTeam && <>
     <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
