@@ -13,7 +13,7 @@ describe('Hermes: automação de retornos com evidência', () => {
     const result = buildHermesReturnReview(base, { ...both, djenOk: false, datajudOk: false });
     expect(result.state).toBe('unavailable');
     expect(result.highlights.some(x => /indispon/i.test(x.text))).toBe(true);
-    expect(result.messageDraft).not.toMatch(/não (há|houve|encontramos|identificamos)/i);
+    expect(result.messageDraft).toBeNull();
   });
 
   it('mostra novidade oficial posterior ao último retorno sem inventar prazo jurídico', () => {
