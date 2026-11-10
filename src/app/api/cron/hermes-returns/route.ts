@@ -88,14 +88,7 @@ async function postOfficeCaseReview(request:Request){
   const processId=Number(raw?.processId);
   if(!Number.isSafeInteger(processId)||processId<=0)return NextResponse.json(
     {ok:false,error:'Identificador do processo inválido.'},{status:400,headers:privateHeaders});
-  const db=await getSupabaseAdmin();
-  const {data:recent}=await db.from('hermes_return_reviews')
-    .select('checked_at,djen_ok,datajud_ok').eq('empresa_id',String(ctx.empresa_id))
-    .eq('processo_id',processId).order('attempted_at',{ascending:false}).limit(1).maybeSingle();
-  const cacheMinutes=recent?.djen_ok&&recent?.datajud_ok?15:2;
-  if(recent?.checked_at&&Date.now()-Date.parse(recent.checked_at)<cacheMinutes*60000){
-    return NextResponse.json({ok:true,reused:true},{headers:privateHeaders});
-  }
+  // An explicit click always performs a new official lookup. Debounce is handled in the client.
   const result=await reviewHermesCase({empresaId:String(ctx.empresa_id),processId,mode:'manual'});
   if(!result.ok)return NextResponse.json({ok:false,error:'Processo não encontrado nesta empresa.'},{status:404,headers:privateHeaders});
   return NextResponse.json({...result,reused:false},{headers:privateHeaders});
