@@ -18,7 +18,7 @@ export function DjenOfficialSearch({ initialCnj = '' }: { initialCnj?: string })
   React.useEffect(() => {
     if (!initialCnj) {
       const fromLink = new URLSearchParams(window.location.search).get('cnj') || '';
-      if (fromLink.replace(/\\D/g, '').length === 20) setCnj(fromLink);
+      if (fromLink.replace(/\D/g, '').length === 20) setCnj(fromLink);
     }
     return () => abortRef.current?.abort();
   }, [initialCnj]);
