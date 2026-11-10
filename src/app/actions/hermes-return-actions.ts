@@ -1,6 +1,8 @@
 'use server';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { reviewHermesCase, loadHermesReviewCase } from '@/lib/hermes-return-service';
+import {classifyHermesReturnDate} from '@/lib/hermes-return-date';
+import {brazilToday} from '@/lib/wa-daily-return-policy';
 
 async function authorize(processId?: number, canWrite = false) {
   const ctx = await getUserContext();
@@ -26,6 +28,7 @@ export async function getHermesReturnReviewAction(processId: number) {
     if (error) throw new Error('A revisão judicial está indisponível.');
     return { ok: true as const, review: data || null,
       nextReturnRegistered: row.proximo_retorno, lastReturnRegistered: row.ultimo_retorno,
+      returnDateStatus:classifyHermesReturnDate(row.ultimo_retorno,row.proximo_retorno,brazilToday()),
     };
   } catch (e) { return { ok: false as const, error: e instanceof Error ? e.message : 'Falha ao carregar revisão.' }; }
 }
@@ -56,14 +59,14 @@ export async function getHermesPriorityQueueAction() {
     const { data, error } = await db.from('hermes_return_reviews')
       .select('processo_id,due_on,state,checked_at,priority_score,priority_label,highlights,suggested_next_return')
       .eq('empresa_id', empresaId)
-      .in('state', ['ready', 'unavailable'])
+      .in('state', ['ready', 'partial', 'unavailable'])
       .order('priority_score', { ascending: false })
       .order('due_on', { ascending: true }).limit(200);
     if (error) throw new Error('Fila de retornos indisponível.');
     const ids = Array.from(new Set((data || []).map((r) => Number(r.processo_id))));
     if (!ids.length) return { ok: true as const, items: [] };
     const { data: processRows, error: processError } = await db.from('processos')
-      .select('id,cliente,protocolo_ref,ultimo_retorno,proximo_retorno,empresa_id')
+      .select('id,cliente,protocolo_ref,ultimo_retorno,proximo_retorno,empresa_id,status,status_interno,dados')
       .eq('empresa_id', empresaId).in('id', ids);
     if (processError) throw new Error('Não foi possível localizar os processos da fila.');
     const byId = new Map((processRows || []).map((row) => [Number(row.id), row]));
@@ -74,6 +77,9 @@ export async function getHermesPriorityQueueAction() {
       if (!process || seen.has(processId)) return [];
       // A revisão antiga pode existir após um contato manual: nunca mostrá-la como vencimento atual.
       if (String(process.proximo_retorno || '') !== String(r.due_on)) return [];
+      const timing=classifyHermesReturnDate(process.ultimo_retorno,process.proximo_retorno,brazilToday());
+      if(timing!=='overdue'&&timing!=='today')return [];
+      if(/ENCERRAD|ARQUIVAD|FINALIZAD|EXTINT/i.test(String(process.status_interno||'')+' '+String(process.status||'')+' '+String((process.dados as any)?.situacao||'')))return [];
       seen.add(processId);
       return [{
         processId, cliente: String(process.cliente || 'Sem nome'),
