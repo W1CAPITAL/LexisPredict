@@ -22,7 +22,7 @@ describe('Hermes company intelligence', () => {
     expect(office.departments.some(x => x.role === 'Gerência')).toBe(true);
     expect(office.departments.some(x => x.role.startsWith('Supervisor'))).toBe(true);
     expect(office.risks.some(x => x.id === 'overdue')).toBe(true);
-    expect(JSON.stringify(office)).not.toMatch(/% de chance|equivale a.*pessoa|senten[cç]a garantida/i);
+    expect(JSON.stringify(office)).not.toMatch(/"winProbability"|"lossProbability"|"staffEquivalent"|senten[cç]a garantida/i);
   });
 
   it('keeps uncertainty explicit when neither DJEN nor DataJud confirms coverage', () => {
