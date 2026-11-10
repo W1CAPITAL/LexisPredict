@@ -18,7 +18,11 @@ function formatDay(day:string|null){
  if(!day)return "Data a confirmar";
  const [y,m,d]=day.split("-");return d+"/"+m+"/"+y;
 }
-function todayBrazil(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
+function todayBrazil(){
+ const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const pick=(type:string)=>parts.find(p=>p.type===type)?.value||"";
+ return pick("year")+"-"+pick("month")+"-"+pick("day");
+}
 function officialLink(raw:string|null){if(!raw)return null;try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname.endsWith(".jus.br")||u.hostname==="cnj.jus.br")?u.href:null;}catch{return null;}}
 export default function AudienciasPage(){
  const [items,setItems]=useState<Audiencia[]>([]),[loading,setLoading]=useState(true);
