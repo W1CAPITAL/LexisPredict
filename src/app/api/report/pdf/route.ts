@@ -5,7 +5,7 @@ import {ReportTeamSummaryPdf} from "@/components/pdf/report-team-summary-pdf";
 import type {EquipeRelatorio} from "@/components/report/team-report";
 import {getReportAccess} from "@/lib/security/report-access";
 import {getAtividadesRegistradasPorResponsavel} from "@/lib/atividades-registradas";
-import {getHermesCompanyDaily,getHermesCaseHealth} from "@/lib/hermes-company-service";
+import {getHermesCompanyDaily,getHermesCaseHealth,getHermesPortfolioDiagnostics} from "@/lib/hermes-company-service";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -29,7 +29,8 @@ export async function GET(request:Request){
   // Escopo pessoal não lê nem exporta os achados consolidados da empresa.
   const hermesSnapshotPromise=owner?Promise.resolve(null):getHermesCompanyDaily(String(ctx.empresa_id)).catch(()=>null);
   const hermesCasesPromise=owner?Promise.resolve([]):getHermesCaseHealth(String(ctx.empresa_id)).catch(()=>[]);
-  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult,activityStatsResult,identity,hermesSnapshot,hermesCaseRows]=await Promise.all([
+  const hermesDiagnosticsPromise=owner?Promise.resolve(null):getHermesPortfolioDiagnostics(String(ctx.empresa_id)).catch(()=>null);
+  const [teamResult,snapshotResult,meritoResult,retornoResult,histResult,activityStatsResult,identity,hermesSnapshot,hermesCaseRows,hermesDiagnostics]=await Promise.all([
     db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:String(ctx.empresa_id),p_periodo:periodo}),
     db.rpc("lexis_portfolio_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
     db.rpc("lexis_merito_snapshot",{p_empresa:String(ctx.empresa_id),p_owner:owner}),
@@ -39,6 +40,7 @@ export async function GET(request:Request){
     getReportIdentity(),
     hermesSnapshotPromise,
     hermesCasesPromise,
+    hermesDiagnosticsPromise,
   ]);
   if(teamResult.error||!teamResult.data||!Array.isArray(teamResult.data.pessoas)){
     return Response.json({error:"Não foi possível consultar a equipe para exportação."},{status:503,headers:{"Cache-Control":"no-store"}});
@@ -78,7 +80,7 @@ export async function GET(request:Request){
   const daily=Array.isArray(hist?.porUsuarioDia)?hist.porUsuarioDia.filter((x:{userId:string})=>!owner||x.userId===String(owner)):[];
   const hermesRow=owner ? null : hermesSnapshot;
   const hermesCases=owner ? [] : hermesCaseRows;
-  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend,daily,company:identity.company,hermesRow,hermesCases});
+  const doc=React.createElement(ReportTeamSummaryPdf,{data:team,overview,scope,trend,daily,company:identity.company,hermesRow,hermesCases,hermesDiagnostics});
   // O componente retorna <Document>, embora os props do componente não sejam DocumentProps.
   const buffer=await renderToBuffer(doc as unknown as React.ReactElement<import("@react-pdf/renderer").DocumentProps>);
   const name="LexisPredict-Relatorio-Gerencial-"+periodo+".pdf";
