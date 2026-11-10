@@ -72,6 +72,8 @@ export function HermesPortfolioReport({data,compact=false}:{
       <Numeric title="Sem escritório identificado" value={d.missingOffice}/>
       <Numeric title="Atividades humanas (30 dias)" value={d.completedHumanTasks30d}/>
       <Numeric title="Contatos confirmados (30 dias)" value={d.contactsConfirmed30d}/>
+      <Numeric title="Tarefas sem vínculo na equipe" value={d.unmatchedAssigneeTasks||0} note="IDs sem correspondência com usuários atuais"/>
+      <Numeric title="Vencidas sem vínculo" value={d.unmatchedOverdueTasks||0} note="Conferir sem reatribuir automaticamente"/>
      </div>
      <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-foreground">
       <strong>Datas a validar:</strong> {fmt(d.registeredDeadlinesDue)} processos abertos com campo de prazo antigo. Não significa que esses prazos estejam vigentes ou perdidos.
