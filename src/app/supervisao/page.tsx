@@ -15,6 +15,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
 import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
+import {HermesSupervisaoSummary} from "@/components/supervisao/hermes-supervisao-summary";
 import { PERIODO_OPCOES, type PeriodoRelatorio, labelPeriodo } from "@/lib/atendimento-semana";
 import { cn } from "@/lib/utils";
 import { Users,
@@ -222,6 +223,7 @@ export default function SupervisaoPage() {
               </div>
             ) : snap ? (
               <>
+<HermesSupervisaoSummary />
 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                   
           <div className="flex flex-wrap items-center gap-2 px-1 mb-2">
