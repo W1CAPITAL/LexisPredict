@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, Bot, Boxes, ChevronLeft, ChevronRight,
-  ExternalLink, Grid2X2, Info, Maximize2, Minus, Plus, RotateCcw,
+  ExternalLink, Grid2X2, Info, Minus, Plus, RotateCcw,
   ShieldCheck, Sparkles
 } from "lucide-react";
 import { getHermesOfficeStations } from "@/lib/hermes-office";
