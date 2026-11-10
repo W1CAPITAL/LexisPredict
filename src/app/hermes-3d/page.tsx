@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { HermesCaseHealth } from "@/lib/hermes-company-intelligence";
-import type { HermesOfficeIntelligence } from "@/lib/hermes-company-intelligence";
+import {parseHermesMeetingTranscript,type HermesOfficeIntelligence} from "@/lib/hermes-company-intelligence";
 import type { HermesOfficeDailyRow } from "@/lib/hermes-company-service";
 import Link from "next/link";
 import {
