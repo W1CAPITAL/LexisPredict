@@ -32,7 +32,7 @@ describe('Hermes review reliability and self-correction',()=>{
  it('exports the existing tenant-checked PDF and a local auditable CSV',()=>{
   const office=source('src/app/hermes-3d/page.tsx');
   const exporter=source('src/components/hermes/hermes-export.tsx');
-  expect(exporter).toContain('/api/report/pdf?');
+  expect(exporter).toContain('/api/hermes-office?format=pdf');
   expect(exporter).toContain('Exportar CSV');
   expect(office).toContain('HermesRebuildPanel');
  });
