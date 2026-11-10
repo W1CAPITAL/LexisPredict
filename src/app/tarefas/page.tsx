@@ -1028,6 +1028,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
+          <HermesPriorityQueue />
           <section className={ui.metrics}>
             <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
             <div className="premium-card p-6 border-l-4 border-l-primary relative group space-y-3">
