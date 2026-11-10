@@ -14,7 +14,7 @@ describe('Hermes: DataJud, atas e vencimentos confiáveis',()=>{
  });
  it('usa somente texto limpo sem asteriscos e sem tabelas Markdown',()=>{
   const text=cleanHermesReportText('**Ata**\n| Indicador | Valor |\n|---|---|\n| Retornos | 0 |');
-  expect(text).not.toMatch(/\*\*|\|---|\|/);
+  expect(text).not.toMatch(/\*\*|\|---|\||-{3,}/);
   expect(text).toContain('Retornos');
  });
  it('trata timeout interno do índice DataJud como falha, nunca como processo inexistente',async()=>{
