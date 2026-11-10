@@ -108,6 +108,10 @@ export default function Hermes3DLexisPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <a href="#hermes-activity-log" className="h3d-button" title="Ver o histórico real dos agentes">
+              <Bot className="h-4 w-4"/> Diário de execução
+            </a>
+            <Link href="/projetos" className="h3d-button h3d-button-muted">Entender os projetos</Link>
             <Link href="/estudio-agentes" className="h3d-button">
               <Bot className="h-4 w-4" /> Estúdio de Agentes
             </Link>
