@@ -129,9 +129,9 @@ export async function atualizarIndiceAudienciasLote(limit=120){
  */
 export async function verificarUmaAudienciaAgendada() {
   const db=await getSupabaseAdmin();
-  const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'})
-    .format(new Date()).split('/').reverse().join('-');
-  const dateISO = /^\d{4}-\d{2}-\d{2}$/.test(hoje) ? hoje : new Date().toISOString().slice(0,10);
+  const dateParts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const getDatePart=(type:string)=>dateParts.find(p=>p.type===type)?.value||'';
+  const dateISO=getDatePart('year')+'-'+getDatePart('month')+'-'+getDatePart('day');
   const {data:list,error}=await db.from('audiencias_monitoradas')
     .select('empresa_id,processo_id,protocolo_ref')
     .neq('situacao','cancelada')
