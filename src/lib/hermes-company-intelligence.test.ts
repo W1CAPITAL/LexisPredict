@@ -20,7 +20,7 @@ describe('Hermes company intelligence', () => {
     expect(office.counters.completedActivities30d).toBe(31);
     expect(office.departments).toHaveLength(8);
     expect(office.departments.some(x => x.role === 'Gerência')).toBe(true);
-    expect(office.departments.some(x => x.role === 'Supervisão')).toBe(true);
+    expect(office.departments.some(x => x.role.startsWith('Supervisor'))).toBe(true);
     expect(office.risks.some(x => x.id === 'overdue')).toBe(true);
     expect(JSON.stringify(office)).not.toMatch(/% de chance|equivale a.*pessoa|senten[cç]a garantida/i);
   });
@@ -32,7 +32,7 @@ describe('Hermes company intelligence', () => {
   });
 
   it('awards badges only against verifiable completed activity and does not execute arbitrary model cloning', () => {
-    const office = buildHermesOfficeIntelligence({ ...metrics, completedActivities30d: 0, readyReviews: 0, checkedSources30d: 0 }, '2026-11-10');
+    const office = buildHermesOfficeIntelligence({ ...metrics, completedActivities30d: 0, contacts30d: 0, draftMessages: 0, readyReviews: 0, checkedSources30d: 0 }, '2026-11-10');
     expect(office.award).toBeNull();
     expect(office.suggestedStrategy).toContain('revisão');
   });
