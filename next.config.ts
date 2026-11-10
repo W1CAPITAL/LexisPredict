@@ -66,6 +66,12 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // Preserve the external Hermes URLs without creating additional serverless functions.
+  // The existing returns route enforces supervisor session or the scheduler bearer token.
+  rewrites: async () => [
+    { source: "/api/hermes-office", destination: "/api/cron/hermes-returns?hermesRoute=office" },
+    { source: "/api/cron/hermes-office-meeting", destination: "/api/cron/hermes-returns?hermesRoute=meeting" },
+  ],
   headers: async () => [
     {
       source: "/consulta-bases/:path*",
