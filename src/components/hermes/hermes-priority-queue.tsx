@@ -66,7 +66,7 @@ export function HermesPriorityQueue() {
       {open ? (
         <div className="space-y-2 p-3">
           {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-200">{error}</p>}
-          {!error && !busy && items.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhuma análise de retorno vencido disponível. As consultas oficiais serão registradas pela rotina agendada.</p>}
+          {!error && !busy && items.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum retorno válido vencido nesta carteira. Datas inconsistentes não entram na fila; a consulta automática ocorrerá quando chegar uma data válida.</p>}
           {items.slice(0, 15).map((item, index) => (
             <article key={item.processId} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/80 p-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#803b59]/15 text-sm font-black text-[#8c3c61] dark:text-[#e8b9d0]">{index + 1}</span>
