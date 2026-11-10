@@ -364,15 +364,21 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
     }
 
     if (response.status === 429) {
-      if (attempt < maxAttempts) {
-        await sleep(1200 * attempt + (attempt * 137) % 400);
-        return fetchDataJudUncached(cnj, attempt + 1, options);
-      }
+      // DataJud ES can reject overloaded shards with 429. Immediate retries
+      // increase queue pressure; the Hermes shared scheduler honors cooldown.
+      const retryHeader=response.headers?.get?.('retry-after') || '';
+      const secs=/^\d+$/.test(retryHeader.trim())
+        ?Number(retryHeader.trim())
+        :retryHeader?Math.ceil((Date.parse(retryHeader)-Date.now())/1000):0;
+      const retryAfterSeconds=Number.isFinite(secs)?Math.min(14400,Math.max(0,secs)):0;
       return {
         numeroProcesso: cnjLimpo,
         movimentos: [],
         error: true,
-        message: "O tribunal pediu pausa (429). Esperando e tentando de novo.",
+        httpStatus:429,
+        errorCode:'rate_limited',
+        retryAfterSeconds,
+        message: "API pública DataJud sobrecarregada (HTTP 429); consulta adiada.",
         latency,
         attempts: attempt
       };
@@ -389,6 +395,8 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
         movimentos: [],
         error: true,
         message: `HTTP ${response.status}`,
+        httpStatus: response.status,
+        errorCode:response.status===401||response.status===403?'auth_error':response.status>=500?'server_error':'http_error',
         latency,
         attempts: attempt
       };
@@ -406,6 +414,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       return {
         numeroProcesso: cnjLimpo, movimentos: [], error: true,
         message: 'Consulta DataJud excedeu o tempo interno do índice.',
+        errorCode:'index_timeout',httpStatus:200,
         latency, attempts: attempt
       };
     }
@@ -420,6 +429,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
         movimentos: [],
         error: true,
         message: "Tribunal instável (shard).",
+        errorCode:'shard_failure',httpStatus:200,
         latency,
         attempts: attempt
       };
@@ -433,6 +443,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
         error: false,
         found: false,
         message: "Não localizado no índice DataJud.",
+        errorCode:'not_found',httpStatus:200,
         latency,
         attempts: attempt
       };
@@ -455,6 +466,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       poloAtivo: polos.ativo,
       poloPassivo: polos.passivo,
       error: false,
+      httpStatus:200,
       latency,
       attempts: attempt
     };
@@ -475,6 +487,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       movimentos: [],
       error: true,
       message: isTimeout ? "Tempo esgotado no tribunal." : "Falha técnica DataJud.",
+      errorCode:isTimeout?'timeout':'network_error',
       latency,
       attempts: attempt
     };

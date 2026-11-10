@@ -49,6 +49,9 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
      <span className="rounded-lg border border-white/20 px-2 py-1">DJEN: {item.djenOk?'consultado':'sem confirmação'}</span>
      <span className="rounded-lg border border-white/20 px-2 py-1">DataJud: {item.datajudOk?'consultado':'sem confirmação'}</span>
     </div>
+    {!item.datajudOk&&item.sourceErrors.datajud&&<p className="mt-2 rounded-lg border border-[#e4bed0]/20 bg-black/15 px-3 py-2 text-xs leading-relaxed text-[#f0d4e0]">
+     DataJud: {item.sourceErrors.datajud}
+    </p>}
     {(item.state==='partial'||item.state==='unavailable')&&<p className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-[#e9c4c6]">
      <ShieldAlert size={14} className="mt-0.5 shrink-0"/> Revisão incompleta: a ausência de resultado não comprova processo parado.
     </p>}
