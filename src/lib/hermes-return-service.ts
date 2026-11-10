@@ -1,6 +1,6 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
-import { fetchDataJud } from '@/lib/datajud';
+import { fetchDataJud, resolveDataJudAlias } from '@/lib/datajud';
 import { fetchDjenComunicacoes, resolveDjenPublicacaoLink } from '@/lib/djen';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { brazilToday, validReturnDay } from '@/lib/wa-daily-return-policy';
@@ -42,6 +42,51 @@ export async function loadHermesReviewCase(db: Awaited<ReturnType<typeof getSupa
   return (data || null) as ProcessRow | null;
 }
 
+/** DataJud is capacity limited independently of DJEN.
+ * Reservations use Postgres as a cross-instance circuit breaker, not process memory.
+ * The CNJ can return 429 due to an overloaded Elasticsearch queue.
+ */
+async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any>{
+ const alias=resolveDataJudAlias(cnj);
+ const db=await getSupabaseAdmin();
+ const {data:slots,error:reservationError}=await db.rpc('hermes_reserve_datajud_slot',{p_alias:alias});
+ if(reservationError) {
+  return {error:true,errorCode:'capacity_unavailable',message:'Controle de consultas DataJud indisponível; fonte ainda não confirmada.'};
+ }
+ const slot=(Array.isArray(slots)?slots[0]:slots) as {allowed?:boolean;retry_at?:string}|null;
+ if(!slot?.allowed){
+  const retry=slot?.retry_at?new Date(slot.retry_at):null;
+  const at=retry&&!Number.isNaN(retry.getTime())
+   ?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(retry)
+   :'próxima janela disponível';
+  return {error:true,errorCode:'cooldown',
+   message:`DataJud em pausa por sobrecarga da API oficial. Nova tentativa após ${at}.`};
+ }
+ let result:any;
+ try{
+  result=await fetchDataJud(cnj, 1, {
+   fast:true,cloudBudget:true,forceRefresh:manual,timeoutMs:manual?44_000:38_000,
+  });
+ }catch(error){
+  result={error:true,errorCode:'network_error',
+   message:'Consulta DataJud indisponível por falha de comunicação.'};
+ }
+ const outcome=result?.error!==true
+  ?(result?.found===true?'ok':'not_found')
+  :result?.httpStatus===429||result?.errorCode==='rate_limited'?'rate_limited'
+  :result?.errorCode==='timeout'?'timeout'
+  :result?.errorCode==='index_timeout'?'index_timeout'
+  :result?.httpStatus===401||result?.httpStatus===403?'auth_error'
+  :result?.httpStatus>=500||result?.errorCode==='shard_failure'?'server_error'
+  :'other_error';
+ const retryAfterSeconds=Number.isFinite(result?.retryAfterSeconds)?Math.max(0,Math.trunc(result.retryAfterSeconds)):null;
+ const {error:finishError}=await db.rpc('hermes_finish_datajud_slot',{
+  p_alias:alias,p_outcome:outcome,p_retry_after_seconds:retryAfterSeconds,
+ });
+ if(finishError) console.warn('[Hermes] Falha no registro do limite DataJud:',finishError.code||'unavailable');
+ return result;
+}
+
 /** Independent court verification: no WhatsApp queue and no changes to process or return dates. */
 type CourtSnapshotWithDiagnostic=HermesCourtSnapshot&{sourceErrors:Record<'djen'|'datajud',string|null>};
 async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual=false): Promise<CourtSnapshotWithDiagnostic> {
@@ -50,7 +95,7 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
     ? new Date(Date.parse(fromDay + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10)
     : new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const [dj, djen] = await Promise.allSettled([
-    fetchDataJud(cnj, 1, { fast: true, cloudBudget: true, forceRefresh: manual,timeoutMs: manual?44_000:38_000 }),
+    requestDataJudWithCapacity(cnj,manual),
     fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, hermesManual: manual, forceRefresh: manual }),
   ]);
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
