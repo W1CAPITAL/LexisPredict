@@ -260,3 +260,18 @@
 .h3d-page[data-low-power="true"] .h3d-agent-pawn,.h3d-page[data-low-power="true"] .h3d-robot-head,.h3d-page[data-low-power="true"] .h3d-robot-arm,.h3d-page[data-low-power="true"] .h3d-robot-leg{animation:none!important;filter:none!important}
 @media(prefers-reduced-motion:reduce){.h3d-page .h3d-agent-pawn,.h3d-page .h3d-robot-arm,.h3d-page .h3d-robot-leg,.h3d-page .h3d-robot-head{animation:none!important}}
 @media(max-width:767px){.h3d-boardroom{width:28%;left:36%;top:36%}.h3d-conference-chair{width:19px;height:13px}.h3d-room-division{height:5px}.h3d-reception{height:27px;font-size:7px}.h3d-meeting-monitor{font-size:5px}.h3d-lounge{opacity:.75}}
+
+/* Miniature council avatars. Their speech text is shown only from recorded data in the panel. */
+.h3d-meeting-bot{position:absolute;display:block;height:27px;width:23px;top:7%;left:14%;border-radius:8px 8px 5px 5px;border:2px solid #e9c8d8;background:linear-gradient(130deg,#d7b1c4,#77536c);box-shadow:0 5px 0 #402739,0 8px 7px #100a1680;transform:translateZ(22px)}
+.h3d-meeting-bot::before{content:'';position:absolute;left:5px;top:-7px;width:9px;height:6px;border-radius:50%;background:#eac5d8;box-shadow:0 0 7px #e7adc9}
+.h3d-meeting-bot i,.h3d-meeting-bot b{position:absolute;display:block;top:8px;width:5px;height:5px;border-radius:50%;background:#532740}
+.h3d-meeting-bot i{left:3px}.h3d-meeting-bot b{right:3px}
+.h3d-meeting-bot-2{left:auto;right:14%;top:6%;background:linear-gradient(130deg,#c9d0da,#62798a)}
+.h3d-meeting-bot-3{top:auto;bottom:7%;left:42%;background:linear-gradient(130deg,#f3d9b1,#8f705d)}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot{animation:h3d-conference-talk 2.4s ease-in-out infinite alternate}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot-2{animation-delay:.65s}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-bot-3{animation-delay:1.3s}
+.h3d-boardroom[data-meeting="true"] .h3d-meeting-monitor{box-shadow:0 0 14px #efc0d5}
+@keyframes h3d-conference-talk{from{transform:translate3d(0,0,22px) rotateZ(-6deg)}to{transform:translate3d(3px,-3px,22px) rotateZ(8deg)}}
+@media(prefers-reduced-motion:reduce){.h3d-meeting-bot{animation:none!important}}
+.h3d-page[data-low-power="true"] .h3d-meeting-bot{animation:none!important}
