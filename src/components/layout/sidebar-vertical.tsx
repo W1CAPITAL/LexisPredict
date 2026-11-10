@@ -66,6 +66,8 @@ const core: NavItem[] = [
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
   { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel },
   { label: "Superagente", href: "/chat", icon: Bot },
+  { label: "Escritório Hermes 3D", href: "/hermes-3d", icon: Bot, supervisor: true },
+  { label: "Projetos", href: "/projetos", icon: FolderOpen, supervisor: true },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
@@ -90,7 +92,6 @@ const extras: NavItem[] = [
   { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, supervisor: true },
   { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, supervisor: true },
   { label: "Estúdio de Agentes", href: "/estudio-agentes", icon: Bot, supervisor: true },
-  { label: "Hermes 3D", href: "/hermes-3d", icon: Bot, supervisor: true },
   { label: "Administração", href: "/superadmin", icon: Crown, superadmin: true },
 ];
 
@@ -180,7 +181,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
+      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/hermes-3d", "/projetos", "/consulta-oab", "/integracoes"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -208,6 +209,8 @@ export function SidebarVertical() {
       "/dossies": "Peça um dossiê por chat com PDF, planilha, processo, mensagens ou contexto.",
       "/agenda": "Veja prazos e compromissos.",
       "/report": "KPIs atualizados e PDF executivo da equipe.",
+      "/hermes-3d": "Escritório 3D com agentes, reuniões e dados operacionais reais.",
+      "/projetos": "Projetos conectados à operação e às automações Hermes.",
       "/minhas-atividades": "Registre atividades feitas por você e veja sua produtividade.",
       "/analises-internas": "Auditorias, dossiês e investigações por CNJ.",
       "/fases-provas": "Localize réplicas, provas e documentos.",
@@ -246,6 +249,8 @@ export function SidebarVertical() {
       "/chat",
       "/agenda",
       "/report",
+      "/hermes-3d",
+      "/projetos",
       "/settings",
     ];
 
@@ -320,7 +325,7 @@ export function SidebarVertical() {
         label: "Gestão do sistema",
         description: "Equipe, supervisão, auditoria e configurações.",
         icon: ShieldCheck,
-        hrefs: ["/team", "/supervisao", "/auditoria", "/settings", "/superadmin"],
+        hrefs: ["/team", "/supervisao", "/auditoria", "/hermes-3d", "/projetos", "/settings", "/superadmin"],
       },
     ];
 
