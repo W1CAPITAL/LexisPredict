@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {buildCalendarEventUrl,buildIcsFile,type CalendarEventInput,normalizeLawyerSearch,type AsaasPaymentSummary} from "@/lib/integracoes-suite";
 import {djenBuscaTexto} from "@/lib/djen-client";
+import {OfficialJudicialServices} from '@/components/integracoes/official-judicial-services';
 
 type StatusResponse={
   ok:boolean;
@@ -355,6 +356,8 @@ export default function IntegracoesPage(){
           </div>
         </section>
       </div>
+
+      <OfficialJudicialServices />
 
       <section className={box} id="busca-advogado" aria-label="Busca de processos por advogado">
         <div className="flex gap-3 items-start">
