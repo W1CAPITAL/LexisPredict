@@ -16,7 +16,7 @@ create table if not exists public.hermes_return_reviews (
   message_draft text,
   suggested_next_return date,
   source_snapshot jsonb not null default '{}'::jsonb,
-  unique (empresa_id, processo_id, due_on)
+  constraint hermes_return_reviews_scope_due_unique unique (empresa_id, processo_id, due_on)
 );
 create index if not exists hermes_return_reviews_tenant_queue
   on public.hermes_return_reviews (empresa_id, priority_score desc, checked_at desc);
@@ -53,7 +53,7 @@ as $$
   ), claimed as (
     insert into public.hermes_return_reviews (empresa_id, processo_id, due_on, state, attempted_at)
     select c.empresa_id, c.id, c.proximo_retorno, 'scanning', now() from candidate c
-    on conflict (empresa_id, processo_id, due_on)
+    on conflict on constraint hermes_return_reviews_scope_due_unique
     do update set state = 'scanning', attempted_at = now()
     where (hermes_return_reviews.state = 'unavailable' and hermes_return_reviews.attempted_at < now() - interval '4 hours')
        or (hermes_return_reviews.state = 'scanning' and hermes_return_reviews.attempted_at < now() - interval '15 minutes')
