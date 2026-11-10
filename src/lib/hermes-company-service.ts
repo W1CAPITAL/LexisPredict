@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/server-db';
 import { freeComplete } from '@/lib/ai/free-gateway';
 import { superAgentInstructions } from '@/lib/ai/lexis-superagent';
 import type {HermesOfficeEvent} from '@/lib/hermes-agent-route';
+import {normalizeHermesDiagnostics,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import {
   buildHermesOfficeIntelligence,makeHermesMeetingPrompt,
   sanitizeHermesMeetingOutput,describeHermesCaseHealth,
@@ -66,6 +67,17 @@ export function classifyHermesModelFailure(error:unknown):string{
  if(/vazio|empty|sem resposta|não produziu/i.test(reason))return 'resposta_vazia';
  if(/fetch failed|econn|network|dns|socket/i.test(reason))return 'erro_de_rede';
  return 'falha_do_provedor';
+}
+
+/** Latest server-calculated portfolio diagnosis, tenant-scoped and cost-bounded. */
+export async function getHermesPortfolioDiagnostics(empresaId:string):Promise<HermesPortfolioDiagnostics|null>{
+ const db=await getSupabaseAdmin();
+ const {data,error}=await db.from('hermes_portfolio_diagnostics')
+   .select('payload,day,generated_at').eq('empresa_id',empresaId)
+   .order('day',{ascending:false}).limit(1).maybeSingle();
+ if(error)throw Error('O relatório detalhado Hermes ainda não pode ser consultado.');
+ if(!data?.payload||typeof data.payload!=='object')return null;
+ return normalizeHermesDiagnostics(data.payload as HermesPortfolioDiagnostics);
 }
 
 export async function getHermesOfficeEvents(empresaId:string):Promise<HermesOfficeEvent[]>{
