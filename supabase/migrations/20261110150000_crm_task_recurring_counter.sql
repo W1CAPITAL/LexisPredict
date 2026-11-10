@@ -26,13 +26,16 @@ begin
   -- Interlock apenas entre o mesmo cliente/título da mesma empresa.
   if v_client is not null then
     perform pg_advisory_xact_lock(hashtextextended(p_empresa_id::text || ':' || v_client || ':' || lower(v_title), 0));
+    if not exists (select 1 from public.crm_negocios n where n.id = v_client and n.empresa_id = p_empresa_id) then
+      raise exception 'Negócio não localizado nesta empresa';
+    end if;
     select t.* into v_task from public.crm_tarefas t
     where t.empresa_id = p_empresa_id
       and t.negocio_id = v_client
       and t.feito = false
       and lower(btrim(regexp_replace(t.titulo, '\s+', ' ', 'g'))) = lower(v_title)
     order by t.created_at asc, t.id asc
-    limit 1 for update;
+    limit 1 FOR UPDATE;
     if found then
       update public.crm_tarefas t
       set titulo = v_title, due_at = p_due_at, assignee_id = p_assignee_id,
