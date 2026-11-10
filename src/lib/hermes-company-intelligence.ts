@@ -92,3 +92,23 @@ export function makeHermesMeetingPrompt(input:Partial<HermesOfficeMetrics>,day:s
 export function sanitizeHermesMeetingOutput(value:unknown):string{
  return String(value||'').replace(/[\u0000-\u001F]+/g,' ').replace(/\s+/g,' ').trim().slice(0,1400);
 }
+
+/** Saúde operacional individual: verificabilidade e urgência, NÃO prognóstico jurídico. */
+export type HermesCaseHealthInput={
+ processId:number;client:string;cnj:string;priorityScore:number;priorityLabel:string;
+ djenOk:boolean;datajudOk:boolean;checkedAt:string|null;dueOn:string|null;
+};
+export type HermesCaseHealth=HermesCaseHealthInput & {
+ level:'Sem fonte confirmada'|'Revisão urgente'|'Atenção'|'Acompanhamento';
+ sourceStatus:string;
+};
+export function describeHermesCaseHealth(raw:HermesCaseHealthInput):HermesCaseHealth{
+ const level:HermesCaseHealth['level']=!raw.djenOk&&!raw.datajudOk
+   ?'Sem fonte confirmada'
+   :raw.priorityScore>=90?'Revisão urgente':raw.priorityScore>=75?'Atenção':'Acompanhamento';
+ const sources:string[]=[];
+ if(!raw.djenOk)sources.push('DJEN sem confirmação');
+ if(!raw.datajudOk)sources.push('DataJud sem confirmação');
+ if(!sources.length)sources.push('DJEN e DataJud com consulta confirmada');
+ return {...raw,level,sourceStatus:sources.join(' · ')};
+}
