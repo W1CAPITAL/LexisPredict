@@ -120,13 +120,15 @@ begin
     from scored
   ), open_tasks as (
     select t.*,
-      coalesce(nullif(u.nome,''),nullif(t.assignee_id,''),'Não atribuído') as assigned_name
+      coalesce(nullif(u.nome,''),case when nullif(btrim(t.assignee_id),'') is not null then 'Responsável sem vínculo no cadastro' end,'Não atribuído') as assigned_name
     from public.crm_tarefas t left join public.usuarios u
       on u.empresa_id=t.empresa_id and u.auth_user_id::text=t.assignee_id
     where t.empresa_id=v_company
   ), tasks as (
     select count(*) filter(where not feito)::int open_count,
-      count(*) filter(where not feito and due_at<p_day)::int overdue_count
+      count(*) filter(where not feito and due_at<p_day)::int overdue_count,
+      count(*) filter(where not feito and assigned_name='Responsável sem vínculo no cadastro')::int unmatched_count,
+      count(*) filter(where not feito and due_at<p_day and assigned_name='Responsável sem vínculo no cadastro')::int unmatched_overdue
     from open_tasks
   ), work as (
     select count(*)::int completed,
@@ -207,7 +209,7 @@ begin
       order by due_at asc nulls last,created_at desc limit 30
     ) x
   ), totals as (
-    select m.*,t.open_count,t.overdue_count,w.completed,w.confirmed,
+    select m.*,t.open_count,t.overdue_count,t.unmatched_count,t.unmatched_overdue,w.completed,w.confirmed,
       o.total closed_with_open_task
     from metrics m cross join tasks t cross join work w cross join outstanding_closed o
   )
@@ -219,6 +221,7 @@ begin
      'averageHealth',a.average_health,'sourceErrors',a.source_errors,
      'closedWithOpenTask',a.closed_with_open_task,
      'openCrmTasks',a.open_count,'overdueCrmTasks',a.overdue_count,
+     'unmatchedAssigneeTasks',a.unmatched_count,'unmatchedOverdueTasks',a.unmatched_overdue,
      'completedHumanTasks30d',a.completed,'contactsConfirmed30d',a.confirmed,
      'unconfirmedOutcomes',a.indeterminado,
      'merits',jsonb_build_object('improcedenteIndicada',a.improcedente_indicada,
@@ -246,6 +249,12 @@ begin
          'sector','Cadastros','title','Responsáveis incompletos',
          'reason',a.missing_lawyer::text||' sem advogado e '||a.missing_office::text||' sem escritório.',
          'action','Conferir documentos e vincular responsáveis corretos, sem inventar nomes.','automated',false),
+       jsonb_build_object('priority',case when a.unmatched_count>0 then 'Alta' else 'Rotina' end,
+         'sector','Equipe','title','Vinculação de responsáveis',
+         'reason',a.unmatched_count::text||' tarefas abertas sem correspondência com a tabela atual da equipe; '||
+           a.unmatched_overdue::text||' vencidas.',
+         'action','Conferir IDs e vincular aos colaboradores reais, preservando histórico e sem atribuir automaticamente.',
+         'automated',false),
        jsonb_build_object('priority',case when a.overdue_count>0 then 'Alta' else 'Rotina' end,
          'sector','Equipe','title','Tarefas da fila',
          'reason',a.overdue_count::text||' tarefas CRM abertas com data vencida.',
