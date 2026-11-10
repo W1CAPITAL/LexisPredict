@@ -20,7 +20,7 @@ export async function getHermesReturnReviewAction(processId: number) {
     const row = await loadHermesReviewCase(db, empresaId, processId);
     if (!row) return { ok: false as const, error: 'Processo não localizado nesta empresa.' };
     const { data, error } = await db.from('hermes_return_reviews')
-      .select('id,processo_id,due_on,state,attempted_at,checked_at,djen_ok,datajud_ok,priority_score,priority_label,highlights,message_draft,suggested_next_return')
+      .select('id,processo_id,due_on,state,attempted_at,checked_at,djen_ok,datajud_ok,priority_score,priority_label,highlights,message_draft,suggested_next_return,source_snapshot')
       .eq('empresa_id', empresaId).eq('processo_id', processId)
       .order('due_on', { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error('A revisão judicial está indisponível.');
@@ -37,13 +37,13 @@ export async function refreshHermesReturnReviewAction(processId: number) {
     const row = await loadHermesReviewCase(db, empresaId, processId);
     if (!row) throw new Error('Processo não localizado nesta empresa.');
     const { data: recent } = await db.from('hermes_return_reviews')
-      .select('checked_at,state')
+      .select('checked_at,state,djen_ok,datajud_ok')
       .eq('empresa_id', empresaId).eq('processo_id', processId)
       .order('attempted_at', { ascending: false }).limit(1).maybeSingle();
-    if (recent?.checked_at && Date.now() - Date.parse(recent.checked_at) < 15 * 60 * 1000) {
+    if (recent?.checked_at && Date.now() - Date.parse(recent.checked_at) < (recent.djen_ok === true && recent.datajud_ok === true ? 15 : 2) * 60 * 1000) {
       return { ok: true as const, reused: true };
     }
-    const result = await reviewHermesCase({ empresaId, processId });
+    const result = await reviewHermesCase({ empresaId, processId, mode: 'manual' });
     return result.ok ? { ok: true as const, reused: false } : { ok: false as const, error: 'Não foi possível revisar este processo.' };
   } catch (e) { return { ok: false as const, error: e instanceof Error ? e.message : 'Falha na consulta.' }; }
 }
