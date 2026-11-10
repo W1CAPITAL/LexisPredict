@@ -121,3 +121,67 @@ export async function atualizarIndiceAudienciasLote(limit=120){
   if(progressResult.error)throw new Error('Falha ao salvar progresso de monitoramento');
   return {ok:true,inspecionados:rows.length,registros:latest.size,ultimoId:last};
 }
+
+/**
+ * Checagem oficial incremental de audiências próximas e designações sem data.
+ * Executada pelo cron diário já existente, sem envio de mensagens.
+ * Uma tentativa por execução; sucesso parcial preserva a fonte que respondeu.
+ */
+export async function verificarUmaAudienciaAgendada() {
+  const db=await getSupabaseAdmin();
+  const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'})
+    .format(new Date()).split('/').reverse().join('-');
+  const dateISO = /^\d{4}-\d{2}-\d{2}$/.test(hoje) ? hoje : new Date().toISOString().slice(0,10);
+  const {data:list,error}=await db.from('audiencias_monitoradas')
+    .select('empresa_id,processo_id,protocolo_ref')
+    .neq('situacao','cancelada')
+    .or('data_evento.gte.'+dateISO+',data_fim.gte.'+dateISO+',situacao.eq.data_pendente')
+    .order('ultima_tentativa_em',{ascending:true,nullsFirst:true})
+    .limit(1);
+  if(error)throw new Error('Fila judicial temporariamente indisponível');
+  if(!list?.length)return {ok:true,attempted:0,source:'none'};
+  const row=list[0];
+  const cnj=String(row.protocolo_ref||'').replace(/\D/g,'');
+  if(cnj.length!==20)return {ok:false,attempted:0,source:'invalid_cnj'};
+  const attemptAt=new Date().toISOString();
+  const attempt=await db.from('audiencias_monitoradas')
+    .update({ultima_tentativa_em:attemptAt}).eq('empresa_id',row.empresa_id).eq('processo_id',row.processo_id);
+  if(attempt.error)throw new Error('Não foi possível registrar a tentativa oficial');
+  const [{fetchDjenComunicacoes,resolveDjenPublicacaoLink},{fetchDataJud}]=await Promise.all([
+    import('@/lib/djen'),import('@/lib/datajud'),
+  ]);
+  const since=new Date(Date.now()-120*86400000).toISOString().slice(0,10);
+  const [dj,djen]=await Promise.allSettled([
+    fetchDataJud(cnj,1,{fast:true,cloudBudget:true,timeoutMs:6500}),
+    fetchDjenComunicacoes(cnj,{dataInicio:since,cloudBudget:true}),
+  ]);
+  const datajud=dj.status==='fulfilled'?dj.value:null;
+  const diario=djen.status==='fulfilled'?djen.value:null;
+  const datajudOk=!!datajud&&datajud.error===false&&datajud.found===true;
+  const djenOk=!!diario&&diario.success===true;
+  const fontes:Fonte[]=[
+    ...(djenOk? (diario?.items||[]).filter(item=>String(item.numero_processo||'').replace(/\D/g,'')===cnj)
+      .map(item=>({source:'DJEN' as const,text:String(item.texto||''),
+        url:resolveDjenPublicacaoLink(item,cnj),publishedAt:item.data_disponibilizacao})) : []),
+    ...(datajudOk ? (datajud?.movimentos||[]).map((item:any)=>({
+      source:'DataJud' as const,text:String(item?.nome||item?.descricao||''),
+      publishedAt:String(item?.dataHora||item?.dataMovimento||''),
+    })) : []),
+  ];
+  let index=0;
+  if(fontes.length){
+    const result=await atualizarAudienciasDeConsulta({
+      empresaId:String(row.empresa_id),processoId:Number(row.processo_id),fontes,
+    });
+    if(result.ok)index=result.total;
+  }
+  if(djenOk||datajudOk){
+    const stamp=await db.from('audiencias_monitoradas')
+      .update({ultima_consulta_oficial_em:new Date().toISOString()})
+      .eq('empresa_id',row.empresa_id).eq('processo_id',row.processo_id);
+    if(stamp.error)console.warn('[audiencias] Falha ao gravar horário de consulta',stamp.error.code);
+  }
+  return {ok:true,attempted:1,processId:row.processo_id,
+    djenOk,datajudOk,records:index,
+    source:djenOk&&datajudOk?'both':djenOk?'djen':datajudOk?'datajud':'unavailable'};
+}
