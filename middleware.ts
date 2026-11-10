@@ -16,7 +16,7 @@ const ROLE_WEIGHT: Record<string, number> = {
 }
 
 const SUPERVISOR_ONLY = ['/supervisao', '/auditoria', '/team', '/report/completo']
-const MANAGEMENT_ONLY = ['/projetos']
+const MANAGEMENT_ONLY = ['/projetos', '/hermes-3d']
 const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 
 const PUBLIC_API = [

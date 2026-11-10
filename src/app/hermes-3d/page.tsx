@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { HermesCaseHealth } from "@/lib/hermes-company-intelligence";
-import type { HermesOfficeIntelligence } from "@/lib/hermes-company-intelligence";
+import {parseHermesMeetingTranscript,type HermesOfficeIntelligence} from "@/lib/hermes-company-intelligence";
 import type { HermesOfficeDailyRow } from "@/lib/hermes-company-service";
 import Link from "next/link";
 import {
@@ -11,6 +11,9 @@ import {
   ShieldCheck, Sparkles
 } from "lucide-react";
 import { getHermesOfficeStations } from "@/lib/hermes-office";
+import {hermesOfficeEventClock,type HermesOfficeEvent} from "@/lib/hermes-agent-route";
+import {HermesRoamingRobots} from "@/components/hermes/hermes-roaming-robots";
+import {HermesActivityLog} from "@/components/hermes/hermes-activity-log";
 import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import { HermesCompanyPanel } from "@/components/hermes/hermes-company-panel";
 import "./hermes-office.css";
@@ -27,6 +30,9 @@ export default function Hermes3DLexisPage() {
   const [office, setOffice] = useState<HermesOfficeIntelligence|null>(null);
   const [officeRecord, setOfficeRecord] = useState<HermesOfficeDailyRow|null>(null);
   const [officeCases,setOfficeCases] = useState<HermesCaseHealth[]>([]);
+  const [officeEvents,setOfficeEvents] = useState<HermesOfficeEvent[]>([]);
+  const [replayMeeting,setReplayMeeting] = useState(false);
+  const [meetingTurn,setMeetingTurn] = useState(0);
   const [officeError, setOfficeError] = useState("");
   const [meetingBusy,setMeetingBusy]=useState(false);
 
@@ -35,7 +41,7 @@ export default function Hermes3DLexisPage() {
       const res = await fetch('/api/hermes-office',{cache:'no-store',credentials:'same-origin',signal});
       const data = await res.json();
       if(!res.ok||!data.ok)throw Error(data.error||'Não foi possível atualizar o escritório.');
-      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setOfficeError("");}
+      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setOfficeEvents(Array.isArray(data.events)?data.events:[]);setOfficeError("");}
     }catch(e){
       if(!signal?.aborted)setOfficeError(e instanceof Error?e.message:'Acesso temporariamente indisponível.');
     }
@@ -64,11 +70,24 @@ export default function Hermes3DLexisPage() {
     void refreshOffice(controller.signal);
     const handle=window.setInterval(()=>{
       if(!document.hidden)void refreshOffice(controller.signal);
-    },180000);
+    },45000);
     return()=>{controller.abort();window.clearInterval(handle);};
   },[]);
   const selected = stations.find((station) => station.id === selectedId) || stations[0];
   const selectedDepartment=office?.departments.find(d=>d.id===selected?.id);
+  const latestStationEvent=officeEvents.find(e=>e.sector===selected?.id);
+  useEffect(()=>{
+    if(!replayMeeting)return;
+    const id=window.setInterval(()=>setMeetingTurn(n=>n+1),4800);
+    return()=>window.clearInterval(id);
+  },[replayMeeting]);
+  const meetingLines=officeRecord?.meeting_status==='ready'&&officeRecord.meeting_note
+    ?parseHermesMeetingTranscript(officeRecord.meeting_note)
+    :(office?.meeting||[]);
+  useEffect(()=>{
+    if(replayMeeting&&meetingTurn>=meetingLines.length){setReplayMeeting(false);setMeetingTurn(0);}
+  },[replayMeeting,meetingTurn,meetingLines.length]);
+  const canReplay=meetingLines.length>0&&!!officeRecord?.meeting_note;
   const displayStyle = {
     "--h3d-rotation": `${rotation}deg`,
     "--h3d-zoom": zoom,
@@ -89,6 +108,10 @@ export default function Hermes3DLexisPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <a href="#hermes-activity-log" className="h3d-button" title="Ver o histórico real dos agentes">
+              <Bot className="h-4 w-4"/> Diário de execução
+            </a>
+            <Link href="/projetos" className="h3d-button h3d-button-muted">Entender os projetos</Link>
             <Link href="/estudio-agentes" className="h3d-button">
               <Bot className="h-4 w-4" /> Estúdio de Agentes
             </Link>
@@ -104,11 +127,12 @@ export default function Hermes3DLexisPage() {
               <div className="flex items-center gap-2">
                 <span className="h3d-status-dot" aria-hidden="true" />
                 <span className="text-xs font-bold uppercase tracking-[.12em] text-[#e9dbe2]">Miniempresa Hermes · oito setores</span>
-                <span className="rounded-full border border-[#b48a9c]/40 px-2 py-0.5 text-[10px] text-[#d4bac4]">Robôs animados · indicadores verificados no servidor</span>
+                <span className="rounded-full border border-[#b48a9c]/40 px-2 py-0.5 text-[10px] text-[#d4bac4]">Rondas ilustrativas · tarefas auditadas no log</span>
               </div>
               <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/25 p-1" role="group" aria-label="Modo de visualização">
                 <button type="button" className="h3d-toggle" aria-pressed={view === "3d"} onClick={() => setView("3d")}><Boxes size={15} /> 3D</button>
                 <button type="button" className="h3d-toggle" aria-pressed={view === "2d"} onClick={() => setView("2d")}><Grid2X2 size={15} /> 2D</button>
+                <button type="button" className="h3d-toggle" aria-pressed={replayMeeting} disabled={!canReplay} onClick={()=>{setMeetingTurn(0);setReplayMeeting(x=>!x)}} title="Reconstituição visual de uma reunião já registrada; não cria nova reunião com IA">Reproduzir reunião</button>
                 <button type="button" className="h3d-toggle" aria-pressed={lowPower} onClick={()=>setLowPower(x=>!x)} aria-label="Modo econômico">Eco {lowPower?'ligado':'desligado'}</button>
               </div>
             </div>
@@ -157,29 +181,16 @@ export default function Hermes3DLexisPage() {
                         } as CSSProperties}
                       >
                         <span className="h3d-desk-top"><span className="h3d-terminal"><span /><span /><span /></span></span>
-                        <span className="h3d-agent-pawn" aria-hidden="true">
-                          <span className="h3d-robot-antenna" />
-                          <span className="h3d-robot-head">
-                            <span className="h3d-robot-face h3d-robot-front"><i/><i/><b/></span>
-                            <span className="h3d-robot-face h3d-robot-back" />
-                            <span className="h3d-robot-face h3d-robot-left" />
-                            <span className="h3d-robot-face h3d-robot-right" />
-                            <span className="h3d-robot-face h3d-robot-top" />
-                            <span className="h3d-robot-face h3d-robot-bottom" />
-                          </span>
-                          <span className="h3d-robot-body"><i/></span>
-                          <span className="h3d-robot-arm h3d-robot-arm-left"/>
-                          <span className="h3d-robot-arm h3d-robot-arm-right"/>
-                          <span className="h3d-robot-leg h3d-robot-leg-left"/>
-                          <span className="h3d-robot-leg h3d-robot-leg-right"/>
-                        </span>
                         <span className="h3d-desk-number">{station.glyph}</span>
+                        <span className="h3d-desk-label">{station.title.split(' ').slice(0,2).join(' ')}</span>
                       </button>
                     ))}
+                    <HermesRoamingRobots stations={stations} events={officeEvents} meetingReplay={replayMeeting}
+                       eco={lowPower} select={setSelectedId}/>
                   </div>
                 </div>
                 <div className="h3d-scene-caption pointer-events-none absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
-                  <span><Sparkles size={14} /> Selecione uma mesa para explorar o setor</span>
+                  <span><Sparkles size={14} /> Selecione um robô ou uma mesa. Movimento visual; as tarefas reais aparecem no histórico.</span>
                   <span>8 setores · robôs visuais em CSS 3D · IA no servidor</span>
                 </div>
               </div>
@@ -226,6 +237,14 @@ export default function Hermes3DLexisPage() {
                 <p className="mt-8 text-xs font-bold tracking-[.15em] text-[#ce99ad]">ESTAÇÃO {selected.glyph} · LEXIS OFFICE</p>
                 <h2 className="mt-2 text-2xl font-extrabold leading-tight">{selected.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-[#d4c4cd]">{selected.description}</p>
+                <p className="mt-2 text-xs leading-5 text-[#e7b8cc]">Projeto/setor: {selected.title}. Acesse a ferramenta abaixo para consultar a atividade concreta.</p>
+                {latestStationEvent?<div className="mt-4 rounded-xl border border-[#c99eae]/40 bg-[#562c49]/30 p-3 text-xs text-[#f4dce8]">
+                  <p className="font-bold">Última tarefa confirmada</p>
+                  <p className="mt-1 font-semibold">{latestStationEvent.title}</p>
+                  <p className="mt-1 text-[#d8c4cf]">{latestStationEvent.detail||'Sem informações adicionais.'}</p>
+                  <p className="mt-1 text-[11px]">{hermesOfficeEventClock(latestStationEvent.recorded_at)} · {latestStationEvent.status==='working'?'Iniciada':latestStationEvent.status==='warning'?'Requer atenção':'Concluída'}</p>
+                  <a href="#hermes-activity-log" className="mt-2 inline-block font-bold underline">Ver o diário de execução</a>
+                </div>:<p className="mt-4 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-[#d8c4cf]">Nenhuma atividade recente confirmada neste setor. O robô apenas percorre visualmente o escritório.</p>}
                 <div className="my-6 h-px bg-white/10" />
                 <p className="text-xs font-bold uppercase tracking-wider text-[#c9a6b5]">Especialista recomendado</p>
                 <p className="mt-2 text-base font-semibold">{selected.specialist}</p>
@@ -249,7 +268,14 @@ export default function Hermes3DLexisPage() {
           </aside>
         </section>
 
-        <HermesCompanyPanel office={office} record={officeRecord} cases={officeCases} busy={meetingBusy} error={officeError} onRefresh={()=>void refreshOffice()} onMeeting={()=>void requestMeeting()}/>
+        {replayMeeting&&meetingLines.length>0&&<section role="status" aria-live="polite" className="rounded-2xl border border-[#c99fb1]/40 bg-[#352032] p-4 text-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#e5b8ca]">Reprodução da reunião registrada · {Math.min(meetingTurn+1,meetingLines.length)} de {meetingLines.length}</p>
+          <p className="mt-2 font-black">{meetingLines[Math.min(meetingTurn,meetingLines.length-1)].speaker}</p>
+          <p className="mt-1 leading-6">{meetingLines[Math.min(meetingTurn,meetingLines.length-1)].text}</p>
+          <p className="mt-2 text-xs text-[#cbb8c4]">Esta é uma reprodução dos achados salvos; não significa que a IA esteja processando agora.</p>
+        </section>}
+        <HermesActivityLog events={officeEvents} selectedSector={selectedId} onSelect={setSelectedId}/>
+        <HermesCompanyPanel office={office} record={officeRecord} cases={officeCases} busy={meetingBusy} error={officeError} onRefresh={()=>void refreshOffice()} onMeeting={()=>void requestMeeting()} onReplayMeeting={()=>{setMeetingTurn(0);setReplayMeeting(x=>!x)}}/>
         <div>
           <HermesPriorityQueue/>
         </div>

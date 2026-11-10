@@ -18,7 +18,7 @@ describe('Hermes Cron / Projects no extra serverless functions',()=>{
   expect(page).toContain('Projetos e automações da operação');
   expect(page).not.toContain("getUserContext");
   expect(page).not.toMatch(/dynamic\s*=\s*['"]force-dynamic/);
-  expect(middleware).toContain("const MANAGEMENT_ONLY = ['/projetos']");
+  expect(middleware).toContain("const MANAGEMENT_ONLY = ['/projetos', '/hermes-3d']");
   expect(middleware).toContain('ROLE_WEIGHT.Administrador');
   expect(middleware).toContain('managementPath');
  });

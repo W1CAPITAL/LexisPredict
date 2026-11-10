@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { runHermesDueReviewBatch } from '@/lib/hermes-return-service';
 import {
-  getHermesCompanyDaily, getHermesCaseHealth, runHermesCompanyMeeting, todayHermesBrazil,
+  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
@@ -33,14 +33,16 @@ async function getOfficePanel() {
     { ok: false, error: 'Acesso restrito à supervisão.' }, { status: 403, headers: privateHeaders },
   );
   try {
-    const [record, cases] = await Promise.all([
+    const [record, cases, events] = await Promise.all([
       getHermesCompanyDaily(String(ctx.empresa_id)),
       getHermesCaseHealth(String(ctx.empresa_id)),
+      getHermesOfficeEvents(String(ctx.empresa_id)),
     ]);
     return NextResponse.json({
       ok: true,
       record,
       cases,
+      events,
       intelligence: record ? buildHermesOfficeIntelligence(record.metrics, record.day) : null,
     }, { headers: privateHeaders });
   } catch {
@@ -60,7 +62,7 @@ async function postOfficeMeeting() {
       ok: false, error: 'O resumo do dia ainda não está disponível na base de dados.',
     }, { status: 409, headers: privateHeaders });
     const result = await runHermesCompanyMeeting(String(ctx.empresa_id), row.day);
-    return NextResponse.json(result, { headers: privateHeaders });
+    return NextResponse.json(result, { status: result.ok?200:409, headers: privateHeaders });
   } catch {
     return NextResponse.json({
       ok: false, error: 'Reunião indisponível. Os dados existentes permanecem preservados.',

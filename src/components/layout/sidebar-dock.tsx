@@ -72,7 +72,7 @@ export function SidebarDock() {
     try { router.prefetch(href); } catch { routePrefetchAt.current.delete(href); }
   };
   const { profile, signOut } = useAuth();
-  const { role, isSupervisor, isSuperAdmin, canScan, canSeeCompany } = useAdmin();
+  const { role, isSupervisor, isAdmin, isSuperAdmin, canScan, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
   const { status, toggleMinimize } = useDataJudScanStore();
   const [open, setOpen] = useState(false);
@@ -92,13 +92,17 @@ export function SidebarDock() {
     // label: string — admin/superadmin labels are not in the `more` const union
     const items: { label: string; href: string; icon: React.ComponentType<{ className?: string; size?: number | string }> }[] =
       more.map(([label, href, icon]) => ({ label, href, icon }));
+    if (isAdmin) {
+      items.push(
+        { label: "Hermes · Escritório 3D", href: "/hermes-3d", icon: Bot },
+        { label: "Projetos", href: "/projetos", icon: FolderOpen },
+      );
+    }
     if (isSupervisor) {
       items.push(
         { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
         { label: "Equipe", href: "/team", icon: Users },
         { label: "Auditoria", href: "/auditoria", icon: ShieldCheck },
-        { label: "Escritório Hermes 3D", href: "/hermes-3d", icon: Bot },
-        { label: "Projetos", href: "/projetos", icon: FolderOpen },
       );
     }
     if (isSuperAdmin) {
@@ -113,7 +117,7 @@ export function SidebarDock() {
         (role !== "Operador" || operatorRouteAllowed(item.href)) &&
         (!q || matchesAppRouteSearch(q,item.label,item.href)),
     );
-  }, [role, isSupervisor, isSuperAdmin, plan, query]);
+  }, [role, isAdmin, isSupervisor, isSuperAdmin, plan, query]);
 
   const main = filterNavByPlan(
     primary.map(([label, href, icon]) => ({
@@ -177,6 +181,7 @@ export function SidebarDock() {
             );
           })}
         </nav>
+        {isAdmin&&<Link href="/hermes-3d" data-lexis-hermes-shortcut aria-label="Abrir escritório Hermes 3D" className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-[#e4b5c9]/50 bg-[#71314e] px-3 text-xs font-extrabold text-white hover:bg-[#8c4564]"><Bot size={16}/> Hermes</Link>}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <button className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-[#d4e4f5] hover:bg-white/10 hover:text-white">

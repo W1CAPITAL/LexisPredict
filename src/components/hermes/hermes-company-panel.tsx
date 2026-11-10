@@ -9,12 +9,12 @@ import {
 import type { HermesCaseHealth,HermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
 
-export function HermesCompanyPanel({office,record,cases,busy,error,onRefresh,onMeeting}:{
+export function HermesCompanyPanel({office,record,cases,busy,error,onRefresh,onMeeting,onReplayMeeting}:{
   office:HermesOfficeIntelligence|null;
   record:HermesOfficeDailyRow|null;
   cases:HermesCaseHealth[];
   busy:boolean;error:string;
-  onRefresh:()=>void;onMeeting:()=>void;
+  onRefresh:()=>void;onMeeting:()=>void;onReplayMeeting:()=>void;
 }){
  return <section className="h3d-company-panel space-y-4" id="hermes-empresa" aria-label="Operação Hermes e conselho de IA">
   <header className="flex flex-wrap items-center justify-between gap-3">
@@ -49,9 +49,14 @@ export function HermesCompanyPanel({office,record,cases,busy,error,onRefresh,onM
           <div><h3 className="flex items-center gap-2 text-base font-black"><Users className="text-[#eabccc]" size={18}/> Sala de reuniões</h3>
             <p className="mt-1 text-xs text-[#d2bfd0]">Pauta produzida a partir dos registros em {record.day.split('-').reverse().join('/')}. Última atualização: {new Date(record.updated_at).toLocaleString('pt-BR')}.</p>
           </div>
-          <button type="button" onClick={onMeeting} disabled={busy||record.meeting_status!=='pending'} className="h3d-button">
-            <BrainCircuit size={15}/> {record.meeting_status==='pending'?'Gerar reunião com Superagente':record.meeting_status==='running'?'Reunião em execução':'Reunião registrada'}
+          <button type="button" onClick={onMeeting} disabled={busy||!(['pending','unavailable'].includes(record.meeting_status)&&Number(record.meeting_attempts||0)<3)} className="h3d-button">
+            <BrainCircuit size={15}/> {busy?'Executando reunião…':
+              record.meeting_status==='pending'?'Gerar reunião com Superagente':
+              record.meeting_status==='unavailable'&&Number(record.meeting_attempts||0)<3?'Tentar reunião novamente':
+              record.meeting_status==='unavailable'?'Limite de tentativas atingido':
+              record.meeting_status==='running'?'Reunião em execução':'Reunião registrada'}
           </button>
+          {record.meeting_note&&<button type="button" onClick={onReplayMeeting} className="h3d-button h3d-button-muted">Reproduzir ata</button>}
         </div>
         <div className="mt-4 space-y-2">
           {office.meeting.map((m,i)=><div key={i} className="h3d-meeting-line">
@@ -62,9 +67,21 @@ export function HermesCompanyPanel({office,record,cases,busy,error,onRefresh,onM
         {record.meeting_note&&<div className="mt-3 rounded-xl border border-[#cda9bc]/30 bg-[#77425e]/25 p-4 text-xs leading-6 text-[#fff3f8]">
           <p className="mb-1 font-bold">Síntese da reunião · {record.meeting_engine==='regras-verificadas'?'regras determinísticas':'IA do Superagente'}</p>
           <p>{record.meeting_note}</p>
-          {record.meeting_status==='unavailable'&&<p className="mt-2 text-amber-200">O modelo não respondeu nesta execução. Foi preservada a síntese baseada nas regras e métricas.</p>}
+          {record.meeting_status==='unavailable'&&<div className="mt-2 text-amber-100">
+            <p><strong>O modelo não concluiu a reunião.</strong> Este texto foi produzido por regras, não por uma conversa entre modelos.</p>
+            <p className="mt-1">Diagnóstico: {({
+              tempo_esgotado:'tempo de resposta esgotado',
+              limite_do_provedor:'limite de requisições do provedor',
+              autenticacao_provedor:'autenticação do provedor recusada',
+              motor_indisponivel:'motor não disponível',
+              resposta_vazia:'modelo retornou resposta vazia',
+              erro_de_rede:'falha de conexão',
+              falha_do_provedor:'falha geral do provedor',
+            } as Record<string,string>)[record.meeting_error_code||'']||'falha anterior sem motivo registrado'}.</p>
+            <p className="mt-1">Tentativas hoje: {record.meeting_attempts||0} de 3. É possível tentar novamente após dois minutos, sem instalar IA no seu computador.</p>
+          </div>}
         </div>}
-        <p className="mt-3 text-[11px] text-[#c9b8c3]">Nenhuma reunião alterou processos, enviou mensagens ou tomou ciência judicial.</p>
+        <p className="mt-3 text-[11px] text-[#c9b8c3]">As falas por setor são uma pauta gerada dos indicadores; somente uma resposta do modelo registrada como concluída representa a síntese da IA. O diário de atividades mostra cada etapa gravada no servidor. Nenhuma reunião envia mensagens ou toma ciência judicial.</p>
       </article>
       <article className="h3d-panel-card p-5">
         <h3 className="flex items-center gap-2 text-base font-black"><AlertTriangle size={18} className="text-[#e4b6c5]"/> Maiores gargalos verificados</h3>
