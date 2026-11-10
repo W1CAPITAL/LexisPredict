@@ -81,13 +81,12 @@ export default function Hermes3DLexisPage() {
     const id=window.setInterval(()=>setMeetingTurn(n=>n+1),4800);
     return()=>window.clearInterval(id);
   },[replayMeeting]);
+  const meetingLines=officeRecord?.meeting_status==='ready'&&officeRecord.meeting_note
+    ?parseHermesMeetingTranscript(officeRecord.meeting_note)
+    :(office?.meeting||[]);
   useEffect(()=>{
-    if(replayMeeting&&meetingTurn>=5){setReplayMeeting(false);setMeetingTurn(0);}
-  },[replayMeeting,meetingTurn]);
-  const meetingLines=[
-    ...(office?.meeting||[]),
-    ...(officeRecord?.meeting_note?[{speaker:officeRecord.meeting_status==='ready'?'Síntese da IA':'Ata por regras',text:officeRecord.meeting_note}]:[]),
-  ];
+    if(replayMeeting&&meetingTurn>=meetingLines.length){setReplayMeeting(false);setMeetingTurn(0);}
+  },[replayMeeting,meetingTurn,meetingLines.length]);
   const canReplay=meetingLines.length>0&&!!officeRecord?.meeting_note;
   const displayStyle = {
     "--h3d-rotation": `${rotation}deg`,
