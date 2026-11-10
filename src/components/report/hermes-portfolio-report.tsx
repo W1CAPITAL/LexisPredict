@@ -70,7 +70,7 @@ export function HermesPortfolioReport({data,compact=false}:{
      <div className="grid grid-cols-2 gap-2">
       <Numeric title="Sem advogado identificado" value={d.missingLawyer}/>
       <Numeric title="Sem escritório identificado" value={d.missingOffice}/>
-      <Numeric title="Atividades humanas (30 dias)" value={d.completedHumanTasks30d}/>
+      <Numeric title="Atividades cadastradas (30 dias)" value={d.completedHumanTasks30d}/>
       <Numeric title="Contatos confirmados (30 dias)" value={d.contactsConfirmed30d}/>
       <Numeric title="Tarefas sem vínculo na equipe" value={d.unmatchedAssigneeTasks||0} note="IDs sem correspondência com usuários atuais"/>
       <Numeric title="Vencidas sem vínculo" value={d.unmatchedOverdueTasks||0} note="Conferir sem reatribuir automaticamente"/>
@@ -95,7 +95,7 @@ export function HermesPortfolioReport({data,compact=false}:{
     </div>
    </Section>
    <Section title={'Produtividade individual e da equipe · '+fmt(d.byUser.length)+' colaboradores'}
-    detail="Tarefas e contatos registrados em 30 dias. Volume não mede qualidade nem horas efetivas trabalhadas.">
+    detail="Registros de 30 dias podem incluir importações e rotinas automáticas. Contatos confirmados são contabilizados separadamente; quantidade não mede horas ou desempenho.">
     <div className="overflow-auto rounded-lg border border-border">
      <table className="w-full border-collapse text-left text-xs"><thead><tr>{['Colaborador / cargo','Registros 30d','Contatos confirmados','Processos distintos','Tarefas abertas / vencidas'].map(x=><th className={th} key={x}>{x}</th>)}</tr></thead>
       <tbody>{d.byUser.map((x,i)=><tr key={i}><td className={td}><strong>{x.name}</strong><span className="block text-[11px] text-muted-foreground">{x.role}</span></td><td className={td}>{x.done30d}</td><td className={td}>{x.contacts30d}</td><td className={td}>{x.distinctCases}</td><td className={td}>{x.openTasks} / {x.overdueTasks}</td></tr>)}</tbody></table>
