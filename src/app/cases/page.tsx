@@ -22,6 +22,7 @@ import {LegalCase, processarCaso, formatDateToISO, extrairTribunal} from '@/lib/
 import { filterCases, sortCasesByPrazo, listAdvogados, type SortPrazoMode } from '@/lib/case-filters';
 import { CaseBadges } from '@/components/cases/case-badges'
 import { CaseGlassList } from '@/components/cases/case-glass-list';
+import { HermesReturnReviewButton } from '@/components/hermes/hermes-return-review-button';
 import { cn, formatWhatsAppLink } from '@/lib/utils';
 import { CaseResumoChip } from '@/components/cases/case-resumo-chip'
 import { isAtendidoNestaSemana, isAtendidoHoje, hojeBrasilYmd } from '@/lib/atendimento-semana';
@@ -210,6 +211,7 @@ const CaseRow = React.memo(({
           <button disabled={suggestLoading} onClick={async () => { setSuggestLoading(true); await onSuggest(c); setSuggestLoading(false); }} className={cn("text-amber-600 hover:bg-amber-50 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Sugerir Resposta">
             {suggestLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageSquareQuote size={18} />}
           </button>
+          <HermesReturnReviewButton compact processId={Number((c as any).db_id || c.id)} />
           <button type="button" onClick={() => onDossie?.(c)} className={cn("text-slate-700 hover:bg-slate-100 w-10 h-10 rounded-xl flex items-center justify-center transition-colors", ui.touch)} title="Dossiê do processo (PDF)">
             <FileDown size={18} />
           </button>
