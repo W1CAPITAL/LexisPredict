@@ -1,0 +1,27 @@
+# Blueprint independente do render.yaml existente (WA.Auto).
+# Criar em Render > New > Blueprint, selecionando exatamente este caminho.
+# Preview gratuito: não usar como produção com disponibilidade garantida.
+services:
+  - type: web
+    name: lexispredict-full-app
+    runtime: node
+    plan: free
+    autoDeployTrigger: off
+    buildCommand: npm install --global pnpm@10 && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: pnpm exec next start -H 0.0.0.0 -p $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: WA_DAILY_CRON_SECRET
+        sync: false
