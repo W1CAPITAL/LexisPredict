@@ -4,7 +4,7 @@
  */
 export type AudienciaExtraida = {
   chave: string;
-  tipo: 'conciliacao' | 'instrucao' | 'julgamento' | 'sessao_virtual' | 'audiencia';
+  tipo: 'conciliacao' | 'instrucao' | 'julgamento' | 'sessao_virtual' | 'sessao_julgamento' | 'audiencia';
   data: string | null;
   dataFim: string | null;
   hora: string | null;
@@ -48,7 +48,8 @@ function clock(text: string, index: number, before = false): string | null {
   return h < 24 && mm < 60 ? String(h).padStart(2,'0') + ':' + String(mm).padStart(2,'0') : null;
 }
 function eventType(normalized: string): AudienciaExtraida['tipo'] {
-  if (/sessao virtual|sessao de julgamento|pauta de julgamento/.test(normalized)) return 'sessao_virtual';
+  if (/sessao virtual/.test(normalized)) return 'sessao_virtual';
+  if (/sessao de julgamento|pauta de julgamento/.test(normalized)) return 'sessao_julgamento';
   if (/concilia|mediac/.test(normalized)) return 'conciliacao';
   if (/instruc/.test(normalized)) return 'instrucao';
   if (/julgamento/.test(normalized)) return 'julgamento';
@@ -90,7 +91,7 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
           ? sessionDates[sessionDates.length - 1] : null;
         const firstHour = clock(head, start.index, true) || clock(head, start.index);
         const endHour = end ? (clock(head, end.index, true) || clock(head, end.index)) : null;
-        found.push(build('sessao_virtual', start.date, end?.date || null, firstHour, endHour, head, undefined));
+        found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined));
       }
     }
   }
