@@ -74,6 +74,16 @@ export default function StudioAgentesPage(){
             </div>
           </section>
 
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#854662]/35 bg-[#3d1a31] p-4 text-white">
+            <div>
+              <p className="text-sm font-bold">Hermes3D · Escritório dos Agentes</p>
+              <p className="mt-1 text-xs text-[#e7ccda]">Explore os especialistas em um escritório 3D interativo, com modo leve em 2D.</p>
+            </div>
+            <Button asChild className="bg-[#924866] text-white hover:bg-[#a95b7b]">
+              <Link href="/hermes-3d">Abrir escritório 3D <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            </Button>
+          </div>
+
           <section className="grid gap-4 md:grid-cols-3">
             <SmallFeature icon={<Workflow className="h-5 w-5 text-violet-500"/>} title="Equipe especializada"
               text="Papéis claros, menor contexto, entregáveis verificáveis."/>
