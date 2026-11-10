@@ -29,6 +29,32 @@ export async function getHermesCompanyDaily(empresaId:string):Promise<HermesOffi
  return data as HermesOfficeDailyRow|null;
 }
 
+
+export type HermesRebuildRun={
+ id:number;empresa_id:string;day:string;state:'audited'|'no_changes';
+ input_metrics:HermesOfficeMetrics;
+ recommendations:Array<{sector:string;action:string;evidence:number;automated:boolean;status:string}>;
+ findings_count:number;evidence_count:number;recorded_at:string;
+};
+/** Only authenticated office handlers may request the enterprise-scoped evidence. */
+export async function getHermesRebuildRuns(empresaId:string):Promise<HermesRebuildRun[]>{
+ const db=await getSupabaseAdmin();
+ const {data,error}=await db.from('hermes_rebuild_runs')
+   .select('id,empresa_id,day,state,input_metrics,recommendations,findings_count,evidence_count,recorded_at')
+   .eq('empresa_id',empresaId).order('recorded_at',{ascending:false}).limit(4);
+ if(error)throw Error('O histórico de autoavaliação Hermes não pôde ser carregado.');
+ return (data||[]) as HermesRebuildRun[];
+}
+
+/** A bounded evaluation cycle, no code writes or unreviewed legal conclusions. */
+export async function runHermesEvidenceRebuild(empresaId:string):Promise<{ok:true;inspected:number}>{
+ const db=await getSupabaseAdmin();
+ const today=todayHermesBrazil();
+ const {error}=await db.rpc('hermes_rebuild_from_evidence',{p_day:today});
+ if(error)throw Error('A autoavaliação Hermes não pôde ser concluída.');
+ const items=await getHermesRebuildRuns(empresaId);
+ return {ok:true,inspected:items.find(i=>i.day===today)?.findings_count||0};
+}
 /** Reuse the same lightweight provider gateway and Superagente policy. No case names/PII leave the DB. */
 /** Reason category only; never persist raw provider errors, payloads or credentials. */
 export function classifyHermesModelFailure(error:unknown):string{
@@ -71,7 +97,7 @@ export async function runHermesCompanyMeeting(empresaId:string,day:string){
      user:makeHermesMeetingPrompt(m,day),
      system:superAgentInstructions('relatorio')+
        '\nREUNIÃO HERMES: Produza quatro falas curtas, uma por linha, identificadas EXATAMENTE como Gerência:, Supervisão:, Processos:, Comunicação:. A gerência abre com uma prioridade; a supervisão questiona a qualidade das fontes, processos responde com evidências agregadas, e comunicação define um próximo passo revisável. Use somente os números informados. Não invente descobertas, pessoas substituídas nem chance judicial. Não mostre dados pessoais, não envie mensagens e não execute ações.',
-     preferred:'auto',max_tokens:320,timeoutMs:35000
+     preferred:'groq',max_tokens:320,timeoutMs:40000
    });
    const clean=sanitizeHermesMeetingOutput(reply.text);
    if(clean.length<35)throw Error('Modelo não produziu síntese utilizável');
