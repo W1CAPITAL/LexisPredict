@@ -3,6 +3,8 @@ import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { statusEfetivo } from "@/lib/prazo-status";
 
 import { AtendimentoActions } from '@/components/ops/atendimento-actions';
+import { HermesReturnReviewButton } from '@/components/hermes/hermes-return-review-button';
+import { HermesPriorityQueue } from '@/components/hermes/hermes-priority-queue';
 import {TarefaEditDialog} from '@/components/tarefas/tarefa-edit-dialog';
 import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
 import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
@@ -1448,6 +1450,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
            <Button variant="ghost" size="icon" onClick={onSuggest} className={cn("text-amber-600 hover:bg-amber-50", ui.touch)} title="Sugestão de Resposta"><MessageSquareQuote size={18} /></Button>
+           {group.cases[0] ? <HermesReturnReviewButton compact processId={Number((group.cases[0] as any).db_id || group.cases[0].id)}/> : null}
            <Button variant="ghost" size="icon" onClick={() => onScan(group.protocoloReferencia)} className={cn("text-primary hover:bg-primary/10", ui.touch)} title="Auditoria 3D"><FileSearch size={18} /></Button>
            <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="Abrir terminal WhatsApp">
              <Link
