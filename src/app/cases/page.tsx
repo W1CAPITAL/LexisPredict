@@ -1,5 +1,5 @@
-import {CompanyDueQueue} from '@/components/returns/company-due-queue';
 "use client";
+import {CompanyDueQueue} from '@/components/returns/company-due-queue';
 
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { canAssignOwner as canAssignOwnerRule } from "@/lib/auth-supervisao";
