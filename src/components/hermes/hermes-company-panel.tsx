@@ -6,12 +6,13 @@ import {
   Clock3, Crown, FileCheck2, GraduationCap, Medal, MessageSquareText,
   RefreshCcw, ShieldCheck, Trophy, Users, Workflow,
 } from 'lucide-react';
-import type { HermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
+import type { HermesCaseHealth,HermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
 
-export function HermesCompanyPanel({office,record,busy,error,onRefresh,onMeeting}:{
+export function HermesCompanyPanel({office,record,cases,busy,error,onRefresh,onMeeting}:{
   office:HermesOfficeIntelligence|null;
   record:HermesOfficeDailyRow|null;
+  cases:HermesCaseHealth[];
   busy:boolean;error:string;
   onRefresh:()=>void;onMeeting:()=>void;
 }){
@@ -105,6 +106,20 @@ export function HermesCompanyPanel({office,record,busy,error,onRefresh,onMeeting
        </div>
      </article>
     </div>
+    <article className="h3d-panel-card p-5" id="hermes-case-health">
+      <h3 className="flex items-center gap-2 text-base font-black"><ShieldCheck size={18} className="text-[#edc6d7]"/> Saúde operacional por processo</h3>
+      <p className="mt-1 text-xs leading-5 text-[#d8c4cf]">Só as últimas revisões que possuem registro DJEN/DataJud. Não é chance de ganhar ou perder a ação; consulte documentos e decisões antes de uma conclusão jurídica.</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {cases.map(row=><Link key={row.processId} href={row.cnj?'/processos?search='+encodeURIComponent(row.cnj):'/processos'} className="h3d-department">
+          <p className="truncate text-xs font-black">{row.client}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-[#c8b5c0]">{row.cnj||'CNJ não informado'}</p>
+          <p className="mt-2 text-xs font-bold text-[#e8bccc]">{row.level}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#d5c1cd]">{row.sourceStatus}</p>
+          <p className="mt-1 text-[10px] text-[#a997a4]">Retorno: {row.dueOn||'sem data'} · Consulta: {row.checkedAt?.slice(0,10)||'sem confirmação'}</p>
+        </Link>)}
+      </div>
+      {!cases.length&&<p className="mt-3 text-sm text-[#d2becb]">Nenhuma revisão individual registrada nesta amostra. As consultas do scanner continuam na fila própria.</p>}
+    </article>
     <p className="px-1 text-[11px] leading-5 text-[#cbbbc5]">
       Contatos e atividades são registros históricos. Nenhuma estimativa de “quantos funcionários a IA substitui” ou percentual de vitória/derrota é fabricada. Riscos exibidos são sinais operacionais para revisão humana.
     </p>
