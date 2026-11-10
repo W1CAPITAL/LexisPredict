@@ -120,7 +120,7 @@ async function scheduledOfficeMeeting() {
     const day = todayHermesBrazil();
     const db = await getSupabaseAdmin();
     const { data, error } = await db.from('hermes_office_daily')
-      .select('empresa_id').eq('day', day).eq('meeting_status', 'pending').limit(1);
+      .select('empresa_id').eq('day', day).in('meeting_status', ['pending','unavailable']).lt('meeting_attempts',3).limit(1);
     if (error) throw new Error('Não foi possível ler a fila Hermes.');
     if (!data?.length) return NextResponse.json({ ok: true, processed: 0 },
       { headers: { 'Cache-Control': 'no-store' } });
