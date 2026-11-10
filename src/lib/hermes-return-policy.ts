@@ -24,7 +24,7 @@ export type HermesReturnHighlight = {
   url: string | null;
 };
 export type HermesReturnResult = {
-  state: 'ready' | 'unavailable' | 'skipped';
+  state: 'ready' | 'partial' | 'unavailable' | 'skipped';
   priorityScore: number;
   priorityLabel: 'Crítica' | 'Alta' | 'Normal' | 'Não aplicável';
   highlights: HermesReturnHighlight[];
@@ -97,20 +97,21 @@ export function buildHermesReturnReview(input: Input, snapshot: HermesCourtSnaps
     text: 'Nas consultas desta execução, não foi identificado registro posterior ao último retorno de ' + dateLabel(last) + '.',
   });
   const urgent = newer.some((event) => isCritical(event.text));
-  const state = !snapshot.datajudOk && !snapshot.djenOk ? 'unavailable' : 'ready';
-  const priorityScore = urgent ? 96 : newer.length ? 81 : state === 'unavailable' ? 78 : Math.min(79, 58 + Math.min(daysLate, 21));
+  const state = snapshot.datajudOk && snapshot.djenOk ? 'ready' : snapshot.djenOk || snapshot.datajudOk ? 'partial' : 'unavailable';
+  const priorityScore = urgent ? 96 : newer.length ? 81 : state !== 'ready' ? 78 : Math.min(79, 58 + Math.min(daysLate, 21));
   const priorityLabel = priorityScore >= 90 ? 'Crítica' : priorityScore >= 75 ? 'Alta' : 'Normal';
   const first = concise(input.cliente, 120).split(/\s+/)[0] || '';
   const name = first ? first.charAt(0).toUpperCase() + first.slice(1).toLocaleLowerCase('pt-BR') : '';
   const greeting = 'Olá' + (name ? ', ' + name : '') + '!';
-  let messageDraft: string;
+  let messageDraft: string | null = null;
   if (newer.length) {
     const event = newer[0];
     messageDraft = greeting + ' Sobre seu processo ' + concise(input.protocolo, 35) + ', consultamos o ' + event.source + ' e identificamos um registro de ' + dateLabel(validEventDay(event)!) + ': "' + concise(event.text, 220) + '". Seguimos acompanhando o processo e informaremos novas atualizações confirmadas.';
   } else if (snapshot.djenOk && snapshot.datajudOk && last) {
     messageDraft = greeting + ' Realizamos novas consultas ao DJEN e ao DataJud em ' + dateLabel(today) + '. Nas consultas realizadas, não identificamos registro posterior ao último retorno de ' + dateLabel(last) + '. Seguimos acompanhando seu processo.';
   } else {
-    messageDraft = greeting + ' Seu processo continua em acompanhamento. Estamos conferindo as informações disponíveis e retornaremos quando houver atualização confirmada.';
+    // Source failure without a new verified event is not enough to draft a judicial update.
+    messageDraft = null;
   }
   return { state, priorityScore, priorityLabel, highlights,
     messageDraft, suggestedNextReturn: nextDay(today, urgent ? 25 : 30),
