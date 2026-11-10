@@ -52,6 +52,8 @@ const PREFIX: Record<PacoteId, string[]> = {
     "/signup",
     "/team",
     "/agenda",
+    "/agendas",
+    "/audiencias",
     "/termos",
     "/plano-b",
   ],
