@@ -107,7 +107,11 @@ export async function reviewHermesCase(input: {
   const row = await loadHermesReviewCase(db, input.empresaId, input.processId);
   if (!row) return { ok: false as const, reason: 'not_found' };
   const today = brazilToday();
-  const due = validReturnDay(input.dueOn || row.proximo_retorno) || today;
+  // Manual early checks must not satisfy the future scheduled return claim.
+  // A due/overdue manual check may reuse the current scheduled date.
+  const scheduled = validReturnDay(row.proximo_retorno);
+  const due = validReturnDay(input.dueOn) ||
+    (scheduled && scheduled <= today ? scheduled : today);
   const cnj = normalizedCnj(row.protocolo_ref || row.dados?.protocolo);
   const name = row.cliente || String(row.dados?.cliente || '');
   let snapshot: HermesCourtSnapshot = { djenOk: false, datajudOk: false, events: [] };
