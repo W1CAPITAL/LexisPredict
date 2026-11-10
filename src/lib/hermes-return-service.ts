@@ -60,12 +60,12 @@ async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any
    ?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(retry)
    :'próxima janela disponível';
   return {error:true,errorCode:'cooldown',
-   message:`DataJud em pausa por sobrecarga da API oficial. Nova tentativa após ${at}.`};
+   message:`DataJud em pausa para respeitar os limites da API oficial. Nova tentativa após ${at}.`};
  }
  let result:any;
  try{
   result=await fetchDataJud(cnj, 1, {
-   fast:true,cloudBudget:true,forceRefresh:manual,timeoutMs:manual?44_000:38_000,
+   fast: true, cloudBudget: true, forceRefresh: manual, timeoutMs: manual?44_000:38_000,
   });
  }catch(error){
   result={error:true,errorCode:'network_error',
