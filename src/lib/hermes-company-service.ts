@@ -4,6 +4,8 @@ import { freeComplete } from '@/lib/ai/free-gateway';
 import { superAgentInstructions } from '@/lib/ai/lexis-superagent';
 import type {HermesOfficeEvent} from '@/lib/hermes-agent-route';
 import {normalizeHermesDiagnostics,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
+import {classifyHermesReturnDate} from '@/lib/hermes-return-date';
+import {brazilToday} from '@/lib/wa-daily-return-policy';
 import {
   buildHermesOfficeIntelligence,makeHermesMeetingPrompt,
   sanitizeHermesMeetingOutput,describeHermesCaseHealth,
@@ -133,18 +135,21 @@ export async function getHermesCaseHealth(empresaId:string):Promise<HermesCaseHe
  const db=await getSupabaseAdmin();
  const {data:reviews,error}=await db.from('hermes_return_reviews')
   .select('processo_id,due_on,priority_score,priority_label,djen_ok,datajud_ok,checked_at')
-  .eq('empresa_id',empresaId).in('state',['ready','unavailable'])
+  .eq('empresa_id',empresaId).in('state',['ready','partial','unavailable'])
   .order('priority_score',{ascending:false}).order('checked_at',{ascending:false})
   .limit(14);
  if(error||!reviews?.length)return [];
  const ids=Array.from(new Set(reviews.map(r=>Number(r.processo_id)).filter(Number.isFinite)));
  const {data:cases, error:caseError}=await db.from('processos')
-  .select('id,cliente,protocolo_ref').eq('empresa_id',empresaId).in('id',ids);
+  .select('id,cliente,protocolo_ref,ultimo_retorno,proximo_retorno,status_interno,status,dados').eq('empresa_id',empresaId).in('id',ids);
  if(caseError)return [];
  const index=new Map((cases||[]).map(row=>[Number(row.id),row]));
  return reviews.flatMap(review=>{
   const found=index.get(Number(review.processo_id));
   if(!found)return [];
+  if(classifyHermesReturnDate(found.ultimo_retorno,found.proximo_retorno,brazilToday())==='inconsistent')return [];
+  if(String(found.proximo_retorno||'')!==String(review.due_on||''))return [];
+  if(/ENCERRAD|ARQUIVAD|FINALIZAD|EXTINT/i.test(String(found.status_interno||'')+' '+String(found.status||'')+' '+String((found.dados as Record<string,unknown>|null)?.situacao||'')))return [];
   return [describeHermesCaseHealth({
    processId:Number(review.processo_id),
    client:String(found.cliente||'Cliente sem identificação').slice(0,90),
