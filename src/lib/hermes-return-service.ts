@@ -78,7 +78,7 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
   const diagnostic=(msg:unknown)=>String(msg||'Falha técnica ou fonte não confirmada.')
     .replace(/[\r\n\t]/g,' ').replace(/https?:\/\/\S+/g,'endereço da fonte').slice(0,150);
   return { djenOk, datajudOk, events,sourceErrors:{
-    djen:djenOk?null:diagnostic(dj.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
+    djen:djenOk?null:diagnostic(djen.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
     datajud:datajudOk?null:diagnostic(dj.status==='rejected'?null:datajud?.message||'Não encontrado no índice ou fonte indisponível.'),
   }};
 }
