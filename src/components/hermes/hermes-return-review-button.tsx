@@ -40,7 +40,8 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
       // Opening a client without a recent saved review requests real official data immediately.
       // Never invents a draft: it is generated only after the backend source lookup.
       const checked=Date.parse(String(result.review?.checked_at||''));
-      const stale=!Number.isFinite(checked)||Date.now()-checked>6*60*60*1000;
+      const incomplete=!(result.review?.djen_ok===true&&result.review?.datajud_ok===true);
+      const stale=!Number.isFinite(checked)||Date.now()-checked>(incomplete?2:360)*60*1000;
       if(autoRefresh&&stale){
         await queryOfficialBrazil(processId);
         result=await getHermesReturnReviewAction(processId);
