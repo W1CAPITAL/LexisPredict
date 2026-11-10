@@ -46,7 +46,9 @@ as $$
       and (r.id is null
         or (r.state = 'unavailable' and r.attempted_at < now() - interval '4 hours')
         or (r.state = 'scanning' and r.attempted_at < now() - interval '15 minutes'))
-    order by p.proximo_retorno asc, p.id asc
+    -- Clientes com vencimento HOJE têm prioridade sobre o backlog antigo.
+    order by (case when p.proximo_retorno = p_today then 0 else 1 end),
+             p.proximo_retorno asc, p.id asc
     limit 1
   ), claimed as (
     insert into public.hermes_return_reviews (empresa_id, processo_id, due_on, state, attempted_at)
