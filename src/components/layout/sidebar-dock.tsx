@@ -97,7 +97,8 @@ export function SidebarDock() {
         { label: "Supervisão", href: "/supervisao", icon: ShieldCheck },
         { label: "Equipe", href: "/team", icon: Users },
         { label: "Auditoria", href: "/auditoria", icon: ShieldCheck },
-        { label: "Hermes 3D", href: "/hermes-3d", icon: Bot },
+        { label: "Escritório Hermes 3D", href: "/hermes-3d", icon: Bot },
+        { label: "Projetos", href: "/projetos", icon: FolderOpen },
       );
     }
     if (isSuperAdmin) {
