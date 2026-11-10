@@ -70,7 +70,7 @@ export async function runHermesCompanyMeeting(empresaId:string,day:string){
    const reply=await freeComplete({
      user:makeHermesMeetingPrompt(m,day),
      system:superAgentInstructions('relatorio')+
-       '\nREUNIÃO HERMES: Redija até 5 frases em português, como síntese dos departamentos (gerência, supervisão, processos, relacionamento). Trate os totais como registros, não como pessoas substituídas. Não estime chance de êxito ou insucesso judicial. Sem nomes de clientes, sem dados pessoais, sem ações automatizadas. Sugira apenas passos com revisão humana.',
+       '\nREUNIÃO HERMES: Produza quatro falas curtas, uma por linha, identificadas EXATAMENTE como Gerência:, Supervisão:, Processos:, Comunicação:. A gerência abre com uma prioridade; a supervisão questiona a qualidade das fontes, processos responde com evidências agregadas, e comunicação define um próximo passo revisável. Use somente os números informados. Não invente descobertas, pessoas substituídas nem chance judicial. Não mostre dados pessoais, não envie mensagens e não execute ações.',
      preferred:'auto',max_tokens:320,timeoutMs:35000
    });
    const clean=sanitizeHermesMeetingOutput(reply.text);
