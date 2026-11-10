@@ -1,3 +1,4 @@
+import {CompanyDueQueue} from '@/components/returns/company-due-queue';
 "use client";
 
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
@@ -1681,10 +1682,14 @@ function normalizeMovList(movs: any): any[] {
   }));
 }
 
-export default function CasesPage() {
+function CasesPageLegacy() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={48} /></div>}>
       <CasesContent />
     </Suspense>
   );
 }
+
+
+/** /cases e /tarefas compartilham a mesma fila empresarial de retornos, sem escopo pessoal. */
+export default function CasesPage(){ return <CompanyDueQueue/>; }
