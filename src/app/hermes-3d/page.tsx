@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import type { HermesCaseHealth } from "@/lib/hermes-company-intelligence";
 import type { HermesOfficeIntelligence } from "@/lib/hermes-company-intelligence";
 import type { HermesOfficeDailyRow } from "@/lib/hermes-company-service";
 import Link from "next/link";
@@ -25,6 +26,7 @@ export default function Hermes3DLexisPage() {
   const [lowPower, setLowPower] = useState(false);
   const [office, setOffice] = useState<HermesOfficeIntelligence|null>(null);
   const [officeRecord, setOfficeRecord] = useState<HermesOfficeDailyRow|null>(null);
+  const [officeCases,setOfficeCases] = useState<HermesCaseHealth[]>([]);
   const [officeError, setOfficeError] = useState("");
   const [meetingBusy,setMeetingBusy]=useState(false);
 
@@ -33,7 +35,7 @@ export default function Hermes3DLexisPage() {
       const res = await fetch('/api/hermes-office',{cache:'no-store',credentials:'same-origin',signal});
       const data = await res.json();
       if(!res.ok||!data.ok)throw Error(data.error||'Não foi possível atualizar o escritório.');
-      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeError("");}
+      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setOfficeError("");}
     }catch(e){
       if(!signal?.aborted)setOfficeError(e instanceof Error?e.message:'Acesso temporariamente indisponível.');
     }
@@ -244,7 +246,7 @@ export default function Hermes3DLexisPage() {
           </aside>
         </section>
 
-        <HermesCompanyPanel office={office} record={officeRecord} busy={meetingBusy} error={officeError} onRefresh={()=>void refreshOffice()} onMeeting={()=>void requestMeeting()}/>
+        <HermesCompanyPanel office={office} record={officeRecord} cases={officeCases} busy={meetingBusy} error={officeError} onRefresh={()=>void refreshOffice()} onMeeting={()=>void requestMeeting()}/>
         <div>
           <HermesPriorityQueue/>
         </div>
