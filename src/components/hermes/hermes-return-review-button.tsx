@@ -18,7 +18,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [review, setReview] = React.useState<Review | null>(null);
-  const [registered, setRegistered] = React.useState<{ next: string | null; last: string | null }>({ next: null, last: null });
+  const [registered, setRegistered] = React.useState<{ next: string | null; last: string | null; status?:string }>({ next: null, last: null });
   const [copied, setCopied] = React.useState(false);
 
   async function queryOfficialBrazil(processId:number){
@@ -48,7 +48,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
         if(!result.ok)throw new Error(result.error);
       }
       setReview(result.review as Review | null);
-      setRegistered({ next: result.nextReturnRegistered, last: result.lastReturnRegistered });
+      setRegistered({ next: result.nextReturnRegistered, last: result.lastReturnRegistered,status:result.returnDateStatus });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Revisão indisponível.");
     } finally { setBusy(false); }
@@ -97,6 +97,9 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs text-muted-foreground">
                 <p>Último atendimento: {fmt(registered.last)} · Próximo retorno cadastrado: {fmt(registered.next)}</p>
+                {registered.status==='inconsistent'&&<p className="mt-1 font-semibold text-amber-700 dark:text-amber-300">Cadastro inconsistente: retorno registrado cedo demais após o último atendimento. Não é retorno vencido.</p>}
+                {registered.status==='upcoming'&&<p className="mt-1 text-emerald-700 dark:text-emerald-300">Próximo retorno ainda não chegou. Consulta manual disponível.</p>}
+                {registered.status==='today'&&<p className="mt-1 font-semibold text-foreground">Retorno previsto para hoje.</p>}
                 <p>Consulta Hermes: {fmt(review?.checked_at)} · Fontes: DJEN {review?.djen_ok ? "confirmada" : "não confirmada"} / DataJud {review?.datajud_ok ? "confirmada" : "não confirmada"}</p>
               </div>
               <Button size="sm" onClick={() => void refresh()} disabled={busy} className="gap-2 bg-[#7d3658] text-white hover:bg-[#632642]">
@@ -111,7 +114,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
               <>
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full border border-[#a15f7a]/40 bg-[#a15f7a]/10 px-3 py-1 text-xs font-bold text-[#7d3658] dark:text-[#e8bdcf]">Prioridade: {review.priority_label} · {review.priority_score}/100</span>
-                  <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">{review.state === "ready" ? "Análise preparada" : review.state === "skipped" ? "Processo encerrado" : review.state === "scanning" ? "Verificação em curso" : "Fontes incompletas"}</span>
+                  <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">{(review.djen_ok&&review.datajud_ok) ? "Conferência concluída" : (review.djen_ok||review.datajud_ok) ? "Consulta parcial · fonte pendente" : review.state === "skipped" ? "Processo encerrado" : review.state === "scanning" ? "Verificação em curso" : "Sem confirmação oficial"}</span>
                 </div>
                 {(() => {
                   const raw=review.source_snapshot;

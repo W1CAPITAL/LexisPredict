@@ -48,7 +48,7 @@ export function HermesPortfolioReport({data,compact=false}:{
     <Numeric title="Retornos vencidos ativos" value={d.overdueReturns} note="Não é prazo judicial"/>
     <Numeric title="Datas de prazo a conferir" value={d.registeredDeadlinesDue} note="Campo do CRM; não confirma prazo judicial perdido"/>
     <Numeric title="Fontes desatualizadas" value={d.staleSources} note="Conferir DJEN/DataJud"/>
-    <Numeric title="Tarefas CRM vencidas" value={d.overdueCrmTasks} note={'De '+fmt(d.openCrmTasks)+' abertas'}/>
+    <Numeric title="Tarefas operacionais abertas" value={d.openCrmTasks} note="Não são retornos vencidos"/>
     <Numeric title="Atenção / Crítica" value={d.attention+' / '+d.critical} note="Classificação operacional"/>
    </div>
 
@@ -73,7 +73,7 @@ export function HermesPortfolioReport({data,compact=false}:{
       <Numeric title="Atividades cadastradas (30 dias)" value={d.completedHumanTasks30d}/>
       <Numeric title="Contatos confirmados (30 dias)" value={d.contactsConfirmed30d}/>
       <Numeric title="Tarefas sem vínculo na equipe" value={d.unmatchedAssigneeTasks||0} note="IDs sem correspondência com usuários atuais"/>
-      <Numeric title="Vencidas sem vínculo" value={d.unmatchedOverdueTasks||0} note="Conferir sem reatribuir automaticamente"/>
+      <Numeric title="Datas de retorno inconsistentes" value={d.invalidReturnDates||0} note="Não são retornos vencidos"/>
      </div>
      <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-foreground">
       <strong>Datas a validar:</strong> {fmt(d.registeredDeadlinesDue)} processos abertos com campo de prazo antigo. Não significa que esses prazos estejam vigentes ou perdidos.
@@ -97,8 +97,8 @@ export function HermesPortfolioReport({data,compact=false}:{
    <Section title={'Produtividade individual e da equipe · '+fmt(d.byUser.length)+' colaboradores'}
     detail="Registros de 30 dias podem incluir importações e rotinas automáticas. Contatos confirmados são contabilizados separadamente; quantidade não mede horas ou desempenho.">
     <div className="overflow-auto rounded-lg border border-border">
-     <table className="w-full border-collapse text-left text-xs"><thead><tr>{['Colaborador / cargo','Registros 30d','Contatos confirmados','Processos distintos','Tarefas abertas / vencidas'].map(x=><th className={th} key={x}>{x}</th>)}</tr></thead>
-      <tbody>{d.byUser.map((x,i)=><tr key={i}><td className={td}><strong>{x.name}</strong><span className="block text-[11px] text-muted-foreground">{x.role}</span></td><td className={td}>{x.done30d}</td><td className={td}>{x.contacts30d}</td><td className={td}>{x.distinctCases}</td><td className={td}>{x.openTasks} / {x.overdueTasks}</td></tr>)}</tbody></table>
+     <table className="w-full border-collapse text-left text-xs"><thead><tr>{['Colaborador / cargo','Registros 30d','Contatos confirmados','Processos distintos','Tarefas abertas'].map(x=><th className={th} key={x}>{x}</th>)}</tr></thead>
+      <tbody>{d.byUser.map((x,i)=><tr key={i}><td className={td}><strong>{x.name}</strong><span className="block text-[11px] text-muted-foreground">{x.role}</span></td><td className={td}>{x.done30d}</td><td className={td}>{x.contacts30d}</td><td className={td}>{x.distinctCases}</td><td className={td}>{x.openTasks}</td></tr>)}</tbody></table>
     </div>
    </Section>
    <Section title={'Fila de tarefas · '+fmt(d.openCrmTasks)+' abertas'}

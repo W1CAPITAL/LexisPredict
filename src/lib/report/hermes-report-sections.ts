@@ -4,9 +4,10 @@ import { buildHermesOfficeIntelligence, type HermesCaseHealth } from '@/lib/herm
 import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
 import {diagnosticsSections,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import { REPORT_COLORS, reportDate, type ReportSection } from '@/lib/report/visual-report';
+import {cleanHermesReportText} from '@/lib/hermes-verified-meeting';
 
 function safeLine(value:unknown, limit=420):string {
- return String(value??'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,limit);
+ return cleanHermesReportText(value).replace(/\s+/g,' ').trim().slice(0,limit);
 }
 
 export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:HermesCaseHealth[],diagnostics:HermesPortfolioDiagnostics|null=null):ReportSection[]{
@@ -24,7 +25,7 @@ export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:Herme
   {id:'hermes-kpis',kind:'metrics',title:'Hermes · indicadores verificados',subtitle:'Consolidação de '+day+' — registros históricos e situação operacional, não probabilidades judiciais.',
    metrics:[
     {label:'Ativos no CRM',value:m.active,color:REPORT_COLORS.teal},
-    {label:'Retornos vencidos',value:m.overdue,color:REPORT_COLORS.red},
+    {label:'Retornos vencidos válidos',value:diagnostics?.overdueReturns??m.overdue,color:REPORT_COLORS.red},
     {label:'Revisões prontas',value:m.readyReviews,color:REPORT_COLORS.blue},
     {label:'Fontes a conferir',value:m.staleSources,color:REPORT_COLORS.gold},
     {label:'Atividades · 30 dias',value:m.completedActivities30d,color:REPORT_COLORS.purple},

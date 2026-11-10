@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import React from 'react';
 import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { runHermesDueReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
@@ -55,6 +56,39 @@ async function getOfficePanel() {
   }
 }
 
+/** Authorized A4 legal-style PDF. Same rewriten office endpoint, no extra Vercel function. */
+async function getOfficePdf(){
+ const ctx=await getUserContext();
+ if(!canReviewOffice(ctx))return NextResponse.json(
+  {ok:false,error:'Exportação restrita à supervisão.'},{status:403,headers:privateHeaders});
+ try{
+  const company=String(ctx.empresa_id);
+  const [record,diagnostics,cases]=await Promise.all([
+    getHermesCompanyDaily(company),
+    getHermesPortfolioDiagnostics(company),
+    getHermesCaseHealth(company),
+  ]);
+  if(!record&&!diagnostics)return NextResponse.json(
+    {ok:false,error:'Nenhum dado consolidado disponível para o PDF.'},{status:404,headers:privateHeaders});
+  const [{HermesLegalPdf},{renderToBuffer}]=await Promise.all([
+    import('@/components/pdf/hermes-legal-pdf'),
+    import('@react-pdf/renderer'),
+  ]);
+  const element=React.createElement(HermesLegalPdf,{row:record,diagnostics,cases});
+  const buffer=await renderToBuffer(element as unknown as React.ReactElement<import('@react-pdf/renderer').DocumentProps>);
+  return new Response(new Uint8Array(buffer),{headers:{
+    'Cache-Control':'private, no-store','Content-Type':'application/pdf',
+    'X-Content-Type-Options':'nosniff',
+    'Content-Disposition':'attachment; filename="Hermes-Relatorio-Juridico-'+
+      (diagnostics?.day||record?.day||'atual')+'.pdf"',
+  }});
+ }catch(e){
+  console.error('[Hermes] geração PDF',e instanceof Error?e.message:'Falha');
+  return NextResponse.json({ok:false,error:'Não foi possível gerar o PDF jurídico.'},
+    {status:503,headers:privateHeaders});
+ }
+}
+
 async function postOfficeMeeting() {
   const ctx = await getUserContext();
   if (!canReviewOffice(ctx)) return NextResponse.json(
@@ -88,14 +122,7 @@ async function postOfficeCaseReview(request:Request){
   const processId=Number(raw?.processId);
   if(!Number.isSafeInteger(processId)||processId<=0)return NextResponse.json(
     {ok:false,error:'Identificador do processo inválido.'},{status:400,headers:privateHeaders});
-  const db=await getSupabaseAdmin();
-  const {data:recent}=await db.from('hermes_return_reviews')
-    .select('checked_at,djen_ok,datajud_ok').eq('empresa_id',String(ctx.empresa_id))
-    .eq('processo_id',processId).order('attempted_at',{ascending:false}).limit(1).maybeSingle();
-  const cacheMinutes=recent?.djen_ok&&recent?.datajud_ok?15:2;
-  if(recent?.checked_at&&Date.now()-Date.parse(recent.checked_at)<cacheMinutes*60000){
-    return NextResponse.json({ok:true,reused:true},{headers:privateHeaders});
-  }
+  // An explicit click always performs a new official lookup. Debounce is handled in the client.
   const result=await reviewHermesCase({empresaId:String(ctx.empresa_id),processId,mode:'manual'});
   if(!result.ok)return NextResponse.json({ok:false,error:'Processo não encontrado nesta empresa.'},{status:404,headers:privateHeaders});
   return NextResponse.json({...result,reused:false},{headers:privateHeaders});
@@ -144,6 +171,7 @@ async function scheduledOfficeMeeting() {
  */
 export async function GET(request: Request) {
   const mode = new URL(request.url).searchParams.get('hermesRoute');
+  if (mode === 'office' && new URL(request.url).searchParams.get('format')==='pdf') return getOfficePdf();
   if (mode === 'office') return getOfficePanel();
   if (!authorized(request)) return NextResponse.json(
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },

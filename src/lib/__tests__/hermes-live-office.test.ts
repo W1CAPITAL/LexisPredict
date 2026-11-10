@@ -47,11 +47,12 @@ describe('Hermes audit trail and AI transparency',()=>{
     expect(route).toContain('canReviewOffice(ctx)');
     expect(route).toContain('runHermesDueReviewBatch(1)');
   });
-  it('explains the model failure reason, allows bounded retries and does not claim IA success after fallback',()=>{
+  it('uses evidence-only meeting minutes rather than claiming free-model judicial accuracy',()=>{
     const service=source('src/lib/hermes-company-service.ts');
     expect(service).toContain('meeting_error_code');
     expect(service).toContain('classifyHermesModelFailure');
-    expect(service).toContain('max_tokens:');
+    expect(service).toContain('buildHermesVerifiedMeeting');
+    expect(service).not.toContain('freeComplete({');
     const panel=source('src/components/hermes/hermes-company-panel.tsx');
     expect(panel).toContain('Tentar reunião novamente');
     expect(panel).toContain('meeting_error_code');

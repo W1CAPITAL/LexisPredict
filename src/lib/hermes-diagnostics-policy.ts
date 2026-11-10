@@ -12,7 +12,7 @@ export type HermesDiagnosticTask={title:string;assignee:string;dueOn:string|null
 export type HermesDiagnosticRecommendation={priority:string;sector:string;title:string;reason:string;action:string;automated:boolean};
 export type HermesPortfolioDiagnostics={
  day:string;generatedAt:string;total:number;active:number;closed:number;
- overdueReturns:number;registeredDeadlinesDue:number;staleSources:number;
+ overdueReturns:number;invalidReturnDates?:number;registeredDeadlinesDue:number;staleSources:number;
  missingLawyer:number;missingOffice:number;critical:number;attention:number;monitoring:number;
  averageHealth:number;sourceErrors:number;closedWithOpenTask:number;
  openCrmTasks:number;overdueCrmTasks:number;unmatchedAssigneeTasks?:number;unmatchedOverdueTasks?:number;
@@ -32,7 +32,7 @@ export function normalizeHermesDiagnostics(input:HermesPortfolioDiagnostics):Her
  return {
    ...value,day:limited(value.day,20),generatedAt:limited(value.generatedAt,45),
    total:nonneg(value.total),active:nonneg(value.active),closed:nonneg(value.closed),
-   overdueReturns:nonneg(value.overdueReturns),registeredDeadlinesDue:nonneg(value.registeredDeadlinesDue),
+   overdueReturns:nonneg(value.overdueReturns),invalidReturnDates:nonneg(value.invalidReturnDates),registeredDeadlinesDue:nonneg(value.registeredDeadlinesDue),
    staleSources:nonneg(value.staleSources),missingLawyer:nonneg(value.missingLawyer),missingOffice:nonneg(value.missingOffice),
    critical:nonneg(value.critical),attention:nonneg(value.attention),monitoring:nonneg(value.monitoring),
    averageHealth:Math.min(100,nonneg(value.averageHealth)),sourceErrors:nonneg(value.sourceErrors),
@@ -72,9 +72,9 @@ export function diagnosticsSections(raw:HermesPortfolioDiagnostics|null):ReportS
     {label:'Datas de prazo no CRM a conferir',value:d.registeredDeadlinesDue,color:REPORT_COLORS.gold},
     {label:'Fontes desatualizadas',value:d.staleSources,color:REPORT_COLORS.gold},
     {label:'Casos com atenção alta',value:d.critical,color:REPORT_COLORS.red},
-    {label:'Tarefas abertas/vencidas',value:d.openCrmTasks+' / '+d.overdueCrmTasks,color:REPORT_COLORS.purple},
+    {label:'Tarefas operacionais abertas',value:d.openCrmTasks,color:REPORT_COLORS.purple},
+    {label:'Datas de retorno inconsistentes',value:d.invalidReturnDates||0,color:REPORT_COLORS.gold},
     {label:'Tarefas sem vínculo na equipe',value:d.unmatchedAssigneeTasks||0,color:REPORT_COLORS.gold},
-    {label:'Vencidas sem vínculo',value:d.unmatchedOverdueTasks||0,color:REPORT_COLORS.red},
     {label:'Saúde média operacional',value:d.averageHealth+'/100',color:REPORT_COLORS.teal},
     {label:'Atividades registradas em 30 dias',value:d.completedHumanTasks30d,color:REPORT_COLORS.blue},
    ]},
@@ -106,9 +106,9 @@ export function diagnosticsSections(raw:HermesPortfolioDiagnostics|null):ReportS
  if(d.byUser.length)out.push({
    id:'hermes-people',kind:'table',title:'Hermes · produtividade individual e trabalho em equipe',
    subtitle:'Registros cadastrados em 30 dias, inclusive importações; quantidade não comprova contatos, horas ou trabalho manual.',
-   columns:['Colaborador e cargo','Atividades 30d','Contatos confirmados','Tarefas abertas / vencidas'],
+   columns:['Colaborador e cargo','Atividades 30d','Contatos confirmados','Tarefas abertas'],
    rows:d.byUser.map(x=>[cell(x.name,55)+' · '+cell(x.role,35),x.done30d.toString(),
-     x.contacts30d.toString(),x.openTasks+' / '+x.overdueTasks])
+     x.contacts30d.toString(),String(x.openTasks)])
  });
  if(d.taskQueue.length)out.push({
    id:'hermes-task-queue',kind:'table',title:'Hermes · tarefas individuais e da equipe',

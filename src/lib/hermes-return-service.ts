@@ -4,6 +4,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import { fetchDjenComunicacoes, resolveDjenPublicacaoLink } from '@/lib/djen';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { brazilToday, validReturnDay } from '@/lib/wa-daily-return-policy';
+import {classifyHermesReturnDate} from '@/lib/hermes-return-date';
 import { buildHermesReturnReview, type HermesCourtEvent, type HermesCourtSnapshot } from '@/lib/hermes-return-policy';
 
 type ProcessRow = {
@@ -47,7 +48,7 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
     ? new Date(Date.parse(fromDay + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10)
     : new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const [dj, djen] = await Promise.allSettled([
-    fetchDataJud(cnj, 1, { fast: true, cloudBudget: true, forceRefresh: manual }),
+    fetchDataJud(cnj, 1, { fast: true, cloudBudget: true, forceRefresh: manual,timeoutMs: manual?44_000:38_000 }),
     fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, hermesManual: manual, forceRefresh: manual }),
   ]);
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
@@ -117,8 +118,9 @@ export async function reviewHermesCase(input: {
   // Manual early checks must not satisfy the future scheduled return claim.
   // A due/overdue manual check may reuse the current scheduled date.
   const scheduled = validReturnDay(row.proximo_retorno);
+  const scheduleState=classifyHermesReturnDate(row.ultimo_retorno,row.proximo_retorno,today);
   const due = validReturnDay(input.dueOn) ||
-    (scheduled && scheduled <= today ? scheduled : today);
+    (scheduled && (scheduleState==='today'||scheduleState==='overdue') ? scheduled : today);
   const cnj = normalizedCnj(row.protocolo_ref || row.dados?.protocolo);
   const name = row.cliente || String(row.dados?.cliente || '');
   const manual=input.mode==='manual';
@@ -138,6 +140,10 @@ export async function reviewHermesCase(input: {
       source: 'Sistema', date: null, text: 'CNJ inválido ou ausente: não foi possível consultar as fontes oficiais.',
       kind: 'gap', url: null,
     });
+  }
+  if(scheduleState==='inconsistent'){
+    result.highlights.unshift({source:'Sistema',date:null,kind:'gap',url:null,
+      text:'Data de próximo retorno incompatível com o último atendimento: requer correção no cadastro; não é retorno vencido.'});
   }
   await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
   return { ok: true as const, processId: row.id, state: result.state, score: result.priorityScore };
