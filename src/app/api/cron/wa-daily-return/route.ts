@@ -68,7 +68,19 @@ export async function GET(request:Request){
      console.warn('[cron-audiencias]',audienciasIndex.error);
    }
  }
+ // Uma checagem incremental real nas APIs oficiais (com timeout e limite).
+ // Nunca envia mensagem; usa a Vercel Cron já existente para evitar um cron adicional.
+ let audienciasOficiais:Record<string,unknown>={ok:false,reason:'budget'};
+ if(Date.now()-started < 39000){
+   try{
+     const {verificarUmaAudienciaAgendada}=await import('@/lib/audiencias-service');
+     audienciasOficiais=await verificarUmaAudienciaAgendada();
+   }catch(error){
+     audienciasOficiais={ok:false,error:error instanceof Error?error.message:'Falha de consulta'};
+     console.warn('[cron-audiencias-oficiais]',audienciasOficiais.error);
+   }
+ }
  return NextResponse.json({ok:true,queued:prepared,checked,preparedOnly:!anySendingWindow,reason:lastReason,
-   audienciasIndex,elapsedMs:Date.now()-started},{headers:{'Cache-Control':'private, no-store'}});
+   audienciasIndex,audienciasOficiais,elapsedMs:Date.now()-started},{headers:{'Cache-Control':'private, no-store'}});
 
 }
