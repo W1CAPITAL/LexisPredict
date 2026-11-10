@@ -8,6 +8,7 @@ import {
   ShieldCheck, Sparkles
 } from "lucide-react";
 import { getHermesOfficeStations } from "@/lib/hermes-office";
+import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import "./hermes-office.css";
 
 type ViewMode = "3d" | "2d";
@@ -95,7 +96,22 @@ export default function Hermes3DLexisPage() {
                         } as CSSProperties}
                       >
                         <span className="h3d-desk-top"><span className="h3d-terminal"><span /><span /><span /></span></span>
-                        <span className="h3d-agent-pawn"><Bot size={21} strokeWidth={1.8}/></span>
+                        <span className="h3d-agent-pawn" aria-hidden="true">
+                          <span className="h3d-robot-antenna" />
+                          <span className="h3d-robot-head">
+                            <span className="h3d-robot-face h3d-robot-front"><i/><i/><b/></span>
+                            <span className="h3d-robot-face h3d-robot-back" />
+                            <span className="h3d-robot-face h3d-robot-left" />
+                            <span className="h3d-robot-face h3d-robot-right" />
+                            <span className="h3d-robot-face h3d-robot-top" />
+                            <span className="h3d-robot-face h3d-robot-bottom" />
+                          </span>
+                          <span className="h3d-robot-body"><i/></span>
+                          <span className="h3d-robot-arm h3d-robot-arm-left"/>
+                          <span className="h3d-robot-arm h3d-robot-arm-right"/>
+                          <span className="h3d-robot-leg h3d-robot-leg-left"/>
+                          <span className="h3d-robot-leg h3d-robot-leg-right"/>
+                        </span>
                         <span className="h3d-desk-number">{station.glyph}</span>
                       </button>
                     ))}
@@ -166,6 +182,10 @@ export default function Hermes3DLexisPage() {
             )}
           </aside>
         </section>
+
+        <div>
+          <HermesPriorityQueue/>
+        </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#cbbbc4]">
           <p>Integração visual do LexisPredict · Escritório 3D sem gateway externo nem dados fictícios de atividade.</p>

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   queueOverdue: vi.fn(async () => ({ queued: false, reason: 'nothing_due' })),
   queueChecked: vi.fn(async () => ({ queued: false, reason: 'nothing_due' })),
   database: vi.fn(),
+  hermes: vi.fn(async () => ({ok:true,processed:0,results:[],elapsedMs:0})), 
 }));
 
 vi.mock('@supabase/ssr', () => ({
@@ -17,10 +18,12 @@ vi.mock('@/lib/wa-movement-campaign', () => ({ deliverNextMovement: mocks.delive
 vi.mock('@/lib/wa-portfolio-outreach', () => ({ queueOverdueContact: mocks.queueOverdue, queueCheckedPortfolioContact: mocks.queueChecked }));
 vi.mock('@/lib/server-db', () => ({ getSupabaseAdmin: mocks.database }));
 vi.mock('@/lib/wa-daily-return-service', () => ({ processNextDueReturn: vi.fn() }));
+vi.mock('@/lib/hermes-return-service', () => ({ runHermesDueReviewBatch: mocks.hermes }));
 
 import { middleware } from '../../middleware';
 import { GET as movement } from '@/app/api/cron/wa-movement/route';
 import { GET as daily } from '@/app/api/cron/wa-daily-return/route';
+import { GET as hermes } from '@/app/api/cron/hermes-returns/route';
 
 describe('WhatsApp cron authentication boundary', () => {
   beforeEach(() => {
@@ -39,7 +42,7 @@ describe('WhatsApp cron authentication boundary', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it.each(['/api/cron/wa-movement', '/api/cron/wa-daily-return'])(
+  it.each(['/api/cron/wa-movement', '/api/cron/wa-daily-return', '/api/cron/hermes-returns'])(
     'allows %s to reach its secret-authenticated handler without browser cookies',
     async (path) => {
       const response = await middleware(new NextRequest(`https://test.invalid${path}`));
@@ -48,7 +51,7 @@ describe('WhatsApp cron authentication boundary', () => {
     },
   );
 
-  it.each(['/api/cron/other', '/api/cron/wa-movement/extra', '/api/cron/wa-daily-return/extra'])(
+  it.each(['/api/cron/other', '/api/cron/wa-movement/extra', '/api/cron/wa-daily-return/extra', '/api/cron/hermes-returns/extra'])(
     'keeps browser authentication on %s', async (path) => {
       const response = await middleware(new NextRequest(`https://test.invalid${path}`));
       expect(response.status).toBe(401);
@@ -56,12 +59,21 @@ describe('WhatsApp cron authentication boundary', () => {
     },
   );
 
-  it.each([movement, daily])('rejects missing and invalid cron secrets before any work', async (handler) => {
+  it.each([movement, daily, hermes])('rejects missing and invalid cron secrets before any work', async (handler) => {
     for (const authorization of ['', 'Bearer wrong-secret']) {
       const response = await handler(new Request('https://test.invalid', { headers: { authorization } }));
       expect(response.status).toBe(401);
     }
     expect(mocks.queueMovement).not.toHaveBeenCalled();
+    expect(mocks.database).not.toHaveBeenCalled();
+  });
+
+  it('Hermes reads due cases only when the cron bearer secret is valid', async () => {
+    const response = await hermes(new Request('https://test.invalid', {
+      headers: { authorization: 'Bearer test-private-daily-cron-secret' },
+    }));
+    expect(response.status).toBe(200);
+    expect(mocks.hermes).toHaveBeenCalledWith(2);
     expect(mocks.database).not.toHaveBeenCalled();
   });
 

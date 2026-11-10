@@ -3,6 +3,8 @@ import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { statusEfetivo } from "@/lib/prazo-status";
 
 import { AtendimentoActions } from '@/components/ops/atendimento-actions';
+import { HermesReturnReviewButton } from '@/components/hermes/hermes-return-review-button';
+import { HermesPriorityQueue } from '@/components/hermes/hermes-priority-queue';
 import {TarefaEditDialog} from '@/components/tarefas/tarefa-edit-dialog';
 import { PublicacaoDjenBlock } from '@/components/ops/publicacao-djen';
 import { mensagemRapidaCliente } from '@/lib/mensagem-rapida';
@@ -1026,6 +1028,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
+          <HermesPriorityQueue />
           <section className={ui.metrics}>
             <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
             <div className="premium-card p-6 border-l-4 border-l-primary relative group space-y-3">
@@ -1448,6 +1451,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
       <div className="mt-6 pt-6 border-t border-border/30 flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
            <Button variant="ghost" size="icon" onClick={onSuggest} className={cn("text-amber-600 hover:bg-amber-50", ui.touch)} title="Sugestão de Resposta"><MessageSquareQuote size={18} /></Button>
+           {group.cases[0] ? <HermesReturnReviewButton compact processId={Number((group.cases[0] as any).db_id || group.cases[0].id)}/> : null}
            <Button variant="ghost" size="icon" onClick={() => onScan(group.protocoloReferencia)} className={cn("text-primary hover:bg-primary/10", ui.touch)} title="Auditoria 3D"><FileSearch size={18} /></Button>
            <Button variant="ghost" size="icon" asChild className={cn("text-emerald-600 hover:bg-emerald-50", ui.touch)} title="Abrir terminal WhatsApp">
              <Link

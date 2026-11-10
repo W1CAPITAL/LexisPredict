@@ -17,6 +17,7 @@ import {
   History,
 } from "lucide-react";
 import { getOperacaoSistemaLabel } from "@/lib/operacao-sistema";
+import { HermesReturnReviewButton } from "@/components/hermes/hermes-return-review-button";
 
 type Props = {
   items: LegalCase[];
@@ -212,6 +213,7 @@ export function CaseGlassList({
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
+              <HermesReturnReviewButton processId={Number((c as any).db_id || c.id)} compact />
               {canScan && onScan ? (
                 <IconBtn title="Scan" onClick={async () => {
                   setBusy(protoRaw + "s");
