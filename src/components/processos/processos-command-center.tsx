@@ -65,6 +65,7 @@ import { processOperationalCoverage, processSourceGapCount, processSourceMatrix,
 import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
 import { fetchProcessosMovementsAction } from "@/app/actions/processos-movements-action";
 import { buildProcessTimeline, cnjDigits, formatCnj, mergeProcessTimelineEntries, type ProcessTimelineEntry } from "@/lib/processos-timeline";
+import { HermesReturnReviewButton } from "@/components/hermes/hermes-return-review-button";
 
 
 type Props = {
@@ -1003,7 +1004,8 @@ export function ProcessosCommandCenter(props: Props) {
                     </div> :
                     <span className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 dark:text-slate-400 dark:border-slate-700 dark:text-slate-300">Somente consulta</span>}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  <HermesReturnReviewButton processId={Number((selected as any).db_id || selected.id)}/>
                   <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold", statusColor(String(selected.status)))}>{selected.status}</span>
                   <span className={cn("rounded-full border px-2 py-1 text-[10px] font-bold", statusColor(riskLabel(selected)))}>Risco {riskLabel(selected)}</span>
                   {selectedSilence != null ? <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-800 dark:text-amber-200">{selectedSilence}d sem movimento</span> : null}
