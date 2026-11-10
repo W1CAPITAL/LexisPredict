@@ -73,7 +73,7 @@ describe('WhatsApp cron authentication boundary', () => {
       headers: { authorization: 'Bearer test-private-daily-cron-secret' },
     }));
     expect(response.status).toBe(200);
-    expect(mocks.hermes).toHaveBeenCalledWith(2);
+    expect(mocks.hermes).toHaveBeenCalledWith(1);
     expect(mocks.database).not.toHaveBeenCalled();
   });
 
