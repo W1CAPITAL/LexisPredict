@@ -5,6 +5,7 @@ import { runHermesDueReviewBatch } from '@/lib/hermes-return-service';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+export const preferredRegion = 'gru1'; // DJEN official API may block servers outside Brazil.
 
 function authorized(request: Request): boolean {
   const token = String(request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
