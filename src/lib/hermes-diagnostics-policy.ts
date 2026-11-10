@@ -76,7 +76,7 @@ export function diagnosticsSections(raw:HermesPortfolioDiagnostics|null):ReportS
     {label:'Tarefas sem vínculo na equipe',value:d.unmatchedAssigneeTasks||0,color:REPORT_COLORS.gold},
     {label:'Vencidas sem vínculo',value:d.unmatchedOverdueTasks||0,color:REPORT_COLORS.red},
     {label:'Saúde média operacional',value:d.averageHealth+'/100',color:REPORT_COLORS.teal},
-    {label:'Registros humanos em 30 dias',value:d.completedHumanTasks30d,color:REPORT_COLORS.blue},
+    {label:'Atividades registradas em 30 dias',value:d.completedHumanTasks30d,color:REPORT_COLORS.blue},
    ]},
   {id:'hermes-outcome-audit',kind:'notes',title:'Hermes · resultados judiciais indicados e qualidade das evidências',
    subtitle:'Classificação pela justificativa cadastrada; não confirma trânsito em julgado, recursos ou recebimento.',
@@ -105,7 +105,7 @@ export function diagnosticsSections(raw:HermesPortfolioDiagnostics|null):ReportS
  });
  if(d.byUser.length)out.push({
    id:'hermes-people',kind:'table',title:'Hermes · produtividade individual e trabalho em equipe',
-   subtitle:'Registros comprovados em 30 dias; volume não mede qualidade, horas trabalhadas ou equivalência a pessoas.',
+   subtitle:'Registros cadastrados em 30 dias, inclusive importações; quantidade não comprova contatos, horas ou trabalho manual.',
    columns:['Colaborador e cargo','Atividades 30d','Contatos confirmados','Tarefas abertas / vencidas'],
    rows:d.byUser.map(x=>[cell(x.name,55)+' · '+cell(x.role,35),x.done30d.toString(),
      x.contacts30d.toString(),x.openTasks+' / '+x.overdueTasks])
