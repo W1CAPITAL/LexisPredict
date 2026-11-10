@@ -95,7 +95,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                   <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">{review.state === "ready" ? "Análise preparada" : review.state === "skipped" ? "Processo encerrado" : review.state === "scanning" ? "Verificação em curso" : "Fontes incompletas"}</span>
                 </div>
                 {String(registered.next || "") !== String(review.due_on || "") && (
-                  <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">A data cadastrada mudou desde esta análise. Confira as informações antes de usar o rascunho.</p>
+                  <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">A data desta revisão é diferente do retorno atual. Pode ser uma consulta avulsa ou um atendimento posterior; revise as datas antes de usar o rascunho.</p>
                 )}
                 <div className="space-y-2">
                   <h3 className="font-semibold">Pontos principais e fontes</h3>
