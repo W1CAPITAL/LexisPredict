@@ -125,13 +125,16 @@ export default function Hermes3DLexisPage() {
                     <div className="h3d-room-division h3d-room-top" aria-hidden="true"/>
                     <div className="h3d-room-division h3d-room-bottom" aria-hidden="true"/>
                     <div className="h3d-glass-partition" aria-hidden="true"/>
-                    <div className="h3d-boardroom" aria-hidden="true">
+                    <div className="h3d-boardroom" data-meeting={officeRecord?.meeting_status==="ready"?"true":"false"} aria-hidden="true">
                       <span className="h3d-conference-table"><i/><b/></span>
                       <span className="h3d-conference-chair h3d-chair-n"/>
                       <span className="h3d-conference-chair h3d-chair-s"/>
                       <span className="h3d-conference-chair h3d-chair-w"/>
                       <span className="h3d-conference-chair h3d-chair-e"/>
                       <span className="h3d-meeting-monitor">CONSELHO</span>
+                      <span className="h3d-meeting-bot h3d-meeting-bot-1"><i/><b/></span>
+                      <span className="h3d-meeting-bot h3d-meeting-bot-2"><i/><b/></span>
+                      <span className="h3d-meeting-bot h3d-meeting-bot-3"><i/><b/></span>
                     </div>
                     <div className="h3d-lounge" aria-hidden="true"><span className="h3d-sofa"/><span className="h3d-coffee"/><span className="h3d-plant"/></div>
                     <div className="h3d-reception" aria-hidden="true"><span>LEXIS</span><i/></div>
