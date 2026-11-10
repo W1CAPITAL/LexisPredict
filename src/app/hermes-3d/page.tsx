@@ -115,7 +115,7 @@ export default function Hermes3DLexisPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <HermesExport record={officeRecord} cases={officeCases} events={officeEvents}/>
+            <HermesExport record={officeRecord} cases={officeCases} events={officeEvents} diagnostics={diagnostics}/>
             <button type="button" onClick={()=>setShowDiagnostics(s=>!s)} className="h3d-button" aria-expanded={showDiagnostics}>Relatório detalhado {showDiagnostics?"−":"+"}</button>
             <a href="#hermes-swarm-rebuild" className="h3d-button">Swarm Rebuild</a>
             <a href="#hermes-activity-log" className="h3d-button" title="Ver o histórico real dos agentes">
