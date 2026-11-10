@@ -3,6 +3,7 @@ import {
   buildHermesOfficeIntelligence,
   makeHermesMeetingPrompt,
   sanitizeHermesMeetingOutput,
+  describeHermesCaseHealth,
   type HermesOfficeMetrics,
 } from '@/lib/hermes-company-intelligence';
 
@@ -43,5 +44,28 @@ describe('Hermes company intelligence', () => {
     expect(prompt).toContain('fontes');
     expect(prompt).not.toContain('CPF');
     expect(sanitizeHermesMeetingOutput('OK\u0000'.repeat(500)).length).toBeLessThanOrEqual(1400);
+  });
+});
+
+describe('Hermes individual case monitoring health', () => {
+  it('does not invent win/loss predictions from a process priority score', () => {
+    const row=describeHermesCaseHealth({
+      processId:100,client:'Pessoa',cnj:'10000000020268000000',
+      priorityScore:90,priorityLabel:'Crítica',
+      djenOk:true,datajudOk:false,
+      checkedAt:'2026-11-10T12:00:00Z',dueOn:'2026-11-10',
+    });
+    expect(row.level).toBe('Revisão urgente');
+    expect(row.sourceStatus).toContain('DataJud');
+    expect(row).not.toHaveProperty('winProbability');
+    expect(row).not.toHaveProperty('lossProbability');
+  });
+  it('marks absent judicial verification rather than claiming the case is safe', () => {
+    const row=describeHermesCaseHealth({
+      processId:120,client:'Cliente',cnj:'20000000020268000000',
+      priorityScore:0,priorityLabel:'Normal',djenOk:false,datajudOk:false,
+      checkedAt:null,dueOn:null,
+    });
+    expect(row.level).toBe('Sem fonte confirmada');
   });
 });
