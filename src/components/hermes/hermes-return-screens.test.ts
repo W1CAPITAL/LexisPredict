@@ -26,5 +26,6 @@ describe('Hermes retorno nas três áreas operacionais', () => {
     expect(service).toContain("fetchDataJud(");
     expect(service).toContain("fetchDjenComunicacoes(");
     expect(service).not.toContain('sendWhatsApp');
+    expect(source('src/app/api/cron/hermes-returns/route.ts')).toContain('runHermesDueReviewBatch(1)');
   });
 });
