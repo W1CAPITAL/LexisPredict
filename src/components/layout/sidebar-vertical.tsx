@@ -90,6 +90,7 @@ const extras: NavItem[] = [
   { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, supervisor: true },
   { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, supervisor: true },
   { label: "Estúdio de Agentes", href: "/estudio-agentes", icon: Bot, supervisor: true },
+  { label: "Hermes 3D", href: "/hermes-3d", icon: Bot, supervisor: true },
   { label: "Administração", href: "/superadmin", icon: Crown, superadmin: true },
 ];
 
