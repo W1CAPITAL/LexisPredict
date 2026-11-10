@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
-import { runHermesDueReviewBatch } from '@/lib/hermes-return-service';
+import { runHermesDueReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
 import {
-  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, runHermesCompanyMeeting, todayHermesBrazil,
+  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, getHermesRebuildRuns, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
@@ -33,16 +33,18 @@ async function getOfficePanel() {
     { ok: false, error: 'Acesso restrito à supervisão.' }, { status: 403, headers: privateHeaders },
   );
   try {
-    const [record, cases, events] = await Promise.all([
+    const [record, cases, events, rebuild] = await Promise.all([
       getHermesCompanyDaily(String(ctx.empresa_id)),
       getHermesCaseHealth(String(ctx.empresa_id)),
       getHermesOfficeEvents(String(ctx.empresa_id)),
+      getHermesRebuildRuns(String(ctx.empresa_id)),
     ]);
     return NextResponse.json({
       ok: true,
       record,
       cases,
       events,
+      rebuild,
       intelligence: record ? buildHermesOfficeIntelligence(record.metrics, record.day) : null,
     }, { headers: privateHeaders });
   } catch {
@@ -70,13 +72,55 @@ async function postOfficeMeeting() {
   }
 }
 
+/** Run manual case lookups in São Paulo region, where official DJEN is available.
+ * Reuses the cron serverless function and checked session. */
+async function postOfficeCaseReview(request:Request){
+ const ctx=await getUserContext();
+ if(!ctx?.auth_id||!ctx?.empresa_id||ctx.isViewer)return NextResponse.json(
+  {ok:false,error:'Sem permissão para a consulta Hermes.'},{status:403,headers:privateHeaders});
+ try{
+  const origin=request.headers.get('origin');
+  if(origin&&new URL(origin).host!==new URL(request.url).host)return NextResponse.json(
+   {ok:false,error:'Origem de chamada não autorizada.'},{status:403,headers:privateHeaders});
+  const raw=await request.json();
+  const processId=Number(raw?.processId);
+  if(!Number.isSafeInteger(processId)||processId<=0)return NextResponse.json(
+    {ok:false,error:'Identificador do processo inválido.'},{status:400,headers:privateHeaders});
+  const db=await getSupabaseAdmin();
+  const {data:recent}=await db.from('hermes_return_reviews')
+    .select('checked_at,djen_ok,datajud_ok').eq('empresa_id',String(ctx.empresa_id))
+    .eq('processo_id',processId).order('attempted_at',{ascending:false}).limit(1).maybeSingle();
+  const cacheMinutes=recent?.djen_ok&&recent?.datajud_ok?15:2;
+  if(recent?.checked_at&&Date.now()-Date.parse(recent.checked_at)<cacheMinutes*60000){
+    return NextResponse.json({ok:true,reused:true},{headers:privateHeaders});
+  }
+  const result=await reviewHermesCase({empresaId:String(ctx.empresa_id),processId,mode:'manual'});
+  if(!result.ok)return NextResponse.json({ok:false,error:'Processo não encontrado nesta empresa.'},{status:404,headers:privateHeaders});
+  return NextResponse.json({...result,reused:false},{headers:privateHeaders});
+ }catch(error){
+  console.error('[Hermes] consulta manual falhou:',error instanceof Error?error.message:'Falha desconhecida');
+  return NextResponse.json({ok:false,error:'Consulta oficial indisponível. Consulte o diagnóstico e tente novamente.'},{status:503,headers:privateHeaders});
+ }
+}
+async function postRebuild(){
+ const ctx=await getUserContext();
+ if(!canReviewOffice(ctx))return NextResponse.json({ok:false,error:'Acesso restrito à supervisão.'},{status:403,headers:privateHeaders});
+ try{
+   const result=await runHermesEvidenceRebuild(String(ctx.empresa_id));
+   return NextResponse.json(result,{headers:privateHeaders});
+ }catch(error){
+   console.error('[Hermes] Swarm Rebuild:',error instanceof Error?error.message:'Falha na análise');
+   return NextResponse.json({ok:false,error:'O Swarm Rebuild não concluiu sua auditoria; nenhuma ação jurídica foi aplicada.'},{status:503,headers:privateHeaders});
+ }
+}
+
 /** A reunião é reservada por empresa e dia no banco: não há execuções concorrentes duplicadas. */
 async function scheduledOfficeMeeting() {
   try {
     const day = todayHermesBrazil();
     const db = await getSupabaseAdmin();
     const { data, error } = await db.from('hermes_office_daily')
-      .select('empresa_id').eq('day', day).eq('meeting_status', 'pending').limit(1);
+      .select('empresa_id').eq('day', day).in('meeting_status', ['pending','unavailable']).lt('meeting_attempts',3).limit(1);
     if (error) throw new Error('Não foi possível ler a fila Hermes.');
     if (!data?.length) return NextResponse.json({ ok: true, processed: 0 },
       { headers: { 'Cache-Control': 'no-store' } });
@@ -120,6 +164,8 @@ export async function GET(request: Request) {
 /** O POST só serve à reunião autorizada da supervisão; nunca envia mensagem ao cliente. */
 export async function POST(request: Request) {
   const mode = new URL(request.url).searchParams.get('hermesRoute');
+  if (mode === 'office' && new URL(request.url).searchParams.get('action')==='review') return postOfficeCaseReview(request);
+  if (mode === 'office' && new URL(request.url).searchParams.get('action')==='rebuild') return postRebuild();
   if (mode === 'office') return postOfficeMeeting();
   return NextResponse.json({ ok: false, error: 'Método não permitido' },
     { status: 405, headers: { 'Cache-Control': 'no-store', Allow: 'GET' } });

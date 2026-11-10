@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { HermesCaseHealth } from "@/lib/hermes-company-intelligence";
 import {parseHermesMeetingTranscript,type HermesOfficeIntelligence} from "@/lib/hermes-company-intelligence";
-import type { HermesOfficeDailyRow } from "@/lib/hermes-company-service";
+import type { HermesOfficeDailyRow,HermesRebuildRun } from "@/lib/hermes-company-service";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, Bot, Boxes, ChevronLeft, ChevronRight,
@@ -14,6 +14,8 @@ import { getHermesOfficeStations } from "@/lib/hermes-office";
 import {hermesOfficeEventClock,type HermesOfficeEvent} from "@/lib/hermes-agent-route";
 import {HermesRoamingRobots} from "@/components/hermes/hermes-roaming-robots";
 import {HermesActivityLog} from "@/components/hermes/hermes-activity-log";
+import {HermesRebuildPanel} from "@/components/hermes/hermes-rebuild-panel";
+import {HermesExport} from "@/components/hermes/hermes-export";
 import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import { HermesCompanyPanel } from "@/components/hermes/hermes-company-panel";
 import "./hermes-office.css";
@@ -31,6 +33,7 @@ export default function Hermes3DLexisPage() {
   const [officeRecord, setOfficeRecord] = useState<HermesOfficeDailyRow|null>(null);
   const [officeCases,setOfficeCases] = useState<HermesCaseHealth[]>([]);
   const [officeEvents,setOfficeEvents] = useState<HermesOfficeEvent[]>([]);
+  const [rebuildRuns,setRebuildRuns]=useState<HermesRebuildRun[]>([]);
   const [replayMeeting,setReplayMeeting] = useState(false);
   const [meetingTurn,setMeetingTurn] = useState(0);
   const [officeError, setOfficeError] = useState("");
@@ -41,7 +44,7 @@ export default function Hermes3DLexisPage() {
       const res = await fetch('/api/hermes-office',{cache:'no-store',credentials:'same-origin',signal});
       const data = await res.json();
       if(!res.ok||!data.ok)throw Error(data.error||'Não foi possível atualizar o escritório.');
-      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setOfficeEvents(Array.isArray(data.events)?data.events:[]);setOfficeError("");}
+      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setOfficeEvents(Array.isArray(data.events)?data.events:[]);setRebuildRuns(Array.isArray(data.rebuild)?data.rebuild:[]);setOfficeError("");}
     }catch(e){
       if(!signal?.aborted)setOfficeError(e instanceof Error?e.message:'Acesso temporariamente indisponível.');
     }
@@ -108,6 +111,8 @@ export default function Hermes3DLexisPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <HermesExport record={officeRecord} cases={officeCases} events={officeEvents}/>
+            <a href="#hermes-swarm-rebuild" className="h3d-button">Swarm Rebuild</a>
             <a href="#hermes-activity-log" className="h3d-button" title="Ver o histórico real dos agentes">
               <Bot className="h-4 w-4"/> Diário de execução
             </a>
@@ -275,6 +280,7 @@ export default function Hermes3DLexisPage() {
           <p className="mt-2 text-xs text-[#cbb8c4]">Esta é uma reprodução dos achados salvos; não significa que a IA esteja processando agora.</p>
         </section>}
         <HermesActivityLog events={officeEvents} selectedSector={selectedId} onSelect={setSelectedId}/>
+        <HermesRebuildPanel runs={rebuildRuns} onRefresh={()=>refreshOffice()}/>
         <HermesCompanyPanel office={office} record={officeRecord} cases={officeCases} busy={meetingBusy} error={officeError} onRefresh={()=>void refreshOffice()} onMeeting={()=>void requestMeeting()} onReplayMeeting={()=>{setMeetingTurn(0);setReplayMeeting(x=>!x)}}/>
         <div>
           <HermesPriorityQueue/>

@@ -390,6 +390,8 @@ export async function fetchDjenComunicacoes(
     cloudBudget?: boolean;
     /** Página de 50 publicações; usado na cronologia completa sob demanda. */
     pagina?: number;
+    /** Consulta manual Hermes: tenta as duas formas do CNJ em orçamento controlado. */
+    hermesManual?: boolean;
     /** Ação manual pede nova consulta, sem usar o cache dos últimos 90s. */
     forceRefresh?: boolean;
   }
@@ -419,6 +421,7 @@ async function fetchDjenComunicacoesUncached(
     /** Short no-retry call for serverless cloud micro-batches. */
     cloudBudget?: boolean;
     pagina?: number;
+    hermesManual?: boolean;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -452,7 +455,7 @@ async function fetchDjenComunicacoesUncached(
       if (opts?.meio) params.append('meio', opts.meio);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), opts?.cloudBudget ? 11000 : 28000);
+      const timeoutId = setTimeout(() => controller.abort(), opts?.cloudBudget ? 11000 : opts?.hermesManual ? 18000 : 28000);
 
       const response = await fetch(`${DJEN_URL}?${params.toString()}`, {
         method: 'GET',
@@ -579,7 +582,8 @@ async function fetchDjenComunicacoesUncached(
       };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        console.error('[DJEN Fetch Fail] timeout 20s', { cnj });
+        console.error('[DJEN Fetch Fail] timeout de consulta', { cnj });
+        if(opts?.hermesManual){ lastError='Tempo esgotado no DJEN; tentativa com outra grafia do CNJ.';continue; }
         return { success: false, error: 'Tempo esgotado no DJEN.', count: 0, items: [] };
       }
       const cause = e?.cause?.code || e?.cause?.message || e?.code || e?.message || String(e);

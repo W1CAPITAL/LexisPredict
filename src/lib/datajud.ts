@@ -41,7 +41,29 @@ export function resolveDataJudAlias(cnj: string): string {
 
 /** Chave DataJud: prefira env. Fallback = chave PÚBLICA oficial do CNJ (API pública). */
 const DATAJUD_PUBLIC_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
-const DATAJUD_API_KEY = (process.env.DATAJUD_API_KEY || '').trim() || DATAJUD_PUBLIC_KEY;
+const DATAJUD_API_KEY = (process.env.DATAJUD_API_KEY || '').trim().replace(/^APIKey\\s+/i,'') || DATAJUD_PUBLIC_KEY;
+let liveDataJudKey:{value:string;until:number}|null=null;
+/** Uses only the public API key published by CNJ; never stores private secrets in logs. */
+export function resolveCurrentDataJudKey():string{
+ return liveDataJudKey?.until && liveDataJudKey.until>Date.now()?liveDataJudKey.value:DATAJUD_API_KEY;
+}
+/** CNJ rotates its public key; refresh it once on HTTP 401/403 instead of repeating an expired key. */
+export async function refreshPublicDataJudKey():Promise<string|null>{
+ if(liveDataJudKey&&liveDataJudKey.until>Date.now())return liveDataJudKey.value;
+ try{
+  const response=await fetch('https://datajud-wiki.cnj.jus.br/api-publica/acesso/',{
+   signal:AbortSignal.timeout(8000),cache:'no-store',
+   headers:{Accept:'text/html','User-Agent':'LexisPredict/1.0 public-key-rotation'}
+  });
+  if(!response.ok)return null;
+  const page=(await response.text()).slice(0,150000);
+  const match=page.match(/Authorization:\\s*APIKey\\s+([A-Za-z0-9_+=\\/-]{30,})/i) ||
+    page.match(/APIKey\\s+([A-Za-z0-9_+=\\/-]{30,})/i);
+  if(!match?.[1])return null;
+  liveDataJudKey={value:match[1],until:Date.now()+6*60*60*1000};
+  return liveDataJudKey.value;
+ }catch{return null;}
+}
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -289,7 +311,7 @@ export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOpt
   return fetchDataJudUncached(cnj, attempt, options);
 }
 
-async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
+async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOptions = {}, overrideKey?:string): Promise<any> {
   const cnjLimpo = cnj.replace(/\D/g, '');
   const startTime = Date.now();
 
@@ -318,7 +340,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+        'Authorization': `APIKey ${overrideKey || resolveCurrentDataJudKey()}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -339,6 +361,13 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
 
     clearTimeout(id);
     const latency = Date.now() - startTime;
+
+    if ((response.status === 401 || response.status === 403) && !overrideKey) {
+      const fresh=await refreshPublicDataJudKey();
+      if(fresh&&fresh!==DATAJUD_API_KEY){
+        return fetchDataJudUncached(cnj,attempt,options,fresh);
+      }
+    }
 
     if (response.status === 429) {
       if (attempt < maxAttempts) {

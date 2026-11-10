@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Bot, ClipboardCopy, Loader2, RefreshCw, FileSearch } from "lucide-react";
-import { getHermesReturnReviewAction, refreshHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
+import { getHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -21,12 +21,32 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [registered, setRegistered] = React.useState<{ next: string | null; last: string | null }>({ next: null, last: null });
   const [copied, setCopied] = React.useState(false);
 
-  const load = React.useCallback(async () => {
+  async function queryOfficialBrazil(processId:number){
+    const response=await fetch('/api/hermes-office?action=review',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({processId})
+    });
+    const data=await response.json().catch(()=>({ok:false,error:'Resposta inválida do serviço de consulta.'}));
+    if(!response.ok||!data.ok)throw Error(data.error||'Falha ao consultar as fontes oficiais.');
+  }
+
+  const load = React.useCallback(async (autoRefresh = false) => {
     if (!Number.isSafeInteger(processId) || processId <= 0) return;
     setBusy(true); setError("");
     try {
-      const result = await getHermesReturnReviewAction(processId);
+      let result = await getHermesReturnReviewAction(processId);
       if (!result.ok) throw new Error(result.error);
+      // Opening a client without a recent saved review requests real official data immediately.
+      // Never invents a draft: it is generated only after the backend source lookup.
+      const checked=Date.parse(String(result.review?.checked_at||''));
+      const incomplete=!(result.review?.djen_ok===true&&result.review?.datajud_ok===true);
+      const stale=!Number.isFinite(checked)||Date.now()-checked>(incomplete?2:360)*60*1000;
+      if(autoRefresh&&stale){
+        await queryOfficialBrazil(processId);
+        result=await getHermesReturnReviewAction(processId);
+        if(!result.ok)throw new Error(result.error);
+      }
       setReview(result.review as Review | null);
       setRegistered({ next: result.nextReturnRegistered, last: result.lastReturnRegistered });
     } catch (e) {
@@ -34,14 +54,13 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
     } finally { setBusy(false); }
   }, [processId]);
 
-  React.useEffect(() => { if (open) void load(); }, [open, load]);
+  React.useEffect(() => { if (open) void load(true); }, [open, load]);
 
   async function refresh() {
     setBusy(true); setError("");
     try {
-      const result = await refreshHermesReturnReviewAction(processId);
-      if (!result.ok) throw new Error(result.error);
-      await load();
+      await queryOfficialBrazil(processId);
+      await load(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Falha ao consultar fontes oficiais."); }
     finally { setBusy(false); }
   }
@@ -94,6 +113,20 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                   <span className="rounded-full border border-[#a15f7a]/40 bg-[#a15f7a]/10 px-3 py-1 text-xs font-bold text-[#7d3658] dark:text-[#e8bdcf]">Prioridade: {review.priority_label} · {review.priority_score}/100</span>
                   <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground">{review.state === "ready" ? "Análise preparada" : review.state === "skipped" ? "Processo encerrado" : review.state === "scanning" ? "Verificação em curso" : "Fontes incompletas"}</span>
                 </div>
+                {(() => {
+                  const raw=review.source_snapshot;
+                  const info=raw && typeof raw==='object' && !Array.isArray(raw)
+                    ?(raw as Record<string,unknown>).sourceErrors:null;
+                  const sourceErrors=info && typeof info==='object'
+                    ?info as Record<string,string|null>:null;
+                  if(!sourceErrors)return null;
+                  return <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-5">
+                    <p className="font-semibold">Diagnóstico das consultas oficiais</p>
+                    {!review.djen_ok&&<p>DJEN: {String(sourceErrors.djen||'Fonte não confirmada.')}</p>}
+                    {!review.datajud_ok&&<p>DataJud: {String(sourceErrors.datajud||'Fonte não confirmada.')}</p>}
+                    <p className="mt-1 text-muted-foreground">Uma fonte pode responder mesmo quando a outra falha. Reconsulte sem presumir que não houve movimentação.</p>
+                  </div>;
+                })()}
                 {String(registered.next || "") !== String(review.due_on || "") && (
                   <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">A data desta revisão é diferente do retorno atual. Pode ser uma consulta avulsa ou um atendimento posterior; revise as datas antes de usar o rascunho.</p>
                 )}

@@ -364,3 +364,20 @@
  .h3d-roaming-robot{transform:scale(.75);transform-origin:top center;left:9px}
  .h3d-desk-label{font-size:8px}
 }
+
+/* Exportação nativa em PDF também para administradores sem permissão ao PDF corporativo.
+ * Exibe apenas as informações já autorizadas na página; nunca consulta outra empresa. */
+@media print {
+ @page{size:A4;margin:15mm}
+ .h3d-page,.h3d-header,.h3d-company-panel,.h3d-panel-card,.h3d-kpi,.h3d-department,
+ .h3d-meeting-line{background:#fff!important;box-shadow:none!important;border-color:#ddd!important}
+ .h3d-page{padding:0!important;color:#17121b!important}
+ .h3d-page *{color:#17121b!important;text-shadow:none!important}
+ .h3d-scene-shell,.h3d-page button,.h3d-page a.h3d-button,
+ .h3d-page .h3d-primary-link,.h3d-page select,.h3d-page input{display:none!important}
+ .h3d-panel-card,.h3d-department,.h3d-kpi,.h3d-meeting-line{
+  break-inside:avoid;page-break-inside:avoid;
+ }
+ #hermes-activity-log{max-height:none!important;overflow:visible!important}
+ #hermes-activity-log>div{max-height:none!important;overflow:visible!important}
+}
