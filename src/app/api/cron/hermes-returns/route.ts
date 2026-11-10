@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { runHermesDueReviewBatch } from '@/lib/hermes-return-service';
 import {
-  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, runHermesCompanyMeeting, todayHermesBrazil,
+  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, getHermesRebuildRuns, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
@@ -33,16 +33,18 @@ async function getOfficePanel() {
     { ok: false, error: 'Acesso restrito à supervisão.' }, { status: 403, headers: privateHeaders },
   );
   try {
-    const [record, cases, events] = await Promise.all([
+    const [record, cases, events, rebuild] = await Promise.all([
       getHermesCompanyDaily(String(ctx.empresa_id)),
       getHermesCaseHealth(String(ctx.empresa_id)),
       getHermesOfficeEvents(String(ctx.empresa_id)),
+      getHermesRebuildRuns(String(ctx.empresa_id)),
     ]);
     return NextResponse.json({
       ok: true,
       record,
       cases,
       events,
+      rebuild,
       intelligence: record ? buildHermesOfficeIntelligence(record.metrics, record.day) : null,
     }, { headers: privateHeaders });
   } catch {
@@ -68,6 +70,18 @@ async function postOfficeMeeting() {
       ok: false, error: 'Reunião indisponível. Os dados existentes permanecem preservados.',
     }, { status: 503, headers: privateHeaders });
   }
+}
+
+async function postRebuild(){
+ const ctx=await getUserContext();
+ if(!canReviewOffice(ctx))return NextResponse.json({ok:false,error:'Acesso restrito à supervisão.'},{status:403,headers:privateHeaders});
+ try{
+   const result=await runHermesEvidenceRebuild(String(ctx.empresa_id));
+   return NextResponse.json(result,{headers:privateHeaders});
+ }catch(error){
+   console.error('[Hermes] Swarm Rebuild:',error instanceof Error?error.message:'Falha na análise');
+   return NextResponse.json({ok:false,error:'O Swarm Rebuild não concluiu sua auditoria; nenhuma ação jurídica foi aplicada.'},{status:503,headers:privateHeaders});
+ }
 }
 
 /** A reunião é reservada por empresa e dia no banco: não há execuções concorrentes duplicadas. */
@@ -120,6 +134,7 @@ export async function GET(request: Request) {
 /** O POST só serve à reunião autorizada da supervisão; nunca envia mensagem ao cliente. */
 export async function POST(request: Request) {
   const mode = new URL(request.url).searchParams.get('hermesRoute');
+  if (mode === 'office' && new URL(request.url).searchParams.get('action')==='rebuild') return postRebuild();
   if (mode === 'office') return postOfficeMeeting();
   return NextResponse.json({ ok: false, error: 'Método não permitido' },
     { status: 405, headers: { 'Cache-Control': 'no-store', Allow: 'GET' } });
