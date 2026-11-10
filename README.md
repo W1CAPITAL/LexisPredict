@@ -225,7 +225,7 @@ Não é HubSpot. Não é PJe. É **gabinete + operação**.
 | Módulo | Função |
 | ------ | ------ |
 | **Painel** | KPIs: ativos, vencidos, atendidos, novidades |
-| **Meus processos / Cases** | Carteira por `created_by` |
+| **Cases e Tarefas** | Fila de retornos vencidos válidos ou de hoje para toda a empresa |
 | **Processos da empresa** | Visão completa · **“Rodar empresa”** só supervisão |
 | **Filas / Tarefas** | Prioridade do dia |
 | **Parados / Encerrados a revisar** | Silêncio tribunal ≠ prazo vencido |
