@@ -47,8 +47,8 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
     ? new Date(Date.parse(fromDay + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10)
     : new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const [dj, djen] = await Promise.allSettled([
-    fetchDataJud(cnj, 1, { fast: !manual, cloudBudget: !manual, forceRefresh: manual }),
-    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, forceRefresh: manual }),
+    fetchDataJud(cnj, 1, { fast: true, cloudBudget: true, forceRefresh: manual }),
+    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, hermesManual: manual, forceRefresh: manual }),
   ]);
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
   const diario = djen.status === 'fulfilled' ? djen.value : null;
