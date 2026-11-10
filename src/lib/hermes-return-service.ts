@@ -12,6 +12,8 @@ type ProcessRow = {
   ultimo_retorno: string | null; proximo_retorno: string | null;
   status_interno: string | null; status: string | null;
   dados: Record<string, unknown> | null;
+  ultima_movimentacao: string | null; datajud_ultimo_movimento: string | null;
+  datajud_last_ok: boolean | null; djen_last_ok: boolean | null; djen_ultima_data: string | null;
 };
 type Claim = { empresa_id: string; processo_id: number; due_on: string };
 
@@ -34,7 +36,7 @@ function safeLink(raw: string | null): string | null {
 }
 export async function loadHermesReviewCase(db: Awaited<ReturnType<typeof getSupabaseAdmin>>, empresaId: string, processId: number) {
   const { data, error } = await db.from('processos')
-    .select('id,empresa_id,cliente,protocolo_ref,ultimo_retorno,proximo_retorno,status_interno,status,dados')
+    .select('id,empresa_id,cliente,protocolo_ref,ultimo_retorno,proximo_retorno,status_interno,status,dados,ultima_movimentacao,datajud_ultimo_movimento,datajud_last_ok,djen_last_ok,djen_ultima_data')
     .eq('empresa_id', empresaId).eq('id', processId).maybeSingle();
   if (error) throw new Error('Falha ao consultar processo do tenant.');
   return (data || null) as ProcessRow | null;
@@ -176,5 +178,77 @@ export async function runHermesDueReviewBatch(maxCases = 2) {
       results.push({ processId: Number(claim.processo_id), state: 'unavailable' });
     }
   }
-  return { ok: true, processed: results.length, results, elapsedMs: Date.now() - started };
+  // A ronda de parados só usa um turno do cron quando não há retorno vencido a revisar.
+  const stalled=results.length===0&&Date.now()-started<3000
+    ?await runHermesStalledReviewBatch()
+    :{processed:0,state:'deferred' as const};
+  return { ok: true, processed: results.length, results, stalled, elapsedMs: Date.now() - started };
+}
+
+/** A falta de movimentação é monitorada independentemente do retorno administrativo.
+ * Sem ato judicial recente confirmado, não se gera mensagem nem prazo ao cliente.
+ * O mesmo cron existente executa até uma investigação adicional por rodada.
+ */
+export async function runHermesStalledReviewBatch(){
+ const db=await getSupabaseAdmin();
+ const today=brazilToday();
+ const {data,error}=await db.rpc('hermes_claim_stalled_review',{p_today:today});
+ if(error)throw new Error('Fila automática de processos parados indisponível: '+error.message);
+ const claim=(data||[])[0] as {empresa_id:string;processo_id:number}|undefined;
+ if(!claim)return {processed:0,state:'empty' as const};
+ const company=String(claim.empresa_id),processId=Number(claim.processo_id);
+ try{
+  const row=await loadHermesReviewCase(db,company,processId);
+  if(!row||isCasoEncerrado(row)) {
+   await db.from('hermes_stalled_reviews').update({
+    state:'unavailable',checked_at:new Date().toISOString(),source_errors:{system:'Processo ausente ou encerrado; nenhuma consulta realizada.'}
+   }).eq('empresa_id',company).eq('processo_id',processId);
+   return {processed:1,state:'unavailable' as const};
+  }
+  const cnj=normalizedCnj(row.protocolo_ref||row.dados?.protocolo);
+  const snapshot=cnj?await obtainCourtSnapshot(cnj,null,false):{
+   djenOk:false,datajudOk:false,events:[] as HermesCourtEvent[],
+   sourceErrors:{djen:'CNJ inválido',datajud:'CNJ inválido'}
+  };
+  const candidates=snapshot.events.map(x=>validReturnDay(x.at)).filter((x):x is string=>!!x);
+  // Registros antigos só servem como evidência se a fonte correspondente foi confirmada.
+  if(row.datajud_last_ok===true){
+   const dated=validReturnDay(row.datajud_ultimo_movimento);
+   if(dated)candidates.push(dated);
+  }
+  if(row.djen_last_ok===true){
+   const dated=validReturnDay(row.djen_ultima_data);
+   if(dated)candidates.push(dated);
+  }
+  candidates.sort();
+  const last=candidates.length?candidates[candidates.length-1]:null;
+  const daysWithoutMovement=last?Math.max(0,Math.floor(
+   (Date.parse(today+'T12:00:00Z')-Date.parse(last+'T12:00:00Z'))/86400000)):null;
+  const complete=snapshot.djenOk&&snapshot.datajudOk;
+  const state: 'confirmed_idle'|'recent_movement'|'no_dated_movement'|'partial'|'unavailable'=
+   !snapshot.djenOk&&!snapshot.datajudOk?'unavailable':
+   !complete?'partial':
+   daysWithoutMovement===null?'no_dated_movement':
+   daysWithoutMovement>=15?'confirmed_idle':'recent_movement';
+  const checkedAt=new Date().toISOString();
+  const evidence=snapshot.events
+   .filter(e=>e.at&&e.text)
+   .sort((a,b)=>b.at.localeCompare(a.at))
+   .slice(0,8).map(e=>({source:e.source,at:e.at,text:e.text.slice(0,320),url:e.url}));
+  const {error:saveError}=await db.from('hermes_stalled_reviews').upsert({
+   empresa_id:company,processo_id:processId,state,
+   checked_at:checkedAt,attempted_at:checkedAt,
+   last_movement_at:last,days_without_movement:daysWithoutMovement,
+   djen_ok:snapshot.djenOk,datajud_ok:snapshot.datajudOk,
+   source_errors:snapshot.sourceErrors,evidence,
+  },{onConflict:'empresa_id,processo_id'});
+  if(saveError)throw saveError;
+  return {processed:1,state};
+ }catch{
+  await db.from('hermes_stalled_reviews').update({
+   state:'unavailable',checked_at:new Date().toISOString(),
+   source_errors:{system:'A investigação judicial não pôde ser concluída.'}
+  }).eq('empresa_id',company).eq('processo_id',processId);
+  return {processed:1,state:'unavailable' as const};
+ }
 }
