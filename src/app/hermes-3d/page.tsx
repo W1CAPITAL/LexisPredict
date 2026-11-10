@@ -8,6 +8,7 @@ import {
   ShieldCheck, Sparkles
 } from "lucide-react";
 import { getHermesOfficeStations } from "@/lib/hermes-office";
+import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import "./hermes-office.css";
 
 type ViewMode = "3d" | "2d";
@@ -181,6 +182,10 @@ export default function Hermes3DLexisPage() {
             )}
           </aside>
         </section>
+
+        <div>
+          <HermesPriorityQueue/>
+        </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#cbbbc4]">
           <p>Integração visual do LexisPredict · Escritório 3D sem gateway externo nem dados fictícios de atividade.</p>
