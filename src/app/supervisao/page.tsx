@@ -16,6 +16,7 @@ import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
 import { getSupervisaoSnapshotAction, type SupervisaoSnapshot } from "@/app/actions/supervisao-actions";
 import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
 import {HermesSupervisaoSummary} from "@/components/supervisao/hermes-supervisao-summary";
+import {SwarmLoadingIndicator} from "@/components/ui/swarm-loading-indicator";
 import { PERIODO_OPCOES, type PeriodoRelatorio, labelPeriodo } from "@/lib/atendimento-semana";
 import { cn } from "@/lib/utils";
 import { Users,
@@ -204,7 +205,7 @@ export default function SupervisaoPage() {
             ) : null}
             {loading && !snap ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-4">
-                <Loader2 className="animate-spin text-primary" size={32} />
+                <SwarmLoadingIndicator />
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
                   Consolidando visão geral da empresa...
                 </p>
