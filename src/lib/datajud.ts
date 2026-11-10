@@ -76,6 +76,8 @@ export interface DataJudOptions {
   cloudBudget?: boolean;
   /** Consulta solicitada manualmente no painel: ignora cache recente de leitura. */
   forceRefresh?: boolean;
+  /** Explicit bounded timeout override for a single Hermes consultation. */
+  timeoutMs?: number;
 }
 
 /** Extrai nomes de polo ativo e passivo a partir do array partes do DataJud. */
@@ -330,7 +332,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const isFast = options.fast === true;
 
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
-  const timeoutMs = resolveDataJudTimeoutMs({cloudBudget:options.cloudBudget,fast:isFast});
+  const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs) ? Math.min(46_000,Math.max(5_000,options.timeoutMs)) : resolveDataJudTimeoutMs({cloudBudget:options.cloudBudget,fast:isFast});
   const maxAttempts = options.cloudBudget ? 1 : 3;
 
   try {
