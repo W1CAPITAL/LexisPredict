@@ -4,7 +4,8 @@ import { freeComplete } from '@/lib/ai/free-gateway';
 import { superAgentInstructions } from '@/lib/ai/lexis-superagent';
 import {
   buildHermesOfficeIntelligence,makeHermesMeetingPrompt,
-  sanitizeHermesMeetingOutput,type HermesOfficeMetrics,
+  sanitizeHermesMeetingOutput,describeHermesCaseHealth,
+  type HermesCaseHealth,type HermesOfficeMetrics,
 } from '@/lib/hermes-company-intelligence';
 
 export function todayHermesBrazil():string {
@@ -54,4 +55,33 @@ export async function runHermesCompanyMeeting(empresaId:string,day:string){
  }).eq('empresa_id',empresaId).eq('day',day).eq('meeting_status','running');
  if(error)throw Error('A reunião não pôde ser registrada.');
  return {ok:true,alreadyDone:false,engine,state};
+}
+
+/** Rows are visible only after authenticated supervisor check at the calling route. */
+export async function getHermesCaseHealth(empresaId:string):Promise<HermesCaseHealth[]>{
+ const db=await getSupabaseAdmin();
+ const {data:reviews,error}=await db.from('hermes_return_reviews')
+  .select('processo_id,due_on,priority_score,priority_label,djen_ok,datajud_ok,checked_at')
+  .eq('empresa_id',empresaId).in('state',['ready','unavailable'])
+  .order('priority_score',{ascending:false}).order('checked_at',{ascending:false})
+  .limit(14);
+ if(error||!reviews?.length)return [];
+ const ids=Array.from(new Set(reviews.map(r=>Number(r.processo_id)).filter(Number.isFinite)));
+ const {data:cases, error:caseError}=await db.from('processos')
+  .select('id,cliente,protocolo_ref').eq('empresa_id',empresaId).in('id',ids);
+ if(caseError)return [];
+ const index=new Map((cases||[]).map(row=>[Number(row.id),row]));
+ return reviews.flatMap(review=>{
+  const found=index.get(Number(review.processo_id));
+  if(!found)return [];
+  return [describeHermesCaseHealth({
+   processId:Number(review.processo_id),
+   client:String(found.cliente||'Cliente sem identificação').slice(0,90),
+   cnj:String(found.protocolo_ref||'').slice(0,35),
+   priorityScore:Number(review.priority_score)||0,
+   priorityLabel:String(review.priority_label||'Sem classificação'),
+   djenOk:review.djen_ok===true,datajudOk:review.datajud_ok===true,
+   checkedAt:review.checked_at||null,dueOn:review.due_on||null,
+  })];
+ });
 }
