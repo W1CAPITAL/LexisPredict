@@ -95,7 +95,22 @@ export default function Hermes3DLexisPage() {
                         } as CSSProperties}
                       >
                         <span className="h3d-desk-top"><span className="h3d-terminal"><span /><span /><span /></span></span>
-                        <span className="h3d-agent-pawn"><Bot size={21} strokeWidth={1.8}/></span>
+                        <span className="h3d-agent-pawn" aria-hidden="true">
+                          <span className="h3d-robot-antenna" />
+                          <span className="h3d-robot-head">
+                            <span className="h3d-robot-face h3d-robot-front"><i/><i/><b/></span>
+                            <span className="h3d-robot-face h3d-robot-back" />
+                            <span className="h3d-robot-face h3d-robot-left" />
+                            <span className="h3d-robot-face h3d-robot-right" />
+                            <span className="h3d-robot-face h3d-robot-top" />
+                            <span className="h3d-robot-face h3d-robot-bottom" />
+                          </span>
+                          <span className="h3d-robot-body"><i/></span>
+                          <span className="h3d-robot-arm h3d-robot-arm-left"/>
+                          <span className="h3d-robot-arm h3d-robot-arm-right"/>
+                          <span className="h3d-robot-leg h3d-robot-leg-left"/>
+                          <span className="h3d-robot-leg h3d-robot-leg-right"/>
+                        </span>
                         <span className="h3d-desk-number">{station.glyph}</span>
                       </button>
                     ))}
