@@ -17,7 +17,7 @@ export function todayHermesBrazil():string {
 export type HermesOfficeDailyRow={
   empresa_id:string;day:string;metrics:HermesOfficeMetrics;meeting_note:string|null;
   meeting_engine:string|null;meeting_status:string;updated_at:string;
-  meeting_error_code:string|null;meeting_attempts:number;meeting_claimed_at:string|null;
+  meeting_error_code?:string|null;meeting_attempts?:number;meeting_claimed_at?:string|null;
 };
 
 export async function getHermesCompanyDaily(empresaId:string):Promise<HermesOfficeDailyRow|null>{
