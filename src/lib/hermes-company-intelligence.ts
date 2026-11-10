@@ -90,7 +90,20 @@ export function makeHermesMeetingPrompt(input:Partial<HermesOfficeMetrics>,day:s
  return `Dia ${day}. Dados agregados do LexisPredict: ${m.active} casos ativos; ${m.overdue} retornos vencidos; ${m.alerts} flags; ${m.readyReviews} revisões prontas; ${m.unavailableReviews} sem confirmação completa; ${m.criticalReviews} revisões críticas; ${m.staleSources} cadastros com fontes desatualizadas; ${m.checkedSources30d} verificações de fontes em 30 dias; ${m.draftMessages} mensagens rascunhadas; ${m.completedActivities30d} atividades registradas; ${m.contacts30d} contatos registrados. Discuta as fontes, a qualidade e os próximos passos. Sem nomes ou dados pessoais.`;
 }
 export function sanitizeHermesMeetingOutput(value:unknown):string{
- return String(value||'').replace(/[\u0000-\u001F]+/g,' ').replace(/\s+/g,' ').trim().slice(0,1400);
+ return String(value||'')
+  .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,' ')
+  .split(/\r?\n/).map(line=>line.replace(/[ \t]+/g,' ').trim())
+  .filter(Boolean).slice(0,7).join('\n').slice(0,1400);
+}
+/** Only actual saved speaker turns count as dialogue. A generic summary stays a summary. */
+export function parseHermesMeetingTranscript(note:string|null):Array<{speaker:string;text:string}>{
+ const clean=sanitizeHermesMeetingOutput(note||'');
+ if(!clean)return [];
+ const turns=clean.split('\n').map(line=>{
+  const m=line.match(/^(Gerência|Supervisão|Processos|Comunicação|Atendimento|Relacionamento|Produtividade|IA)\s*:\s*(.+)$/i);
+  return m?{speaker:m[1],text:m[2]}:null;
+ }).filter((x):x is {speaker:string;text:string}=>x!==null);
+ return turns.length>=2?turns.slice(0,6):[{speaker:'Síntese da IA',text:clean}];
 }
 
 /** Saúde operacional individual: verificabilidade e urgência, NÃO prognóstico jurídico. */
