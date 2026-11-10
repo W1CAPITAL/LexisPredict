@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { runHermesDueReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
 import {
-  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, getHermesRebuildRuns, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
+  getHermesCompanyDaily, getHermesCaseHealth, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
@@ -33,11 +33,12 @@ async function getOfficePanel() {
     { ok: false, error: 'Acesso restrito à supervisão.' }, { status: 403, headers: privateHeaders },
   );
   try {
-    const [record, cases, events, rebuild] = await Promise.all([
+    const [record, cases, events, rebuild, diagnostics] = await Promise.all([
       getHermesCompanyDaily(String(ctx.empresa_id)),
       getHermesCaseHealth(String(ctx.empresa_id)),
       getHermesOfficeEvents(String(ctx.empresa_id)),
       getHermesRebuildRuns(String(ctx.empresa_id)),
+      getHermesPortfolioDiagnostics(String(ctx.empresa_id)),
     ]);
     return NextResponse.json({
       ok: true,
@@ -45,6 +46,7 @@ async function getOfficePanel() {
       cases,
       events,
       rebuild,
+      diagnostics,
       intelligence: record ? buildHermesOfficeIntelligence(record.metrics, record.day) : null,
     }, { headers: privateHeaders });
   } catch {

@@ -2,14 +2,15 @@
  * Relata somente evidências persistidas e nunca calcula chance de êxito judicial. */
 import { buildHermesOfficeIntelligence, type HermesCaseHealth } from '@/lib/hermes-company-intelligence';
 import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
+import {diagnosticsSections,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import { REPORT_COLORS, reportDate, type ReportSection } from '@/lib/report/visual-report';
 
 function safeLine(value:unknown, limit=420):string {
  return String(value??'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,limit);
 }
 
-export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:HermesCaseHealth[]):ReportSection[]{
- if(!row || !row.metrics || typeof row.metrics !== 'object') return [];
+export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:HermesCaseHealth[],diagnostics:HermesPortfolioDiagnostics|null=null):ReportSection[]{
+ if(!row || !row.metrics || typeof row.metrics !== 'object') return diagnosticsSections(diagnostics);
  const office=buildHermesOfficeIntelligence(row.metrics,row.day);
  const m=office.counters;
  const day=reportDate(row.day);
@@ -48,5 +49,5 @@ export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:Herme
    ]),
   });
  }
- return sections;
+ return [...sections,...diagnosticsSections(diagnostics)];
 }

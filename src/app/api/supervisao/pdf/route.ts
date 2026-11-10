@@ -4,7 +4,7 @@ import { getSupervisaoSnapshotAction } from '@/app/actions/supervisao-actions';
 import { SupervisaoPDF } from '@/components/pdf/supervisao-pdf';
 import { RelatorioEquipePDF } from '@/components/pdf/relatorio-equipe-pdf';
 import { montarRelatorioEquipe } from '@/lib/relatorio-equipe-narrativa';
-import {getHermesCompanyDaily,getHermesCaseHealth} from '@/lib/hermes-company-service';
+import {getHermesCompanyDaily,getHermesCaseHealth,getHermesPortfolioDiagnostics} from '@/lib/hermes-company-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,17 +20,18 @@ export async function GET(request: Request) {
     const raw = params.get('periodo');
     const period = raw === 'mes' || raw === 'semana_passada' ? raw : 'esta_semana';
     // The action resolves the company from the authenticated session again.
-    const [result,hermesRow,hermesCases] = await Promise.all([
+    const [result,hermesRow,hermesCases,hermesDiagnostics] = await Promise.all([
       getSupervisaoSnapshotAction(period),
       getHermesCompanyDaily(String(ctx.empresa_id)).catch(()=>null),
       getHermesCaseHealth(String(ctx.empresa_id)).catch(()=>[]),
+      getHermesPortfolioDiagnostics(String(ctx.empresa_id)).catch(()=>null),
     ]);
     if (!result.success || !result.snapshot) return Response.json({ error: 'Não foi possível consultar os dados atuais da supervisão.' }, { status: 503, headers });
     const snapshot = result.snapshot;
     const team = params.get('tipo') === 'equipe';
     const element = team
-      ? React.createElement(RelatorioEquipePDF, { data: montarRelatorioEquipe(snapshot),hermesRow,hermesCases })
-      : React.createElement(SupervisaoPDF, { data: snapshot, geradoEm: snapshot.geradoEm || new Date().toISOString(), auditor: ctx.nome || undefined,hermesRow,hermesCases });
+      ? React.createElement(RelatorioEquipePDF, { data: montarRelatorioEquipe(snapshot),hermesRow,hermesCases,hermesDiagnostics })
+      : React.createElement(SupervisaoPDF, { data: snapshot, geradoEm: snapshot.geradoEm || new Date().toISOString(), auditor: ctx.nome || undefined,hermesRow,hermesCases,hermesDiagnostics });
     const { renderToBuffer } = await import('@react-pdf/renderer');
     const buffer = await renderToBuffer(element as unknown as React.ReactElement<import('@react-pdf/renderer').DocumentProps>);
     return new Response(new Uint8Array(buffer), { headers: { ...headers, 'Content-Type': 'application/pdf', 'X-Content-Type-Options': 'nosniff',

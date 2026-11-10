@@ -5,11 +5,14 @@ import Link from 'next/link';
 import {Bot,AlertTriangle,FileSearch,RefreshCw,Users} from 'lucide-react';
 import type {HermesOfficeDailyRow} from '@/lib/hermes-company-service';
 import type {HermesOfficeIntelligence,HermesCaseHealth} from '@/lib/hermes-company-intelligence';
+import type {HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
+import {HermesPortfolioReport} from '@/components/report/hermes-portfolio-report';
 
 type Summary={
  record:HermesOfficeDailyRow|null;
  intelligence:HermesOfficeIntelligence|null;
  cases:HermesCaseHealth[];
+ diagnostics:HermesPortfolioDiagnostics|null;
 };
 
 /** Carrega sob demanda, sem fazer a consulta longa da /supervisao esperar a IA. */
@@ -33,6 +36,7 @@ export function HermesSupervisaoSummary(){
      if(!next.signal.aborted)setData({
        record:json.record||null,intelligence:json.intelligence||null,
        cases:Array.isArray(json.cases)?json.cases:[],
+       diagnostics:json.diagnostics||null,
      });
    }catch(e){
      if(!next.signal.aborted)setError(e instanceof Error?e.message:'Relatório indisponível');
@@ -66,6 +70,7 @@ export function HermesSupervisaoSummary(){
    {loading&&!data?<p role="status" className="mt-3 text-xs text-muted-foreground" data-loading-swarm>Consultando resumo do Hermes…</p>:null}
    {error?<p role="alert" className="mt-3 text-xs text-amber-700 dark:text-amber-300">{error}{data?' · Exibindo o último resumo consultado.':''}</p>:null}
    {!loading&&!office&&!error?<p className="mt-3 text-sm text-muted-foreground">Nenhum resumo Hermes disponível nesta empresa. O servidor prepara a primeira consolidação.</p>:null}
+   {data?.diagnostics&&<div className="mt-4"><HermesPortfolioReport data={data.diagnostics} compact/></div>}
    {office&&record?<div className="mt-4 space-y-3">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {[
