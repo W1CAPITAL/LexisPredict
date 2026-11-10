@@ -34,12 +34,12 @@ with candidate as (
  left join public.hermes_stalled_reviews r
    on r.empresa_id=p.empresa_id and r.processo_id=p.id
  where p.empresa_id is not null
-   and p.created_at::date <= p_today-45
+   and p.created_at::date <= p_today-15
    and length(regexp_replace(coalesce(p.protocolo_ref,''),'[^0-9]','','g'))=20
    and upper(concat_ws(' ',p.status_interno,p.status,p.dados->>'situacao'))
        !~ '(ENCERRAD|ARQUIVAD|FINALIZAD|EXTINT|BAIXA DEFINITIVA)'
    and coalesce(greatest(p.ultima_movimentacao,p.datajud_ultimo_movimento::date),
-                p.data_distribuicao,p.created_at::date) <= p_today-45
+                p.data_distribuicao,p.created_at::date) <= p_today-15
    and (r.processo_id is null
     or (r.state='scanning' and r.attempted_at<now()-interval '8 minutes')
     or (r.state in ('partial','unavailable') and r.attempted_at<now()-interval '24 hours')
