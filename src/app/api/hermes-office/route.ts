@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserContext } from '@/lib/server-db';
-import { getHermesCompanyDaily,runHermesCompanyMeeting,todayHermesBrazil } from '@/lib/hermes-company-service';
+import { getHermesCompanyDaily,getHermesCaseHealth,runHermesCompanyMeeting,todayHermesBrazil } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
 export const dynamic='force-dynamic';
@@ -14,8 +14,8 @@ export async function GET(){
  const ctx=await getUserContext();
  if(!isAllowed(ctx))return NextResponse.json({ok:false,error:'Acesso restrito à supervisão.'},{status:403,headers});
  try{
-   const record=await getHermesCompanyDaily(String(ctx.empresa_id));
-   return NextResponse.json({ok:true,record,intelligence:record?
+   const [record,cases]=await Promise.all([getHermesCompanyDaily(String(ctx.empresa_id)),getHermesCaseHealth(String(ctx.empresa_id))]);
+   return NextResponse.json({ok:true,record,cases,intelligence:record?
      buildHermesOfficeIntelligence(record.metrics,record.day):null},{headers});
  }catch{
    return NextResponse.json({ok:false,error:'Relatório Hermes indisponível.'},{status:503,headers});
