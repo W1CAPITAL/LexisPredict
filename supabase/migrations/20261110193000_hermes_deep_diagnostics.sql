@@ -134,10 +134,11 @@ begin
     from public.tarefas_realizadas t
     where t.empresa_id=v_company and t.data_realizacao between p_day-30 and p_day
   ), outstanding_closed as (
+    -- Only CRM tasks whose business identifier explicitly matches a closed process.
+    -- Never infer "open" from historical completed activities.
     select count(*)::int total
-    from public.tarefas_realizadas t join scored s on s.id=t.processo_id
-    where t.empresa_id=v_company and s.closed and t.data_realizacao>=p_day-30
-      and t.contato_cliente_confirmado is not true
+    from public.crm_tarefas t join scored s on s.id::text=t.negocio_id
+    where t.empresa_id=v_company and s.closed and not t.feito
   ), lawyer_summary as (
     select coalesce(jsonb_agg(to_jsonb(x) order by x.critical desc,x.active desc,x.name), '[]'::jsonb) result
     from (
