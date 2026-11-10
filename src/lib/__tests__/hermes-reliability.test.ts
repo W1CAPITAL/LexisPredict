@@ -29,8 +29,9 @@ describe('Hermes review reliability and self-correction',()=>{
  });
  it('exports the existing tenant-checked PDF and a local auditable CSV',()=>{
   const office=source('src/app/hermes-3d/page.tsx');
-  expect(office).toContain('/api/report/pdf?');
-  expect(office).toContain('Exportar CSV');
+  const exporter=source('src/components/hermes/hermes-export.tsx');
+  expect(exporter).toContain('/api/report/pdf?');
+  expect(exporter).toContain('Exportar CSV');
   expect(office).toContain('HermesRebuildPanel');
  });
  it('automatic rebuild uses measured records, produces a trace and never writes code',()=>{
