@@ -50,7 +50,7 @@ export async function getHermesRebuildRuns(empresaId:string):Promise<HermesRebui
 export async function runHermesEvidenceRebuild(empresaId:string):Promise<{ok:true;inspected:number}>{
  const db=await getSupabaseAdmin();
  const today=todayHermesBrazil();
- const {error}=await db.rpc('hermes_rebuild_from_evidence',{p_day:today});
+ const {error}=await db.rpc('hermes_rebuild_company_evidence',{p_empresa:empresaId,p_day:today});
  if(error)throw Error('A autoavaliação Hermes não pôde ser concluída.');
  const items=await getHermesRebuildRuns(empresaId);
  return {ok:true,inspected:items.find(i=>i.day===today)?.findings_count||0};
