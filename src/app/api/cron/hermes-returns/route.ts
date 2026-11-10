@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   try {
-    const result = await runHermesDueReviewBatch(2);
+    const result = await runHermesDueReviewBatch(1);
     return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[Hermes Returns] scheduler error', error instanceof Error ? error.message : 'unknown');
