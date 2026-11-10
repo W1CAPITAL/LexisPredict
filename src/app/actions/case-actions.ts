@@ -940,6 +940,26 @@ export async function auditCaseCoreSystem(
     };
   }
 
+  if (datajudOk || djenOk) {
+    try {
+      const { atualizarAudienciasDeConsulta } = await import('@/lib/audiencias-service');
+      const fontes = [
+        ...(djenOk ? comunicacoes.filter((item: any) => typeof item?.texto === 'string').map((item: any) => ({
+          source: 'DJEN' as const, text: String(item.texto), url: resolveDjenPublicacaoLink(item, protoSafe || protocolo),
+          publishedAt: item.data_disponibilizacao || null,
+        })) : []),
+        ...(datajudOk ? movimentos.filter((item: any) => typeof (item?.nome || item?.descricao) === 'string').map((item: any) => ({
+          source: 'DataJud' as const, text: String(item.nome || item.descricao),
+          publishedAt: item.dataHora || item.dataMovimento || null,
+        })) : []),
+      ];
+      const audiencias = await atualizarAudienciasDeConsulta({empresaId,processoId:Number(dbItem.id),fontes});
+      if (!audiencias.ok) console.warn('[scanner-audiencias] índice indisponível',audiencias.error);
+    } catch (error) {
+      console.warn('[scanner-audiencias] falha isolada',error instanceof Error?error.message:'erro');
+    }
+  }
+
   if(datajudOk || djenOk) {
     try {
       const {enqueueScannedMovement}=await import('@/lib/wa-movement-campaign');

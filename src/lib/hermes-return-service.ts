@@ -193,6 +193,22 @@ export async function reviewHermesCase(input: {
       text:'Data de próximo retorno incompatível com o último atendimento: requer correção no cadastro; não é retorno vencido.'});
   }
   await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
+  // Hermes atua como verificador oficial também da pauta; nenhuma mensagem é enviada.
+  if (snapshot.djenOk || snapshot.datajudOk) {
+    try {
+      const { atualizarAudienciasDeConsulta } = await import('@/lib/audiencias-service');
+      const fontes = snapshot.events.map((event) => ({
+        source: event.source === 'DJEN' ? 'DJEN' as const : 'DataJud' as const,
+        text: event.text, url: event.url, publishedAt: event.at,
+      }));
+      const aud = await atualizarAudienciasDeConsulta({
+        empresaId: input.empresaId, processoId: row.id, fontes,
+      });
+      if (!aud.ok) console.warn('[Hermes] agenda judicial indisponível',aud.error);
+    } catch(error) {
+      console.warn('[Hermes] agenda judicial falhou',error instanceof Error?error.message:'erro');
+    }
+  }
   return { ok: true as const, processId: row.id, state: result.state, score: result.priorityScore };
 }
 

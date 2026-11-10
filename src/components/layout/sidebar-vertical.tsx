@@ -70,6 +70,7 @@ const core: NavItem[] = [
   { label: "Hermes · Escritório 3D", href: "/hermes-3d", icon: Bot, admin: true },
   { label: "Projetos", href: "/projetos", icon: FolderOpen, admin: true },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
+  { label: "Audiências", href: "/audiencias", icon: Gavel },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
   { label: "Minhas atividades", href: "/minhas-atividades", icon: ListTodo },
@@ -182,7 +183,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/hermes-3d", "/projetos", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
+      ["/", "/tarefas", "/hermes-3d", "/projetos", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/audiencias", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -209,6 +210,7 @@ export function SidebarVertical() {
       "/whatsapp": "Converse e acompanhe mensagens.",
       "/dossies": "Peça um dossiê por chat com PDF, planilha, processo, mensagens ou contexto.",
       "/agenda": "Veja prazos e compromissos.",
+      "/audiencias": "Audiências e sessões em fontes oficiais.",
       "/report": "KPIs atualizados e PDF executivo da equipe.",
       "/hermes-3d": "Escritório 3D com agentes, reuniões e dados operacionais reais.",
       "/projetos": "Projetos conectados à operação e às automações Hermes.",
@@ -251,6 +253,7 @@ export function SidebarVertical() {
       "/dossies",
       "/chat",
       "/agenda",
+      "/audiencias",
       "/report",
       "/hermes-3d",
       "/projetos",
@@ -291,6 +294,7 @@ export function SidebarVertical() {
           "/tarefas",
           "/minhas-atividades",
           "/agenda",
+          "/audiencias",
           "/processos-parados",
           "/encerrados-revisao",
           "/cumprimentos-procedentes",

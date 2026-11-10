@@ -83,6 +83,11 @@ const EVENT_TYPE = {
 
 type EventKind = keyof typeof EVENT_TYPE;
 
+type MonitoredHearing = {
+  id: number; protocolo_ref: string; cliente: string | null; advogado: string | null; tribunal: string | null;
+  tipo: string; data_evento: string | null; data_fim: string | null; hora_local: string | null;
+  hora_fim: string | null; situacao: string;
+};
 type AgendaEvent = {
   id: string;
   kind: EventKind;
@@ -127,11 +132,6 @@ function isNovidade(c: LegalCase) {
     c.tem_novo_andamento ||
     c.djen_nova_comunicacao
   );
-}
-
-function isAudiencia(c: LegalCase) {
-  const t = String(c.evento_tipo || "");
-  return t.startsWith("audiencia") || !!(c as any).tem_audiencia;
 }
 
 function initials(name?: string) {
@@ -184,6 +184,7 @@ function EventChip({
 
 export default function AgendaPage() {
   const [cases, setCases] = useState<LegalCase[]>([]);
+  const [audiencias, setAudiencias] = useState<MonitoredHearing[]>([]);
   const [loading, setLoading] = useState(true);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(new Date()));
@@ -194,8 +195,15 @@ export default function AgendaPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchRepoCases();
+      const [data, response] = await Promise.all([
+        fetchRepoCases(),
+        fetch("/api/audiencias", { cache: "no-store", credentials: "same-origin" }),
+      ]);
       if (Array.isArray(data)) setCases(data);
+      if (response.ok) {
+        const body = await response.json();
+        if (body.ok && Array.isArray(body.items)) setAudiencias(body.items);
+      }
     } finally {
       setLoading(false);
     }
@@ -231,16 +239,6 @@ export default function AgendaPage() {
           subtitle: c.protocolo || undefined,
         });
       }
-      if (isAudiencia(c) && prazo) {
-        out.push({
-          id: `aud-${c.protocolo}`,
-          kind: "audiencia",
-          date: prazo,
-          case: c,
-          title: c.cliente || "Audiência",
-          subtitle: String(c.evento_resumo || c.evento_tipo || "Audiência"),
-        });
-      }
       if (isNovidade(c)) {
         const d =
           parsePrazo(c) ||
@@ -274,8 +272,30 @@ export default function AgendaPage() {
         });
       }
     }
+    // Eventos jurídicos datados: não usar o próximo retorno como audiência.
+    const byCnj = new Map(ativos.map((c) => [String(c.protocolo || "").replace(/\D/g, ""), c]));
+    for (const a of audiencias) {
+      if (a.situacao === "cancelada" || !a.data_evento) continue;
+      const [y, m, d] = a.data_evento.split("-").map(Number);
+      const date = startOfDay(new Date(y, m - 1, d));
+      if (!isValid(date)) continue;
+      const legalCase = byCnj.get(String(a.protocolo_ref || "").replace(/\D/g, "")) ||
+        ({ cliente: a.cliente || "Cliente", protocolo: a.protocolo_ref, advogado: a.advogado, tribunal: a.tribunal } as LegalCase);
+      const label = a.tipo === "sessao_virtual" ? "Sessão virtual" : a.tipo === "sessao_julgamento" ? "Sessão de julgamento" : "Audiência";
+      const hour = a.hora_local ? " · " + a.hora_local : "";
+      out.push({ id: "aud-" + a.id, kind: "audiencia", date, case: legalCase,
+        title: a.cliente || "Audiência", subtitle: label + hour });
+      if (a.data_fim && a.data_fim !== a.data_evento) {
+        const [fy, fm, fd] = a.data_fim.split("-").map(Number);
+        const finish = startOfDay(new Date(fy, fm - 1, fd));
+        if (isValid(finish)) out.push({
+          id: "aud-fim-" + a.id, kind: "audiencia", date: finish, case: legalCase,
+          title: a.cliente || "Sessão virtual", subtitle: "Término da sessão" + (a.hora_fim ? " · " + a.hora_fim : ""),
+        });
+      }
+    }
     return out.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [ativos]);
+  }, [ativos, audiencias]);
 
   const eventsByDay = useMemo(() => {
     const map: Record<string, AgendaEvent[]> = {};
@@ -352,6 +372,9 @@ export default function AgendaPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/audiencias"><Gavel className="h-3.5 w-3.5 mr-1"/> Audiências</Link>
+                    </Button>
                     <Button
                       variant={view === "week" ? "default" : "outline"}
                       size="sm"
@@ -754,10 +777,10 @@ export default function AgendaPage() {
                               Em linguagem simples
                             </p>
                             <p className="text-sm font-medium mt-0.5">
-                              {selectedLeigo?.tituloLeigo}
+                              {selected.kind === "audiencia" ? selected.subtitle : selectedLeigo?.tituloLeigo}
                             </p>
                             <p className="text-muted-foreground mt-1 leading-relaxed">
-                              {selectedLeigo?.detalheLeigo}
+                              {selected.kind === "audiencia" ? "Evento extraído de publicação oficial. Consulte a fonte antes de comparecer." : selectedLeigo?.detalheLeigo}
                             </p>
                           </div>
 
