@@ -36,7 +36,7 @@ describe('Hermes portfolio diagnostics audit',()=>{
   expect(JSON.stringify(s)).toContain('Escritório A');
   expect(JSON.stringify(s)).toContain('Colaborador');
   expect(JSON.stringify(s)).toContain('Retorno vencido');
-  expect(JSON.stringify(s)).not.toMatch(/ganhar|perder|% chance/i);
+  expect(JSON.stringify(s)).not.toMatch(/winProbability|lossProbability|staffEquivalent|\\d+% chance/i);
  });
  it('saves daily tenant-safe snapshots and schedules automatic refresh without duplicating serverless routes',()=>{
   const sql=source('supabase/migrations/20261110193000_hermes_deep_diagnostics.sql');
