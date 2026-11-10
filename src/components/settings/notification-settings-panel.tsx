@@ -39,7 +39,7 @@ const EVENT_ROWS: Array<{
   { key: "prazos", title: "Prazos e retornos", description: "Retornos vencidos e eventos nas próximas 24 horas.", icon: CalendarClock },
   { key: "djen", title: "DJEN", description: "Publicações novas encontradas nos processos da sua carteira.", icon: FileText },
   { key: "datajud", title: "DataJud", description: "Movimentações novas após o último atendimento.", icon: Gavel },
-  { key: "tarefas", title: "Tarefas", description: "Atribuições e tarefas vencidas ou próximas do prazo.", icon: ListTodo },
+  { key: "tarefas", title: "Tarefas", description: "Atividades atribuídas e retornos previstos para contato.", icon: ListTodo },
   { key: "chat", title: "Chat da equipe", description: "Mensagens novas do chat interno.", icon: MessageSquare },
   { key: "sistema", title: "Sistema e assinatura", description: "Cobrança, suspensão e avisos realmente importantes do ambiente.", icon: ShieldAlert },
 ];

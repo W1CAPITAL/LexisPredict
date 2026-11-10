@@ -81,7 +81,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    <span><strong className="text-foreground">{format(visible.length)}</strong> {tab==="todos"?"marcações cadastradas no CRM":tab==="retorno"?"retornos vencidos ao cliente para verificar":tab==="prazo"?"datas legadas antigas, sem comprovação de atraso judicial":"cadastros a revisar"} {tab==="todos"&&bloqueados>0?` · ${bloqueados} marcado(s) como encerrado(s), sem cobrança`:""}</span>
    <div className="flex flex-wrap gap-2">
     <Link href="/cases?filter=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Meus processos vencidos</Link>
-    <Link href="/tarefas?filtro=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Fila de tarefas vencidas</Link>
+    <Link href="/tarefas?filtro=vencido" className="rounded-lg border border-border px-3 py-2 font-bold hover:text-primary">Fila de retornos vencidos</Link>
    </div>
   </div>
   {visible.length?<div className="grid gap-3 md:grid-cols-2">

@@ -325,9 +325,9 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(cnjLimpo);
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
-  // O índice público armazena o número sem máscara (dígitos puros); alguns
-  // tribunais aceitam também a forma mascarada. Tenta ambos (sem custo real).
-  const cnjMasked = `${cnjLimpo.substring(0, 7)}-${cnjLimpo.substring(7, 9)}.${cnjLimpo.substring(9, 13)}.${cnjLimpo.substring(13, 14)}.${cnjLimpo.substring(14, 16)}.${cnjLimpo.substring(16, 20)}`;
+  // O índice público armazena o número sem máscara (20 dígitos).
+  // Consulta exata pelo formato recomendado nos exemplos oficiais do CNJ.
+  // A consulta exata em dígitos segue o exemplo oficial de pesquisa por CNJ.
 
   const isFast = options.fast === true;
 
@@ -347,15 +347,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       },
       body: JSON.stringify({
         size: 1,
-        query: {
-          bool: {
-            should: [
-              { match: { numeroProcesso: cnjLimpo } },
-              { match: { numeroProcesso: cnjMasked } },
-            ],
-            minimum_should_match: 1,
-          },
-        },
+        query: { match: { numeroProcesso: cnjLimpo } },
       }),
       signal: controller.signal,
       cache: 'no-store'
@@ -403,6 +395,20 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
     }
 
     const data = await response.json();
+
+    // A resposta HTTP 200 pode vir do Elasticsearch com timeout interno.
+    // Não transformar uma consulta incompleta em "processo não encontrado".
+    if (data?.timed_out === true) {
+      if (attempt < maxAttempts) {
+        await sleep(600);
+        return fetchDataJudUncached(cnj, attempt + 1, options);
+      }
+      return {
+        numeroProcesso: cnjLimpo, movimentos: [], error: true,
+        message: 'Consulta DataJud excedeu o tempo interno do índice.',
+        latency, attempts: attempt
+      };
+    }
 
     if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
       if (attempt < maxAttempts) {

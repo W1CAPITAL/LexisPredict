@@ -154,7 +154,9 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                     <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{String(review.message_draft)}</p>
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">Próximo retorno sugerido: <strong className="text-foreground">{fmt(review.suggested_next_return)}</strong> (sugestão administrativa; não é prazo judicial nem alteração automática no cadastro).</p>
+                {(registered.status==='today'||registered.status==='overdue')&&review.suggested_next_return&&(
+                  <p className="text-xs text-muted-foreground">Próximo retorno sugerido: <strong className="text-foreground">{fmt(review.suggested_next_return)}</strong> (sugestão administrativa; não é prazo judicial nem alteração automática no cadastro).</p>
+                )}
               </>
             ) : null}
           </div>
