@@ -51,6 +51,7 @@ type NavItem = {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   supervisor?: boolean;
+  admin?: boolean;
   company?: boolean;
   superadmin?: boolean;
 };
@@ -66,8 +67,8 @@ const core: NavItem[] = [
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
   { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel },
   { label: "Superagente", href: "/chat", icon: Bot },
-  { label: "Escritório Hermes 3D", href: "/hermes-3d", icon: Bot, supervisor: true },
-  { label: "Projetos", href: "/projetos", icon: FolderOpen, supervisor: true },
+  { label: "Hermes · Escritório 3D", href: "/hermes-3d", icon: Bot, admin: true },
+  { label: "Projetos", href: "/projetos", icon: FolderOpen, admin: true },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
   { label: "Análises internas", href: "/analises-internas", icon: FileText },
@@ -99,7 +100,7 @@ export function SidebarVertical() {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
-  const { role, isSupervisor, isSuperAdmin, canSeeCompany } = useAdmin();
+  const { role, isSupervisor, isAdmin, isSuperAdmin, canSeeCompany } = useAdmin();
   const { plan } = usePlano();
   const openScanner = useDataJudScanStore((state) => state.openScanner);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -148,6 +149,7 @@ export function SidebarVertical() {
   const allowed = (item: NavItem) => {
     if (item.superadmin && !isSuperAdmin) return false;
     if (item.supervisor && !isSupervisor) return false;
+    if (item.admin && !isAdmin) return false;
     if (item.company && !canViewCompanyCaseList(profile as any)) return false;
     if (role === "Operador" && !operatorRouteAllowed(item.href)) return false;
     return true;
@@ -181,7 +183,7 @@ export function SidebarVertical() {
 
   const primaryItems = useMemo(
     () =>
-      ["/", "/tarefas", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/hermes-3d", "/projetos", "/consulta-oab", "/integracoes"]
+      ["/", "/tarefas", "/hermes-3d", "/projetos", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
         .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
         .filter(Boolean) as Array<(typeof mainItems)[number]>,
     [mainItems,extraItems],
@@ -238,6 +240,8 @@ export function SidebarVertical() {
 
     const preferred = [
       "/tarefas",
+      "/hermes-3d",
+      "/projetos",
       "/cases",
       "/processos",
       "/minhas-atividades",
@@ -321,11 +325,18 @@ export function SidebarVertical() {
         hrefs: ["/whatsapp", "/crm", "/integracoes", "/financas", "/report", "/import"],
       },
       {
+        id: "hermes",
+        label: "Hermes · escritório de IA",
+        description: "Robôs, setores, atividades e reuniões verificáveis.",
+        icon: Bot,
+        hrefs: ["/hermes-3d", "/projetos"],
+      },
+      {
         id: "gestao",
         label: "Gestão do sistema",
         description: "Equipe, supervisão, auditoria e configurações.",
         icon: ShieldCheck,
-        hrefs: ["/team", "/supervisao", "/auditoria", "/hermes-3d", "/projetos", "/settings", "/superadmin"],
+        hrefs: ["/team", "/supervisao", "/auditoria", "/settings", "/superadmin"],
       },
     ];
 
