@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { AlertTriangle, Award, Bot, ClipboardCheck, ExternalLink, ShieldCheck } from 'lucide-react';
 import {
-  buildHermesOfficeIntelligence,
+  buildHermesOfficeIntelligence,type HermesCaseHealth,
 } from '@/lib/hermes-company-intelligence';
 import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
 
-export function HermesCompanyReport({row}:{row:HermesOfficeDailyRow|null}){
+export function HermesCompanyReport({row,cases=[]}:{row:HermesOfficeDailyRow|null;cases?:HermesCaseHealth[]}){
  if(!row)return <section id="hermes-company-report" className="rounded-2xl border border-border bg-card p-5">
    <h2 className="flex items-center gap-2 font-bold"><Bot size={17}/> Hermes · relatório da empresa</h2>
    <p className="mt-2 text-sm text-muted-foreground">A primeira consolidação Hermes ainda não foi registrada pelo servidor.</p>
@@ -52,6 +52,18 @@ export function HermesCompanyReport({row}:{row:HermesOfficeDailyRow|null}){
         {row.meeting_status==='unavailable'&&<span> (A IA esteve indisponível; resumo baseado nas regras.)</span>}
       </p>}
     </div>
+  </div>
+  <div className="mt-4 rounded-xl border border-border bg-muted/20 p-4">
+    <p className="text-sm font-extrabold">Saúde operacional individual · revisões oficiais</p>
+    <p className="mt-1 text-xs text-muted-foreground">Urgência e cobertura DJEN/DataJud, sem prognóstico de êxito judicial.</p>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {cases.map(item=><Link key={item.processId} href={item.cnj?'/processos?search='+encodeURIComponent(item.cnj):'/processos'} className="rounded-lg border border-border bg-card p-3 text-xs hover:bg-muted">
+        <p className="font-bold">{item.client}</p><p className="mt-1 font-mono text-muted-foreground">{item.cnj}</p>
+        <p className="mt-2 font-semibold text-primary">{item.level}</p>
+        <p className="mt-1 text-muted-foreground">{item.sourceStatus}</p>
+      </Link>)}
+    </div>
+    {!cases.length?<p className="mt-2 text-xs text-muted-foreground">Sem revisões individuais verificáveis na amostra atual.</p>:null}
   </div>
   <div className="mt-4 grid gap-3 sm:grid-cols-2">
     <div className="rounded-xl border border-border bg-muted/20 p-3">
