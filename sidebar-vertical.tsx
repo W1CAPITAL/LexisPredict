@@ -78,10 +78,9 @@ function buildNavItems(opts: {
   const primary: NavItem[] = [
     { label: "Painel", href: "/", icon: LayoutDashboard },
     { label: "Chat equipe", href: "/mensagens", icon: MessagesSquare },
-    { label: "Encerrados", href: "/encerrados-revisao", icon: ShieldAlert },
     { label: "Fila", href: "/tarefas", icon: ListTodo },
     { label: "Parados", href: "/processos-parados", icon: PauseCircle },
-    { label: "Meus processos", href: "/cases", icon: Briefcase },
+    { label: "Fila empresarial", href: "/cases", icon: Briefcase },
     { label: "Empresa", href: "/processos", icon: FolderOpen },
     { label: "Réplica e provas", href: "/fases-provas", icon: FileText },
     { label: "Importar", href: "/import", icon: Upload },
