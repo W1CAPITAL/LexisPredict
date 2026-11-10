@@ -15,7 +15,8 @@ export type HermesPortfolioDiagnostics={
  overdueReturns:number;registeredDeadlinesDue:number;staleSources:number;
  missingLawyer:number;missingOffice:number;critical:number;attention:number;monitoring:number;
  averageHealth:number;sourceErrors:number;closedWithOpenTask:number;
- openCrmTasks:number;overdueCrmTasks:number;completedHumanTasks30d:number;contactsConfirmed30d:number;
+ openCrmTasks:number;overdueCrmTasks:number;unmatchedAssigneeTasks?:number;unmatchedOverdueTasks?:number;
+ completedHumanTasks30d:number;contactsConfirmed30d:number;
  unconfirmedOutcomes:number;
  merits:{improcedenteIndicada:number;procedenteIndicada:number;parcialIndicada:number;indeterminado:number;flagWithoutEvidence:number};
  byLawyer:HermesDiagnosticGroup[];byOffice:HermesDiagnosticGroup[];byUser:HermesDiagnosticUser[];
@@ -36,7 +37,9 @@ export function normalizeHermesDiagnostics(input:HermesPortfolioDiagnostics):Her
    critical:nonneg(value.critical),attention:nonneg(value.attention),monitoring:nonneg(value.monitoring),
    averageHealth:Math.min(100,nonneg(value.averageHealth)),sourceErrors:nonneg(value.sourceErrors),
    closedWithOpenTask:nonneg(value.closedWithOpenTask),openCrmTasks:nonneg(value.openCrmTasks),
-   overdueCrmTasks:nonneg(value.overdueCrmTasks),completedHumanTasks30d:nonneg(value.completedHumanTasks30d),
+   overdueCrmTasks:nonneg(value.overdueCrmTasks),
+   unmatchedAssigneeTasks:nonneg(value.unmatchedAssigneeTasks),unmatchedOverdueTasks:nonneg(value.unmatchedOverdueTasks),
+   completedHumanTasks30d:nonneg(value.completedHumanTasks30d),
    contactsConfirmed30d:nonneg(value.contactsConfirmed30d),unconfirmedOutcomes:nonneg(value.unconfirmedOutcomes),
    merits:{improcedenteIndicada:nonneg(value.merits?.improcedenteIndicada),
     procedenteIndicada:nonneg(value.merits?.procedenteIndicada),
@@ -70,6 +73,8 @@ export function diagnosticsSections(raw:HermesPortfolioDiagnostics|null):ReportS
     {label:'Fontes desatualizadas',value:d.staleSources,color:REPORT_COLORS.gold},
     {label:'Casos com atenção alta',value:d.critical,color:REPORT_COLORS.red},
     {label:'Tarefas abertas/vencidas',value:d.openCrmTasks+' / '+d.overdueCrmTasks,color:REPORT_COLORS.purple},
+    {label:'Tarefas sem vínculo na equipe',value:d.unmatchedAssigneeTasks||0,color:REPORT_COLORS.gold},
+    {label:'Vencidas sem vínculo',value:d.unmatchedOverdueTasks||0,color:REPORT_COLORS.red},
     {label:'Saúde média operacional',value:d.averageHealth+'/100',color:REPORT_COLORS.teal},
     {label:'Registros humanos em 30 dias',value:d.completedHumanTasks30d,color:REPORT_COLORS.blue},
    ]},
