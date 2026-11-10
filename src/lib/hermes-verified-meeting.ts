@@ -7,6 +7,7 @@ export function cleanHermesReportText(input:unknown):string {
   .replace(/<[^>]+>/g,' ')
   .replace(/!\[([^\]]*)\]\([^)]*\)/g,'$1')
   .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+  .replace(/^\s*\|?[ \t:-]+(?:\|[ \t:-]+)+\|?\s*$/gm,'')
   .replace(/\*\*|__|\*|\`|~~/g,'')
   .replace(/^\s{0,3}#{1,6}\s*/gm,'')
   .replace(/^\s*[-•]+\s+/gm,'')
