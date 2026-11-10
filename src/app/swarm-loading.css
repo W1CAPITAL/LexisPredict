@@ -1,0 +1,51 @@
+/* LexisPredict mini-swarm: animações transform-only, sem canvases e sem scripts.
+   Respeita preferência de movimento reduzido e telas com menor capacidade visual. */
+[data-lexis-swarm-loading]{
+ position:relative;display:inline-block;vertical-align:middle;
+ width:88px;height:32px;min-width:88px;max-width:88px;flex:none;
+ overflow:hidden;contain:layout paint;isolation:isolate;
+}
+[data-lexis-swarm-loading][data-compact="true"]{
+ width:58px;height:24px;min-width:58px;max-width:58px;
+}
+.lx-mini-swarm-outline{
+ position:absolute;inset:6px 12px 5px 15px;border:1px dashed currentColor;
+ opacity:.18;border-radius:7px;transform:skewY(-2deg);
+}
+.lx-mini-swarm-actor{
+ position:absolute;top:3px;left:5px;display:block;width:16px;height:16px;
+ pointer-events:none;transform:translate3d(0,0,0);color:#95324d;
+ animation:lx-mini-swarm-a 2.7s ease-in-out infinite alternate;
+}
+.lx-mini-swarm-actor svg{display:block;filter:drop-shadow(0 1px 0 #fff);}
+.lx-mini-swarm-b{color:#8791a5;animation-name:lx-mini-swarm-b;animation-duration:3.3s;animation-delay:-.8s;}
+.lx-mini-swarm-c{color:#ba7f99;animation-name:lx-mini-swarm-c;animation-duration:2.95s;animation-delay:-1.2s;}
+@keyframes lx-mini-swarm-a{
+ 0%{transform:translate3d(3px,1px,0) rotate(-13deg)}
+ 45%{transform:translate3d(37px,11px,0) rotate(12deg)}
+ 100%{transform:translate3d(18px,15px,0) rotate(-5deg)}
+}
+@keyframes lx-mini-swarm-b{
+ 0%{transform:translate3d(46px,0px,0) rotate(-13deg)}
+ 55%{transform:translate3d(13px,7px,0) rotate(12deg)}
+ 100%{transform:translate3d(42px,17px,0) rotate(2deg)}
+}
+@keyframes lx-mini-swarm-c{
+ 0%{transform:translate3d(20px,18px,0) rotate(0deg)}
+ 45%{transform:translate3d(46px,7px,0) rotate(-17deg)}
+ 100%{transform:translate3d(35px,15px,0) rotate(9deg)}
+}
+[data-lexis-swarm-loading][data-compact="true"] .lx-mini-swarm-actor{animation-duration:3.6s;}
+[data-lexis-swarm-loading][data-compact="true"] .lx-mini-swarm-b{animation-duration:4.1s;}
+[data-lexis-swarm-loading][data-compact="true"] .lx-mini-swarm-c{display:none;}
+[data-lexis-swarm-loading][data-compact="true"] .lx-mini-swarm-outline{inset:4px 8px;}
+@media(max-width:640px){
+ [data-lexis-swarm-loading]{width:64px;min-width:64px;max-width:64px;}
+ .lx-mini-swarm-c{display:none;}
+}
+@media(prefers-reduced-motion:reduce),(update:slow),(prefers-reduced-data:reduce){
+ .lx-mini-swarm-actor{animation:none!important;}
+ .lx-mini-swarm-a{transform:translate3d(10px,4px,0);}
+ .lx-mini-swarm-b{transform:translate3d(36px,9px,0);}
+ .lx-mini-swarm-c{transform:translate3d(24px,14px,0);}
+}

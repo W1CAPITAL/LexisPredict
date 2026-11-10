@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { LexisThinkingOrb } from "@/components/ui/lexis-thinking-orb";
+import { SwarmLoadingIndicator } from "@/components/ui/swarm-loading-indicator";
 import { cn } from "@/lib/utils";
 
 /** Overlay leve — use enquanto a página carrega dados. */
@@ -24,7 +24,7 @@ export function PageLoading({
       role="status"
       aria-live="polite"
     >
-      <LexisThinkingOrb state="working" size={64} aria-label={label} />
+      <SwarmLoadingIndicator />
       <p className="text-sm font-medium animate-pulse">{label}</p>
     </div>
   );
