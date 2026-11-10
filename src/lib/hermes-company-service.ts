@@ -154,3 +154,48 @@ export async function getHermesCaseHealth(empresaId:string):Promise<HermesCaseHe
   })];
  });
 }
+
+/** Latest actual official checks for processes without recent movement.
+ * Read-only and tenant-scoped; never counts these as overdue client returns.
+ */
+export type HermesStalledSummary={
+ processId:number;client:string;cnj:string;
+ state:'scanning'|'confirmed_idle'|'no_dated_movement'|'partial'|'unavailable'|'recent_movement';
+ checkedAt:string|null;lastMovementAt:string|null;daysWithoutMovement:number|null;
+ djenOk:boolean;datajudOk:boolean;sourceErrors:Record<string,string|null>;
+};
+export async function getHermesStalledSummaries(empresaId:string):Promise<HermesStalledSummary[]>{
+ const db=await getSupabaseAdmin();
+ const {data:reviews,error}=await db.from('hermes_stalled_reviews')
+  .select('processo_id,state,checked_at,last_movement_at,days_without_movement,djen_ok,datajud_ok,source_errors')
+  .eq('empresa_id',empresaId).order('checked_at',{ascending:false}).limit(60);
+ if(error)throw new Error('O painel de processos parados não pode ser carregado.');
+ if(!reviews?.length)return [];
+ const ids=reviews.map(r=>Number(r.processo_id)).filter(Number.isSafeInteger);
+ const {data:processes,error:caseError}=await db.from('processos')
+  .select('id,cliente,protocolo_ref,status,status_interno,dados')
+  .eq('empresa_id',empresaId).in('id',ids);
+ if(caseError)throw new Error('Falha ao ler os processos monitorados do escritório.');
+ const byId=new Map((processes||[]).map(r=>[Number(r.id),r]));
+ return reviews.flatMap(row=>{
+  const process=byId.get(Number(row.processo_id));
+  if(!process)return [];
+  const status=String(process.status||'')+' '+String(process.status_interno||'')+' '+String((process.dados as Record<string,unknown>|null)?.situacao||'');
+  if(/ENCERRAD|FINALIZAD|ARQUIVAD|EXTINT|BAIXA DEFINITIVA/i.test(status))return [];
+  const errors=row.source_errors && typeof row.source_errors==='object'&&!Array.isArray(row.source_errors)
+    ?row.source_errors as Record<string,string|null>:{};
+  return [{
+   processId:Number(row.processo_id),
+   client:String(process.cliente||'Cliente sem nome').slice(0,90),
+   cnj:String(process.protocolo_ref||'').slice(0,35),
+   state:row.state as HermesStalledSummary['state'],
+   checkedAt:row.checked_at||null,lastMovementAt:row.last_movement_at||null,
+   daysWithoutMovement:typeof row.days_without_movement==='number'?row.days_without_movement:null,
+   djenOk:row.djen_ok===true,datajudOk:row.datajud_ok===true,
+   sourceErrors:errors,
+  }];
+ }).sort((a,b)=>{
+  const rank=(s:HermesStalledSummary['state'])=>s==='confirmed_idle'?0:s==='partial'?1:s==='unavailable'?2:3;
+  return rank(a.state)-rank(b.state)||Number(b.daysWithoutMovement||0)-Number(a.daysWithoutMovement||0);
+ }).slice(0,30);
+}

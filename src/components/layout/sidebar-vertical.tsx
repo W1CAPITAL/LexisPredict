@@ -80,7 +80,6 @@ const core: NavItem[] = [
 
 const extras: NavItem[] = [
   { label: "Processos parados", href: "/processos-parados", icon: ShieldAlert },
-  { label: "Encerrados em revisão", href: "/encerrados-revisao", icon: ShieldCheck },
   { label: "Cumprimentos procedentes", href: "/cumprimentos-procedentes", icon: Gavel },
   { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
   { label: "Gerador de processos", href: "/gerador-processos", icon: Search },

@@ -27,59 +27,61 @@ type Step = {
 
 const STEPS: Step[] = [
   {
-    title: "1. Veja o que fazer hoje",
-    short: "Comece por Tarefas. Não precisa conhecer o sistema inteiro.",
+    title: "1. Comece pela fila da empresa",
+    short: "Cases e Tarefas agora mostram a mesma fila de retornos da empresa inteira.",
     route: "/tarefas",
     icon: <ListTodo className="h-5 w-5" />,
     bullets: [
-      "Abra Tarefas e veja quem precisa de atendimento primeiro.",
-      "Atenda os casos urgentes e registre o atendimento.",
-      "Se não souber por onde começar, volte sempre aqui.",
+      "Veja todos os processos com retorno vencido válido ou previsto para hoje, por prioridade.",
+      "Um retorno futuro não é vencido; datas incoerentes também ficam fora da fila.",
+      "Use Buscar, Vencidos ou É hoje e abra o processo que precisar de atendimento.",
     ],
-    actionLabel: "Abrir Tarefas",
+    actionLabel: "Abrir fila empresarial",
   },
   {
-    title: "2. Ache qualquer processo",
-    short: "Processos é a sua busca principal por cliente, CNJ e histórico.",
-    route: "/cases",
+    title: "2. Localize o processo completo",
+    short: "A carteira /processos mantém a busca da empresa, mesmo quando o retorno ainda não chegou.",
+    route: "/processos",
     icon: <Briefcase className="h-5 w-5" />,
     bullets: [
-      "Pesquise por nome do cliente ou número do processo.",
-      "Abra o processo para ver histórico, retorno e dados principais.",
-      "Evite procurar a mesma informação em várias telas.",
+      "Pesquise pelo nome do cliente, CNJ, advogado ou histórico da empresa.",
+      "Confira os documentos e as decisões antes de afirmar qualquer andamento.",
+      "Registre o atendimento e a próxima data no cadastro do próprio processo.",
     ],
-    actionLabel: "Abrir Processos",
+    actionLabel: "Buscar na empresa",
   },
   {
-    title: "3. Atualize quando precisar",
-    short: "O botão Atualizar da barra inferior consulta DataJud + DJEN.",
+    title: "3. Hermes monitora Processos parados",
+    short: "Além dos retornos, o Hermes busca sinais judiciais em processos parados.",
+    route: "/hermes-3d",
     icon: <RefreshCw className="h-5 w-5" />,
     bullets: [
-      "Use Atualizar quando quiser buscar novidades do tribunal.",
-      "Não precisa deixar o scanner aberto o tempo todo.",
-      "Depois, volte para Tarefas para trabalhar o que mudou.",
+      "O Hermes consulta periodicamente processos ativos sem movimentação recente cadastrada.",
+      "Veja DJEN e DataJud separadamente: falha de uma fonte significa consulta parcial.",
+      "Um processo sem movimento recente não significa retorno vencido nem prazo judicial perdido.",
     ],
+    actionLabel: "Abrir Hermes",
   },
   {
-    title: "4. Fale com o cliente",
-    short: "WhatsApp fica na barra inferior e também no Menu.",
+    title: "4. Fale com o cliente quando tiver fatos",
+    short: "Converse somente depois de verificar o histórico e as fontes.",
     route: "/whatsapp",
     icon: <MessageCircle className="h-5 w-5" />,
     bullets: [
-      "Conecte o WA.Auto uma vez.",
-      "Abra o cliente e envie a mensagem pelo próprio Lexis.",
-      "O histórico fica junto da operação, sem trocar de sistema.",
+      "Leia o último atendimento para evitar repetir informações.",
+      "Use a mensagem do Hermes como rascunho, nunca como envio automático.",
+      "Registre o contato realizado no processo para não criar falsos vencimentos.",
     ],
     actionLabel: "Abrir WhatsApp",
   },
   {
-    title: "5. O resto fica no Menu",
-    short: "Recursos avançados existem, mas você só usa quando precisar.",
+    title: "5. Use o Menu para outras rotinas",
+    short: "Os recursos adicionais estão organizados sem misturar processos encerrados com a fila.",
     icon: <Menu className="h-5 w-5" />,
     bullets: [
-      "Menu mostra agenda, documentos, relatórios, supervisão e outras ferramentas.",
-      "A barra inferior fica simples de propósito: Início, Processos, Atualizar, WhatsApp e Menu.",
-      "Se esquecer algo, abra Menu → Aprender o app em 3 minutos.",
+      "Processos parados fica separado da fila de retornos ao cliente.",
+      "Relatórios, documentos, supervisão e scanner manual continuam disponíveis.",
+      "Para rever estas instruções, abra Menu → Treinamento → Aprenda em 3 minutos.",
     ],
   },
 ];
@@ -135,12 +137,12 @@ export function GuidedTour() {
         aria-label={`Guia rápido — passo ${tutorialStep + 1} de ${STEPS.length}`}
         className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
       >
-        <div className="flex items-start gap-3 border-b border-border bg-[#07182d] px-4 py-4 text-white sm:px-5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1769ff]">
+        <div className="flex items-start gap-3 border-b border-border bg-[#311b29] px-4 py-4 text-white sm:px-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#763654]">
             {step.icon}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#9fc2e4]">
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#e9c5d7]">
               Aprenda o Lexis em 3 minutos · {tutorialStep + 1}/{STEPS.length}
             </p>
             <h2 className="mt-1 text-lg font-black leading-tight">{step.title}</h2>
@@ -157,7 +159,7 @@ export function GuidedTour() {
 
         <div className="h-1 bg-muted">
           <div
-            className="h-full bg-[#1769ff] transition-[width] duration-200"
+            className="h-full bg-[#763654] transition-[width] duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -170,7 +172,7 @@ export function GuidedTour() {
           <div className="mt-4 space-y-2.5">
             {step.bullets.map((bullet) => (
               <div key={bullet} className="flex gap-2.5 rounded-xl bg-muted/45 p-3">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1769ff]" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#763654]" />
                 <p className="text-[13px] leading-relaxed text-foreground/85">{bullet}</p>
               </div>
             ))}

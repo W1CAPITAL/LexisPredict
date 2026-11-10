@@ -27,13 +27,13 @@ export const SUITE_PILARES = [
   {
     id: "carteira",
     title: "Carteira",
-    desc: "Processos por escopo de cargo, busca e visão da empresa",
+    desc: "Fila de retornos da empresa, por urgência, e busca da carteira completa",
     href: "/cases",
   },
   {
     id: "filas",
     title: "Filas",
-    desc: "Contato, parados, encerrados a revisar, urgências",
+    desc: "Retornos vencidos e previstos para hoje, com prioridade operacional",
     href: "/tarefas",
   },
   {

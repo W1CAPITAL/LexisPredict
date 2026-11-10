@@ -91,7 +91,6 @@ import {
 } from 'recharts';
 import { isCasoEncerrado } from '@/lib/status-encerrado'
 import { isAtendidoHoje } from '@/lib/atendimento-semana'
-import { EncerradosRevisaoQueue } from '@/components/dashboard/encerrados-revisao-queue'
 import { countProcessosParados } from '@/lib/processos-parados';
 import { computeCarteiraKpis } from '@/lib/carteira-kpis';
 import { computeKpiUnificado } from '@/lib/kpi-unificado';
@@ -646,7 +645,7 @@ export default function Dashboard() {
                       </div>
                    </section>
 
-                   <EncerradosRevisaoQueue cases={cases as any} limit={10} />
+
 
                 <OfficeStats cases={cases} />
                 </div>
