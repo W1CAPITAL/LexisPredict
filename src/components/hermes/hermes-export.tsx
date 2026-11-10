@@ -30,7 +30,7 @@ export function HermesExport({record,cases,events,diagnostics}:{
       'Saúde '+x.avgHealth+'/100','']),
     ...diagnostics.byUser.map(x=>['Equipe',diagnostics.day,x.name+' · '+x.role,
       'Atividades '+x.done30d+'; contatos '+x.contacts30d+'; tarefas abertas '+x.openTasks,
-      'Vencidas '+x.overdueTasks,'']),
+      'Pendentes '+x.openTasks,'']),
     ...diagnostics.taskQueue.map(x=>['Tarefa CRM',diagnostics.day,x.assignee,x.title,
       'Vence '+(x.dueOn||'não informado')+'; ocorrências '+x.occurrences,'']),
     ...diagnostics.topCases.map(x=>['Processo',diagnostics.day,x.client+' · '+x.lawyer,
@@ -53,9 +53,9 @@ export function HermesExport({record,cases,events,diagnostics}:{
   URL.revokeObjectURL(url);
  }
  return <div className="flex flex-wrap gap-2">
-  <a href="/api/report/pdf?escopo=empresa&periodo=mes" target="_blank" rel="noopener noreferrer"
+  <a href="/api/hermes-office?format=pdf" target="_blank" rel="noopener noreferrer"
     className="h3d-button" title="PDF consolidado do escritório, com os indicadores e o acompanhamento Hermes">
-   <FileText size={16}/> Extrair relatório PDF
+   <FileText size={16}/> Extrair PDF jurídico
   </a>
   <button type="button" className="h3d-button h3d-button-muted" onClick={()=>window.print()} title="Salvar em PDF pelo navegador os painéis já autorizados do Hermes"><FileText size={16}/> Salvar tela em PDF</button>
   <button type="button" className="h3d-button h3d-button-muted" onClick={downloadCsv} disabled={!record}>
