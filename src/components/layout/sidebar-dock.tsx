@@ -33,6 +33,7 @@ const primary = [
   ["Réplica e Provas", "/fases-provas", FileText],
   ["WhatsApp", "/whatsapp", MessageCircle],
   ["Agenda", "/agenda", CalendarDays],
+  ["Audiências", "/audiencias", Gavel],
   ["Dossiê", "/report", BarChart3],
   ["CRM", "/crm", Kanban],
   ["Integrações", "/integracoes", Zap],
