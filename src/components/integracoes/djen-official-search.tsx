@@ -15,7 +15,13 @@ export function DjenOfficialSearch({ initialCnj = '' }: { initialCnj?: string })
   const [error, setError] = React.useState('');
   const [items, setItems] = React.useState<DjenItemRaw[] | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
-  React.useEffect(() => () => abortRef.current?.abort(), []);
+  React.useEffect(() => {
+    if (!initialCnj) {
+      const fromLink = new URLSearchParams(window.location.search).get('cnj') || '';
+      if (fromLink.replace(/\\D/g, '').length === 20) setCnj(fromLink);
+    }
+    return () => abortRef.current?.abort();
+  }, [initialCnj]);
 
   async function search(event: React.FormEvent) {
     event.preventDefault();
@@ -54,10 +60,19 @@ export function DjenOfficialSearch({ initialCnj = '' }: { initialCnj?: string })
     {error && <p role="alert" className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">{error}</p>}
     {items && <div className="mt-3 space-y-2" aria-live="polite">
       <p className="text-xs font-semibold text-muted-foreground">{items.length ? items.length + ' publicação(ões) encontrada(s) nesta consulta.' : 'Nenhuma publicação retornada para os filtros desta consulta.'}</p>
-      {items.map((item,i)=><article className="rounded-xl border border-border bg-muted/30 p-3 text-xs" key={String(item.id||item.hash||i)}>
-        <p className="font-bold">{String(item.numeroProcesso||item.numero_processo||cnj)} · {String(item.siglaTribunal||'DJEN')}</p>
-        <p className="mt-1 text-muted-foreground">{fmtDate(item.data_disponibilizacao)} · {String(item.texto||'Teor não fornecido').slice(0,300)}</p>
-      </article>)}
+      {items.map((item,i)=>{
+        const candidate = String(item.link || '');
+        const trusted = (() => {
+          try { const u = new URL(candidate); return u.protocol === 'https:' && u.hostname.endsWith('.jus.br') ? u.href : ''; }
+          catch { return ''; }
+        })();
+        const officialLink = trusted || (item.hash ? 'https://comunica.pje.jus.br/consulta?hash=' + encodeURIComponent(item.hash) : '');
+        return <article className="rounded-xl border border-border bg-muted/30 p-3 text-xs" key={String(item.id||item.hash||i)}>
+          <p className="font-bold">{String(item.numeroProcesso||item.numero_processo||cnj)} · {String(item.siglaTribunal||'DJEN')}</p>
+          <p className="mt-1 text-muted-foreground">{fmtDate(item.data_disponibilizacao)} · {String(item.texto||'Teor não fornecido').slice(0,300)}</p>
+          {officialLink ? <a className="mt-2 inline-flex items-center gap-1 font-semibold text-primary underline" href={officialLink} target="_blank" rel="noopener noreferrer">Abrir publicação oficial <ExternalLink size={12}/></a> : null}
+        </article>;
+      })}
     </div>}
     <a href={OFFICIAL_JUDICIAL_SERVICES.djen.swagger} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary underline">Documentação oficial da API <ExternalLink size={12}/></a>
   </section>;
