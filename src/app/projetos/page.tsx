@@ -1,14 +1,8 @@
 import Link from 'next/link';
-import { redirect,notFound } from 'next/navigation';
-import { getUserContext } from '@/lib/server-db';
 import { Bot, ExternalLink, FileBarChart, Network, ShieldCheck, Workflow } from 'lucide-react';
-export const dynamic='force-dynamic';
 
-/** Central de projetos reais; evita criar cópias de IA Lab ou do Estúdio de Agentes. */
-export default async function ProjetosPage(){
- const ctx=await getUserContext();
- if(!ctx.auth_id||!ctx.empresa_id)redirect('/login');
- if(ctx.isViewer||!(ctx.isSupervisor||ctx.isAdministrador||ctx.isSuperAdmin))notFound();
+/** Índice estático: não cria uma função Vercel. Middleware mantém autenticação, plano e cargo. */
+export default function ProjetosPage(){
  const cards=[
   {label:'Hermes · Miniempresa 3D',subtitle:'Robôs 3D, cargos, setores, reuniões e métricas verificáveis.',href:'/hermes-3d',icon:Bot},
   {label:'Automação dos retornos',subtitle:'DJEN/DataJud, prioridades, mensagens sugeridas e acompanhamento.',href:'/tarefas',icon:Workflow},
