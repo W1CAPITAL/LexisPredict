@@ -11,7 +11,7 @@ describe('Hermes agents reflect real events, not perpetual fake activity',()=>{
     expect(route.isLive).toBe(false);
   });
   it('links working actions to source events and meeting replay to conference table',()=>{
-    const event={id:7,sector:'processos',kind:'judicial_scan',status:'working',
+    const event={id:7,sector:'processos',kind:'judicial_scan',status:'working' as const,
       title:'Consultando DJEN',detail:'Fonte judicial',recorded_at:'2026-11-10T14:59:00Z',processo_id:34};
     const route=getHermesAgentDestination(station,[event],false,new Date('2026-11-10T15:00:00Z'));
     expect(route.status).toBe('working');
@@ -22,7 +22,7 @@ describe('Hermes agents reflect real events, not perpetual fake activity',()=>{
     expect(meeting.target).toMatchObject({x:50,y:48});
   });
   it('does not describe old unresolved tasks as ongoing',()=>{
-    const event={id:8,sector:'processos',kind:'judicial_scan',status:'working',
+    const event={id:8,sector:'processos',kind:'judicial_scan',status:'working' as const,
       title:'Consultando',detail:null,recorded_at:'2026-11-10T12:00:00Z',processo_id:34};
     expect(getHermesAgentDestination(station,[event],false,new Date('2026-11-10T15:00:00Z')).isLive).toBe(false);
   });
