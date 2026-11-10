@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Bot, ClipboardCopy, Loader2, RefreshCw, FileSearch } from "lucide-react";
-import { getHermesReturnReviewAction, refreshHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
+import { getHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -21,6 +21,16 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [registered, setRegistered] = React.useState<{ next: string | null; last: string | null }>({ next: null, last: null });
   const [copied, setCopied] = React.useState(false);
 
+  async function queryOfficialBrazil(processId:number){
+    const response=await fetch('/api/hermes-office?action=review',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({processId})
+    });
+    const data=await response.json().catch(()=>({ok:false,error:'Resposta inválida do serviço de consulta.'}));
+    if(!response.ok||!data.ok)throw Error(data.error||'Falha ao consultar as fontes oficiais.');
+  }
+
   const load = React.useCallback(async (autoRefresh = false) => {
     if (!Number.isSafeInteger(processId) || processId <= 0) return;
     setBusy(true); setError("");
@@ -32,8 +42,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
       const checked=Date.parse(String(result.review?.checked_at||''));
       const stale=!Number.isFinite(checked)||Date.now()-checked>6*60*60*1000;
       if(autoRefresh&&stale){
-        const refreshed=await refreshHermesReturnReviewAction(processId);
-        if(!refreshed.ok)throw new Error(refreshed.error);
+        await queryOfficialBrazil(processId);
         result=await getHermesReturnReviewAction(processId);
         if(!result.ok)throw new Error(result.error);
       }
@@ -49,8 +58,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   async function refresh() {
     setBusy(true); setError("");
     try {
-      const result = await refreshHermesReturnReviewAction(processId);
-      if (!result.ok) throw new Error(result.error);
+      await queryOfficialBrazil(processId);
       await load(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Falha ao consultar fontes oficiais."); }
     finally { setBusy(false); }
