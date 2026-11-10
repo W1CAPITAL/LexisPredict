@@ -367,7 +367,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       // DataJud ES can reject overloaded shards with 429. Immediate retries
       // increase queue pressure; the Hermes shared scheduler honors cooldown.
       const retryHeader=response.headers?.get?.('retry-after') || '';
-      const secs=/^\\d+$/.test(retryHeader.trim())
+      const secs=/^\d+$/.test(retryHeader.trim())
         ?Number(retryHeader.trim())
         :retryHeader?Math.ceil((Date.parse(retryHeader)-Date.now())/1000):0;
       const retryAfterSeconds=Number.isFinite(secs)?Math.min(14400,Math.max(0,secs)):0;
