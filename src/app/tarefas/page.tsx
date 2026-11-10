@@ -1,3 +1,4 @@
+import {CompanyDueQueue} from '@/components/returns/company-due-queue';
 "use client";
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { statusEfetivo } from "@/lib/prazo-status";
@@ -153,7 +154,7 @@ interface TaskGroup {
   oldestReturnGap: number;
 }
 
-export default function TarefasPage() {
+function TarefasPageLegacy() {
   const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
   const empresaId = String((profile as any)?.empresa_id || '');
   const authUserId = String((profile as any)?.auth_user_id || '');
@@ -1497,3 +1498,7 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
     </div>
   );
 }
+
+
+/** /cases e /tarefas compartilham a mesma fila empresarial de retornos, sem escopo pessoal. */
+export default function TarefasPage(){ return <CompanyDueQueue/>; }
