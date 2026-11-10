@@ -6,8 +6,10 @@ describe('Hermes review reliability and self-correction',()=>{
   const service=source('src/lib/hermes-return-service.ts');
   expect(service).toContain("mode?: 'manual' | 'scheduled'");
   expect(service).toContain('forceRefresh: manual');
-  expect(service).toContain('cloudBudget: !manual');
+  expect(service).toContain('hermesManual: manual');
+  expect(service).toContain('cloudBudget: true');
   expect(service).toContain('sourceErrors');
+  expect(source('src/app/api/cron/hermes-returns/route.ts')).toContain('postOfficeCaseReview');
  });
  it('manual retry is not prevented for partially unavailable court sources',()=>{
   const action=source('src/app/actions/hermes-return-actions.ts');
