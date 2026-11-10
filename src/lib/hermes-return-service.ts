@@ -40,14 +40,15 @@ export async function loadHermesReviewCase(db: Awaited<ReturnType<typeof getSupa
 }
 
 /** Independent court verification: no WhatsApp queue and no changes to process or return dates. */
-async function obtainCourtSnapshot(cnj: string, lastReturn: string | null): Promise<HermesCourtSnapshot> {
+type CourtSnapshotWithDiagnostic=HermesCourtSnapshot&{sourceErrors:Record<'djen'|'datajud',string|null>};
+async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual=false): Promise<CourtSnapshotWithDiagnostic> {
   const fromDay = validReturnDay(lastReturn);
   const beginning = fromDay
     ? new Date(Date.parse(fromDay + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10)
     : new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const [dj, djen] = await Promise.allSettled([
-    fetchDataJud(cnj, 1, { fast: true, cloudBudget: true }),
-    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: true }),
+    fetchDataJud(cnj, 1, { fast: !manual, cloudBudget: !manual, forceRefresh: manual }),
+    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, forceRefresh: manual }),
   ]);
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
   const diario = djen.status === 'fulfilled' ? djen.value : null;
@@ -74,12 +75,17 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null): Prom
       });
     }
   }
-  return { djenOk, datajudOk, events };
+  const diagnostic=(msg:unknown)=>String(msg||'Falha técnica ou fonte não confirmada.')
+    .replace(/[\r\n\t]/g,' ').replace(/https?:\/\/\S+/g,'endereço da fonte').slice(0,150);
+  return { djenOk, datajudOk, events,sourceErrors:{
+    djen:djenOk?null:diagnostic(dj.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
+    datajud:datajudOk?null:diagnostic(dj.status==='rejected'?null:datajud?.message||'Não encontrado no índice ou fonte indisponível.'),
+  }};
 }
 async function persistResult(
   db: Awaited<ReturnType<typeof getSupabaseAdmin>>,
   row: ProcessRow, due: string,
-  result: ReturnType<typeof buildHermesReturnReview>, cnj: string,
+  result: ReturnType<typeof buildHermesReturnReview>, cnj: string,sourceErrors:Record<string,string|null>,
 ) {
   const now = new Date().toISOString();
   const { error } = await db.from('hermes_return_reviews').upsert({
@@ -94,6 +100,7 @@ async function persistResult(
       djen: result.djenOk ? 'consultado' : 'indisponivel',
       datajud: result.datajudOk ? 'consultado' : 'indisponivel',
       origin: 'official-public-apis',
+      sourceErrors,
     },
   }, { onConflict: 'empresa_id,processo_id,due_on' });
   if (error) throw new Error('Falha ao registrar revisão judicial: ' + error.message);
@@ -101,7 +108,7 @@ async function persistResult(
 
 /** Scheduler supplies a claimed (tenant,process,scheduled day); manual action also uses this path. */
 export async function reviewHermesCase(input: {
-  empresaId: string; processId: number; dueOn?: string;
+  empresaId: string; processId: number; dueOn?: string; mode?: 'manual' | 'scheduled';
 }) {
   const db = await getSupabaseAdmin();
   const row = await loadHermesReviewCase(db, input.empresaId, input.processId);
@@ -114,8 +121,10 @@ export async function reviewHermesCase(input: {
     (scheduled && scheduled <= today ? scheduled : today);
   const cnj = normalizedCnj(row.protocolo_ref || row.dados?.protocolo);
   const name = row.cliente || String(row.dados?.cliente || '');
-  let snapshot: HermesCourtSnapshot = { djenOk: false, datajudOk: false, events: [] };
-  if (cnj && !isCasoEncerrado(row)) snapshot = await obtainCourtSnapshot(cnj, row.ultimo_retorno);
+  const manual=input.mode==='manual';
+  let snapshot:CourtSnapshotWithDiagnostic={ djenOk:false,datajudOk:false,events:[],
+    sourceErrors:{djen:'Consulta não executada.',datajud:'Consulta não executada.'} };
+  if (cnj && !isCasoEncerrado(row)) snapshot = await obtainCourtSnapshot(cnj, row.ultimo_retorno,manual);
   const result = buildHermesReturnReview({
     cliente: name, protocolo: row.protocolo_ref || cnj,
     ultimoRetorno: row.ultimo_retorno, proximoRetorno: row.proximo_retorno,
@@ -130,7 +139,7 @@ export async function reviewHermesCase(input: {
       kind: 'gap', url: null,
     });
   }
-  await persistResult(db, row, due, result, cnj);
+  await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
   return { ok: true as const, processId: row.id, state: result.state, score: result.priorityScore };
 }
 
