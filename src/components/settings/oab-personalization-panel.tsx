@@ -8,6 +8,7 @@ import {getExperienceAction,saveOabPreferencesAction} from '@/app/actions/experi
 import {EXPERIENCE_DEFAULT,cleanExperiencePrefs,applyExperiencePrefs,loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {TODOS_TRIBUNAIS} from '@/lib/tribunais-links';
 import {certificateProviders,getCertificateProvider,recommendedCertificateType,type OabCertificateProviderId} from '@/lib/oab-certificate-providers';
+import {OFFICIAL_JUDICIAL_SERVICES} from '@/lib/official-judicial-services';
 
 type OabPrefs=Pick<ExperiencePreferences,'oabNumber'|'oabUf'|'oabCertificateType'|'oabCertificateProvider'|'oabPreferredTribunal'|'oabDefaultDocuments'|'oabShowGuide'>;
 const oabKeys=(x:ExperiencePreferences):OabPrefs=>({
@@ -114,6 +115,15 @@ export function OabPersonalizationPanel(){
      <a className="mt-1 inline-flex items-center gap-1 text-primary underline" href="https://docs.pje.jus.br/servicos-negociais/pjeoffice-pro/" target="_blank" rel="noopener noreferrer">Guia oficial de instalação do PJeOffice Pro <ExternalLink size={12}/></a>
           <p className="mt-2 text-muted-foreground">No macOS (Intel ou Apple Silicon), consulte primeiro os programas oficiais PJeOffice Pro e VIDaaS Connect. Para incompatibilidades específicas, há a ponte comunitária <a className="text-primary underline" href="https://github.com/raphaelmsnoronha/vidaas-pjeoffice-mac" target="_blank" rel="noopener noreferrer">vidaas-pjeoffice-mac</a> (MIT). É uma solução independente, testada pelo autor em configuração limitada; o instalador altera a configuração local de drivers do PJeOffice. Leia o código, faça backup e obtenha aprovação do suporte antes de executar. O LexisPredict não instala drivers, não lê certificados e não confirma compatibilidade com todos os tribunais.</p>
 <p className="mt-2 text-muted-foreground">No Linux, o projeto comunitário <a className="text-primary underline" href="https://github.com/LLawli/flatpak-adv-br" target="_blank" rel="noopener noreferrer">flatpak-adv-br</a> documenta drivers e ponte de certificado para navegadores e PJeOffice. É opcional, não integra certificados ao LexisPredict e não cobre VIDaaS como recurso testado. Não é necessário no Windows.</p>
+    </div>
+    <div className="rounded-xl border border-primary/25 bg-muted/20 p-4 text-xs leading-5 text-foreground">
+      <p className="font-bold">DJEN oficial na sua área OAB</p>
+      <p className="mt-1 text-muted-foreground">A consulta pública ao DJEN funciona pelo número CNJ e não exige enviar senha, PIN ou certificado. Para comunicações pessoais e institucionais use o Domicílio com a credencial autorizada; abrir inteiro teor pode registrar ciência processual. O LexisPredict não faz essa abertura automaticamente.</p>
+      <div className="mt-2 flex flex-wrap gap-3">
+        <Link href="/consulta-oab#djen-oficial" className="font-bold text-primary underline">Pesquisar publicações no DJEN</Link>
+        <a href={OFFICIAL_JUDICIAL_SERVICES.djen.swagger} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">API oficial DJEN <ExternalLink size={12} className="inline"/></a>
+        <a href={OFFICIAL_JUDICIAL_SERVICES.domicilio.documentation} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">Guia CNJ do Domicílio <ExternalLink size={12} className="inline"/></a>
+      </div>
     </div>
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     {success&&<p role="status" className="flex items-center gap-2 text-sm text-foreground"><CheckCircle2 size={15} className="text-primary"/>{success}</p>}

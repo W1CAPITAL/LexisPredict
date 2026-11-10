@@ -9,6 +9,7 @@
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import type { CrmActivity, CrmTask, CrmNegocio } from '@/lib/crm-types';
 import { CRM_FUNIL_STATUS } from '@/lib/crm-types';
+import { normalizeRecurringTaskTitle } from '@/lib/crm-task-recurrence';
 
 function uid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -159,24 +160,56 @@ export async function listTarefasAction(opts?: { negocio_id?: string; openOnly?:
 
 export async function upsertTarefaAction(input: Partial<CrmTask> & { titulo: string }) {
   const ctx = await ctxOrFail();
-  if (!ctx) return { success: false as const, error: 'Sessão' };
+  if (!ctx?.auth_id || !ctx.empresa_id) return { success: false as const, error: 'Sessão expirada' };
   try {
     const admin = await getSupabaseAdmin();
-    const id = input.id || uid();
+    const titulo = String(input.titulo || '').trim().replace(/\s+/g, ' ');
+    if (normalizeRecurringTaskTitle(titulo).length < 3 || titulo.length > 180) {
+      return { success: false as const, error: 'Informe um título de 3 a 180 caracteres.' };
+    }
+    const negocioId = String(input.negocio_id || '').trim() || null;
+
+    // Inserções novas do mesmo cliente + mesmo assunto reaproveitam a tarefa
+    // aberta mais antiga. A função SQL usa lock transacional e acumula repetições.
+    if (!input.id && !input.feito && negocioId) {
+      const { data, error } = await admin.rpc('crm_consolidate_recurring_task', {
+        p_id: uid(),
+        p_empresa_id: ctx.empresa_id,
+        p_negocio_id: negocioId,
+        p_titulo: titulo,
+        p_due_at: input.due_at || null,
+        p_assignee_id: input.assignee_id || ctx.auth_id,
+        p_created_by: ctx.auth_id,
+      });
+      if (error) return { success: false as const, error: 'Não foi possível consolidar a tarefa: ' + error.message };
+      const task = Array.isArray(data) ? data[0] : data;
+      if (!task) return { success: false as const, error: 'O CRM não confirmou a tarefa.' };
+      return { success: true as const, row: task as CrmTask };
+    }
+
+    if (input.id) {
+      // Edição de tarefa existente: jamais faz upsert global de um ID vindo do
+      // navegador, pois isso poderia atribuir registro de outra empresa.
+      const { data, error } = await admin.from('crm_tarefas')
+        .update({
+          titulo, feito: !!input.feito, negocio_id: negocioId,
+          due_at: input.due_at || null, assignee_id: input.assignee_id || ctx.auth_id,
+          updated_at: new Date().toISOString(),
+        }).eq('id', input.id).eq('empresa_id', ctx.empresa_id).select('*').maybeSingle();
+      if (error || !data) return { success: false as const, error: error?.message || 'Tarefa não localizada nesta empresa.' };
+      return { success: true as const, row: data as CrmTask };
+    }
+
     const row = {
-      id,
-      empresa_id: ctx.empresa_id,
-      negocio_id: input.negocio_id || null,
-      titulo: input.titulo.trim(),
-      feito: !!input.feito,
-      due_at: input.due_at || null,
+      id: uid(), empresa_id: ctx.empresa_id, negocio_id: negocioId,
+      titulo, feito: !!input.feito, due_at: input.due_at || null,
       assignee_id: input.assignee_id || ctx.auth_id,
-      created_by: input.created_by || ctx.auth_id,
-      created_at: input.created_at || new Date().toISOString(),
+      created_by: ctx.auth_id, created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(), ocorrencias_total: 1,
     };
-    const { error } = await admin.from('crm_tarefas').upsert(row, { onConflict: 'id' });
+    const { data, error } = await admin.from('crm_tarefas').insert(row).select('*').single();
     if (error) return { success: false as const, error: error.message };
-    return { success: true as const, row: row as CrmTask };
+    return { success: true as const, row: data as CrmTask };
   } catch (e: any) {
     return { success: false as const, error: e?.message };
   }

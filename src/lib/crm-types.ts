@@ -173,6 +173,9 @@ export type CrmTask = {
   assignee_id?: string | null;
   created_by?: string | null;
   created_at?: string;
+  updated_at?: string;
+  /** Quantas tarefas repetidas foram consolidadas nesta linha (incluindo a primeira). */
+  ocorrencias_total?: number;
 };
 
 export type CrmContato = {

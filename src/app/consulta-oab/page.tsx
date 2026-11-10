@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {Sidebar} from "@/components/layout/sidebar";
 import {AutosOabFreePanel} from "@/components/scanner/autos-oab-free-panel";
+import {DjenOfficialSearch} from '@/components/integracoes/djen-official-search';
+import {OfficialJudicialServices} from '@/components/integracoes/official-judicial-services';
 import {ArrowLeft,FileSearch,ShieldCheck,Settings2,Globe2} from "lucide-react";
 
 export default function ConsultaOabPage(){
@@ -39,6 +41,8 @@ export default function ConsultaOabPage(){
            <p className="mt-1 text-xs text-muted-foreground">Importe PDF/ZIP dos autos para montar um pacote local de peças até a possível contestação.</p>
          </div>
        </div>
+       <DjenOfficialSearch />
+       <OfficialJudicialServices />
        <AutosOabFreePanel defaultExpanded/>
        <p className="text-xs leading-5 text-muted-foreground">
          O modo gratuito não consulta sigilo nem acessa a sessão autenticada por conta própria. O advogado deve ter autorização nos autos e confirmar o login no tribunal. O LexisPredict não substitui a conferência de documentos, datas ou autoria das peças.
