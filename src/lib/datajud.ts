@@ -325,8 +325,8 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(cnjLimpo);
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
-  // O índice público armazena o número sem máscara (dígitos puros); alguns
-  // tribunais aceitam também a forma mascarada. Tenta ambos (sem custo real).
+  // O índice público armazena o número sem máscara (20 dígitos).
+  // Consulta exata pelo formato recomendado nos exemplos oficiais do CNJ.
   // A consulta exata em dígitos segue o exemplo oficial de pesquisa por CNJ.
 
   const isFast = options.fast === true;
