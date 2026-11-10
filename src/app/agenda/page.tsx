@@ -281,7 +281,7 @@ export default function AgendaPage() {
       if (!isValid(date)) continue;
       const legalCase = byCnj.get(String(a.protocolo_ref || "").replace(/\D/g, "")) ||
         ({ cliente: a.cliente || "Cliente", protocolo: a.protocolo_ref, advogado: a.advogado, tribunal: a.tribunal } as LegalCase);
-      const label = a.tipo === "sessao_virtual" ? "Sessão virtual" : "Audiência";
+      const label = a.tipo === "sessao_virtual" ? "Sessão virtual" : a.tipo === "sessao_julgamento" ? "Sessão de julgamento" : "Audiência";
       const hour = a.hora_local ? " · " + a.hora_local : "";
       out.push({ id: "aud-" + a.id, kind: "audiencia", date, case: legalCase,
         title: a.cliente || "Audiência", subtitle: label + hour });
