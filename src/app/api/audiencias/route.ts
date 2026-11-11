@@ -12,6 +12,9 @@ export async function GET(){
   if(!ctx.auth_id||!ctx.empresa_id)return NextResponse.json({ok:false,error:'Não autenticado'},{status:401,headers});
   try {
     const db=await getSupabaseAdmin();
+    // Limpa somente projeções expiradas da empresa autenticada antes da leitura.
+    const {error:pruneError}=await db.rpc('prune_expired_audiencias',{p_empresa_id:ctx.empresa_id});
+    if(pruneError)throw pruneError;
     const {data,error}=await db.from('audiencias_monitoradas')
       .select('id,processo_id,protocolo_ref,cliente,advogado,tribunal,tipo,data_evento,data_fim,hora_local,hora_fim,fuso,modalidade,situacao,fonte,fonte_url,portal_url,meeting_url,evidencia,verificado_em,atualizado_em')
       .eq('empresa_id',ctx.empresa_id)

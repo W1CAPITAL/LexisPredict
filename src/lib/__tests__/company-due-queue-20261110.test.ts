@@ -19,8 +19,9 @@ describe('Fila unificada de retornos da empresa',()=>{
    caseOf('6','','2026-11-09'),
   ];
   const result=listCompanyDueReturns(cases,'2026-11-10');
-  expect(result.map(x=>x.process.id)).toEqual(['3','4']);
-  expect(result.map(x=>x.kind)).toEqual(['overdue','today']);
+  expect(result.map(x=>x.process.id).sort()).toEqual(['1','3','4','6']);
+  expect(result.find(x=>x.process.id==='4')?.kind).toBe('today');
+  expect(result.filter(x=>x.kind==='overdue')).toHaveLength(3);
  });
  it('prioriza movimento judicial relevante acima da rotina e desempata pelo atraso',()=>{
   const cases=[

@@ -36,13 +36,15 @@ export function listCompanyDueReturns<T extends LegalCase>(
   // As colunas do banco chegam por ultimoRetorno / proximoPrazo no adaptador de carteira.
   const last=validDay(process.ultimoRetorno);
   const next=validDay(process.proximoPrazo);
-  if(!last||!next||next>today||dayDifference(next,last)<20)continue;
+  // A data do próximo retorno é o critério operacional. Não impor intervalo
+  // mínimo arbitrário de 20 dias: isso ocultava retornos válidos da empresa.
+  if(!next||next>today||(last&&dayDifference(next,last)<0))continue;
   const id=String(process.db_id||process.id||process.protocolo||'').trim();
   if(!id||seen.has(id))continue;
   seen.add(id);
   const priority=scoreCasePriority(process);
   result.push({
-   process,lastContact:last,dueOn:next,daysLate:Math.max(0,dayDifference(today,next)),
+   process,lastContact:last||'',dueOn:next,daysLate:Math.max(0,dayDifference(today,next)),
    kind:next===today?'today':'overdue',
    priorityScore:priority.score,priorityLabel:priority.label
   });
