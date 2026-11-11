@@ -29,7 +29,7 @@ export type ProcessMovementsResult = {
   historicDataJudMovements?:number;
   djenPublications?:number;
   tribunalMovements?:number;
-  tribunalConnector?:{source:string;status:string;verifiedAt:string|null};
+  tribunalConnector?:{source:string;status:string;verifiedAt:string|null;checkedAt:string|null;nextAllowedAt:string|null};
   sourceStatus?:ProcessSourcesStatus;
 };
 
@@ -138,17 +138,19 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
     let courtConnector:ProcessMovementsResult['tribunalConnector'];
     if(page===1){
       const {data:tribunalSaved,error:courtError}=await db.from('hermes_tribunal_public_movements')
-        .select('cnj,adapter,status,movements,movements_verified_at')
+        .select('cnj,adapter,status,movements,movements_verified_at,checked_at,next_allowed_at')
         .eq('empresa_id',ctx.empresa_id).in('cnj',cnjs).limit(10);
       if(!courtError){
         for(const row of tribunalSaved||[]){
           const normalized=normalizeTribunalMovements(row.movements);
-          if(!row.movements_verified_at)continue;
           const isMain=cnjDigits(row.cnj)===main;
           if(isMain){
             courtConnector={source:String(row.adapter),status:String(row.status),
-              verifiedAt:String(row.movements_verified_at)};
+              verifiedAt:row.movements_verified_at?String(row.movements_verified_at):null,
+              checkedAt:row.checked_at?String(row.checked_at):null,
+              nextAllowedAt:row.next_allowed_at?String(row.next_allowed_at):null};
           }
+          if(!row.movements_verified_at)continue;
           for(const m of normalized){
             courtEntries.push({
               id:'tribunal|'+row.cnj+'|'+m.date+'|'+m.code,
