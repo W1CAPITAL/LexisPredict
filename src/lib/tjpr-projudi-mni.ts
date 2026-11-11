@@ -74,9 +74,18 @@ function parseMniProcess(xml:string):{success:boolean;message:string;found:boole
   if(!success)return {success:false,message:message||'O TJPR não confirmou a consulta MNI.',found:false,events:[]};
   const processNode=firstDescendant(response,'processo');
   if(!processNode)return {success:true,message:message||'Consulta concluída sem objeto processual.',found:false,events:[]};
+  const header=firstDescendant(processNode,'dadosBasicos');
+  const processSecrecyRaw=attribute(processNode,'nivelSigilo')||attribute(header,'nivelSigilo')||
+   nodeText($,firstDescendant(header||processNode,'nivelSigilo'));
+  const processSecrecy=Number(processSecrecyRaw||0);
+  if(Number.isFinite(processSecrecy)&&processSecrecy>0){
+   return {success:true,message:'Processo com restrição de sigilo; nenhum dado foi exposto pela consulta pública.',found:false,events:[]};
+  }
   const events:TJPRProjudiEvent[]=[];
   for(const movement of descendants(processNode,'movimento')){
-   const secrecy=Number(attribute(movement,'nivelSigilo')||0);
+   const movementSecrecyRaw=attribute(movement,'nivelSigilo')||
+    nodeText($,firstDescendant(movement,'nivelSigilo'));
+   const secrecy=Number(movementSecrecyRaw||0);
    if(Number.isFinite(secrecy)&&secrecy>0)continue;
    const rawAt=attribute(movement,'dataHora');
    const at=rawAt?normalizeMniDateTime(rawAt):'';
