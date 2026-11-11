@@ -6,7 +6,7 @@ import {Activity,CalendarDays,ShieldAlert} from 'lucide-react';
 import type {HermesPortfolioCaseSummary} from '@/lib/hermes-company-service';
 const d=(s?:string|null)=>s&&/^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
 const merits:Record<string,string>={procedente:'Procedente',parcialmente_procedente:'Parcialmente procedente',improcedente:'Improcedente'};
-type SavedEvent={source:'DataJud'|'DJEN';at:string;text:string;url?:string|null};
+type SavedEvent={source:'DataJud'|'DJEN'|'TJPR PROJUDI';at:string;text:string;url?:string|null};
 function HistoryButton({cnj}:{cnj:string}){
  const [events,setEvents]=useState<SavedEvent[]>([]);
  const [loading,setLoading]=useState(false);
@@ -25,7 +25,7 @@ function HistoryButton({cnj}:{cnj:string}){
    const rows=Array.isArray(response.events)?response.events:[];
    setEvents(rows.filter((e):e is SavedEvent=>
       e!==null&&typeof e==='object'&&
-      (e.source==='DataJud'||e.source==='DJEN')&&typeof e.text==='string'
+      (e.source==='DataJud'||e.source==='DJEN'||e.source==='TJPR PROJUDI')&&typeof e.text==='string'
     ).slice(0,60));
    setLoaded(true);setOpened(true);
   }catch{setError('Falha ao carregar os eventos judiciais.');}
@@ -41,7 +41,7 @@ function HistoryButton({cnj}:{cnj:string}){
     <p className="text-xs text-muted-foreground">Histórico recuperado pelo Hermes; pode estar incompleto quando a fonte não respondeu. DJEN não substitui a consulta aos autos.</p>
     {events.length===0?<p className="text-xs text-muted-foreground">Nenhum evento recuperado nesta consulta.</p>:
      <ol className="space-y-2">{events.map((e,i)=><li key={i} className="rounded-md border border-border bg-card p-2">
-      <p className="text-xs font-bold">{e.source==='DataJud'?'Movimentação DataJud':'Publicação DJEN'} · {d(e.at)}</p>
+      <p className="text-xs font-bold">{e.source==='DataJud'?'Movimentação DataJud':e.source==='DJEN'?'Publicação DJEN':'Movimentação TJPR PROJUDI'} · {d(e.at)}</p>
       <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{e.text.slice(0,550)}</p>
       {e.url?.startsWith('https://')&&<a href={e.url} target="_blank" rel="noreferrer noopener" className="mt-1 inline-block text-xs font-semibold underline">Consultar fonte</a>}
      </li>)}</ol>}
@@ -53,7 +53,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
   <div>
    <p className="text-xs font-bold uppercase tracking-widest text-[#8c4b67] dark:text-[#eab9ce]">Hermes · scanner de toda a empresa</p>
    <h2 className="mt-1 flex items-center gap-2 text-xl font-black"><Activity size={20}/> Histórico judicial e sinais relevantes</h2>
-   <p className="mt-2 text-sm text-muted-foreground">Todos os processos da carteira com CNJ válido são elegíveis, mesmo sem retorno vencido ou paralisação. Movimentações DataJud e publicações DJEN são diferentes. Os sinais dependem do teor recuperado, sem criar decisões ou valores.</p>
+   <p className="mt-2 text-sm text-muted-foreground">Todos os processos da carteira com CNJ válido são elegíveis, mesmo sem retorno vencido ou paralisação. Movimentações DataJud, consultas diretas do tribunal e publicações DJEN são fontes diferentes. Os sinais dependem do teor recuperado, sem criar decisões ou valores.</p>
   </div>
   {!items.length?<p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">Aguardando o primeiro processamento da nova fila judicial.</p>:
    <div className="grid gap-3 lg:grid-cols-2">{items.slice(0,24).map(r=>{
@@ -63,7 +63,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
       <div><p className="font-bold">{r.client}</p><p className="break-all font-mono text-xs text-muted-foreground">{r.cnj}</p></div>
       <span className="rounded-full border border-border px-2 py-1 text-[11px] font-semibold">{r.state==='ready'?'Duas fontes':r.state==='partial'?'Consulta parcial':'Pendente'}</span>
      </div>
-     <p className="mt-2 text-xs text-muted-foreground">Verificado: {d(r.checkedAt)} · DataJud {r.datajudOk?'✓':'pendente'} · DJEN {r.djenOk?'✓':'pendente'}</p>
+     <p className="mt-2 text-xs text-muted-foreground">Verificado: {d(r.checkedAt)} · DataJud {r.datajudOk?'✓':'pendente'} · DJEN {r.djenOk?'✓':'pendente'}{r.tribunalApiSource?' · '+r.tribunalApiSource+' '+(r.tribunalApiOk?'✓':r.tribunalApiAttempted?'pendente':'não acionado'):''}</p>
      <p className="mt-1 text-xs text-muted-foreground">Último movimento: {d(f.latestCourtMovement)} · Publicação DJEN: {d(f.latestDjenPublication)}</p>
      {m?.value&&<p className="mt-2 rounded-lg border border-border p-2 text-sm font-bold">{merits[m.value]||m.value} · {m.source} <span className="block text-xs font-normal text-muted-foreground">{String(m.excerpt||'').slice(0,240)}</span></p>}
      {hearing&&<p className="mt-2 flex flex-wrap items-center gap-2 text-xs"><CalendarDays size={14}/> {hearing.kind||'Audiência'} · {d(hearing.date)}{hearing.time?' às '+hearing.time:''}{hearing.meetingUrl?<a href={hearing.meetingUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">Link indicado no ato</a>:null}</p>}
