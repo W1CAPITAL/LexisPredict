@@ -1,7 +1,7 @@
 /** Mapa de fontes judiciais oficiais para o Hermes.
  * Não automatizar portais e-SAJ/eproc/PJe/Projudi nem atravessar login/captcha/WAF.
- * TJPR é a exceção: disponibiliza serviço oficial MNI 2.2.2 para integração,
- * mas exige credenciais privativas emitidas pelo próprio tribunal.
+ * TJPR é a exceção: disponibiliza o SCMPP/MNI 2.2.2 para consulta pública
+ * automatizada sem cadastro, login ou senha, conforme Resolução TJPR 532-OE/2026.
  * Jus.br requer login; a API Datalake/GeCli requer aprovação.
  */
 import {getTribunalByCnj} from '@/lib/tribunais-links';
