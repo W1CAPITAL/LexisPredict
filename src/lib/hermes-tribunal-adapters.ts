@@ -140,15 +140,19 @@ function publicMniEnvelope(cnj:string,ns:string,adapter:TribunalAdapter):string{
  const user=process.env[prefix+'_ID']||'';
  const pass=process.env[prefix+'_SENHA']||'';
  const namespace=xmlEscape(ns);
+ // MNI 2.2.2: a OPERAÇÃO usa servico-intercomunicacao e seus CAMPOS
+ // usam tipos-servico-intercomunicacao. Prefixar ambos com mni é inválido.
+ const typesNamespace='http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2';
  return '<?xml version="1.0" encoding="UTF-8"?>'+
-  '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:mni="'+namespace+'">'+
+  '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" '+
+  'xmlns:mni="'+namespace+'" xmlns:tip="'+typesNamespace+'">'+
   '<soap:Body><mni:consultarProcesso>'+
-  '<mni:idConsultante>'+xmlEscape(user)+'</mni:idConsultante>'+
-  '<mni:senhaConsultante>'+xmlEscape(pass)+'</mni:senhaConsultante>'+
-  '<mni:numeroProcesso>'+cnj+'</mni:numeroProcesso>'+
-  '<mni:movimentos>true</mni:movimentos>'+
-  '<mni:incluirCabecalho>true</mni:incluirCabecalho>'+
-  '<mni:incluirDocumentos>false</mni:incluirDocumentos>'+
+  '<tip:idConsultante>'+xmlEscape(user)+'</tip:idConsultante>'+
+  '<tip:senhaConsultante>'+xmlEscape(pass)+'</tip:senhaConsultante>'+
+  '<tip:numeroProcesso>'+cnj+'</tip:numeroProcesso>'+
+  '<tip:movimentos>true</tip:movimentos>'+
+  '<tip:incluirCabecalho>true</tip:incluirCabecalho>'+
+  '<tip:incluirDocumentos>false</tip:incluirDocumentos>'+
   '</mni:consultarProcesso></soap:Body></soap:Envelope>';
 }
 export async function runOfficialTribunalConnector(rawCnj:string):Promise<TribunalAttempt>{
@@ -173,14 +177,28 @@ export async function runOfficialTribunalConnector(rawCnj:string):Promise<Tribun
    !/^https?:\/\/www\.cnj\.jus\.br\/mni/.test(namespace))
    return response('unexpected_response',adapter,[],wsdl.status,'Namespace desconhecido; contrato requer revisão.');
   const soap=publicMniEnvelope(cnj,namespace,adapter);
+  // O SOAPAction curto "consultarProcesso" não identifica a operação no
+  // binding SOAP 1.1. Prioriza o URI oficial informado no próprio WSDL.
+  const wsdlAction=/<(?:[\w-]+:)?operation\b[^>]*\bsoapAction=["']([^"']+)["']/i.exec(xml)?.[1]||'';
+  const soapAction=wsdlAction.startsWith(namespace)&&wsdlAction.endsWith('consultarProcesso')
+   ?wsdlAction:namespace.replace(/\/?$/,'/')+'consultarProcesso';
   const res=await fetch(adapter.endpoint,{
    method:'POST',redirect:'error',cache:'no-store',
-   headers:{'Content-Type':'text/xml; charset=utf-8','SOAPAction':'"consultarProcesso"',Accept:'text/xml,application/soap+xml'},
+   headers:{'Content-Type':'text/xml; charset=utf-8','SOAPAction':'"'+soapAction+'"',Accept:'text/xml,application/soap+xml'},
    body:soap,signal:AbortSignal.timeout(12000),
   });
   if(res.status===429)return response('rate_limited',adapter,[],429,'Limite HTTP 429 do serviço MNI; nova tentativa será adiada.');
   if(res.status===401||res.status===403)return response('restricted',adapter,[],res.status,'Consulta MNI requer credenciamento/autorização.');
-  if(!res.ok)return response('unavailable',adapter,[],res.status,'Serviço SOAP não concluiu a consulta.');
+  if(!res.ok){
+   // SOAP 1.1 frequentemente usa HTTP 500 para Fault. Classificar sem
+   // expor conteúdo de falhas, credenciais ou dados judiciais em logs.
+   if(res.status===500){
+    const faultText=await boundedText(res);
+    if(/<(?:[\w-]+:)?Fault\b/i.test(faultText))
+     return response('restricted',adapter,[],500,'O servidor MNI rejeitou a solicitação SOAP; contrato ou credenciamento requer revisão.');
+   }
+   return response('unavailable',adapter,[],res.status,'Serviço SOAP não concluiu a consulta.');
+  }
   const parsed=parseMniPublicMovements(await boundedText(res),cnj);
   const desc:Record<TribunalAttemptStatus,string>={
    verified:'Movimentos públicos MNI verificados e vinculados ao CNJ.',
