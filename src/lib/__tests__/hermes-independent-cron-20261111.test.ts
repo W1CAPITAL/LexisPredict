@@ -30,6 +30,10 @@ describe('Hermes independente: atrasos da fonte não interrompem monitoramento',
   const service=read('src/lib/hermes-return-service.ts');
   expect(service).toContain("rpc('hermes_claim_due_review'");
   expect(service).toContain("rpc('hermes_claim_stalled_review'");
-  // Apenas campos de fonte e última movimentação oficial, nunca status ou retorno.\n  expect(service).toContain("from('processos').update(patch)");\n  const policy=read('src/lib/hermes-portfolio-evidence.ts');\n  expect(policy).not.toContain('proximo_retorno?:');\n  expect(policy).not.toContain('status_interno?:');
+  // Apenas campos de fonte e última movimentação oficial, nunca status ou retorno.
+  expect(service).toContain("from('processos').update(patch)");
+  const policy=read('src/lib/hermes-portfolio-evidence.ts');
+  expect(policy).not.toContain('proximo_retorno?:');
+  expect(policy).not.toContain('status_interno?:');
  });
 });
