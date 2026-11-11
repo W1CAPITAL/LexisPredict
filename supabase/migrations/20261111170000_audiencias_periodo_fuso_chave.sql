@@ -49,11 +49,8 @@ AS $$
       OR upper(coalesce(p_tribunal, '')) LIKE 'TJRS%' OR upper(coalesce(p_tribunal, '')) LIKE 'TJSC%'
       OR upper(coalesce(p_tribunal, '')) LIKE 'TJSP%' THEN 'America/Sao_Paulo'
 
-    WHEN upper(coalesce(p_tribunal, '')) LIKE 'TRT1%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT2%'
-      OR upper(coalesce(p_tribunal, '')) LIKE 'TRT3%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT4%'
-      OR upper(coalesce(p_tribunal, '')) LIKE 'TRT9%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT10%'
-      OR upper(coalesce(p_tribunal, '')) LIKE 'TRT12%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT15%'
-      OR upper(coalesce(p_tribunal, '')) LIKE 'TRT17%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT18%' THEN 'America/Sao_Paulo'
+    WHEN regexp_replace(upper(coalesce(p_tribunal, '')), '[^A-Z0-9]', '', 'g')
+      IN ('TRT1','TRT2','TRT3','TRT4','TRT9','TRT10','TRT12','TRT15','TRT17','TRT18') THEN 'America/Sao_Paulo'
     WHEN upper(coalesce(p_tribunal, '')) LIKE 'TRT5%' THEN 'America/Bahia'
     WHEN upper(coalesce(p_tribunal, '')) LIKE 'TRT6%' THEN 'America/Recife'
     WHEN upper(coalesce(p_tribunal, '')) LIKE 'TRT7%' OR upper(coalesce(p_tribunal, '')) LIKE 'TRT13%'
