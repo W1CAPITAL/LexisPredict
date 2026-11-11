@@ -70,7 +70,6 @@ export async function fetchProcessosEmpresaKpisAction(_companyView = true): Prom
     // KPIs são agregados da empresa inteira para todos os cargos.
     // O tenant vem exclusivamente do contexto autenticado; a lista detalhada
     // continua obedecendo ao escopo individual nas rotas próprias.
-    const companyWide = true;
     const pageSize = 1000;
     let offset = 0;
     let total = 0;
@@ -80,7 +79,7 @@ export async function fetchProcessosEmpresaKpisAction(_companyView = true): Prom
     let vencidos = 0;
 
     for (;;) {
-      let query = admin
+      const query = admin
         .from("processos")
         .select(
           "id, status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
