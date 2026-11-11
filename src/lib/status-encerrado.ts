@@ -2,6 +2,7 @@
  * Governança de status inativos / baixas tribunal.
  */
 import { isTutelaLiminarNaoEncerramento } from './nao-encerrar-tutela';
+import { resolveSituacaoFromRow, resolveStatusManualFromRow } from './resolve-situacao';
 
 
 export const STATUS_ENCERRADOS = [
@@ -55,16 +56,21 @@ export function textoBaixaOuArquivoTribunal(text: string): boolean {
 export function isCasoEncerrado(c: any): boolean {
   if (!c) return false;
   const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
-
+  // A carteira usa colunas tipadas como fonte de verdade. Quando a linha já
+  // traz situacao/status_interno resolvidos, não reintroduzir flags antigas do JSON.
+  const hasTypedSituation = Boolean(String(c.situacao || c.status_interno || '').trim());
   const situ = String(
-    c.situacao || d.situacao || c.status_interno || d.status_interno || d.SITUACAO || ''
+    c.situacao || c.status_interno || resolveSituacaoFromRow(c, d) || ''
   ).toUpperCase();
-  const manual = String(c.statusManual || d.statusManual || d.STATUS_MANUAL || '').toUpperCase();
-  const status = String(c.status || d.status || '').toUpperCase();
-  const blob = `${status} ${situ} ${manual} ${c.status_interno || ''} ${d.status_interno || ''}`.trim();
+  const manual = String(
+    c.statusManual || resolveStatusManualFromRow(c, d, situ) || ''
+  ).toUpperCase();
+  const status = String(c.status || (hasTypedSituation ? '' : d.status || '')).toUpperCase();
+  const internal = String(c.status_interno || (hasTypedSituation ? '' : d.status_interno || '')).toUpperCase();
+  const blob = `${status} ${situ} ${manual} ${internal}`.trim();
 
   if (hasStrongEncerrado(situ) || hasStrongEncerrado(manual)) return true;
-  if (hasStrongEncerrado(String(c.status_interno || d.status_interno || ''))) return true;
+  if (hasStrongEncerrado(internal)) return true;
 
   const prazoOnly = [
     'VENCIDO', 'É HOJE', 'E HOJE', 'ATENÇÃO', 'ATENCAO', 'NO PRAZO', 'SEM PRAZO',
