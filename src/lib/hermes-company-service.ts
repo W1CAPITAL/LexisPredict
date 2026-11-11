@@ -162,12 +162,12 @@ export type HermesStalledSummary={
  processId:number;client:string;cnj:string;
  state:'scanning'|'confirmed_idle'|'no_dated_movement'|'partial'|'unavailable'|'recent_movement';
  checkedAt:string|null;lastMovementAt:string|null;daysWithoutMovement:number|null;
- djenOk:boolean;datajudOk:boolean;sourceErrors:Record<string,string|null>;
+ djenOk:boolean;datajudOk:boolean;tribunalApiOk:boolean;tribunalApiSource:string|null;tribunalApiAttempted:boolean;sourceErrors:Record<string,string|null>;
 };
 export async function getHermesStalledSummaries(empresaId:string):Promise<HermesStalledSummary[]>{
  const db=await getSupabaseAdmin();
  const {data:reviews,error}=await db.from('hermes_stalled_reviews')
-  .select('processo_id,state,checked_at,last_movement_at,days_without_movement,djen_ok,datajud_ok,source_errors')
+  .select('processo_id,state,checked_at,last_movement_at,days_without_movement,djen_ok,datajud_ok,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at,source_errors')
   .eq('empresa_id',empresaId).order('checked_at',{ascending:false}).limit(60);
  if(error)throw new Error('O painel de processos parados não pode ser carregado.');
  if(!reviews?.length)return [];
@@ -192,6 +192,8 @@ export async function getHermesStalledSummaries(empresaId:string):Promise<Hermes
    checkedAt:row.checked_at||null,lastMovementAt:row.last_movement_at||null,
    daysWithoutMovement:typeof row.days_without_movement==='number'?row.days_without_movement:null,
    djenOk:row.djen_ok===true,datajudOk:row.datajud_ok===true,
+   tribunalApiOk:row.tribunal_api_ok===true,tribunalApiSource:row.tribunal_api_source||null,
+   tribunalApiAttempted:!!row.tribunal_api_checked_at,
    sourceErrors:errors,
   }];
  }).sort((a,b)=>{
