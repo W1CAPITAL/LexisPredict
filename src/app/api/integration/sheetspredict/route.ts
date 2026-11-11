@@ -58,7 +58,7 @@ export async function POST(req:NextRequest){
       if(!query)return NextResponse.json({ok:false,error:'Query vazia.'},{status:400});
       if(mode==='cpf'){
         const result=await searchDataJudByCpf(query,{onlyBA:!!body.onlyBA,size:Math.max(1,Math.min(25,Number(body.size)||12))});
-        return NextResponse.json({ok:true,mode,result},{headers:{'Cache-Control':'no-store'}});
+        return NextResponse.json({ok:result.success,mode,result,error:result.error},{headers:{'Cache-Control':'no-store'}});
       }
       if(mode==='nome'){
         const result=await searchDataJudByNome(query,{size:Math.max(1,Math.min(25,Number(body.size)||12))});
