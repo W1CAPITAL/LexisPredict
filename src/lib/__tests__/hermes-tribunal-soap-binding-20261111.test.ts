@@ -1,4 +1,5 @@
 import {describe,it,expect,vi,afterEach} from 'vitest';
+import {readFileSync} from 'node:fs';
 import {runOfficialTribunalConnector} from '@/lib/hermes-tribunal-adapters';
 afterEach(()=>vi.unstubAllGlobals());
 const cnj='00684979520268160014';
@@ -29,5 +30,15 @@ describe('TJPR SCMPP MNI SOAP binding real',()=>{
   vi.stubGlobal('fetch',f);
   const r=await runOfficialTribunalConnector(cnj);
   expect(r.status).toBe('restricted');expect(r.movements).toEqual([]);
+  it('um erro HTTP 500 pausa todos os processos da mesma fonte sem bloquear tribunal diferente',()=>{
+  const sql=readFileSync('supabase/migrations/20261111213000_hermes_tribunal_global_cooldown.sql','utf8');
+  expect(sql).toContain('AND NOT EXISTS');
+  expect(sql).toContain('busy.adapter');
+  expect(sql).toContain("busy.status='unavailable'");
+  expect(sql).toContain("interval '4 hours'");
+  expect(sql).toContain("busy.status='restricted'");
+  expect(sql).toContain("interval '24 hours'");
+  expect(sql).toContain('SKIP LOCKED');
  });
+});
 });
