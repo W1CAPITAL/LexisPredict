@@ -237,7 +237,7 @@ export default function Dashboard() {
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
     setIsCheckingConnectivity(true);
-    const sample = cases.slice(0, 10).map(c => c.protocolo);
+    const sample = cases.map(c => c.protocolo); // seleção por tribunal ocorre no módulo DataJud (máximo 3)
     await runInitialHealthCheck(sample);
     setIsCheckingConnectivity(false);
   };
