@@ -75,6 +75,22 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(sql).not.toContain('ultima_movimentacao <');
   expect(sql).not.toContain('proximo_retorno<=p_today');
  });
+ it('protege contra datas judiciais invertidas mesmo se o extrator regressar',()=>{
+  const sql=read('supabase/migrations/20261111095000_audiencias_valid_intervals.sql');
+  expect(sql).toContain('audiencias_monitoradas_interval_consistency');
+  expect(sql).toMatch(/data_fim\s*>=\s*data_evento/);
+  expect(sql).toContain('jsonb_set');
+ });
+ it('exibe o histórico oficial armazenado sem confundir publicações DJEN com movimentos do tribunal',()=>{
+  const veredito=read('src/app/veredito/page.tsx');
+  expect(veredito).toContain('Histórico judicial registrado');
+  expect(veredito).toContain('Movimentação DataJud');
+  expect(veredito).toContain('Publicação DJEN');
+  const dashboard=read('src/components/hermes/hermes-portfolio-monitoring.tsx');
+  expect(dashboard).toContain('Carregar histórico');
+  expect(dashboard).toContain('getHermesPortfolioByCnjAction');
+  expect(read('src/app/actions/hermes-portfolio-actions.ts')).toContain(".eq('empresa_id',String(ctx.empresa_id))");
+ });
  it('o veredito mostra fonte jurídica confirmada e o relatório Hermes lista as consultas',()=>{
   expect(read('src/app/veredito/page.tsx')).toContain('getHermesPortfolioByCnjAction');
   expect(read('src/app/veredito/page.tsx')).toContain('Conclusões encontradas em fontes oficiais');
