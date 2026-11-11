@@ -9,7 +9,7 @@ describe("health route contract", () => {
     // Import dinâmico evita side-effects de Next em ambiente de teste
     const mod = await import("@/app/api/health/route");
     expect(typeof mod.GET).toBe("function");
-    const res = await mod.GET();
+    const res = await mod.GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.app).toBe("lexispredict");
