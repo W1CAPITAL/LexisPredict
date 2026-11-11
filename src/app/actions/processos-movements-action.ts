@@ -5,7 +5,8 @@
  * Nunca correlacionar cumprimento por simples semelhança de nome/parte.
  */
 import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
-import { fetchDataJud } from '@/lib/datajud';
+import {requestDataJudWithCapacity} from '@/lib/hermes-return-service';
+import {getProcessDataJudStatus,type ProcessSourcesStatus} from '@/lib/processos-movement-source-policy';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 import {
   buildProcessTimeline, mergeProcessTimelineEntries, cnjDigits, formatCnj, linkedCumprimentoCnjs,
@@ -25,6 +26,7 @@ export type ProcessMovementsResult = {
   consultadoEm?:string;
   datajudMovements?:number;
   djenPublications?:number;
+  sourceStatus?:ProcessSourcesStatus;
 };
 
 const MAX_PAGE=200;
@@ -83,24 +85,31 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
     const sourceResults=await Promise.all(cnjs.map(async cnj=>{
       // Para páginas adicionais do DJEN, não repetir toda a consulta DataJud.
       const [djResult,djenResult]=await Promise.allSettled([
-        page===1?fetchDataJud(cnj,1,{fast:true,cloudBudget:true,forceRefresh}):Promise.resolve(null),
+        page===1?requestDataJudWithCapacity(cnj,true,45_000):Promise.resolve(null),
         fetchDjenComunicacoes(cnj,{dataInicio:'2000-01-01',cloudBudget:true,pagina:page,forceRefresh})
       ]);
       const source:ProcessTimelineSource={cnj,linked:cnj!==main,movimentos:[],comunicacoes:[]};
       let officialSuccess=false;
       let datajudOk=false;
       let djenOk=false;
+      const datajudStatus=page===1
+        ?getProcessDataJudStatus(djResult.status==='fulfilled'?djResult.value:undefined,cnj)
+        :'not_queried' as const;
       if(page===1){
-        if(djResult.status==='fulfilled'&&djResult.value&&!djResult.value.error){
-          if(cnjDigits(djResult.value.numeroProcesso)===cnj){
-            officialSuccess=true;
-            datajudOk=true;
-            source.movimentos=Array.isArray(djResult.value.movimentos)?djResult.value.movimentos:[];
-            source.classe=String(djResult.value.classe||'');
-          }else warnings.push('DataJud retornou número divergente para '+formatCnj(cnj)+'; dados descartados.');
+        if(datajudStatus==='confirmed'&&djResult.status==='fulfilled'){
+          officialSuccess=true;
+          datajudOk=true;
+          source.movimentos=Array.isArray(djResult.value.movimentos)?djResult.value.movimentos:[];
+          source.classe=String(djResult.value.classe||'');
+        }else if(datajudStatus==='mismatch'){
+          warnings.push('DataJud devolveu CNJ divergente para '+formatCnj(cnj)+'; dados rejeitados.');
+        }else if(datajudStatus==='not_found'){
+          warnings.push('DataJud não encontrou '+formatCnj(cnj)+' no índice atual; isso não significa ausência de movimentos no tribunal.');
         }else{
-          warnings.push('DataJud indisponível para '+formatCnj(cnj)+': '+
-            (djResult.status==='rejected'?String(djResult.reason):String(djResult.value?.message||'sem resposta')));
+          // Respeitar cooldown por tribunal; o DJEN continua independente.
+          warnings.push('DataJud pendente para '+formatCnj(cnj)+': '+
+            (djResult.status==='rejected'?'Falha na chamada DataJud.':
+              String(djResult.value?.message||'Fonte sem resposta confirmada.')));
         }
       }
       let count=0;
@@ -114,7 +123,7 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
         warnings.push('DJEN indisponível para '+formatCnj(cnj)+': '+
           (djenResult.status==='rejected'?String(djenResult.reason):String(djenResult.value?.error||'sem resposta')));
       }
-      return {source,count,officialSuccess,datajudOk,djenOk};
+      return {source,count,officialSuccess,datajudOk,djenOk,datajudStatus};
     }));
 
     const sources=sourceResults.map(x=>x.source);
@@ -161,6 +170,10 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
 
     return {
       success:true,entries,page,totalDjen,relatedCnjs,hasMore,
+      sourceStatus:{
+        datajud:sourceResults[0]?.datajudStatus||'not_queried',
+        djen:sourceResults[0]?.djenOk?'confirmed':'unavailable',
+      },
       consultadoEm:liveConfirmed?new Date().toISOString():archivedCheckedAt,
       datajudMovements:sources.reduce((sum,source)=>sum+(source.movimentos?.length||0),0),
       djenPublications:sources.reduce((sum,source)=>sum+(source.comunicacoes?.length||0),0),
