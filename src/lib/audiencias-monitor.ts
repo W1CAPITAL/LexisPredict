@@ -85,28 +85,29 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
       const sessionDates = dates(head);
       const qualified = /sessao virtual|pauta de sessao|intimacao de pauta|data da sessao/.test(normalizedHead);
       if (qualified && sessionDates.length) {
-        // A data de publicação pode anteceder a sessão. Preferir a data
-        // vinculada expressamente ao início em vez da primeira data do texto.
-        const start = sessionDates.find((item) => {
+        // Intervalo explícito publicado pelo DJEN: "Período da sessão:
+        // 24/11/2026 00:00 a 01/12/2026 23:59". Precede datas de publicação/prazos.
+        const explicitPeriod = /periodo da sessao\\s*:?\\s*(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]20\\d{2})\\s*(?:as?\\s*)?(\\d{1,2}:\\d{2})?\\s*(?:a|ate|–|-)\\s*(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]20\\d{2})\\s*(?:as?\\s*)?(\\d{1,2}:\\d{2})?/i.exec(normalizedHead);
+        const explicitDates = explicitPeriod ? dates(explicitPeriod[0]) : [];
+        const start = explicitDates[0] || sessionDates.find((item) => {
           const preceding = clean(head.slice(Math.max(0, item.index - 125), item.index));
           const near = preceding.slice(-100);
-          return /\b(?:inicio|iniciara|iniciarao|abertura|comeco)\b/.test(near)
-            && !/\b(?:prazo|oposicao|destaque|inscricao|publicacao|manifestacao)\b/.test(near);
+          return /\\b(?:inicio|iniciara|iniciarao|abertura|comeco)\\b/.test(near)
+            && !/\\b(?:prazo|oposicao|destaque|inscricao|publicacao|manifestacao)\\b/.test(near);
         }) || sessionDates[0];
-        // Não transformar data da publicação ou prazo de manifestação
-        // em término da sessão, mesmo quando a data é posterior ao início.
-        const end = sessionDates.filter((item) => item.index > start.index).find((item) => {
+        const end = explicitDates[1] || sessionDates.filter((item) => item.index > start.index).find((item) => {
           if (item.date < start.date) return false;
           const preceding = clean(head.slice(Math.max(start.index, item.index - 175), item.index));
           const near = preceding.slice(-145);
-          if (/\b(?:prazo|oposicao|destaque|inscricao|inscricoes|peticionamento|manifestacao|sustentacao|publicacao)\b/.test(near)) return false;
-          const definite = /\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\b/.test(near);
-          const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(near);
+          if (/\\b(?:prazo|oposicao|destaque|inscricao|inscricoes|peticionamento|manifestacao|sustentacao|publicacao)\\b/.test(near)) return false;
+          const definite = /\\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\\b/.test(near);
+          const sessionUntil = /\\b(?:sessao|julgamento)\\b.{0,75}\\bate\\b/.test(near);
           return definite || sessionUntil;
         }) || null;
-        const firstHour = clock(head, start.index, true) || clock(head, start.index);
-        const endHour = end ? (clock(head, end.index, true) || clock(head, end.index)) : null;
+        const firstHour = explicitPeriod?.[2] || clock(head, start.index, true) || clock(head, start.index);
+        const endHour = explicitPeriod?.[4] || (end ? (clock(head, end.index, true) || clock(head, end.index)) : null);
         found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined));
+      }
       }
     }
   }
