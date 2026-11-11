@@ -47,7 +47,7 @@ export function prepararAudienciasDoProcesso(row:ProcessoAudiencia, fontes:Fonte
   for(const doc of caseEvidence(row,fontes)){
     if(!doc.text || doc.text.length<15)continue;
     const source=doc.source;
-    const events=filtrarAudienciasVigentes(extrairAudienciasOficiais(doc.text.slice(0,80000)));
+    const events=filtrarAudienciasVigentes(extrairAudienciasOficiais(doc.text.slice(0,80000)),new Date(),{tribunal:row.tribunal});
     for(const e of events){
       const evidenceAt=typeof doc.publishedAt==='string' ? Date.parse(doc.publishedAt) : 0;
       const weight=source==='DJEN'?2:1;
@@ -87,7 +87,7 @@ export async function atualizarAudienciasDeConsulta(input:{
 /**
  * Percorre a carteira em micro-lotes para reconstruir o índice a partir de
  * evidências oficiais já guardadas. Não faz scraping nem inventa API estadual.
- * O cursor é persistido, de modo que o cron diário avança na carteira inteira.
+ * O cursor é persistido; o cron Hermes ativo avança pela carteira inteira em lotes incrementais.
  */
 export async function atualizarIndiceAudienciasLote(limit=120){
   const db=await getSupabaseAdmin();
@@ -127,16 +127,24 @@ export async function atualizarIndiceAudienciasLote(limit=120){
 
 /**
  * Checagem oficial incremental de audiências próximas e designações sem data.
- * Executada pelo cron diário já existente, sem envio de mensagens.
- * Uma tentativa por execução; sucesso parcial preserva a fonte que respondeu.
+ * Executada pelo cron Hermes ativo, sem envio de mensagens.
+ * Uma verificação oficial é liberada no máximo a cada 15 minutos; sucesso parcial preserva a fonte que respondeu.
  */
 export async function verificarUmaAudienciaAgendada() {
   const db=await getSupabaseAdmin();
+  const {data:lastAttempt,error:lastAttemptError}=await db.from('audiencias_monitoradas')
+    .select('ultima_tentativa_em').not('ultima_tentativa_em','is',null)
+    .order('ultima_tentativa_em',{ascending:false}).limit(1).maybeSingle();
+  if(lastAttemptError)throw new Error('Não foi possível verificar o intervalo da consulta oficial');
+  const lastAttemptAt=lastAttempt?.ultima_tentativa_em?Date.parse(String(lastAttempt.ultima_tentativa_em)):NaN;
+  if(Number.isFinite(lastAttemptAt)&&Date.now()-lastAttemptAt<15*60*1000){
+    return {ok:true,attempted:0,source:'cooldown',retryAfter:new Date(lastAttemptAt+15*60*1000).toISOString()};
+  }
   const dateParts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const getDatePart=(type:string)=>dateParts.find(p=>p.type===type)?.value||'';
   const dateISO=getDatePart('year')+'-'+getDatePart('month')+'-'+getDatePart('day');
   const {data:list,error}=await db.from('audiencias_monitoradas')
-    .select('empresa_id,processo_id,protocolo_ref')
+    .select('empresa_id,processo_id,protocolo_ref,ultima_tentativa_em')
     .neq('situacao','cancelada')
     .or('data_evento.gte.'+dateISO+',data_fim.gte.'+dateISO+',situacao.eq.data_pendente')
     .order('ultima_tentativa_em',{ascending:true,nullsFirst:true})
