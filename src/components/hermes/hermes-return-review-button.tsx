@@ -213,7 +213,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
               <p className="text-muted-foreground">Consulta MNI/SCMPP independente do DataJud e do DJEN. Acessar o WSDL não consulta os movimentos do processo.</p>
             </section>}
             {nationalPlan?.scmpp&&review&&!review.datajud_ok&&<section className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <p><strong className="text-foreground">SCMPP · TJPR:</strong> o WSDL descreve o serviço, mas não prova que o tribunal aceitou uma consulta de movimentos. O scanner automático acima apresenta a última tentativa efetiva por processo e a pausa da fonte. A Resolução TJPR 532/2026 prevê acesso público sem login; o manual SOAP antigo ainda descreve credenciais. O Hermes não atravessa bloqueios do tribunal.</p>
+              <p><strong className="text-foreground">SCMPP · TJPR:</strong> o WSDL descreve o serviço, mas não prova que o tribunal aceitou uma consulta de movimentos. A integração ainda não validada para recuperar movimentos não pode ser apresentada como consulta concluída. O scanner automático acima apresenta a última tentativa efetiva por processo e a pausa da fonte. A Resolução TJPR 532/2026 prevê acesso público sem login; o manual SOAP antigo ainda descreve credenciais. O Hermes não atravessa bloqueios do tribunal.</p>
               <p className="flex flex-wrap gap-3">
                 <a href={nationalPlan.scmpp.documentationUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Manual técnico SCMPP</a>
                 <a href={nationalPlan.scmpp.legalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Resolução TJPR 532/2026</a>
