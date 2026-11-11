@@ -68,4 +68,21 @@ describe('Contrato da API pública DataJud (CNJ)',()=>{
   expect(actions).not.toContain('searchDataJudByNome(');
   expect(actions).toContain('getStoredCasesForEmpresa');
  });
+
+ it('normaliza prefixo APIKey e interpreta a chave pública atualizada sem barras duplicadas',()=>{
+  const src=readFileSync('src/lib/datajud.ts','utf8');
+  expect(src).toContain(String.raw`replace(/^APIKey\s+/i`);
+  expect(src).toContain(String.raw`/Authorization:\s*APIKey\s+`);
+  expect(src).not.toContain(String.raw`/^APIKey\\s+/`);
+ });
+ it('proxy de pesquisa é autenticado e não envia filtros de pessoa ao DataJud',()=>{
+  const api=readFileSync('src/app/api/datajud-search/route.ts','utf8');
+  const integration=readFileSync('src/app/api/integration/sheetspredict/route.ts','utf8');
+  expect(api).toContain('getUserContext()');
+  expect(api).toContain("mode==='cpf'||mode==='nome'||mode==='cnpj'");
+  expect(api).toContain('status:422');
+  expect(api).toContain('cloudBudget:true');
+  expect(integration).toContain('datajudMode:');
+  expect(integration).toContain('status:422');
+ });
 });
