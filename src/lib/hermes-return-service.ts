@@ -348,6 +348,9 @@ export async function runHermesStalledReviewBatch(){
   const last=verified.lastMovementAt;
   const daysWithoutMovement=verified.daysWithoutMovement;
   const checkedAt=new Date().toISOString();
+  const {data:priorStalled}=await db.from('hermes_stalled_reviews')
+   .select('tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at')
+   .eq('empresa_id',company).eq('processo_id',processId).maybeSingle();
   const evidence=snapshot.events
    .filter(e=>e.at&&e.text)
    .sort((a,b)=>b.at.localeCompare(a.at))
@@ -357,8 +360,9 @@ export async function runHermesStalledReviewBatch(){
    checked_at:checkedAt,attempted_at:checkedAt,
    last_movement_at:last,days_without_movement:daysWithoutMovement,
    djen_ok:snapshot.djenOk,datajud_ok:snapshot.datajudOk,
-   tribunal_api_ok:snapshot.courtApiOk,tribunal_api_source:snapshot.courtApiSource||null,
-   tribunal_api_checked_at:snapshot.courtApiAttempted?checkedAt:null,
+   tribunal_api_ok:snapshot.courtApiAttempted?snapshot.courtApiOk===true:priorStalled?.tribunal_api_ok===true,
+   tribunal_api_source:snapshot.courtApiSource||priorStalled?.tribunal_api_source||null,
+   tribunal_api_checked_at:snapshot.courtApiAttempted?checkedAt:priorStalled?.tribunal_api_checked_at||null,
    source_errors:{...snapshot.sourceErrors,ultimaPublicacaoDjen:verified.lastPublicationAt},evidence,
   },{onConflict:'empresa_id,processo_id'});
   if(saveError)throw saveError;
@@ -386,7 +390,8 @@ export async function persistHermesPortfolioSnapshot(
  const now=new Date().toISOString();
  // Partial retries must NEVER discard the older verified source.
  const {data:prior,error:readError}=await db.from('hermes_portfolio_scans')
-  .select('events').eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
+  .select('events,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at')
+  .eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
  if(readError)throw new Error('Falha ao preservar histórico judicial anterior: '+readError.code);
  const events=mergeHermesCourtHistory(
   Array.isArray(prior?.events)?prior.events as HermesCourtEvent[]:[],
@@ -400,8 +405,9 @@ export async function persistHermesPortfolioSnapshot(
  const {error}=await db.from('hermes_portfolio_scans').upsert({
   empresa_id:row.empresa_id,processo_id:row.id,state,
   checked_at:now,attempted_at:now,datajud_ok:snapshot.datajudOk,djen_ok:snapshot.djenOk,
-  tribunal_api_ok:snapshot.courtApiOk,tribunal_api_source:snapshot.courtApiSource||null,
-  tribunal_api_checked_at:snapshot.courtApiAttempted?now:null,
+  tribunal_api_ok:snapshot.courtApiAttempted?snapshot.courtApiOk===true:prior?.tribunal_api_ok===true,
+  tribunal_api_source:snapshot.courtApiSource||prior?.tribunal_api_source||null,
+  tribunal_api_checked_at:snapshot.courtApiAttempted?now:prior?.tribunal_api_checked_at||null,
   last_court_movement_at:findings.latestCourtMovement,
   last_datajud_movement_at:(snapshot.events.filter(e=>e.source==='DataJud').map(e=>validReturnDay(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null),
   last_djen_publication_at:findings.latestDjenPublication,
