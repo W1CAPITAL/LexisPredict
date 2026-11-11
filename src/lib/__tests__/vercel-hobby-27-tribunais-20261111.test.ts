@@ -8,7 +8,7 @@ describe('Todos os 27 TJs e Vercel Hobby sem APIs duplicadas',()=>{
   expect(new Set(TRIBUNAIS_TJ.map(t=>t.codigo)).size).toBe(27);
   for(const item of TRIBUNAIS_TJ){
    const tribunalCode=item.codigo.replace('.','');
-   const cnj='123456720268'+tribunalCode+'0001';
+   const cnj='1234567952026'+tribunalCode+'0001';
    expect(getTribunalByCnj(cnj)?.sigla).toBe(item.sigla);
    expect(item.codigo.startsWith('8.')).toBe(true);
   }
