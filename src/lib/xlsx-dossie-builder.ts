@@ -3,6 +3,7 @@
 import JSZip from 'jszip';
 import { EXPORT_HEADERS, CNJ_TRIBUNAL_MAP, tribunalFromProtocolo } from './xlsx-schema';
 import { isCasoVencido } from './vencimentos';
+import { isCasoEncerrado } from './status-encerrado';
 
 export type DossieCase = Record<string, any>;
 
@@ -26,14 +27,6 @@ function colRef(idx: number): string {
 
 function sim(v: any) {
   return v ? 'SIM' : 'NAO';
-}
-
-function isEncerradoStatus(s: string) {
-  return /encerrad|arquivad|extint|finaliz/i.test(s || '');
-}
-
-function isEmAndamento(s: string) {
-  return !isEncerradoStatus(s);
 }
 
 function parseFlexDate(raw: string): Date | null {
@@ -375,9 +368,9 @@ export async function buildDossieXlsxBase64(
   const assMap = new Map<string, number>();
 
   for (const r of list) {
-    if (isEmAndamento(r.status)) emAndamento++;
+    if (!isCasoEncerrado(r)) emAndamento++;
     else encerrados++;
-    if (isVencido(r.status)) vencidos++;
+    if (isCasoVencido(r)) vencidos++;
     if (!r.telefone || r.telefone === '-' || r.telefone.toUpperCase() === 'GRUPO') semTelefone++;
     if (!r.advogado || r.advogado === '-') semAdvogado++;
     if (!r.cliente) semCliente++;
@@ -392,7 +385,7 @@ export async function buildDossieXlsxBase64(
     if (r.retorno) comRetorno++;
     else semRetorno++;
     if (r.sem_retorno_30d === 'SIM') semRetornoLongo++;
-    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.sem_retorno_30d === 'SIM') criticos++;
+    if (isCasoVencido(r) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.sem_retorno_30d === 'SIM') criticos++;
 
     statusMap.set(r.status || '—', (statusMap.get(r.status || '—') || 0) + 1);
     escMap.set(r.escritorio || 'Sem escritório', (escMap.get(r.escritorio || 'Sem escritório') || 0) + 1);
@@ -505,7 +498,7 @@ export async function buildDossieXlsxBase64(
   // —— Auditoria
   const criticosList = list.filter(
     (r) =>
-      isVencido(r.status) ||
+      isCasoVencido(r) ||
       !r.telefone ||
       !r.advogado ||
       !r.cliente ||
