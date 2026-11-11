@@ -11,6 +11,7 @@ import { resolveCaseScope } from "@/lib/roles";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/sidebar";
+import {HermesStalledInline} from '@/components/hermes/hermes-stalled-inline';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -543,6 +544,8 @@ export default function ProcessosParadosPage() {
               </Button>
             </div>
           </div>
+
+          <HermesStalledInline />
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="rounded-xl border bg-card p-4">
