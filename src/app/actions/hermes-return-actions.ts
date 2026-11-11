@@ -40,10 +40,14 @@ export async function refreshHermesReturnReviewAction(processId: number) {
     const row = await loadHermesReviewCase(db, empresaId, processId);
     if (!row) throw new Error('Processo não localizado nesta empresa.');
     const { data: recent } = await db.from('hermes_return_reviews')
-      .select('checked_at,state,djen_ok,datajud_ok')
+      .select('checked_at,state,djen_ok,datajud_ok,source_snapshot')
       .eq('empresa_id', empresaId).eq('processo_id', processId)
       .order('attempted_at', { ascending: false }).limit(1).maybeSingle();
-    if (recent?.checked_at && Date.now() - Date.parse(recent.checked_at) < (recent.djen_ok === true && recent.datajud_ok === true ? 15 : 2) * 60 * 1000) {
+    const sourceSnapshot=recent?.source_snapshot&&typeof recent.source_snapshot==='object'
+      ?recent.source_snapshot as Record<string,unknown>:{};
+    const tribunalApiOk=sourceSnapshot.tribunalApiOk===true;
+    const hasMovementSource=recent?.datajud_ok===true||tribunalApiOk;
+    if (recent?.checked_at && Date.now() - Date.parse(recent.checked_at) < (recent.djen_ok === true && hasMovementSource ? 15 : 2) * 60 * 1000) {
       return { ok: true as const, reused: true };
     }
     const result = await reviewHermesCase({ empresaId, processId, mode: 'manual' });
