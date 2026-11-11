@@ -13,6 +13,7 @@ import {
   type ProcessTimelineSource, type ProcessTimelineEntry
 } from '@/lib/processos-timeline';
 import {recoverHermesTimelineSource} from '@/lib/hermes-timeline-fallback';
+import {normalizeTribunalMovements} from '@/lib/hermes-tribunal-scanner';
 
 export type ProcessMovementsResult = {
   success:boolean;
@@ -27,6 +28,8 @@ export type ProcessMovementsResult = {
   datajudMovements?:number;
   historicDataJudMovements?:number;
   djenPublications?:number;
+  tribunalMovements?:number;
+  tribunalConnector?:{source:string;status:string;verifiedAt:string|null;checkedAt:string|null;nextAllowedAt:string|null};
   sourceStatus?:ProcessSourcesStatus;
 };
 
@@ -129,6 +132,41 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
 
     const sources=sourceResults.map(x=>x.source);
     const liveConfirmed=sourceResults.some(x=>x.officialSuccess);
+    // MNI/SCMPP é varrido pelo cron de 15 minutos, NÃO por automação de
+    // navegador. Aqui somente evidência já persistida e verificada é exibida.
+    const courtEntries:ProcessTimelineEntry[]=[];
+    let courtConnector:ProcessMovementsResult['tribunalConnector'];
+    if(page===1){
+      const {data:tribunalSaved,error:courtError}=await db.from('hermes_tribunal_public_movements')
+        .select('cnj,adapter,status,movements,movements_verified_at,checked_at,next_allowed_at')
+        .eq('empresa_id',ctx.empresa_id).in('cnj',cnjs).limit(10);
+      if(!courtError){
+        for(const row of tribunalSaved||[]){
+          const normalized=normalizeTribunalMovements(row.movements);
+          const isMain=cnjDigits(row.cnj)===main;
+          if(isMain){
+            courtConnector={source:String(row.adapter),status:String(row.status),
+              verifiedAt:row.movements_verified_at?String(row.movements_verified_at):null,
+              checkedAt:row.checked_at?String(row.checked_at):null,
+              nextAllowedAt:row.next_allowed_at?String(row.next_allowed_at):null};
+          }
+          if(!row.movements_verified_at)continue;
+          for(const m of normalized){
+            courtEntries.push({
+              id:'tribunal|'+row.cnj+'|'+m.date+'|'+m.code,
+              cnj:cnjDigits(row.cnj),date:m.date,label:m.name,
+              detail:'Movimento público do tribunal, código TPU '+m.code+
+                '. Última verificação oficial: '+String(row.movements_verified_at)+
+                '. O serviço não forneceu o inteiro teor desta decisão.',
+              source:'Tribunal',phase:row.cnj!==main?'cumprimento':'conhecimento',
+            });
+          }
+        }
+        if(courtEntries.length)warnings.push(
+          'Movimentos públicos de MNI/SCMPP salvos e verificados anteriormente; '
+         +'a consulta automática do tribunal é independente deste clique.');
+      }
+    }
     let archivedEntries:ProcessTimelineEntry[]=[];
     let archivedCheckedAt:string|undefined;
     // A aba Mov. lê a cronologia persistida automaticamente pelo Hermes se a
@@ -153,7 +191,7 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
     }
     // Não afirmar consulta nova quando nenhuma fonte respondeu. O histórico
     // verificado anteriormente é legível, mas claramente sinalizado como salvo.
-    if(!liveConfirmed && !archivedEntries.length){
+    if(!liveConfirmed && !archivedEntries.length && !courtEntries.length){
       return {
         success:false,entries:[],page,totalDjen:0,relatedCnjs,hasMore:false,warnings,
         message:'A consulta aos tribunais falhou; exibindo somente o resumo salvo. Clique novamente para tentar ou confira o processo no site do tribunal.'
@@ -167,10 +205,11 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
       dataDistribuicao:String(metadata.dataDistribuicao||metadata.dataAjuizamento||metadata.data_ajuizamento||''),
       classe:String(metadata.classe_acao||'')
     }:undefined);
-    const entries=mergeProcessTimelineEntries(currentEntries,archivedEntries);
+    const entries=mergeProcessTimelineEntries(mergeProcessTimelineEntries(currentEntries,archivedEntries),courtEntries);
 
     return {
       success:true,entries,page,totalDjen,relatedCnjs,hasMore,
+      tribunalMovements:courtEntries.length,tribunalConnector:courtConnector,
       sourceStatus:{
         datajud:sourceResults[0]?.datajudStatus||'not_queried',
         djen:sourceResults[0]?.djenOk?'confirmed':'unavailable',
