@@ -61,7 +61,8 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(route).toContain('runHermesPortfolioScanBatch');
   expect(route.indexOf("if (!authorized(request))")).toBeLessThan(route.indexOf("mode === 'portfolio'"));
   const service=read('src/lib/hermes-return-service.ts');
-  expect(service).toContain("rpc('hermes_claim_portfolio_scan'");
+  expect(service).toContain("rpc('hermes_claim_portfolio_scan_batch'");
+  expect(service).toContain('p_limit:2');
   expect(service).toContain("from('hermes_portfolio_scans')");
   expect(service).toContain('atualizarAudienciasDeConsulta');
   expect(service).not.toContain('sendWhatsApp');
