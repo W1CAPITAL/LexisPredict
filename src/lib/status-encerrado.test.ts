@@ -26,6 +26,23 @@ describe('isCasoEncerrado', () => {
     expect(isCasoEncerrado({ status: 'Vencido', situacao: 'EM ANDAMENTO' })).toBe(false);
   });
 
+  it('prioriza situação tipada e ignora encerramento antigo dentro de dados', () => {
+    const reopened = {
+      status: 'Atenção',
+      status_interno: 'EM ANDAMENTO',
+      situacao: 'EM ANDAMENTO',
+      statusManual: 'Automatico',
+      dados: {
+        status: 'Encerrado',
+        situacao: 'ENCERRADO',
+        status_interno: 'ENCERRADO',
+        statusManual: 'Encerrado',
+      },
+    };
+    expect(isCasoEncerrado(reopened)).toBe(false);
+    expect(isCasoEncerrado({ ...reopened, status: 'Encerrado' })).toBe(true);
+  });
+
   it('lista de status conhecidos não vazia', () => {
     expect(STATUS_ENCERRADOS.length).toBeGreaterThan(3);
   });
