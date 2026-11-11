@@ -40,7 +40,7 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
   ];
   for(const path of surfaces)expect(read(path),path).toContain('isCasoVencido');
   expect(read('src/app/page.tsx')).toContain('portfolioSummary?.vencidos');
-  expect(read('src/app/vencidos/page.tsx')).not.toMatch(/statusManual\\s*:\\s*dados->>statusManual/);
+  expect(read('src/app/vencidos/page.tsx')).not.toContain('statusManual:dados->>statusManual');
   const logic=read('src/lib/case-logic.ts');
   expect(logic).toContain('resolveSituacaoFromRow');
   expect(logic).toContain('resolveStatusManualFromRow');
