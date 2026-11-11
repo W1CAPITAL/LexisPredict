@@ -68,6 +68,6 @@ describe('Hermes · conectores oficiais MNI/SCMPP com evidência verificada',()=
   const action=readFileSync('src/app/actions/processos-movements-action.ts','utf8');
   expect(action).toContain('hermes_tribunal_public_movements');
   expect(action).toContain("source:'Tribunal'");
-  expect(action).toContain('verificado_em');
+  expect(action).toContain('movements_verified_at');
  });
 });
