@@ -777,9 +777,9 @@ export async function buildProcessosProfissionalXlsxBase64(
     procRows.push({ values: ['TOTAIS', ...Array(PROC_COLS.length - 1).fill('')], styleRow: 'total' });
   }
 
-  const emAndamento = list.filter((x) => isEmAndamento(x.status)).length;
-  const encerrados = list.filter((x) => isEncerradoStatus(x.status)).length;
-  const vencidos = list.filter((x) => isVencido(x.status)).length;
+  const emAndamento = list.filter((x) => !isCasoEncerrado(x)).length;
+  const encerrados = list.filter((x) => isCasoEncerrado(x)).length;
+  const vencidos = list.filter((x) => isCasoVencido(x)).length;
   const ba = list.filter((x) => x.ba === 'SIM').length;
   const cumprimento = list.filter((x) => x.cumprimento === 'SIM').length;
   const atendidosSemana = list.filter((x) => x.atendido_semana).length;
