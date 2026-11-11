@@ -96,6 +96,12 @@ async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any
 }
 
 /** Independent court verification: no WhatsApp queue and no changes to process or return dates. */
+function normalizeSourceTimestamp(value:unknown):string|null{
+ if(typeof value!=='string'||!value.trim())return null;
+ const time=Date.parse(value);
+ return Number.isFinite(time)?new Date(time).toISOString():null;
+}
+
 type CourtSnapshotWithDiagnostic=HermesCourtSnapshot&{
  sourceErrors:Record<'djen'|'datajud'|'fonteAlternativa'|'projudi',string|null>;
 };
@@ -114,6 +120,9 @@ async function obtainCourtSnapshot(cnj:string,lastReturn:string|null,manual=fals
  const datajud=dj.status==='fulfilled'?dj.value:null;
  const diario=djen.status==='fulfilled'?djen.value:null;
  const datajudOk=!!datajud&&datajud.error===false&&datajud.found===true;
+ const datajudUpdatedAt=datajudOk?normalizeSourceTimestamp(datajud?.dataHoraUltimaAtualizacao):null;
+ const datajudIndexTimestamp=datajudOk?normalizeSourceTimestamp(datajud?.indexTimestamp):null;
+ const datajudRestricted=datajud?.errorCode==='terms_restricted';
  const djenOk=!!diario&&diario.success===true;
  const events:HermesCourtEvent[]=[];
  if(datajudOk){
@@ -174,14 +183,16 @@ async function obtainCourtSnapshot(cnj:string,lastReturn:string|null,manual=fals
  }else if(courtApiAttempted){
   fonteAlternativa='DataJud indisponível ou sem movimento novo; o Hermes acionou automaticamente o TJPR PROJUDI MNI, mas a fonte não confirmou a consulta: '+diagnostic(courtApiError);
  }else if(sourceMode==='djen-only'){
-  fonteAlternativa='DJEN oficial verificado automaticamente em '+sourceContext+'; este resultado cobre publicações, não todas as movimentações dos autos. DataJud terá nova tentativa no agendador.';
+  fonteAlternativa=datajudRestricted
+   ?'DJEN oficial verificado automaticamente em '+sourceContext+'; DataJud não foi acionado por restrição dos termos de uso. A consulta cobre publicações, não todas as movimentações dos autos.'
+   :'DJEN oficial verificado automaticamente em '+sourceContext+'; este resultado cobre publicações, não todas as movimentações dos autos. DataJud terá nova tentativa no agendador.';
  }else if(sourceMode==='datajud-only'){
   fonteAlternativa='DataJud consultado em '+sourceContext+'; publicações do DJEN ainda precisam ser verificadas em nova execução.';
  }else if(sourceMode==='no-current-source'){
   fonteAlternativa='DJEN e DataJud indisponíveis nesta verificação de '+sourceContext+'. O Hermes mantém o caso pendente e reconsulta automaticamente; não presume ausência de movimentação.';
  }
  return {
-  djenOk,datajudOk,events,courtApiOk,courtApiAttempted,courtApiSource,courtApiError,
+  djenOk,datajudOk,datajudUpdatedAt,datajudIndexTimestamp,events,courtApiOk,courtApiAttempted,courtApiSource,courtApiError,
   sourceErrors:{
    djen:djenOk?null:diagnostic(djen.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
    datajud:datajudOk?null:diagnostic(dj.status==='rejected'?null:datajud?.message||'Não encontrado no índice ou fonte indisponível.'),
@@ -207,6 +218,8 @@ async function persistResult(
       cnj, checkedAt: now,
       djen: result.djenOk ? 'consultado' : 'indisponivel',
       datajud: result.datajudOk ? 'consultado' : 'indisponivel',
+      datajudUpdatedAt:snapshot.datajudUpdatedAt||null,
+      datajudIndexTimestamp:snapshot.datajudIndexTimestamp||null,
       tribunalApi: snapshot.courtApiOk ? 'consultado' : snapshot.courtApiAttempted ? 'indisponivel' : 'nao_acionado',
       tribunalApiOk: snapshot.courtApiOk,
       tribunalApiSource: snapshot.courtApiSource || null,
@@ -240,6 +253,7 @@ export async function reviewHermesCase(input: {
   const name = row.cliente || String(row.dados?.cliente || '');
   const manual=input.mode==='manual';
   let snapshot:CourtSnapshotWithDiagnostic={ djenOk:false,datajudOk:false,events:[],courtApiOk:false,courtApiAttempted:false,
+    datajudUpdatedAt:null,datajudIndexTimestamp:null,
     sourceErrors:{djen:'Consulta não executada.',datajud:'Consulta não executada.',projudi:null,fonteAlternativa:null} };
   if (cnj && !isCasoEncerrado(row)) snapshot = await obtainCourtSnapshot(cnj, row.ultimo_retorno,manual);
   const result = buildHermesReturnReview({
@@ -398,7 +412,9 @@ export async function persistHermesPortfolioSnapshot(
   Array.isArray(prior?.events)?prior.events as HermesCourtEvent[]:[],
   snapshot.events
  );
- const findings=buildHermesJudicialFindings(events);
+ const findings={...buildHermesJudicialFindings(events),datajudFreshness:snapshot.datajudOk?{
+  updatedAt:snapshot.datajudUpdatedAt||null,indexTimestamp:snapshot.datajudIndexTimestamp||null,
+ }:null};
  const movementSourceOk=snapshot.datajudOk||snapshot.courtApiOk===true;
  const state:'ready'|'partial'|'unavailable'=
   snapshot.djenOk&&movementSourceOk?'ready':
