@@ -392,6 +392,8 @@ export async function fetchDjenComunicacoes(
     pagina?: number;
     /** Consulta manual Hermes: tenta as duas formas do CNJ em orçamento controlado. */
     hermesManual?: boolean;
+    /** Para Hermes, confirme as duas grafias em retorno válido vazio, sem repetir em 429. */
+    hermesDualFormat?: boolean;
     /** Ação manual pede nova consulta, sem usar o cache dos últimos 90s. */
     forceRefresh?: boolean;
   }
@@ -422,6 +424,7 @@ async function fetchDjenComunicacoesUncached(
     cloudBudget?: boolean;
     pagina?: number;
     hermesManual?: boolean;
+    hermesDualFormat?: boolean;
   }
 ): Promise<DjenFetchResult> {
   const digits = protocolo.replace(/\D/g, '');
@@ -435,9 +438,10 @@ async function fetchDjenComunicacoesUncached(
     new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const masked = `${digits.substring(0, 7)}-${digits.substring(7, 9)}.${digits.substring(9, 13)}.${digits.substring(13, 14)}.${digits.substring(14, 16)}.${digits.substring(16, 20)}`;
-  const cnjOptions = opts?.cloudBudget ? [digits] : [digits, masked];
+  const cnjOptions = opts?.cloudBudget && !opts?.hermesDualFormat ? [digits] : [digits, masked];
 
   let lastError = '';
+  let firstValidEmpty: DjenFetchResult | null = null;
 
   for (const cnj of cnjOptions) {
     try {
@@ -474,6 +478,7 @@ async function fetchDjenComunicacoesUncached(
       clearTimeout(timeoutId);
 
       if (response.status === 403) {
+        if(firstValidEmpty)return firstValidEmpty;
         console.error('[DJEN Fetch Fail] 403 geo-block', { cnj, status: 403 });
         return {
           success: false,
@@ -486,6 +491,7 @@ async function fetchDjenComunicacoesUncached(
       }
 
       if (response.status === 429) {
+        if(firstValidEmpty)return firstValidEmpty;
         console.error('[DJEN Fetch Fail] 429 rate-limit', { cnj });
         return {
           success: false,
@@ -497,13 +503,21 @@ async function fetchDjenComunicacoesUncached(
       }
 
       if (!response.ok) {
+        if(firstValidEmpty)return firstValidEmpty;
         lastError = `HTTP ${response.status}`;
         console.error('[DJEN Fetch Fail]', lastError, { cnj });
         continue;
       }
 
       const data = await response.json();
-      const rawItems = Array.isArray(data.items) ? data.items : [];
+      // HTTP 200 sem lista pode ser JSON de erro/WAF: nunca declarar consulta confirmada.
+      const rawItems: unknown[] | null = Array.isArray(data?.items)
+        ? data.items : Array.isArray(data?.content)
+          ? data.content : Array.isArray(data) ? data : null;
+      if(!rawItems) {
+        if(firstValidEmpty)return firstValidEmpty;
+        return {success:false,error:'DJEN retornou resposta sem lista de comunicações.',count:0,items:[]};
+      }
 
       const mappedItems: DjenComunicacao[] = rawItems.map((item: any) => {
         const rawText = String(
@@ -574,15 +588,17 @@ async function fetchDjenComunicacoesUncached(
         ...it,
         link: resolveDjenPublicacaoLink(it, digits) || it.link,
       }));
-      // HTTP 200 com lista vazia = sucesso (processo sem publicação no período)
-      return {
-        success: true,
-        count: data.count ?? enriched.length,
-        items: enriched,
-      };
+      // Um 200 vazio confirma apenas essa grafia. Hermes tenta a outra uma vez.
+      const confirmed={success:true,count:Number(data?.count??enriched.length),items:enriched};
+      if(opts?.hermesDualFormat && enriched.length===0 && cnj!==cnjOptions[cnjOptions.length-1]){
+        firstValidEmpty=confirmed;
+        continue;
+      }
+      return confirmed;
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         console.error('[DJEN Fetch Fail] timeout de consulta', { cnj });
+        if(firstValidEmpty)return firstValidEmpty;
         if(opts?.hermesManual){ lastError='Tempo esgotado no DJEN; tentativa com outra grafia do CNJ.';continue; }
         return { success: false, error: 'Tempo esgotado no DJEN.', count: 0, items: [] };
       }
@@ -592,9 +608,9 @@ async function fetchDjenComunicacoesUncached(
     }
   }
 
-  return {
+  return firstValidEmpty || {
     success: false,
-    error: lastError || 'Nenhuma comunicação localizada.',
+    error: lastError || 'Não foi possível concluir a consulta DJEN.',
     count: 0,
     items: [],
   };
