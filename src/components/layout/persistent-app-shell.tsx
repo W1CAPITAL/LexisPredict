@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { PersistentSidebarContext } from "@/components/layout/persistent-sidebar-context";
+import { SwarmRebuildIntro } from "@/components/system/swarm-rebuild-intro";
 
 const STANDALONE_PREFIXES = [
   "/login",
@@ -36,13 +37,16 @@ export function PersistentAppShell({ children }: { children: ReactNode }) {
   if (!shouldShowPersistentShell(pathname)) return <>{children}</>;
 
   return (
-    <PersistentSidebarContext.Provider value={true}>
-      <div data-lexis-app-shell className="flex min-h-dvh w-full bg-background text-foreground">
-        <Sidebar persistentRoot />
-        <div data-lexis-route-content className="relative min-w-0 flex-1">
-          {children}
+    <>
+      <PersistentSidebarContext.Provider value={true}>
+        <div data-lexis-app-shell className="flex min-h-dvh w-full bg-background text-foreground">
+          <Sidebar persistentRoot />
+          <div data-lexis-route-content className="relative min-w-0 flex-1">
+            {children}
+          </div>
         </div>
-      </div>
-    </PersistentSidebarContext.Provider>
+      </PersistentSidebarContext.Provider>
+      <SwarmRebuildIntro />
+    </>
   );
 }

@@ -7,6 +7,7 @@ import {
   getHermesCompanyDaily, getHermesCaseHealth, getHermesStalledSummaries, getHermesPortfolioSummaries, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
+import { atualizarIndiceAudienciasLote, verificarUmaAudienciaAgendada } from '@/lib/audiencias-service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -205,15 +206,50 @@ export async function GET(request: Request) {
   if (mode !== null) return NextResponse.json({ ok: false, error: 'Rota desconhecida' },
     { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
+  const startedAt = Date.now();
+  let dueResult: Awaited<ReturnType<typeof runHermesDueReviewBatch>> | null = null;
+  let dueError: unknown = null;
   try {
-    const result = await runHermesDueReviewBatch(1);
-    return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } });
+    dueResult = await runHermesDueReviewBatch(1);
   } catch (error) {
-    console.error('[Hermes Returns] scheduler error',
-      error instanceof Error ? error.message : 'unknown');
-    return NextResponse.json({ ok: false, error: 'O scanner de retornos está indisponível.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    dueError = error;
   }
+
+  // O mesmo cron que já percorre os retornos agora avança também o índice de
+  // audiências de todos os processos/colaboradores, sem depender do cron diário.
+  let audienciasIndex: unknown = { ok: false, skipped: 'time_budget' };
+  let audienciasOficiais: unknown = { ok: true, attempted: 0, source: 'time_budget' };
+  if (Date.now() - startedAt < 38_000) {
+    try {
+      audienciasIndex = await atualizarIndiceAudienciasLote(120);
+    } catch (error) {
+      console.error('[Hermes Audiências] indexação incremental', error instanceof Error ? error.message : 'unknown');
+      audienciasIndex = { ok: false, error: 'index_unavailable' };
+    }
+  }
+  if (Date.now() - startedAt < 50_000) {
+    try {
+      audienciasOficiais = await verificarUmaAudienciaAgendada();
+    } catch (error) {
+      console.error('[Hermes Audiências] verificação oficial', error instanceof Error ? error.message : 'unknown');
+      audienciasOficiais = { ok: false, error: 'official_check_unavailable' };
+    }
+  }
+
+  if (dueError) {
+    console.error('[Hermes Returns] scheduler error', dueError instanceof Error ? dueError.message : 'unknown');
+    return NextResponse.json({
+      ok: false,
+      error: 'O scanner de retornos está indisponível.',
+      audienciasIndex,
+      audienciasOficiais,
+    }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
+  return NextResponse.json({
+    ...(dueResult || {}),
+    audienciasIndex,
+    audienciasOficiais,
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 /** O POST só serve à reunião autorizada da supervisão; nunca envia mensagem ao cliente. */

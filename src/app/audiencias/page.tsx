@@ -104,9 +104,20 @@ export default function AudienciasPage(){
           <p className="text-xs text-muted-foreground">Advogado: {x.advogado||"Não informado"}</p>
          </div>
          <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-left md:text-right">
-          <p className="flex items-center gap-2 text-lg font-bold"><Clock size={18}/> {formatDay(x.data_evento)}</p>
-          {x.hora_local&&<p className="text-sm font-semibold">Às {x.hora_local} {x.fuso||"(horário do tribunal)"}</p>}
-          {x.data_fim&&<p className="text-xs text-muted-foreground">Término: {formatDay(x.data_fim)} {x.hora_fim||""}</p>}
+          {x.data_fim ? (
+           <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Período da sessão</p>
+            <p className="text-sm font-bold leading-snug">
+             {formatDay(x.data_evento)}{x.hora_local ? ` às ${x.hora_local}` : ''} até {formatDay(x.data_fim)}{x.hora_fim ? ` às ${x.hora_fim}` : ''}
+            </p>
+            <p className="text-[11px] text-muted-foreground">{x.fuso||"(horário do tribunal)"}</p>
+           </div>
+          ) : (
+           <>
+            <p className="flex items-center gap-2 text-lg font-bold"><Clock size={18}/> {formatDay(x.data_evento)}</p>
+            {x.hora_local&&<p className="text-sm font-semibold">Às {x.hora_local} {x.fuso||"(horário do tribunal)"}</p>}
+           </>
+          )}
           <p className="text-xs text-muted-foreground">{x.modalidade==="virtual"?"Virtual":x.modalidade==="presencial"?"Presencial":"Modalidade não confirmada"}</p>
          </div>
         </div>

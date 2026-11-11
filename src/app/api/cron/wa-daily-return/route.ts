@@ -56,31 +56,7 @@ export async function GET(request:Request){
     }
   }
  }
- // Reutiliza o único cron diário já configurado na Vercel Hobby.
- // Reindexação silenciosa sem disparar mensagens nem atribuir prazos jurídicos.
- let audienciasIndex:{ok:boolean;inspecionados?:number;registros?:number;error?:string}={ok:false};
- if(Date.now()-started < 48000){
-   try{
-     const {atualizarIndiceAudienciasLote}=await import('@/lib/audiencias-service');
-     audienciasIndex=await atualizarIndiceAudienciasLote(150);
-   }catch(error){
-     audienciasIndex={ok:false,error:error instanceof Error?error.message:'Falha de índice'};
-     console.warn('[cron-audiencias]',audienciasIndex.error);
-   }
- }
- // Uma checagem incremental real nas APIs oficiais (com timeout e limite).
- // Nunca envia mensagem; usa a Vercel Cron já existente para evitar um cron adicional.
- let audienciasOficiais:Record<string,unknown>={ok:false,reason:'budget'};
- if(Date.now()-started < 39000){
-   try{
-     const {verificarUmaAudienciaAgendada}=await import('@/lib/audiencias-service');
-     audienciasOficiais=await verificarUmaAudienciaAgendada();
-   }catch(error){
-     audienciasOficiais={ok:false,error:error instanceof Error?error.message:'Falha de consulta'};
-     console.warn('[cron-audiencias-oficiais]',audienciasOficiais.error);
-   }
- }
  return NextResponse.json({ok:true,queued:prepared,checked,preparedOnly:!anySendingWindow,reason:lastReason,
-   audienciasIndex,audienciasOficiais,elapsedMs:Date.now()-started},{headers:{'Cache-Control':'private, no-store'}});
+   elapsedMs:Date.now()-started},{headers:{'Cache-Control':'private, no-store'}});
 
 }

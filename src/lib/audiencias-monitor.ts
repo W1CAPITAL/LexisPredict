@@ -47,6 +47,30 @@ function clock(text: string, index: number, before = false): string | null {
   const h = Number(m[1]), mm = Number(m[2] || 0);
   return h < 24 && mm < 60 ? String(h).padStart(2,'0') + ':' + String(mm).padStart(2,'0') : null;
 }
+function parseDateToken(value: string): string | null {
+  const m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})$/.exec(value.trim());
+  return m ? isoDate(Number(m[1]), Number(m[2]), Number(m[3])) : null;
+}
+function parseClockToken(value: string): string | null {
+  const m = /^(\d{1,2})[:h](\d{2})$/i.exec(value.trim());
+  if (!m) return null;
+  const hour = Number(m[1]), minute = Number(m[2]);
+  return hour < 24 && minute < 60 ? String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0') : null;
+}
+function parseSessionPeriod(text: string): { startDate: string; startTime: string; endDate: string; endTime: string; index: number } | null {
+  const m = /periodo\s+da\s+sessao\s*[:=-]?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]20\d{2})\s*(?:as?\s*)?(\d{1,2}[:h]\d{2})\s*(?:a|ate|[-–—])\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]20\d{2})\s*(?:as?\s*)?(\d{1,2}[:h]\d{2})/i.exec(text);
+  if (!m) return null;
+  const startDate = parseDateToken(m[1]), endDate = parseDateToken(m[3]);
+  const startTime = parseClockToken(m[2]), endTime = parseClockToken(m[4]);
+  if (!startDate || !endDate || !startTime || !endTime || endDate < startDate) return null;
+  return { startDate, startTime, endDate, endTime, index: m.index || 0 };
+}
+function excerptAround(text: string, index: number, maxLength = 900): string {
+  if (text.length <= maxLength) return text;
+  const start = Math.max(0, Math.min(index - 360, text.length - maxLength));
+  return text.slice(start, start + maxLength);
+}
+
 function eventType(normalized: string): AudienciaExtraida['tipo'] {
   if (/sessao virtual/.test(normalized)) return 'sessao_virtual';
   if (/sessao de julgamento|pauta de julgamento/.test(normalized)) return 'sessao_julgamento';
@@ -55,13 +79,15 @@ function eventType(normalized: string): AudienciaExtraida['tipo'] {
   if (/julgamento/.test(normalized)) return 'julgamento';
   return 'audiencia';
 }
-function build(kind: AudienciaExtraida['tipo'], data: string | null, end: string | null, hora: string | null, horaFim: string | null, segment: string, situacao?: AudienciaExtraida['situacao']): AudienciaExtraida {
-  const normalized = clean(segment);
-  const fuso = /\b(?:hor[aá]rio\s+(?:de|do)\s+)?(?:MT|MS|AM|AC|RO|SP|Bras[ií]lia)\b/i.exec(segment)?.[0] || null;
-  const modalidade = /virtual|videoconfer[eê]ncia|teams|zoom/i.test(segment) ? 'virtual'
-    : /presencial/i.test(segment) ? 'presencial' : 'nao_informada';
+function build(kind: AudienciaExtraida['tipo'], data: string | null, end: string | null, hora: string | null, horaFim: string | null, segment: string, situacao?: AudienciaExtraida['situacao'], fusoSource = segment): AudienciaExtraida {
+  const fuso = /(?:fuso|hor[aá]rio(?:\s+local)?|hor[aá]rio\s+de\s+refer[eê]ncia)\s*(?:de|do|:|=)?\s*(America\/[A-Za-z_]+|Bras[ií]lia|AC|AL|AM|AP|BA|CE|DF|ES|GO|MA|MG|MS|MT|PA|PB|PE|PI|PR|RJ|RN|RO|RR|RS|SC|SE|SP|TO)/i.exec(fusoSource)?.[1]
+    || /\((AC|AL|AM|AP|BA|CE|DF|ES|GO|MA|MG|MS|MT|PA|PB|PE|PI|PR|RJ|RN|RO|RR|RS|SC|SE|SP|TO)\)/i.exec(fusoSource)?.[1]
+    || (/\bBras[ií]lia\b/i.test(fusoSource) ? 'Brasília' : null);
+  const modalidade = kind === 'sessao_virtual' || kind === 'sessao_julgamento' || /virtual|videoconfer[eê]ncia|teams|zoom/i.test(fusoSource) ? 'virtual'
+    : /presencial/i.test(fusoSource) ? 'presencial' : 'nao_informada';
   return {
-    chave: kind + ':' + (data || 'sem-data') + ':' + (end || ''),
+    // A data final pode ser enriquecida depois sem criar uma segunda audiência.
+    chave: kind + ':' + (data || 'sem-data') + ':' + (hora || ''),
     tipo: kind, data, dataFim: end, hora, horaFim, fuso,
     modalidade,
     situacao: situacao || (data ? 'publicada' : 'data_pendente'),
@@ -78,13 +104,26 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
   const dayList = dates(raw);
 
   // Sessão colegiada virtual tem intervalo; a data final é um compromisso separado da inicial.
-  if (/(?:pauta|intimacao|incluido|incluida|sessao virtual|data da sessao).{0,120}(?:sessao|julgamento)|sessao virtual/.test(normalized.slice(0, 350))) {
-    const head = raw.slice(0, 1700);
+  if (/(?:pauta|intimacao|incluido|incluida|sessao virtual|data da sessao).{0,120}(?:sessao|julgamento)|sessao virtual/.test(normalized.slice(0, 12000))) {
+    const head = raw.slice(0, 12000);
     const normalizedHead = clean(head);
     if (/sessao virtual|sessao de julgamento|data da sessao|pauta de julgamento/.test(normalizedHead)) {
       const sessionDates = dates(head);
       const qualified = /sessao virtual|pauta de sessao|intimacao de pauta|data da sessao/.test(normalizedHead);
       if (qualified && sessionDates.length) {
+        const period = parseSessionPeriod(normalized);
+        if (period) {
+          found.push(build(
+            /sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento',
+            period.startDate,
+            period.endDate,
+            period.startTime,
+            period.endTime,
+            excerptAround(raw, period.index),
+            undefined,
+            raw,
+          ));
+        } else {
         // A data de publicação pode anteceder a sessão. Preferir a data
         // vinculada expressamente ao início em vez da primeira data do texto.
         const start = sessionDates.find((item) => {
@@ -104,9 +143,10 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
           const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(near);
           return definite || sessionUntil;
         }) || null;
-        const firstHour = clock(head, start.index, true) || clock(head, start.index);
-        const endHour = end ? (clock(head, end.index, true) || clock(head, end.index)) : null;
-        found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined));
+        const firstHour = clock(head, start.index) || clock(head, start.index, true);
+        const endHour = end ? (clock(head, end.index) || clock(head, end.index, true)) : null;
+        found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined, raw));
+        }
       }
     }
   }
@@ -135,7 +175,7 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
   const unique = new Map<string,AudienciaExtraida>();
   for (const ev of found) {
     const prior=unique.get(ev.chave);
-    if (!prior || (ev.data && !prior.data)) unique.set(ev.chave,ev);
+    if (!prior || (ev.data && !prior.data) || (ev.dataFim && !prior.dataFim) || (ev.horaFim && !prior.horaFim)) unique.set(ev.chave,ev);
   }
   return [...unique.values()].filter((ev) => {
     if (ev.tipo !== 'sessao_virtual' && ev.data === null) {

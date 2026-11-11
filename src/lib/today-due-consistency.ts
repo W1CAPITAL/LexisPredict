@@ -48,3 +48,40 @@ export async function loadAllDuePages<T>(
   offset+=page.cases.length;
  }
 }
+
+/**
+ * Busca os retornos diretamente pela empresa autenticada. Não passa pelo
+ * adaptador da carteira, que pode transformar/descartar registros com CNJ
+ * ausente ou legado. A paginação é validada antes de entregar a fila.
+ */
+export async function loadAllCompanyDueReturns<T>(
+ today: string,
+ options?: { maxCases?: number; pageSize?: number; signal?: AbortSignal; fetcher?: typeof fetch },
+): Promise<T[]> {
+ const fetcher = options?.fetcher ?? fetch;
+ const pageSize = Math.max(1, Math.min(1000, Math.trunc(options?.pageSize ?? 1000)));
+ return loadAllDuePages<T>(async (offset) => {
+  const params = new URLSearchParams({
+   ate: today,
+   offset: String(offset),
+   limit: String(pageSize),
+  });
+  const response = await fetcher('/api/tarefas/retornos-empresa?' + params.toString(), {
+   method: 'GET',
+   credentials: 'same-origin',
+   cache: 'no-store',
+   signal: options?.signal,
+  });
+  const payload = await response.json().catch(() => null) as {
+   ok?: boolean;
+   scope?: string;
+   cases?: T[];
+   hasMore?: boolean;
+   error?: string;
+  } | null;
+  if (!response.ok || payload?.ok !== true || payload.scope !== 'empresa' || !Array.isArray(payload.cases)) {
+   throw new Error(payload?.error || 'Não foi possível carregar a fila completa da empresa.');
+  }
+  return { cases: payload.cases, hasMore: payload.hasMore === true };
+ }, { maxCases: options?.maxCases, signal: options?.signal });
+}
