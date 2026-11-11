@@ -5,6 +5,14 @@ import Link from 'next/link';
 import {Activity,CalendarDays,ShieldAlert} from 'lucide-react';
 import type {HermesPortfolioCaseSummary} from '@/lib/hermes-company-service';
 const d=(s?:string|null)=>s&&/^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
+const sourceStamp=(raw?:string|null)=>{
+ if(!raw)return '—';
+ const timestamp=Date.parse(raw);
+ if(!Number.isFinite(timestamp))return '—';
+ return new Intl.DateTimeFormat('pt-BR',{
+  timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'
+ }).format(new Date(timestamp));
+};
 const merits:Record<string,string>={procedente:'Procedente',parcialmente_procedente:'Parcialmente procedente',improcedente:'Improcedente'};
 type SavedEvent={source:'DataJud'|'DJEN';at:string;text:string;url?:string|null};
 function HistoryButton({cnj}:{cnj:string}){
@@ -63,7 +71,8 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
       <div><p className="font-bold">{r.client}</p><p className="break-all font-mono text-xs text-muted-foreground">{r.cnj}</p></div>
       <span className="rounded-full border border-border px-2 py-1 text-[11px] font-semibold">{r.state==='ready'?'Duas fontes':r.state==='partial'?'Consulta parcial':'Pendente'}</span>
      </div>
-     <p className="mt-2 text-xs text-muted-foreground">Verificado: {d(r.checkedAt)} · DataJud {r.datajudOk?'✓':'pendente'} · DJEN {r.djenOk?'✓':'pendente'}</p>
+     <p className="mt-2 text-xs text-muted-foreground">Consulta Hermes: {sourceStamp(r.checkedAt)} · DataJud {r.datajudOk?'✓':'pendente'} · DJEN {r.djenOk?'✓':'pendente'}</p>
+     {(r.datajudIndexedAt||r.datajudUpdatedAt)&&<p className="mt-1 text-xs text-muted-foreground">Indexado no DataJud: {sourceStamp(r.datajudIndexedAt)} · Atualização declarada pelo CNJ: {sourceStamp(r.datajudUpdatedAt)} <span className="block text-[11px]">Datas da fonte, não do último andamento nem de uma intimação.</span></p>}
      <p className="mt-1 text-xs text-muted-foreground">Último movimento: {d(f.latestCourtMovement)} · Publicação DJEN: {d(f.latestDjenPublication)}</p>
      {m?.value&&<p className="mt-2 rounded-lg border border-border p-2 text-sm font-bold">{merits[m.value]||m.value} · {m.source} <span className="block text-xs font-normal text-muted-foreground">{String(m.excerpt||'').slice(0,240)}</span></p>}
      {hearing&&<p className="mt-2 flex flex-wrap items-center gap-2 text-xs"><CalendarDays size={14}/> {hearing.kind||'Audiência'} · {d(hearing.date)}{hearing.time?' às '+hearing.time:''}{hearing.meetingUrl?<a href={hearing.meetingUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">Link indicado no ato</a>:null}</p>}
