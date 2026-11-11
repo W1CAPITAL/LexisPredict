@@ -3,6 +3,7 @@ import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
 import { reviewHermesCase, loadHermesReviewCase } from '@/lib/hermes-return-service';
 import {classifyHermesReturnDate} from '@/lib/hermes-return-date';
 import {brazilToday} from '@/lib/wa-daily-return-policy';
+import {describeCourtScanner,type CourtScannerView} from '@/lib/hermes-court-scanner-view';
 
 async function authorize(processId?: number, canWrite = false) {
   const ctx = await getUserContext();
@@ -26,7 +27,47 @@ export async function getHermesReturnReviewAction(processId: number) {
       .eq('empresa_id', empresaId).eq('processo_id', processId)
       .order('due_on', { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error('A revisão judicial está indisponível.');
-    return { ok: true as const, review: data || null,
+    // Metadados públicos de fonte autorizada: nunca inferir movimentações por
+    // WSDL HTTP 200 e nunca consultar processo de outra empresa.
+    const cnj=String(row.protocolo_ref||'').replace(/\D/g,'');
+    const adapter=cnj.length===20?({'816':'tjpr-scmpp','817':'tjpe-mni'} as Record<string,string>)[cnj.slice(13,16)]:null;
+    let courtScanner:ReturnType<typeof describeCourtScanner>|null=null;
+    let courtScannerDetails:CourtScannerView|null=null;
+    if(adapter){
+      const [own,lastIssue]=await Promise.all([
+        db.from('hermes_tribunal_public_movements')
+          .select('adapter,status,checked_at,next_allowed_at,movements_verified_at,http_status,movements')
+          .eq('empresa_id', empresaId).eq('processo_id',processId).maybeSingle(),
+        db.from('hermes_tribunal_public_movements')
+          .select('status,checked_at')
+          .eq('empresa_id', empresaId).eq('adapter',adapter)
+          .in('status',['unavailable','timeout','rate_limited','restricted','unexpected_response','cnj_mismatch'])
+          .order('checked_at',{ascending:false}).limit(1).maybeSingle(),
+      ]);
+      if(!own.error&&!lastIssue.error){
+        const latest=own.data;
+        const issue=lastIssue.data;
+        const issueHours:Record<string,number>={
+          unavailable:4,rate_limited:4,timeout:3,
+          restricted:24,unexpected_response:24,cnj_mismatch:24,
+        };
+        const checked=Date.parse(String(issue?.checked_at||''));
+        const issueHoursNow=issueHours[String(issue?.status||'')]||0;
+        const pauseEnd=Number.isFinite(checked)&&issueHoursNow>0
+          ?new Date(checked+issueHoursNow*3600000).toISOString():null;
+        courtScannerDetails={
+          adapter,status:String(latest?.status||'pending'),
+          checkedAt:latest?.checked_at||null,
+          verifiedAt:latest?.movements_verified_at||null,
+          nextAllowedAt:latest?.next_allowed_at||null,
+          httpStatus:typeof latest?.http_status==='number'?latest.http_status:null,
+          movements:Array.isArray(latest?.movements)?latest.movements.length:0,
+          sourceIssueUntil:pauseEnd,
+        };
+        courtScanner=describeCourtScanner(courtScannerDetails);
+      }
+    }
+    return { ok: true as const, review: data || null, courtScanner,courtScannerDetails,
       protocolo: row.protocolo_ref, nextReturnRegistered: row.proximo_retorno, lastReturnRegistered: row.ultimo_retorno,
       returnDateStatus:classifyHermesReturnDate(row.ultimo_retorno,row.proximo_retorno,brazilToday()),
     };
