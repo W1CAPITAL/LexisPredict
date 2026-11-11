@@ -56,15 +56,23 @@ export function textoBaixaOuArquivoTribunal(text: string): boolean {
 export function isCasoEncerrado(c: any): boolean {
   if (!c) return false;
   const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
-  // A carteira usa colunas tipadas como fonte de verdade. Quando a linha já
-  // traz situacao/status_interno resolvidos, não reintroduzir flags antigas do JSON.
   const row = { ...c, status_interno: c.status_interno ?? c.statusInterno };
-  const hasTypedSituation = Boolean(String(row.situacao || row.status_interno || '').trim());
+  const typedStatus = String(row.status || '').toUpperCase();
+  const statusStrong = hasStrongEncerrado(typedStatus);
+  const hasTypedSituation = Boolean(String(row.status_interno || c.situacao || '').trim()) || statusStrong;
+  const resolverData = {
+    ...d,
+    statusManual: d.statusManual ?? d.STATUS_MANUAL ?? c.statusManual ?? c.STATUS_MANUAL,
+  };
+  // Colunas tipadas prevalecem sobre o JSON antigo; a situação já resolvida
+  // pelo mapper também prevalece quando não há status_interno na linha.
   const situ = String(
-    row.situacao || row.status_interno || resolveSituacaoFromRow(row, d) || ''
+    statusStrong || row.status_interno
+      ? resolveSituacaoFromRow(row, resolverData)
+      : (c.situacao || resolveSituacaoFromRow(row, resolverData) || '')
   ).toUpperCase();
   const manual = String(
-    c.statusManual || resolveStatusManualFromRow(row, d, situ) || ''
+    resolveStatusManualFromRow(row, resolverData, situ) || ''
   ).toUpperCase();
   const status = String(row.status || (hasTypedSituation ? '' : d.status || '')).toUpperCase();
   const internal = String(row.status_interno || (hasTypedSituation ? '' : d.status_interno || '')).toUpperCase();
