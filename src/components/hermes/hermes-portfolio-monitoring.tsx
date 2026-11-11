@@ -58,6 +58,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
   {!items.length?<p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">Aguardando o primeiro processamento da nova fila judicial.</p>:
    <div className="grid gap-3 lg:grid-cols-2">{items.slice(0,24).map(r=>{
     const f=r.findings||{},m=f.verdict,hearing=Array.isArray(f.hearings)?f.hearings[0]:null;
+    const freshness=f.datajudFreshness&&typeof f.datajudFreshness==='object'?f.datajudFreshness as Record<string,unknown>:null;
     return <article key={r.processId} className="rounded-xl border border-border bg-background/60 p-4">
      <div className="flex flex-wrap items-start justify-between gap-2">
       <div><p className="font-bold">{r.client}</p><p className="break-all font-mono text-xs text-muted-foreground">{r.cnj}</p></div>
@@ -65,6 +66,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
      </div>
      <p className="mt-2 text-xs text-muted-foreground">Verificado: {d(r.checkedAt)} · DataJud {r.datajudOk?'✓':'pendente'} · DJEN {r.djenOk?'✓':'pendente'}{r.tribunalApiSource?' · '+r.tribunalApiSource+' '+(r.tribunalApiOk?'✓':r.tribunalApiAttempted?'pendente':'não acionado'):''}</p>
      <p className="mt-1 text-xs text-muted-foreground">Último movimento: {d(f.latestCourtMovement)} · Publicação DJEN: {d(f.latestDjenPublication)}</p>
+     {freshness?.updatedAt&&<p className="mt-1 text-xs text-muted-foreground">DataJud · atualização informada: {d(String(freshness.updatedAt))} (há {age(freshness.updatedAt)}){freshness.indexTimestamp?' · indexação: '+d(String(freshness.indexTimestamp))+' (há '+age(freshness.indexTimestamp)+')':''}</p>}
      {m?.value&&<p className="mt-2 rounded-lg border border-border p-2 text-sm font-bold">{merits[m.value]||m.value} · {m.source} <span className="block text-xs font-normal text-muted-foreground">{String(m.excerpt||'').slice(0,240)}</span></p>}
      {hearing&&<p className="mt-2 flex flex-wrap items-center gap-2 text-xs"><CalendarDays size={14}/> {hearing.kind||'Audiência'} · {d(hearing.date)}{hearing.time?' às '+hearing.time:''}{hearing.meetingUrl?<a href={hearing.meetingUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">Link indicado no ato</a>:null}</p>}
      {f.enforcement?.value&&<p className="mt-1 text-xs">Cumprimento de sentença: {f.enforcement.value==='cumprimento_iniciado'?'sinal de instauração':'menção localizada'} · {f.enforcement.source}</p>}
