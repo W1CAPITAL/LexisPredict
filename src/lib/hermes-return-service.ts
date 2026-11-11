@@ -390,9 +390,10 @@ export async function persistHermesPortfolioSnapshot(
   snapshot.events
  );
  const findings=buildHermesJudicialFindings(events);
+ const movementSourceOk=snapshot.datajudOk||snapshot.courtApiOk===true;
  const state:'ready'|'partial'|'unavailable'=
-  snapshot.datajudOk&&snapshot.djenOk?'ready':
-  snapshot.datajudOk||snapshot.djenOk?'partial':'unavailable';
+  snapshot.djenOk&&movementSourceOk?'ready':
+  snapshot.djenOk||movementSourceOk?'partial':'unavailable';
  const {error}=await db.from('hermes_portfolio_scans').upsert({
   empresa_id:row.empresa_id,processo_id:row.id,state,
   checked_at:now,attempted_at:now,datajud_ok:snapshot.datajudOk,djen_ok:snapshot.djenOk,
