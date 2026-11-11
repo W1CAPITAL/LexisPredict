@@ -198,6 +198,17 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   if (mode === 'meeting') return scheduledOfficeMeeting();
+  if (mode === 'hearings') {
+    try {
+      const {verificarUmaAudienciaAgendada}=await import('@/lib/audiencias-service');
+      const result=await verificarUmaAudienciaAgendada();
+      return NextResponse.json(result,{headers:{'Cache-Control':'no-store'}});
+    } catch(error) {
+      console.error('[Hermes Audiências] falha no monitor incremental',error instanceof Error?error.message:'erro');
+      return NextResponse.json({ok:false,error:'Monitoramento de audiências indisponível.'},
+        {status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   // Fonte oficial da carteira inteira, independente de retorno e de silêncio processual.
   if (mode === 'portfolio') {
     try{
