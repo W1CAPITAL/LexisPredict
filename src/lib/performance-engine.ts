@@ -6,6 +6,7 @@
  */
 
 import { LegalCase, CaseNote } from "./case-logic";
+import { isCasoVencido } from "./vencimentos";
 
 export type FaultType = "advogado" | "operador" | "externo" | "neutro";
 
@@ -61,7 +62,7 @@ export function buildExecutiveInsight(cases: LegalCase[], notes: CaseNote[]): Ex
     let isPositive = false;
 
     // 1. Analisa Status para Gravidade Base
-    if (c.status === "Vencido" || c.status === "Caso Crítico") gravity = 80;
+    if (isCasoVencido(c) || c.status === "Caso Crítico") gravity = 80;
     else if (c.status === "Atenção" || c.status === "É Hoje") gravity = 50;
     else if (c.status === "No Prazo") gravity = 10;
 
