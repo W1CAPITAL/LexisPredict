@@ -1,3 +1,4 @@
+import 'server-only';
 /**
  * Resolução de fontes para Veredito: DataJud primeiro; se vazio/erro → DJEN.
  * Publicações DJEN ficam SEPARADAS das movimentações DataJud.
