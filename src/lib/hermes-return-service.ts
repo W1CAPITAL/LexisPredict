@@ -405,16 +405,21 @@ export async function persistHermesPortfolioSnapshot(
  const now=new Date().toISOString();
  // Partial retries must NEVER discard the older verified source.
  const {data:prior,error:readError}=await db.from('hermes_portfolio_scans')
-  .select('events,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at')
+  .select('events,findings,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at')
   .eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
  if(readError)throw new Error('Falha ao preservar histórico judicial anterior: '+readError.code);
  const events=mergeHermesCourtHistory(
   Array.isArray(prior?.events)?prior.events as HermesCourtEvent[]:[],
   snapshot.events
  );
- const findings={...buildHermesJudicialFindings(events),datajudFreshness:snapshot.datajudOk?{
+ const priorFindings=prior?.findings&&typeof prior.findings==='object'&&!Array.isArray(prior.findings)
+  ?prior.findings as Record<string,unknown>:{};
+ const previousFreshness=priorFindings.datajudFreshness&&typeof priorFindings.datajudFreshness==='object'
+  ?priorFindings.datajudFreshness as Record<string,unknown>:null;
+ const datajudFreshness=snapshot.datajudOk?{
   updatedAt:snapshot.datajudUpdatedAt||null,indexTimestamp:snapshot.datajudIndexTimestamp||null,
- }:null};
+ }:previousFreshness;
+ const findings={...buildHermesJudicialFindings(events),datajudFreshness};
  const movementSourceOk=snapshot.datajudOk||snapshot.courtApiOk===true;
  const state:'ready'|'partial'|'unavailable'=
   snapshot.djenOk&&movementSourceOk?'ready':
@@ -426,7 +431,7 @@ export async function persistHermesPortfolioSnapshot(
   tribunal_api_source:snapshot.courtApiSource||prior?.tribunal_api_source||null,
   tribunal_api_checked_at:snapshot.courtApiAttempted?now:prior?.tribunal_api_checked_at||null,
   last_court_movement_at:findings.latestCourtMovement,
-  last_datajud_movement_at:(snapshot.events.filter(e=>e.source==='DataJud').map(e=>validReturnDay(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null),
+  last_datajud_movement_at:(events.filter(e=>e.source==='DataJud').map(e=>validReturnDay(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null),
   last_djen_publication_at:findings.latestDjenPublication,
   source_errors:snapshot.sourceErrors,events,findings,
  },{onConflict:'empresa_id,processo_id'});
