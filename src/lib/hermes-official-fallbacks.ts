@@ -6,7 +6,8 @@
  * atualizado do endpoint. Jus.br requer login; Datalake/GeCli exige aprovação.
  */
 import {getTribunalByCnj} from '@/lib/tribunais-links';
-import {COURT_ALIASES,isDataJudUseAuthorized} from '@/lib/datajud';
+import {COURT_ALIASES} from '@/lib/datajud-aliases';
+import {isDataJudUseAuthorized} from '@/lib/datajud-policy';
 
 export type OfficialCourtPortal={label:string;url:string;scope:string};
 export type HermesNationalSourcePlan={
