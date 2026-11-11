@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Busca híbrida Veredito: carteira local + DataJud (CPF/nome) + enriquecimento por CNJ.
- * DataJud muitas vezes NÃO indexa CPF — por isso carteira local e busca por nome são prioritárias.
+ * Busca local por CPF/CNPJ/nome na carteira; fontes oficiais são consultadas somente após obter o CNJ.
+ * A API pública DataJud não expõe pesquisa por documentos ou nome de partes.
  * NÃO usa APIs de saúde/SUS nem scrapers de CPF (privacidade / irrelevância jurídica).
  *
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -12,16 +12,13 @@ import {
   getStoredCasesForEmpresa,
   getUserContext,
 } from '@/lib/server-db';
-import {
-  searchDataJudByCpf,
-  searchDataJudByNome,
-  fetchDataJud,
-} from '@/lib/datajud';
+import { fetchDataJud } from '@/lib/datajud';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 
 export type SearchHit = {
   origem: 'carteira' | 'datajud' | 'djen' | 'nome';
   numeroProcesso: string;
+  processoId?: number;
   classe?: string | null;
   poloAtivo?: string[];
   poloPassivo?: string[];
@@ -47,192 +44,86 @@ function dedupeHits(items: SearchHit[]): SearchHit[] {
   const out: SearchHit[] = [];
   for (const x of items) {
     const n = onlyDigits(x.numeroProcesso);
-    if (!n || seen.has(n)) continue;
-    seen.add(n);
-    out.push({ ...x, numeroProcesso: normalizeCnj(x.numeroProcesso) });
+    const key = n.length===20 ? n : `local:${x.processoId||x.numeroProcesso}`;
+    if ((!n&&!x.processoId)||seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...x, numeroProcesso: n.length===20 ? normalizeCnj(x.numeroProcesso) : x.numeroProcesso });
   }
   return out;
 }
 
-/** CPF/CNPJ: 1) carteira local 2) DataJud multi-tribunal 3) nomes da carteira → DataJud nome */
+/** CPF/CNPJ: pesquisa somente os dados locais da carteira, nunca na API pública DataJud. */
 export async function searchProcessesByCpfAction(documento: string, onlyBA = false) {
   try {
     const digits = onlyDigits(documento);
     if (digits.length < 11) {
-      return {
-        success: false,
-        items: [] as SearchHit[],
-        error: 'CPF/CNPJ inválido (mín. 11 dígitos).',
-      };
+      return { success:false, items:[] as SearchHit[], error:'CPF/CNPJ inválido (mín. 11 dígitos).' };
     }
-
     const { empresa_id } = await getUserContext();
-    const hits: SearchHit[] = [];
-
-    // 1) Carteira local — match em observação, cliente, telefone, protocolo
-    if (empresa_id) {
-      const cases = await getStoredCasesForEmpresa(empresa_id);
-      for (const c of cases || []) {
-        const blob = onlyDigits(
-          `${(c as any).observacao || ''} ${(c as any).cliente || ''} ${(c as any).telefone || ''} ${(c as any).protocolo || ''}`
-        );
-        if (!blob.includes(digits)) continue;
-        hits.push({
-          origem: 'carteira',
-          numeroProcesso: (c as any).protocolo,
-          classe: (c as any).situacao || (c as any).evento_tipo || null,
-          poloAtivo: [(c as any).cliente].filter(Boolean),
-          poloPassivo: [],
-          tribunal: (c as any).tribunal,
-          cliente: (c as any).cliente,
-          aviso: 'Encontrado na sua carteira (documento em cadastro/observação).',
-        });
-      }
+    if (!empresa_id) return { success:false, items:[] as SearchHit[], error:'Empresa não identificada.' };
+    const cases = await getStoredCasesForEmpresa(empresa_id);
+    const hits:SearchHit[]=[];
+    for(const raw of cases||[]){
+      const c=raw as any;
+      const dados=c.dados&&typeof c.dados==='object'?c.dados:{};
+      const blob=onlyDigits([
+        c.cpf,c.cnpj,c.documento,c.numero_documento,c.numeroDocumentoPrincipal,
+        dados.cpf,dados.cnpj,dados.documento,dados.numeroDocumento,dados.numeroDocumentoPrincipal,
+        c.observacao,dados.observacao,c.cliente,c.cliente_nome,c.telefone,dados.telefone,
+        c.protocolo,c.protocolo_ref,
+      ].filter(Boolean).join(' '));
+      if(!blob.includes(digits))continue;
+      const classe=String(c.situacao||c.evento_tipo||c.classe||dados.situacao||'');
+      if(onlyBA&&!/BUSCA\\s*E?\\s*APREENS/i.test(classe))continue;
+      const cnj=String(c.protocolo||c.protocolo_ref||c.numeroProcesso||'').trim();
+      hits.push({
+        origem:'carteira',numeroProcesso:cnj||'CNJ não cadastrado',processoId:Number(c.id)||undefined,
+        classe:classe||null,poloAtivo:[c.cliente||c.cliente_nome].filter(Boolean),poloPassivo:[],
+        tribunal:c.tribunal||null,cliente:c.cliente||c.cliente_nome||undefined,
+        aviso:cnj?'Encontrado no cadastro local da empresa.':'Encontrado no CRM, mas sem CNJ cadastrado.',
+      });
     }
-
-    // 2) DataJud por documento (pode retornar 0 — limitação conhecida da API pública)
-    try {
-      const remoto = await searchDataJudByCpf(digits, { onlyBA, size: 12 });
-      for (const r of remoto.items || []) {
-        hits.push({
-          origem: 'datajud',
-          numeroProcesso: r.numeroProcesso,
-          classe: r.classe,
-          poloAtivo: r.poloAtivo || [],
-          poloPassivo: r.poloPassivo || [],
-          tribunal: r.tribunal,
-          grau: r.grau,
-          isBuscaApreensao: r.isBuscaApreensao,
-        });
-      }
-    } catch {
-      // segue
-    }
-
-    // 3) Fallback por NOME dos clientes da carteira que bateram CPF
-    const nomes = Array.from(
-      new Set(
-        hits
-          .filter((h) => h.origem === 'carteira' && h.cliente)
-          .map((h) => String(h.cliente))
-      )
-    ).slice(0, 4);
-
-    for (const nome of nomes) {
-      try {
-        const r = await searchDataJudByNome(nome, { size: 8 });
-        for (const item of r.items || []) {
-          hits.push({
-            origem: 'nome',
-            numeroProcesso: item.numeroProcesso,
-            classe: item.classe,
-            poloAtivo: item.poloAtivo || [],
-            poloPassivo: item.poloPassivo || [],
-            tribunal: item.tribunal,
-            grau: item.grau,
-            aviso: `Via nome na carteira: ${nome}`,
-          });
-        }
-      } catch {
-        // next
-      }
-    }
-
-    let finalList = dedupeHits(hits);
-    if (onlyBA) {
-      finalList = finalList.filter(
-        (x) =>
-          x.isBuscaApreensao ||
-          /BUSCA\s*E?\s*APREENS/i.test(String(x.classe || ''))
-      );
-    }
-
-    if (finalList.length === 0) {
-      return {
-        success: true,
-        items: [],
-        error:
-          'Nenhum processo encontrado. A API pública DataJud frequentemente não indexa CPF/CNPJ. Cadastre o CNJ na carteira ou busque por NOME da parte / número CNJ. O DJEN só consulta por processo (CNJ), não por CPF.',
-      };
-    }
-
-    return { success: true, items: finalList };
-  } catch (e: any) {
-    return {
-      success: false,
-      items: [],
-      error: e?.message || 'Falha na busca por CPF',
-    };
+    const finalList=dedupeHits(hits);
+    return finalList.length
+      ?{success:true,items:finalList}
+      :{success:true,items:[],error:'Nenhum cadastro correspondente encontrado na carteira. A API pública DataJud não pesquisa CPF/CNPJ; obtenha o CNJ pela consulta oficial do tribunal.'};
+  } catch (e:any) {
+    return { success:false,items:[],error:e?.message||'Falha na busca local por CPF/CNPJ.' };
   }
 }
 
-/** Nome da parte — DataJud + match parcial na carteira */
+/** Nome da parte: pesquisa local na carteira. DataJud exige CNJ. */
 export async function searchProcessesByNomeAction(nome: string): Promise<{
-  success: boolean;
-  items: SearchHit[];
-  error?: string;
+  success:boolean;items:SearchHit[];error?:string;
 }> {
   try {
-    const q = String(nome || '').trim();
-    if (q.length < 5) {
-      return { success: false, items: [], error: 'Nome muito curto (mín. 5 caracteres).' };
+    const q=String(nome||'').trim();
+    if(q.length<5)return {success:false,items:[],error:'Nome muito curto (mín. 5 caracteres).' };
+    const {empresa_id}=await getUserContext();
+    if(!empresa_id)return {success:false,items:[],error:'Empresa não identificada.'};
+    const cases=await getStoredCasesForEmpresa(empresa_id);
+    const qUp=q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+    const hits:SearchHit[]=[];
+    for(const raw of cases||[]){
+      const c=raw as any;
+      const dados=c.dados&&typeof c.dados==='object'?c.dados:{};
+      const cliente=String(c.cliente||c.cliente_nome||dados.cliente||dados.nomeParte||'').trim();
+      const normalized=cliente.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+      if(!normalized||(!normalized.includes(qUp)&&!qUp.includes(normalized.slice(0,12))))continue;
+      const cnj=String(c.protocolo||c.protocolo_ref||c.numeroProcesso||'').trim();
+      hits.push({
+        origem:'carteira',numeroProcesso:cnj||'CNJ não cadastrado',processoId:Number(c.id)||undefined,
+        classe:c.situacao||c.evento_tipo||null,poloAtivo:[cliente].filter(Boolean),
+        poloPassivo:[],tribunal:c.tribunal||null,cliente:cliente||undefined,
+        aviso:cnj?'Correspondência encontrada na carteira local.':'Cadastro encontrado, mas sem CNJ vinculado.',
+      });
     }
-
-    const hits: SearchHit[] = [];
-    const { empresa_id } = await getUserContext();
-
-    if (empresa_id) {
-      const cases = await getStoredCasesForEmpresa(empresa_id);
-      const qUp = q.toUpperCase();
-      for (const c of cases || []) {
-        const cli = String((c as any).cliente || '').toUpperCase();
-        if (!cli.includes(qUp) && !qUp.includes(cli.slice(0, 12))) continue;
-        hits.push({
-          origem: 'carteira',
-          numeroProcesso: (c as any).protocolo,
-          classe: (c as any).situacao || null,
-          poloAtivo: [(c as any).cliente].filter(Boolean),
-          tribunal: (c as any).tribunal,
-          cliente: (c as any).cliente,
-          aviso: 'Match na carteira local.',
-        });
-      }
-    }
-
-    try {
-      const r = await searchDataJudByNome(q, { size: 12 });
-      for (const item of r.items || []) {
-        hits.push({
-          origem: 'datajud',
-          numeroProcesso: item.numeroProcesso,
-          classe: item.classe,
-          poloAtivo: item.poloAtivo || [],
-          poloPassivo: item.poloPassivo || [],
-          tribunal: item.tribunal,
-          grau: item.grau,
-          isBuscaApreensao: item.isBuscaApreensao,
-        });
-      }
-    } catch {
-      //
-    }
-
-    const finalList = dedupeHits(hits);
-    if (finalList.length === 0) {
-      return {
-        success: true,
-        items: [],
-        error:
-          'Nenhum processo no DataJud nem na carteira para este nome. Tente o CNJ completo ou verifique a grafia. DJEN não busca por nome — só por número do processo.',
-      };
-    }
-    return { success: true, items: finalList };
-  } catch (e: any) {
-    return {
-      success: false,
-      items: [],
-      error: e?.message || 'Falha na busca por nome',
-    };
+    const finalList=dedupeHits(hits);
+    return finalList.length
+      ?{success:true,items:finalList}
+      :{success:true,items:[],error:'Nenhum cadastro correspondente encontrado na carteira. A API pública DataJud não pesquisa nomes de partes; consulte o tribunal ou obtenha o CNJ.'};
+  } catch(e:any) {
+    return {success:false,items:[],error:e?.message||'Falha na busca local por nome.'};
   }
 }
 
@@ -247,9 +138,11 @@ export async function enrichProcessTimelineAction(cnj: string) {
   let comunicacoes: any[] = [];
   let fonte: 'datajud' | 'djen' | 'ambos' | 'nenhuma' = 'nenhuma';
   let message = '';
+  let dataJudRestricted = false;
 
   try {
     const dj = await fetchDataJud(protocolo, 1, { fast: false });
+    dataJudRestricted = dj?.errorCode === 'terms_restricted';
     if (dj && !dj.error && Array.isArray(dj.movimentos) && dj.movimentos.length) {
       movimentos = dj.movimentos.map((m: any) => ({ ...m, fonte: 'datajud' }));
       fonte = 'datajud';
@@ -265,7 +158,7 @@ export async function enrichProcessTimelineAction(cnj: string) {
       // Comunicações DJEN são publicações, não movimentos do processo.
       // A tela Veredito exibe as fontes em blocos independentes.
       fonte = movimentos.length ? 'ambos' : 'djen';
-      if (fonte === 'djen') message = 'Publicações consultadas no DJEN. Movimentações do tribunal não foram confirmadas pelo DataJud.';
+      if (fonte === 'djen') message = dataJudRestricted?'Publicações consultadas no DJEN. DataJud não foi acionado por restrição dos termos de uso.':'Publicações consultadas no DJEN. Movimentações do tribunal não foram confirmadas pelo DataJud.';
     }
   } catch {
     //
@@ -278,7 +171,7 @@ export async function enrichProcessTimelineAction(cnj: string) {
       comunicacoes: [],
       fonte: 'nenhuma' as const,
       message:
-        'Sem movimentos no DataJud e sem publicações no DJEN para este CNJ. Confira o número no site do tribunal.',
+        dataJudRestricted?'DataJud não consultado: os termos vigentes vedam uso comercial da API pública sem autorização do CNJ. Consulte a fonte oficial do tribunal e o DJEN.':'Sem movimentos confirmados no DataJud e sem publicações no DJEN para este CNJ. Confira o número no site do tribunal.',
     };
   }
 
