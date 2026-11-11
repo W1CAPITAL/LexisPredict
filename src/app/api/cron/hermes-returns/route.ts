@@ -10,7 +10,7 @@ import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 140;
 export const preferredRegion = 'gru1'; // A API oficial DJEN pode bloquear chamadas de fora do Brasil.
 
 const privateHeaders = { 'Cache-Control': 'private, no-store', Vary: 'Cookie' } as const;
