@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION public.prune_expired_audiencias(
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path=public,pg_temp
+SET search_path=pg_catalog,public,pg_temp
 AS $function$
 DECLARE
  local_day date := (p_now AT TIME ZONE 'America/Sao_Paulo')::date;
