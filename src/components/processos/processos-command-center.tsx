@@ -66,6 +66,8 @@ import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
 import { fetchProcessosMovementsAction } from "@/app/actions/processos-movements-action";
 import { buildProcessTimeline, cnjDigits, formatCnj, mergeProcessTimelineEntries, type ProcessTimelineEntry } from "@/lib/processos-timeline";
 import { HermesReturnReviewButton } from "@/components/hermes/hermes-return-review-button";
+import {formatProcessSourcesLabel,shouldPreservePreviousDataJud} from "@/lib/processos-movement-source-policy";
+import {resolveOfficialCourtPortal} from "@/lib/hermes-official-fallbacks";
 
 
 type Props = {
@@ -494,6 +496,7 @@ export function ProcessosCommandCenter(props: Props) {
     | { motivo?: string; origem?: string; trecho?: string; acao?: string; nivel_confirmacao?: string }
     | undefined;
   const selectedCnj=cnjDigits(selected?.protocolo);
+  const officialCourtPortal=React.useMemo(()=>resolveOfficialCourtPortal(selectedCnj),[selectedCnj]);
   const selectedDbId=String(selected?.db_id||selected?.id||'');
   const historyCache=React.useRef(new Map<string,MovementResponse>());
   const [onlyCumprimento,setOnlyCumprimento]=React.useState(false);
@@ -511,6 +514,9 @@ export function ProcessosCommandCenter(props: Props) {
 
   const activeHistory=history.cnj===selectedCnj?history:null;
   const officialConsulted=!!activeHistory?.data?.success;
+  const sourcesStatus=activeHistory?.data?.sourceStatus;
+  const sourceLabel=sourcesStatus?formatProcessSourcesLabel(sourcesStatus):'Fontes oficiais não consultadas nesta sessão';
+  const datajudPartial=officialConsulted&&sourcesStatus?.datajud!=='confirmed';
   const savedPreview=React.useMemo(()=>selected?savedMovementPreview(selected):[],[selected]);
   const historyEntries:ProcessTimelineEntry[]=officialConsulted
     ? (activeHistory?.data?.entries||[]) : savedPreview;
@@ -527,10 +533,23 @@ export function ProcessosCommandCenter(props: Props) {
     setHistory({cnj,data:previous,loading:true,loadingMore:false,error:''});
     try{
       const result=await fetchProcessosMovementsAction(selectedDbId,cnj,1,true);
-      if(result.success)historyCache.current.set(cnj,result);
+      let visible=result;
+      if(result.success&&previous&&shouldPreservePreviousDataJud(
+        previous.datajudMovements||0,result.sourceStatus?.datajud||'unavailable'
+      )){
+        const oldDataJud=previous.entries.filter(x=>x.source==='DataJud');
+        if(oldDataJud.length){
+          visible={...result,
+            entries:mergeProcessTimelineEntries(result.entries,oldDataJud),
+            warnings:[...new Set([...(result.warnings||[]),
+              'Histórico DataJud anterior preservado nesta sessão; os movimentos antigos não foram revalidados agora.'])],
+          };
+        }
+      }
+      if(visible.success)historyCache.current.set(cnj,visible);
       setHistory(current=>current.cnj===cnj
-        ? {cnj,data:result.success?result:previous,loading:false,loadingMore:false,
-           error:result.success?'':result.message}
+        ? {cnj,data:visible.success?visible:previous,loading:false,loadingMore:false,
+           error:visible.success?'':visible.message}
         : current);
     }catch(error:unknown){
       setHistory(current=>current.cnj===cnj
@@ -1112,7 +1131,7 @@ export function ProcessosCommandCenter(props: Props) {
               ) : null}
 
               {tab === "movements" ? (
-                <Panel title={officialConsulted?"Histórico consultado · DataJud + DJEN":"Resumo salvo · consulta disponível"}>
+                <Panel title={officialConsulted?(datajudPartial?"Histórico parcial · "+sourceLabel:"Histórico consultado · "+sourceLabel):"Resumo salvo · consulta disponível"}>
                   <button type="button"
                     disabled={!selectedCnj||!!activeHistory?.loading}
                     onClick={()=>void consultAllMovementHistory()}
@@ -1122,14 +1141,14 @@ export function ProcessosCommandCenter(props: Props) {
                   </button>
                   <p className="mb-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">
                     {officialConsulted
-                      ? `Consulta realizada em ${fmtTimelineDate(lastOfficialConsultation)} · ${historyEntries.length} registros carregados. Atualize pelo botão para conferir novidades.`
+                      ? `Consulta das fontes disponíveis em ${fmtTimelineDate(lastOfficialConsultation)} · ${historyEntries.length} registros exibidos. ${sourceLabel}.`
                       : 'Exibindo somente os registros salvos na carteira. Use o botão acima para consultar o tribunal e carregar o histórico devolvido pelas fontes oficiais.'}
                   </p>
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
                       {activeHistory?.loading
                         ? 'Consultando fontes oficiais sem utilizar o cache recente…'
-                        : `${historyEntries.length} ${officialConsulted?'registros consultados':'registros salvos'} · ${cumprimentoCount} de cumprimento/execução`}
+                        : `${historyEntries.length} ${officialConsulted?'registros exibidos':'registros salvos'} · ${cumprimentoCount} de cumprimento/execução`}
                     </p>
                   </div>
                   <div className="mb-2 flex flex-wrap gap-1">
@@ -1142,6 +1161,19 @@ export function ProcessosCommandCenter(props: Props) {
                       Cumprimento ({cumprimentoCount})
                     </button>
                   </div>
+                  {datajudPartial&&<div className="mb-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-[10px] text-amber-950 dark:text-amber-100">
+                    <b>Consulta parcial:</b> as publicações DJEN não representam o histórico integral de movimentos do tribunal.
+                    {activeHistory?.data?.entries.some(x=>x.source==='DataJud')&&activeHistory.data?.sourceStatus?.datajud!=='confirmed'&&
+                      <span className="block">Histórico DataJud anterior eventualmente exibido não foi confirmado nesta consulta.</span>}
+                    {officialCourtPortal&&<a href={officialCourtPortal.url} target="_blank" rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 font-bold underline">
+                      <ExternalLink size={12}/> Abrir consulta oficial {officialCourtPortal.label}
+                    </a>}
+                    {selectedCnj.slice(13,16)==='826'&&<a href="https://www.tjsp.jus.br/Processos"
+                      target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-1 font-bold underline">
+                      Consultas TJSP (escolher instância)
+                    </a>}
+                  </div>}
                   {activeHistory?.data?.relatedCnjs?.length ? (
                     <p className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-800 dark:text-emerald-200">
                       Cumprimento vinculado por CNJ cadastrado: {activeHistory.data.relatedCnjs.map(formatCnj).join(' · ')}
@@ -1198,8 +1230,8 @@ export function ProcessosCommandCenter(props: Props) {
                     </button>
                   ):null}
                   <p className="mt-2 text-[9px] leading-relaxed text-slate-500">
-                    Consulta manual: DataJud e DJEN são consultados novamente a cada clique, sem reutilizar o cache recente.
-                    DataJud exibe os movimentos devolvidos; DJEN tem paginação. Atendimentos são registros internos.
+                    Consulta manual: DataJud passa pelo controle oficial compartilhado do Hermes, inclusive pausas por tribunal; quando autorizado, recebe até 45 segundos.
+                    DJEN é consultado independentemente e tem paginação. Atendimentos são registros internos.
                     Cumprimentos com outro CNJ são incluídos apenas com vínculo explícito no cadastro.
                   </p>
                 </Panel>
