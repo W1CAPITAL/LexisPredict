@@ -11,6 +11,7 @@
 import React, { useMemo, useState } from "react";
 import { LegalCase } from "@/lib/case-logic";
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
 import { isSentencaProcedente, isSentencaImprocedente } from "@/lib/merito-detect";
 import { resolveTemNovoAndamento } from "@/lib/novidade";
 import { cn } from "@/lib/utils";
@@ -79,8 +80,7 @@ function isBA(c: LegalCase): boolean {
 }
 
 function isVencidoOperacional(c: LegalCase): boolean {
-  if (isCasoEncerrado(c)) return false;
-  return c.status === "Vencido" || c.status === "Caso Crítico";
+  return isCasoVencido(c);
 }
 
 function pct(n: number, den: number): number {
