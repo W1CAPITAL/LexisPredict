@@ -52,7 +52,7 @@ function attribute(node:any,name:string):string{
 }
 function normalizeMniDateTime(value:string):string{
  const raw=value.trim();
- return /^\\d{4}-\\d{2}-\\d{2}T/.test(raw)&&!/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(raw)?raw+'-03:00':raw;
+ return /^\d{4}-\d{2}-\d{2}T/.test(raw)&&!/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw)?raw+'-03:00':raw;
 }
 function safeMessage(value:unknown):string{
  return String(value||'').replace(/<[^>]*>/g,' ').replace(/[\r\n\t]+/g,' ')
@@ -61,7 +61,7 @@ function safeMessage(value:unknown):string{
 
 function parseMniProcess(xml:string):{success:boolean;message:string;found:boolean;events:TJPRProjudiEvent[]}|null{
  try{
-  const $=cheerio.load(xml,{xmlMode:true};
+  const $=cheerio.load(xml,{xmlMode:true});
   const root=$.root().get(0);
   const fault=firstDescendant(root,'faultstring');
   if(fault)return {success:false,message:nodeText($,fault)||'Falha SOAP do TJPR.',found:false,events:[]};
@@ -117,7 +117,7 @@ function requestBody(cnj:string):string{
 /**
  * Consulta oficial MNI 2.2.2 do TJPR. Não acessa a tela pública do Projudi,
  * não contorna reCAPTCHA e não consulta documentos sigilosos.
- * As credenciais são provisionadas privativamente pelo próprio TJPR.
+ * A consulta pública não exige credenciais, conforme a Resolução TJPR 532-OE/2026.
  */
 export async function fetchTJPRProjudiProcess(cnjRaw:string,options:FetchOptions={}):Promise<TJPRProjudiResult>{
  const digits=String(cnjRaw||'').replace(/\D/g,'');
