@@ -33,7 +33,7 @@ COMMENT ON TABLE public.hermes_tribunal_public_movements IS
 CREATE OR REPLACE FUNCTION public.hermes_claim_tribunal_connector()
 RETURNS TABLE(empresa_id uuid,processo_id bigint,cnj text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public
-AS $
+AS $$
 #variable_conflict use_column
 BEGIN
  RETURN QUERY
