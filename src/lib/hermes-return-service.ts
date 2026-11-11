@@ -219,7 +219,7 @@ export async function reviewHermesCase(input: {
       text:'Data de próximo retorno incompatível com o último atendimento: requer correção no cadastro; não é retorno vencido.'});
   }
   await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
-  if(cnj){try{await persistHermesPortfolioSnapshot(db,row,snapshot);}catch{console.warn('[Hermes] Índice judicial da carteira não atualizado.');}}
+  if(cnj && (snapshot.djenOk||snapshot.datajudOk)){try{await persistHermesPortfolioSnapshot(db,row,snapshot);}catch{console.warn('[Hermes] Índice judicial da carteira não atualizado.');}}
   // Hermes atua como verificador oficial também da pauta; nenhuma mensagem é enviada.
   if (snapshot.djenOk || snapshot.datajudOk) {
     try {
