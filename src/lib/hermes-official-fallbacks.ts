@@ -1,7 +1,8 @@
-/** Mapa de fontes judiciais oficiais para o Hermes. Os portais não constituem APIs.
- * Não automatizar páginas e-SAJ/eproc/PJe, nem atravessar login/captcha/WAF.
- * As APIs programáticas publicamente documentadas usadas pelo Hermes são DJEN
- * e DataJud. A consulta Jus.br requer login; a API Datalake/GeCli requer aprovação.
+/** Mapa de fontes judiciais oficiais para o Hermes.
+ * Não automatizar portais e-SAJ/eproc/PJe/Projudi nem atravessar login/captcha/WAF.
+ * TJPR é a exceção: disponibiliza serviço oficial MNI 2.2.2 para integração,
+ * mas exige credenciais privativas emitidas pelo próprio tribunal.
+ * Jus.br requer login; a API Datalake/GeCli requer aprovação.
  */
 import {getTribunalByCnj} from '@/lib/tribunais-links';
 import {TRIBUNAIS_TJ} from '@/lib/tribunais-links';
@@ -89,7 +90,8 @@ export function getHermesNationalSourcePlan(cnj:unknown):HermesNationalSourcePla
   }));
  return {
   tribunal:alias.toUpperCase(),alias,cnjCode:code,
-  automated:['DJEN','DataJud'],tribunalApiAutomated:false,
+  automated:code==='8.16'?['DJEN','DataJud','TJPR PROJUDI MNI']:['DJEN','DataJud'],
+  tribunalApiAutomated:code==='8.16',tribunalApiAuthRequired:code==='8.16',
   tribunalPortal:tribunalPortal||null,otherPortals,
   jusbr:{url:'https://www.jus.br/',authRequired:true},
   datalake:{applicationUrl:'https://gestao-clientes.pdpj.jus.br/',requiresApproval:true},
