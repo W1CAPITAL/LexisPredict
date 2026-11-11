@@ -15,12 +15,28 @@ export async function GET(){
     // Limpa somente projeções expiradas da empresa autenticada antes da leitura.
     const {error:pruneError}=await db.rpc('prune_expired_audiencias',{p_empresa_id:ctx.empresa_id});
     if(pruneError)throw pruneError;
-    const {data,error}=await db.from('audiencias_monitoradas')
-      .select('id,processo_id,protocolo_ref,cliente,advogado,tribunal,tipo,data_evento,data_fim,hora_local,hora_fim,fuso,modalidade,situacao,fonte,fonte_url,portal_url,meeting_url,evidencia,verificado_em,atualizado_em')
-      .eq('empresa_id',ctx.empresa_id)
-      .order('data_evento',{ascending:true,nullsFirst:false}).limit(800);
-    if(error)throw error;
-    return NextResponse.json({ok:true,items:data||[],consultadoEm:new Date().toISOString()},{headers});
+    const pageSize=1000;
+    const items:Record<string,unknown>[]=[];
+    let totalCount=0;
+    let offset=0;
+    while(true){
+      const {data,error,count}=await db.from('audiencias_monitoradas')
+        .select('id,processo_id,protocolo_ref,cliente,advogado,tribunal,tipo,data_evento,data_fim,hora_local,hora_fim,fuso,modalidade,situacao,fonte,fonte_url,portal_url,meeting_url,evidencia,verificado_em,atualizado_em',{count:'exact'})
+        .eq('empresa_id',ctx.empresa_id)
+        .order('data_evento',{ascending:true,nullsFirst:false})
+        .order('id',{ascending:true})
+        .range(offset,offset+pageSize-1);
+      if(error)throw error;
+      const page=(data||[]) as Record<string,unknown>[];
+      if(offset===0)totalCount=count??page.length;
+      items.push(...page);
+      if(page.length<pageSize||items.length>=totalCount)break;
+      offset+=page.length;
+    }
+    return NextResponse.json({
+      ok:true,scope:'empresa',items,totalCount,hasMore:items.length<totalCount,
+      consultadoEm:new Date().toISOString()
+    },{headers});
   }catch(error){
     console.error('[audiencias] list',error instanceof Error?error.message:'erro');
     return NextResponse.json({ok:false,error:'Agenda de audiências indisponível'},{status:503,headers});
