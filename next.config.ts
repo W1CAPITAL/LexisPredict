@@ -69,6 +69,9 @@ const nextConfig: NextConfig = {
   // Preserve the external Hermes URLs without creating additional serverless functions.
   // The existing returns route enforces supervisor session or the scheduler bearer token.
   rewrites: async () => [
+    // Estas duas APIs eram funções avulsas da raiz api/; preserva contratos.
+    { source: "/api/bacen-sgs", destination: "/api/service-gateway?service=bacen" },
+    { source: "/api/inbound-lead", destination: "/api/service-gateway?service=inbound" },
     // Consolidar funções diagnósticas preservando URLs e formatos legados (Hobby 12 functions).
     { source: "/api/crm/health", destination: "/api/health?scope=crm" },
     { source: "/api/commercial/health", destination: "/api/health?scope=commercial" },
