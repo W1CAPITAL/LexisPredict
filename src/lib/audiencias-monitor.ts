@@ -41,7 +41,7 @@ function dates(text: string): Array<{index: number; date: string; raw: string}> 
 function clock(text: string, index: number, before = false): string | null {
   const segment = before ? text.slice(Math.max(0, index - 65), index) : text.slice(index, index + 75);
   // "às 13:00", "às 14h00min", "Horário: 09:00", never arbitrary year or CNJ numbers.
-  const all = Array.from(segment.matchAll(/(?:às?|hor[aá]rio\s*:\s*|horas?\s*:\s*)\s*(\d{1,2})(?:[:h](\d{2}))?/gi));
+  const all = Array.from(segment.matchAll(/(?:às?|hor[aá]rio\s*:\s*|horas?\s*:\s*)\s*(\d{1,2})(?:\s*(?:h\s*:?\s*|:\s*)(\d{2})(?:\s*min(?:utos)?)?)?/gi));
   const m = before ? all[all.length - 1] : all[0];
   if (!m) return null;
   const h = Number(m[1]), mm = Number(m[2] || 0);
