@@ -211,7 +211,7 @@ async function persistResult(
       tribunalApiSource: snapshot.courtApiSource || null,
       tribunalApiAttempted: snapshot.courtApiAttempted,
       origin: 'official-public-apis-and-authorized-court-mni',
-      sourceMode:snapshot.courtApiOk&&snapshot.djenOk?'djen+tribunal-api':classifyHermesOfficialFallback(result.datajudOk,result.djenOk),
+      sourceMode:snapshot.courtApiOk?(snapshot.djenOk?'djen+tribunal-api':'tribunal-api-only'):classifyHermesOfficialFallback(result.datajudOk,result.djenOk),
       tribunal:getHermesNationalSourcePlan(cnj)?.tribunal||null,
       officialPortal:getHermesNationalSourcePlan(cnj)?.tribunalPortal?.url||'https://www.jus.br/',
       tribunalApiAutomated:getHermesNationalSourcePlan(cnj)?.tribunalApiAutomated===true,
