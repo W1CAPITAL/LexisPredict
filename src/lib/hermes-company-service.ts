@@ -199,3 +199,42 @@ export async function getHermesStalledSummaries(empresaId:string):Promise<Hermes
   return rank(a.state)-rank(b.state)||Number(b.daysWithoutMovement||0)-Number(a.daysWithoutMovement||0);
  }).slice(0,30);
 }
+
+
+/** Evidência judicial do último scan, filtrada por empresa antes de expor à UI. */
+export type HermesPortfolioCaseSummary={
+ processId:number;client:string;cnj:string;
+ state:'scanning'|'ready'|'partial'|'unavailable'|'skipped';
+ checkedAt:string|null;datajudOk:boolean;djenOk:boolean;
+ findings:Record<string,any>;events:Array<{source:'DataJud'|'DJEN';at:string;text:string;url:string|null}>;
+ sourceErrors:Record<string,string|null>;
+};
+export async function getHermesPortfolioSummaries(
+ empresaId:string,limit=35
+):Promise<HermesPortfolioCaseSummary[]>{
+ const db=await getSupabaseAdmin();
+ const {data:scans,error}=await db.from('hermes_portfolio_scans')
+  .select('processo_id,state,checked_at,datajud_ok,djen_ok,findings,events,source_errors')
+  .eq('empresa_id',empresaId).order('checked_at',{ascending:false,nullsFirst:false})
+  .limit(Math.max(1,Math.min(limit,100)));
+ if(error)throw new Error('Dossiês Hermes indisponíveis.');
+ if(!scans?.length)return [];
+ const ids=scans.map(s=>Number(s.processo_id)).filter(Number.isSafeInteger);
+ const {data:rows,error:casesError}=await db.from('processos')
+  .select('id,cliente,protocolo_ref').eq('empresa_id',empresaId).in('id',ids);
+ if(casesError)throw new Error('Não foi possível consultar processos autorizados.');
+ const byId=new Map((rows||[]).map(p=>[Number(p.id),p]));
+ return scans.flatMap(s=>{
+  const row=byId.get(Number(s.processo_id));
+  if(!row)return [];
+  return [{
+   processId:Number(s.processo_id),client:String(row.cliente||'Cliente').slice(0,100),
+   cnj:String(row.protocolo_ref||'').slice(0,35),
+   state:s.state as HermesPortfolioCaseSummary['state'],
+   checkedAt:s.checked_at||null,datajudOk:s.datajud_ok===true,djenOk:s.djen_ok===true,
+   findings:(s.findings&&typeof s.findings==='object'&&!Array.isArray(s.findings))?s.findings:{},
+   events:Array.isArray(s.events)?s.events.slice(0,60):[],
+   sourceErrors:(s.source_errors&&typeof s.source_errors==='object')?s.source_errors:{},
+  }];
+ });
+}
