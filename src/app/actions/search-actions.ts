@@ -70,7 +70,7 @@ export async function searchProcessesByCpfAction(documento: string, onlyBA = fal
         c.cpf,c.cnpj,c.documento,c.numero_documento,c.numeroDocumentoPrincipal,
         dados.cpf,dados.cnpj,dados.documento,dados.numeroDocumento,dados.numeroDocumentoPrincipal,
         c.observacao,dados.observacao,c.cliente,c.cliente_nome,c.telefone,dados.telefone,
-        c.protocolo,c.protocolo_ref,
+        c.protocolo,c.protocolo_ref,JSON.stringify(c.partes||dados.partes||[]),
       ].filter(Boolean).join(' '));
       if(!blob.includes(digits))continue;
       const classe=String(c.situacao||c.evento_tipo||c.classe||dados.situacao||'');
@@ -107,15 +107,25 @@ export async function searchProcessesByNomeAction(nome: string): Promise<{
     for(const raw of cases||[]){
       const c=raw as any;
       const dados=c.dados&&typeof c.dados==='object'?c.dados:{};
-      const cliente=String(c.cliente||c.cliente_nome||dados.cliente||dados.nomeParte||'').trim();
-      const normalized=cliente.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-      if(!normalized||(!normalized.includes(qUp)&&!qUp.includes(normalized.slice(0,12))))continue;
+      const parties=Array.isArray(c.partes)?c.partes:Array.isArray(dados.partes)?dados.partes:[];
+      const active=Array.isArray(c.poloAtivo)?c.poloAtivo:Array.isArray(dados.poloAtivo)?dados.poloAtivo:[];
+      const passive=Array.isArray(c.poloPassivo)?c.poloPassivo:Array.isArray(dados.poloPassivo)?dados.poloPassivo:[];
+      const names=[
+        c.cliente,c.cliente_nome,dados.cliente,dados.nomeParte,
+        ...parties.map((p:any)=>p?.nome||p?.razaoSocial||p?.pessoa?.nome),
+        ...active,...passive,
+      ].filter((v):v is string=>typeof v==='string'&&v.trim().length>0);
+      const normalizedNames=names.map(name=>name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
+      const tokens=qUp.split(/\s+/).filter(token=>token.length>2);
+      const matched=normalizedNames.some(name=>tokens.every(token=>name.includes(token)));
+      if(!matched)continue;
+      const cliente=String(c.cliente||c.cliente_nome||dados.cliente||dados.nomeParte||names[0]||'').trim();
       const cnj=String(c.protocolo||c.protocolo_ref||c.numeroProcesso||'').trim();
       hits.push({
         origem:'carteira',numeroProcesso:cnj||'CNJ não cadastrado',processoId:Number(c.id)||undefined,
-        classe:c.situacao||c.evento_tipo||null,poloAtivo:[cliente].filter(Boolean),
-        poloPassivo:[],tribunal:c.tribunal||null,cliente:cliente||undefined,
-        aviso:cnj?'Correspondência encontrada na carteira local.':'Cadastro encontrado, mas sem CNJ vinculado.',
+        classe:c.situacao||c.evento_tipo||null,poloAtivo:[...new Set([...active,cliente].filter(Boolean))],
+        poloPassivo:[...new Set(passive)],tribunal:c.tribunal||null,cliente:cliente||undefined,
+        aviso:cnj?'Correspondência encontrada nos dados locais da carteira.':'Cadastro encontrado, mas sem CNJ vinculado.',
       });
     }
     const finalList=dedupeHits(hits);
