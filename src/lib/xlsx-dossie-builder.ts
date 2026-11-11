@@ -90,7 +90,16 @@ export function normalizeCase(r: DossieCase) {
   const proximo = String(r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || dados.proximoPrazo || '').trim();
 
   const dsr = diasSemRetorno(retorno || null);
-  const ativo = !isEncerradoStatus(status) && !isEncerradoStatus(String(r.status_interno || dados.status_interno || ''));
+  const caseState = {
+    ...r,
+    status,
+    status_interno: r.status_interno || r.statusInterno || dados.status_interno,
+    situacao: r.situacao || dados.situacao,
+    statusManual: r.statusManual || dados.statusManual,
+    dados,
+  };
+  const encerradoCarteira = isCasoEncerrado(caseState);
+  const ativo = !encerradoCarteira;
   const retornoLongo = ativo && (dsr === null || dsr >= 30);
   const situacaoRetorno = !ativo ? 'ENCERRADO — NÃO APLICÁVEL' :
     dsr === null ? 'NUNCA REGISTRADO' :
@@ -129,7 +138,7 @@ export function normalizeCase(r: DossieCase) {
       r.tem_novo_andamento || r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao || dados.tem_novo_andamento
     ),
     encerrado_tribunal: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
-    encerrado_carteira: sim(isEncerradoStatus(r.status) || isEncerradoStatus(r.situacao) || isEncerradoStatus(dados.situacao)),
+    encerrado_carteira: sim(encerradoCarteira),
     /** @deprecated alias: preferir encerrado_tribunal */
     encerrado: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
     ba: sim(r.indicio_busca_apreensao || dados.indicio_busca_apreensao),
