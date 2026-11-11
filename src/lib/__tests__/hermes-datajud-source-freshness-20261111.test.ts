@@ -56,4 +56,14 @@ describe('Hermes: origem temporal DataJud e falhas parciais',()=>{
   expect(sql).not.toContain('grant select');
   expect(sql).not.toContain('disable row level security');
  });
+ it('painel Hermes separa data da consulta e data informada pelo indexador CNJ',()=>{
+  const svc=read('src/lib/hermes-company-service.ts');
+  const ui=read('src/components/hermes/hermes-portfolio-monitoring.tsx');
+  expect(svc).toContain('datajudIndexedAt');
+  expect(svc).toContain('datajudUpdatedAt');
+  expect(svc).toContain('datajud_indexed_at');
+  expect(svc).toContain('datajud_updated_at');
+  expect(ui).toContain('Indexado no DataJud');
+  expect(ui).toContain('Atualização declarada pelo CNJ');
+ });
 });
