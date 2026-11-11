@@ -10,7 +10,7 @@ export type ProcessTimelineEntry = {
   date: string;
   label: string;
   detail: string;
-  source: 'DataJud' | 'DJEN' | 'Atendimento' | 'Cadastro';
+  source: 'DataJud' | 'DJEN' | 'Tribunal' | 'Atendimento' | 'Cadastro';
   phase: 'cumprimento' | 'conhecimento' | 'operacional';
   link?: string;
 };
