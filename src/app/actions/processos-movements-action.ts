@@ -25,6 +25,7 @@ export type ProcessMovementsResult = {
   warnings:string[];
   consultadoEm?:string;
   datajudMovements?:number;
+  historicDataJudMovements?:number;
   djenPublications?:number;
   sourceStatus?:ProcessSourcesStatus;
 };
