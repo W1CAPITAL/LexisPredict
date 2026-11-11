@@ -1,6 +1,6 @@
 import React from 'react';
 import {Document,Page,View,Text,Font,StyleSheet} from '@react-pdf/renderer';
-import type {HermesOfficeDailyRow} from '@/lib/hermes-company-service';
+import type {HermesOfficeDailyRow,HermesPortfolioCaseSummary} from '@/lib/hermes-company-service';
 import type {HermesCaseHealth} from '@/lib/hermes-company-intelligence';
 import type {HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import {buildHermesPdfSections} from '@/lib/report/hermes-report-sections';
@@ -92,11 +92,11 @@ function Body({item}:{item:ReportSection}){
   {v.values.map((n,j)=><Text key={j} style={s.note}>{clean(n.label,100)}: {reportValue(n.value)}</Text>)}
  </View>)}</View>;
 }
-export function HermesLegalPdf({row,diagnostics,cases=[]}:{
- row:HermesOfficeDailyRow|null;diagnostics:HermesPortfolioDiagnostics|null;cases?:HermesCaseHealth[];
+export function HermesLegalPdf({row,diagnostics,cases=[],portfolioScans=[]}:{
+ row:HermesOfficeDailyRow|null;diagnostics:HermesPortfolioDiagnostics|null;cases?:HermesCaseHealth[];portfolioScans?:HermesPortfolioCaseSummary[];
 }){
  const day=diagnostics?.day||row?.day||new Date().toISOString().slice(0,10);
- const sections=buildHermesPdfSections(row,cases,diagnostics);
+ const sections=buildHermesPdfSections(row,cases,diagnostics,portfolioScans);
  const validOverdue=diagnostics?.overdueReturns??row?.metrics?.overdue??0;
  const invalid=diagnostics?.invalidReturnDates??0;
  return <Document title={'Hermes - Relatorio juridico operacional - '+day} author="LexisPredict"
@@ -106,7 +106,7 @@ export function HermesLegalPdf({row,diagnostics,cases=[]}:{
    <Text style={s.eyebrow}>GESTÃO DE CARTEIRA  /  DOCUMENTO EXECUTIVO</Text>
    <Text style={s.title}>Relatório de acompanhamento e integridade operacional</Text>
    <View style={s.accentRule}/>
-   <Text style={s.lead}>Avaliação administrativa da carteira, revisões DJEN/DataJud e rotinas de retorno. Elaborada apenas com dados registrados, datada e sujeita à confirmação das decisões e dos documentos oficiais.</Text>
+   <Text style={s.lead}>Carteira, retornos e scanner judicial de todos os processos com CNJ. Movimentos DataJud, publicações DJEN, audiências e indícios jurídicos são atribuídos às respectivas fontes. O inteiro teor dos autos deve ser conferido quando necessário.</Text>
    <View style={s.statGrid}>
     {[
      ['Processos abertos',row?.metrics?.active??diagnostics?.active??0],

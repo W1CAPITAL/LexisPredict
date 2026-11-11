@@ -262,25 +262,16 @@ export async function enrichProcessTimelineAction(cnj: string) {
     const djen = await fetchDjenComunicacoes(protocolo);
     if (djen?.success && djen.items?.length) {
       comunicacoes = djen.items;
-      const fromDjen = djen.items.map((item: any) => ({
-        nome: item.tipoComunicacao || 'PUBLICAÇÃO DJEN',
-        complemento: String(item.texto || '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 500),
-        dataHora: item.data_disponibilizacao,
-        fonte: 'djen',
-      }));
-      movimentos = [...movimentos, ...fromDjen];
-      fonte = movimentos.some((m) => m.fonte === 'datajud') ? 'ambos' : 'djen';
-      if (fonte === 'djen') message = 'DataJud sem movimentos — timeline via DJEN.';
+      // Comunicações DJEN são publicações, não movimentos do processo.
+      // A tela Veredito exibe as fontes em blocos independentes.
+      fonte = movimentos.length ? 'ambos' : 'djen';
+      if (fonte === 'djen') message = 'Publicações consultadas no DJEN. Movimentações do tribunal não foram confirmadas pelo DataJud.';
     }
   } catch {
     //
   }
 
-  if (!movimentos.length) {
+  if (!movimentos.length && !comunicacoes.length) {
     return {
       success: false,
       movimentos: [],
@@ -296,6 +287,6 @@ export async function enrichProcessTimelineAction(cnj: string) {
     movimentos,
     comunicacoes,
     fonte,
-    message: message || 'Timeline carregada.',
+    message: message || 'Histórico DataJud e publicações DJEN separados. Não representam necessariamente os autos completos.',
   };
 }

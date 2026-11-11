@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { HermesCaseHealth } from "@/lib/hermes-company-intelligence";
 import {parseHermesMeetingTranscript,type HermesOfficeIntelligence} from "@/lib/hermes-company-intelligence";
-import type { HermesOfficeDailyRow,HermesRebuildRun,HermesStalledSummary } from "@/lib/hermes-company-service";
+import type { HermesOfficeDailyRow,HermesRebuildRun,HermesStalledSummary,HermesPortfolioCaseSummary } from "@/lib/hermes-company-service";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, Bot, Boxes, ChevronLeft, ChevronRight,
@@ -21,6 +21,7 @@ import {HermesExport} from "@/components/hermes/hermes-export";
 import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import { HermesCompanyPanel } from "@/components/hermes/hermes-company-panel";
 import {HermesStalledMonitoring} from "@/components/hermes/hermes-stalled-monitoring";
+import {HermesPortfolioMonitoring} from '@/components/hermes/hermes-portfolio-monitoring';
 import "./hermes-office.css";
 
 type ViewMode = "3d" | "2d";
@@ -36,6 +37,7 @@ export default function Hermes3DLexisPage() {
   const [officeRecord, setOfficeRecord] = useState<HermesOfficeDailyRow|null>(null);
   const [officeCases,setOfficeCases] = useState<HermesCaseHealth[]>([]);
   const [stalledCases,setStalledCases] = useState<HermesStalledSummary[]>([]);
+  const [portfolioScans,setPortfolioScans] = useState<HermesPortfolioCaseSummary[]>([]);
   const [officeEvents,setOfficeEvents] = useState<HermesOfficeEvent[]>([]);
   const [rebuildRuns,setRebuildRuns]=useState<HermesRebuildRun[]>([]);
   const [diagnostics,setDiagnostics]=useState<HermesPortfolioDiagnostics|null>(null);
@@ -50,7 +52,7 @@ export default function Hermes3DLexisPage() {
       const res = await fetch('/api/hermes-office',{cache:'no-store',credentials:'same-origin',signal});
       const data = await res.json();
       if(!res.ok||!data.ok)throw Error(data.error||'Não foi possível atualizar o escritório.');
-      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setStalledCases(Array.isArray(data.stalled)?data.stalled:[]);setOfficeEvents(Array.isArray(data.events)?data.events:[]);setRebuildRuns(Array.isArray(data.rebuild)?data.rebuild:[]);setDiagnostics(data.diagnostics||null);setOfficeError("");}
+      if(!signal?.aborted){setOffice(data.intelligence||null);setOfficeRecord(data.record||null);setOfficeCases(Array.isArray(data.cases)?data.cases:[]);setStalledCases(Array.isArray(data.stalled)?data.stalled:[]);setPortfolioScans(Array.isArray(data.portfolioScans)?data.portfolioScans:[]);setOfficeEvents(Array.isArray(data.events)?data.events:[]);setRebuildRuns(Array.isArray(data.rebuild)?data.rebuild:[]);setDiagnostics(data.diagnostics||null);setOfficeError("");}
     }catch(e){
       if(!signal?.aborted)setOfficeError(e instanceof Error?e.message:'Acesso temporariamente indisponível.');
     }
@@ -287,6 +289,7 @@ export default function Hermes3DLexisPage() {
           <p className="mt-2 text-xs text-[#cbb8c4]">Esta é uma reprodução dos achados salvos; não significa que a IA esteja processando agora.</p>
         </section>}
         <HermesActivityLog events={officeEvents} selectedSector={selectedId} onSelect={setSelectedId}/>
+        <HermesPortfolioMonitoring items={portfolioScans}/>
         <HermesStalledMonitoring items={stalledCases}/>
         {showDiagnostics&&<HermesPortfolioReport data={diagnostics} compact/>}
         <HermesRebuildPanel runs={rebuildRuns} onRefresh={()=>refreshOffice()}/>

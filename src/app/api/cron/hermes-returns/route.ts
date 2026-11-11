@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import React from 'react';
 import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
-import { runHermesDueReviewBatch,runHermesStalledReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
+import { runHermesDueReviewBatch,runHermesStalledReviewBatch,runHermesPortfolioScanBatch,reviewHermesCase } from '@/lib/hermes-return-service';
 import {
-  getHermesCompanyDaily, getHermesCaseHealth, getHermesStalledSummaries, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
+  getHermesCompanyDaily, getHermesCaseHealth, getHermesStalledSummaries, getHermesPortfolioSummaries, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
 import { buildHermesOfficeIntelligence } from '@/lib/hermes-company-intelligence';
 
@@ -34,10 +34,11 @@ async function getOfficePanel() {
     { ok: false, error: 'Acesso restrito à supervisão.' }, { status: 403, headers: privateHeaders },
   );
   try {
-    const [record, cases, stalled, events, rebuild, diagnostics] = await Promise.all([
+    const [record, cases, stalled, portfolioScans, events, rebuild, diagnostics] = await Promise.all([
       getHermesCompanyDaily(String(ctx.empresa_id)),
       getHermesCaseHealth(String(ctx.empresa_id)),
       getHermesStalledSummaries(String(ctx.empresa_id)),
+      getHermesPortfolioSummaries(String(ctx.empresa_id)),
       getHermesOfficeEvents(String(ctx.empresa_id)),
       getHermesRebuildRuns(String(ctx.empresa_id)),
       getHermesPortfolioDiagnostics(String(ctx.empresa_id)),
@@ -47,6 +48,7 @@ async function getOfficePanel() {
       record,
       cases,
       stalled,
+      portfolioScans,
       events,
       rebuild,
       diagnostics,
@@ -65,10 +67,11 @@ async function getOfficePdf(){
   {ok:false,error:'Exportação restrita à supervisão.'},{status:403,headers:privateHeaders});
  try{
   const company=String(ctx.empresa_id);
-  const [record,diagnostics,cases]=await Promise.all([
+  const [record,diagnostics,cases,portfolioScans]=await Promise.all([
     getHermesCompanyDaily(company),
     getHermesPortfolioDiagnostics(company),
     getHermesCaseHealth(company),
+    getHermesPortfolioSummaries(company,30),
   ]);
   if(!record&&!diagnostics)return NextResponse.json(
     {ok:false,error:'Nenhum dado consolidado disponível para o PDF.'},{status:404,headers:privateHeaders});
@@ -76,7 +79,7 @@ async function getOfficePdf(){
     import('@/components/pdf/hermes-legal-pdf'),
     import('@react-pdf/renderer'),
   ]);
-  const element=React.createElement(HermesLegalPdf,{row:record,diagnostics,cases});
+  const element=React.createElement(HermesLegalPdf,{row:record,diagnostics,cases,portfolioScans});
   const buffer=await renderToBuffer(element as unknown as React.ReactElement<import('@react-pdf/renderer').DocumentProps>);
   return new Response(new Uint8Array(buffer),{headers:{
     'Cache-Control':'private, no-store','Content-Type':'application/pdf',
@@ -179,6 +182,16 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   if (mode === 'meeting') return scheduledOfficeMeeting();
+  // Fonte oficial da carteira inteira, independente de retorno e de silêncio processual.
+  if (mode === 'portfolio') {
+    try{
+      const result=await runHermesPortfolioScanBatch();
+      return NextResponse.json({ok:true,...result},{headers:{'Cache-Control':'no-store'}});
+    }catch(e){
+      console.error('[Hermes carteira] Falha no scanner',e instanceof Error?e.message:'erro');
+      return NextResponse.json({ok:false,error:'Consulta judicial da carteira indisponível.'},{status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   // Same authenticated Vercel function: independent monitor cannot starve while due returns are pending.
   if (mode === 'stalled') {
     try {
