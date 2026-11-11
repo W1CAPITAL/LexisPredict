@@ -3,7 +3,9 @@
  * Scanner antigo continua intacto; novos callers podem usar isto.
  */
 import { fetchResilient } from './http-resilient';
-import { isDataJudUseAuthorized, resolveCurrentDataJudKey, resolveDataJudAlias } from './datajud';
+import {isDataJudUseAuthorized} from './datajud-policy';
+import {resolveDataJudAlias} from './datajud-aliases';
+import {resolveCurrentDataJudKey} from './datajud';
 
 export async function probeDataJudHost(cnjDigits: string): Promise<{
   ok: boolean;
