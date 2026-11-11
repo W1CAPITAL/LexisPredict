@@ -131,5 +131,5 @@ export function buildHermesReturnReview(input: Input, snapshot: HermesCourtSnaps
   }
   return { state, priorityScore, priorityLabel, highlights,
     messageDraft, suggestedNextReturn: nextDay(today, urgent ? 25 : 30),
-    djenOk: !!snapshot.djenOk, datajudOk: !!snapshot.datajudOk };
+    djenOk: !!snapshot.djenOk, datajudOk: !!snapshot.datajudOk, courtApiOk: snapshot.courtApiOk===true };
 }
