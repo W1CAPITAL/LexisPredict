@@ -26,7 +26,7 @@ const OVERRIDES:Record<string,OfficialCourtPortal>={
  '5.02':{label:'TRT2 · Processo Judicial Eletrônico',url:'https://ww2.trt2.jus.br/servicos/acesso-online/processo-judicial-eletronico-pje/page',scope:'Selecione a consulta pública e a instância.'},
  '5.03':{label:'TRT3 · Processo Judicial Eletrônico',url:'https://portal.trt3.jus.br/internet/servicos/pje',scope:'Portal oficial; consulta automatizada privada em massa não é autorizada.'},
  '4.03':{label:'TRF3 · Consulta Processual',url:'https://www.trf3.jus.br/',scope:'Escolha Justiça Federal de São Paulo, MS ou TRF3 e a instância.'},
- '4.05':{label:'TRF5 · Portal Oficial',url:'https://www.trf5.jus.br/',scope:'Selecione a opção de consulta processual e a instância.'},
+ '4.05':{label:'TRF5 · Consulta Processual',url:'https://open.trf5.jus.br/index.php/consulta-processual-fisico-e-eletronico',scope:'Selecione o sistema processual adequado (PJe ou físico) e a instância.'},
  '2.00':{label:'STJ · Consulta Processual',url:'https://www.stj.jus.br/',scope:'Pesquisa pública oficial; processos restritos dependem de credenciais.'},
  '2.01':{label:'STJ · Consulta Processual',url:'https://www.stj.jus.br/',scope:'Pesquisa pública oficial; processos restritos dependem de credenciais.'},
  '3.00':{label:'TST · Portal Oficial',url:'https://www.tst.jus.br/',scope:'Selecione consulta processual pública.'},
