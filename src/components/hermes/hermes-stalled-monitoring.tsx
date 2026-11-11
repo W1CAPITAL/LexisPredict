@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import {Activity,Clock3,ExternalLink,ShieldAlert} from 'lucide-react';
 import type {HermesStalledSummary} from '@/lib/hermes-company-service';
+import {resolveOfficialCourtPortal,OFFICIAL_JUSBR_PORTAL,getHermesNationalSourcePlan} from '@/lib/hermes-official-fallbacks';
 
 const statusLabel:Record<HermesStalledSummary['state'],string>={
  scanning:'Consulta oficial em andamento',
- confirmed_idle:'Sem movimentação recente nas fontes verificadas',
+ confirmed_idle:'Sem movimentação DataJud recente; DJEN consultado',
  no_dated_movement:'Consulta concluída, sem data de movimento recuperável',
  partial:'Consulta parcial · fonte pendente',
  unavailable:'Consulta indisponível',
@@ -39,9 +40,10 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
      <span className="rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold text-[#f3d9e5]">{statusLabel[item.state]}</span>
     </div>
     <p className="mt-2 text-xs text-[#e7d4df]">
-     Última movimentação identificada: {date(item.lastMovementAt)}
+     Última movimentação DataJud conhecida: {date(item.lastMovementAt)}
      {item.daysWithoutMovement!==null?` · ${item.daysWithoutMovement} dia(s)`:''}
     </p>
+    {item.sourceErrors.ultimaPublicacaoDjen&&<p className="mt-1 text-xs text-[#e7d4df]">Última publicação DJEN encontrada: {date(item.sourceErrors.ultimaPublicacaoDjen)}</p>}
     <p className="mt-1 flex items-center gap-2 text-xs text-[#e7d4df]">
      <Clock3 size={13}/> Verificado: {date(item.checkedAt)}
     </p>
@@ -52,6 +54,12 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
     {!item.datajudOk&&item.sourceErrors.datajud&&<p className="mt-2 rounded-lg border border-[#e4bed0]/20 bg-black/15 px-3 py-2 text-xs leading-relaxed text-[#f0d4e0]">
      DataJud: {item.sourceErrors.datajud}
     </p>}
+    {item.sourceErrors.fonteAlternativa&&<p className="mt-2 rounded-lg border border-[#bb90a5]/25 bg-white/5 p-2 text-xs text-[#f0d7e3]">{item.sourceErrors.fonteAlternativa}</p>}
+    <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold text-[#f4d2e3]">
+     {resolveOfficialCourtPortal(item.cnj)&&<a href={resolveOfficialCourtPortal(item.cnj)!.url} target="_blank" rel="noopener noreferrer" className="underline">Consultar {resolveOfficialCourtPortal(item.cnj)!.label}</a>}
+     {getHermesNationalSourcePlan(item.cnj)?.otherPortals.map(p=><a key={p.url} href={p.url} target="_blank" rel="noopener noreferrer" className="underline">{p.label}</a>)}
+     <a href={OFFICIAL_JUSBR_PORTAL} target="_blank" rel="noopener noreferrer" className="underline">Jus.br · consulta unificada com login</a>
+    </div>
     {(item.state==='partial'||item.state==='unavailable')&&<p className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-[#e9c4c6]">
      <ShieldAlert size={14} className="mt-0.5 shrink-0"/> Revisão incompleta: a ausência de resultado não comprova processo parado.
     </p>}
