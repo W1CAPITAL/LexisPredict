@@ -6,6 +6,7 @@
  */
 
 import { LegalCase, isCasoEncerrado } from "./case-logic";
+import { isCasoVencido } from "./vencimentos";
 
 export interface ScoreDetail {
   protocolo: string;
@@ -219,7 +220,7 @@ export function calcularScoreAssessor(casos: LegalCase[]): ScoreResult {
     }
 
     // --- PENALIDADES OPERACIONAIS ---
-    if ((c.status === 'Vencido' || c.status === 'Caso Crítico') && !isClientFault) {
+    if (isCasoVencido(c) && !isClientFault) {
       const p = -80;
       totalPoints += p;
       result.pontos.push({
