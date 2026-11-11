@@ -192,7 +192,7 @@ async function obtainCourtSnapshot(cnj:string,lastReturn:string|null,manual=fals
 async function persistResult(
   db: Awaited<ReturnType<typeof getSupabaseAdmin>>,
   row: ProcessRow, due: string,
-  result: ReturnType<typeof buildHermesReturnReview>, cnj: string,sourceErrors:Record<string,string|null>,
+  result: ReturnType<typeof buildHermesReturnReview>, cnj: string,snapshot:CourtSnapshotWithDiagnostic,
 ) {
   const now = new Date().toISOString();
   const { error } = await db.from('hermes_return_reviews').upsert({
@@ -206,12 +206,16 @@ async function persistResult(
       cnj, checkedAt: now,
       djen: result.djenOk ? 'consultado' : 'indisponivel',
       datajud: result.datajudOk ? 'consultado' : 'indisponivel',
-      origin: 'official-public-apis',
+      tribunalApi: snapshot.courtApiOk ? 'consultado' : snapshot.courtApiAttempted ? 'indisponivel' : 'nao_acionado',
+      tribunalApiOk: snapshot.courtApiOk,
+      tribunalApiSource: snapshot.courtApiSource || null,
+      tribunalApiAttempted: snapshot.courtApiAttempted,
+      origin: 'official-public-apis-and-authorized-court-mni',
       sourceMode:classifyHermesOfficialFallback(result.datajudOk,result.djenOk),
       tribunal:getHermesNationalSourcePlan(cnj)?.tribunal||null,
       officialPortal:getHermesNationalSourcePlan(cnj)?.tribunalPortal?.url||'https://www.jus.br/',
-      tribunalApiAutomated:false,
-      sourceErrors,
+      tribunalApiAutomated:getHermesNationalSourcePlan(cnj)?.tribunalApiAutomated===true,
+      sourceErrors:snapshot.sourceErrors,
     },
   }, { onConflict: 'empresa_id,processo_id,due_on' });
   if (error) throw new Error('Falha ao registrar revisão judicial: ' + error.message);
@@ -234,8 +238,8 @@ export async function reviewHermesCase(input: {
   const cnj = normalizedCnj(row.protocolo_ref || row.dados?.protocolo);
   const name = row.cliente || String(row.dados?.cliente || '');
   const manual=input.mode==='manual';
-  let snapshot:CourtSnapshotWithDiagnostic={ djenOk:false,datajudOk:false,events:[],
-    sourceErrors:{djen:'Consulta não executada.',datajud:'Consulta não executada.',fonteAlternativa:null} };
+  let snapshot:CourtSnapshotWithDiagnostic={ djenOk:false,datajudOk:false,events:[],courtApiOk:false,courtApiAttempted:false,
+    sourceErrors:{djen:'Consulta não executada.',datajud:'Consulta não executada.',projudi:null,fonteAlternativa:null} };
   if (cnj && !isCasoEncerrado(row)) snapshot = await obtainCourtSnapshot(cnj, row.ultimo_retorno,manual);
   const result = buildHermesReturnReview({
     cliente: name, protocolo: row.protocolo_ref || cnj,
@@ -255,14 +259,14 @@ export async function reviewHermesCase(input: {
     result.highlights.unshift({source:'Sistema',date:null,kind:'gap',url:null,
       text:'Data de próximo retorno incompatível com o último atendimento: requer correção no cadastro; não é retorno vencido.'});
   }
-  await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
-  if(cnj && (snapshot.djenOk||snapshot.datajudOk)){try{await persistHermesPortfolioSnapshot(db,row,snapshot);}catch{console.warn('[Hermes] Índice judicial da carteira não atualizado.');}}
+  await persistResult(db, row, due, result, cnj,snapshot);
+  if(cnj && (snapshot.djenOk||snapshot.datajudOk||snapshot.courtApiOk)){try{await persistHermesPortfolioSnapshot(db,row,snapshot);}catch{console.warn('[Hermes] Índice judicial da carteira não atualizado.');}}
   // Hermes atua como verificador oficial também da pauta; nenhuma mensagem é enviada.
-  if (snapshot.djenOk || snapshot.datajudOk) {
+  if (snapshot.djenOk || snapshot.datajudOk || snapshot.courtApiOk) {
     try {
       const { atualizarAudienciasDeConsulta } = await import('@/lib/audiencias-service');
       const fontes = snapshot.events.map((event) => ({
-        source: event.source === 'DJEN' ? 'DJEN' as const : 'DataJud' as const,
+        source: event.source,
         text: event.text, url: event.url, publishedAt: event.at,
       }));
       const aud = await atualizarAudienciasDeConsulta({
@@ -392,7 +396,10 @@ export async function persistHermesPortfolioSnapshot(
  const {error}=await db.from('hermes_portfolio_scans').upsert({
   empresa_id:row.empresa_id,processo_id:row.id,state,
   checked_at:now,attempted_at:now,datajud_ok:snapshot.datajudOk,djen_ok:snapshot.djenOk,
-  last_datajud_movement_at:findings.latestCourtMovement,
+  tribunal_api_ok:snapshot.courtApiOk,tribunal_api_source:snapshot.courtApiSource||null,
+  tribunal_api_checked_at:snapshot.courtApiAttempted?now:null,
+  last_court_movement_at:findings.latestCourtMovement,
+  last_datajud_movement_at:(snapshot.events.filter(e=>e.source==='DataJud').map(e=>validReturnDay(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null),
   last_djen_publication_at:findings.latestDjenPublication,
   source_errors:snapshot.sourceErrors,events,findings,
  },{onConflict:'empresa_id,processo_id'});
@@ -439,7 +446,7 @@ export async function runHermesPortfolioScanBatch(){
    const snapshot=await obtainCourtSnapshot(cnj,null,false);
    const output=await persistHermesPortfolioSnapshot(db,row,snapshot);
    // Reaproveitar o índice de audiências existente para /audiencias e /agenda.
-   if(snapshot.djenOk||snapshot.datajudOk){
+   if(snapshot.djenOk||snapshot.datajudOk||snapshot.courtApiOk){
     try{
      const {atualizarAudienciasDeConsulta}=await import('@/lib/audiencias-service');
      const fontes=snapshot.events.map(e=>({source:e.source,text:e.text,url:e.url,publishedAt:e.at}));
