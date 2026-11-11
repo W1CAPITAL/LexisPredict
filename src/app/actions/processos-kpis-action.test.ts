@@ -34,26 +34,23 @@ describe('P0 KPIs empresariais: leitura completa e filtro autenticado',()=>{
   expect(result.error).toMatch(/todos os indicadores/i);
  });
 
- it('uses both legacy and auth user ids in individual-scoped queries',async()=>{
-  const ownerIds:string[][]=[];
+ it('counts overdue returns across the company and ignores stale closed JSON when typed status is active',async()=>{
+  let ownerFilterCalls=0;
   const query:any={
-   select:()=>query,eq:()=>query,order:()=>query,
-   in:(_field:string,ids:string[])=>{ownerIds.push(ids);return query;},
-   range:()=>query,
+   select:()=>query,eq:()=>query,order:()=>query,range:()=>query,
+   in:()=>{ownerFilterCalls++;return query;},
    then:(resolve:(value:unknown)=>unknown)=>Promise.resolve({
-    data:[{id:1,status:'No Prazo',status_interno:'EM ANDAMENTO',proximo_retorno:'2020-01-01',ultimo_retorno:'2019-12-01',dados:{status:'No Prazo'}}],error:null
+    data:[{
+     id:241195,created_by:'another-company-user',status:'Atenção',status_interno:'EM ANDAMENTO',
+     proximo_retorno:'2020-01-01',ultimo_retorno:'2020-01-01',
+     dados:{status:'Encerrado',situacao:'ENCERRADO',status_interno:'ENCERRADO',statusManual:'Encerrado'}
+    }],error:null
    }).then(resolve),
   };
-  const users:any={
-   select:()=>users,eq:()=>users,
-   maybeSingle:async()=>({data:{id:'legacy-user',auth_user_id:'auth-user'},error:null}),
-  };
   vi.mocked(getUserContext).mockResolvedValue({...mockContext,caseScope:'mine'} as any);
-  vi.mocked(getSupabaseAdmin).mockResolvedValue({
-   from:(table:string)=>table==='usuarios'?users:query,
-  } as any);
+  vi.mocked(getSupabaseAdmin).mockResolvedValue({from:()=>query} as any);
   const result=await fetchProcessosEmpresaKpisAction(false);
-  expect(result).toMatchObject({ok:true,total:1,ativos:1,vencidos:1});
-  expect(ownerIds).toEqual([['auth-user','legacy-user']]);
- });
+  expect(result).toMatchObject({ok:true,total:1,ativos:1,encerradosCarteira:0,vencidos:1});
+  expect(ownerFilterCalls).toBe(0);
+ });;
 });
