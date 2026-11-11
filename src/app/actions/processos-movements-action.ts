@@ -8,9 +8,10 @@ import { getSupabaseAdmin, getUserContext } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 import {
-  buildProcessTimeline, cnjDigits, formatCnj, linkedCumprimentoCnjs,
+  buildProcessTimeline, mergeProcessTimelineEntries, cnjDigits, formatCnj, linkedCumprimentoCnjs,
   type ProcessTimelineSource, type ProcessTimelineEntry
 } from '@/lib/processos-timeline';
+import {recoverHermesTimelineSource} from '@/lib/hermes-timeline-fallback';
 
 export type ProcessMovementsResult = {
   success:boolean;
@@ -87,10 +88,13 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
       ]);
       const source:ProcessTimelineSource={cnj,linked:cnj!==main,movimentos:[],comunicacoes:[]};
       let officialSuccess=false;
+      let datajudOk=false;
+      let djenOk=false;
       if(page===1){
         if(djResult.status==='fulfilled'&&djResult.value&&!djResult.value.error){
           if(cnjDigits(djResult.value.numeroProcesso)===cnj){
             officialSuccess=true;
+            datajudOk=true;
             source.movimentos=Array.isArray(djResult.value.movimentos)?djResult.value.movimentos:[];
             source.classe=String(djResult.value.classe||'');
           }else warnings.push('DataJud retornou número divergente para '+formatCnj(cnj)+'; dados descartados.');
@@ -103,18 +107,43 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
       if(djenResult.status==='fulfilled'&&djenResult.value?.success){
         const djen=djenResult.value;
         officialSuccess=true;
+        djenOk=true;
         source.comunicacoes=djen.items||[];
         count=Number(djen.count)||source.comunicacoes.length;
       }else{
         warnings.push('DJEN indisponível para '+formatCnj(cnj)+': '+
           (djenResult.status==='rejected'?String(djenResult.reason):String(djenResult.value?.error||'sem resposta')));
       }
-      return {source,count,officialSuccess};
+      return {source,count,officialSuccess,datajudOk,djenOk};
     }));
 
     const sources=sourceResults.map(x=>x.source);
-    // Não rotular o cadastro como consulta oficial se ambas as fontes falharam.
-    if(!sourceResults.some(x=>x.officialSuccess)){
+    const liveConfirmed=sourceResults.some(x=>x.officialSuccess);
+    let archivedEntries:ProcessTimelineEntry[]=[];
+    let archivedCheckedAt:string|undefined;
+    // A aba Mov. lê a cronologia persistida automaticamente pelo Hermes se a
+    // fonte falhar agora. O cache nunca é promovido a consulta nova do tribunal.
+    if(page===1 && (!sourceResults[0]?.datajudOk || !sourceResults[0]?.djenOk)){
+      const {data:scan,error:scanError}=await db.from('hermes_portfolio_scans')
+        .select('events,checked_at')
+        .eq('empresa_id',ctx.empresa_id).eq('processo_id',found.id).maybeSingle();
+      if(!scanError && scan){
+        const saved=recoverHermesTimelineSource(main,scan.events,{
+          datajudOk:sourceResults[0]?.datajudOk===true,
+          djenOk:sourceResults[0]?.djenOk===true,
+        });
+        if(saved){
+          archivedEntries=buildProcessTimeline(main,[saved.source]);
+          if(archivedEntries.length){
+            archivedCheckedAt=scan.checked_at||undefined;
+            warnings.push('Há eventos do histórico Hermes salvo; a fonte correspondente não respondeu na consulta atual. Confirme atos críticos diretamente no tribunal.');
+          }
+        }
+      }
+    }
+    // Não afirmar consulta nova quando nenhuma fonte respondeu. O histórico
+    // verificado anteriormente é legível, mas claramente sinalizado como salvo.
+    if(!liveConfirmed && !archivedEntries.length){
       return {
         success:false,entries:[],page,totalDjen:0,relatedCnjs,hasMore:false,warnings,
         message:'A consulta aos tribunais falhou; exibindo somente o resumo salvo. Clique novamente para tentar ou confira o processo no site do tribunal.'
@@ -122,20 +151,25 @@ export async function fetchProcessosMovementsAction(recordId:string, requestedCn
     }
     const totalDjen=sourceResults.reduce((sum,x)=>sum+x.count,0);
     const hasMore=sourceResults.some(x=>page*DJEN_PER_PAGE<x.count);
-    const entries=buildProcessTimeline(main,sources,page===1?{
+    const currentEntries=buildProcessTimeline(main,sources,page===1?{
       ultimoRetorno:String(found.ultimo_retorno||metadata.ultimoRetorno||''),
       observacao:String(found.observacoes||metadata.observacao||''),
       dataDistribuicao:String(metadata.dataDistribuicao||metadata.dataAjuizamento||metadata.data_ajuizamento||''),
       classe:String(metadata.classe_acao||'')
     }:undefined);
+    const entries=mergeProcessTimelineEntries(currentEntries,archivedEntries);
 
     return {
       success:true,entries,page,totalDjen,relatedCnjs,hasMore,
-      consultadoEm:new Date().toISOString(),
+      consultadoEm:liveConfirmed?new Date().toISOString():archivedCheckedAt,
       datajudMovements:sources.reduce((sum,source)=>sum+(source.movimentos?.length||0),0),
       djenPublications:sources.reduce((sum,source)=>sum+(source.comunicacoes?.length||0),0),
       warnings,
-      message:entries.length
+      message:!liveConfirmed
+        ? 'Histórico oficial salvo pelo Hermes. DataJud/DJEN não responderam na consulta atual; verifique a atualização no portal do tribunal.'
+        : archivedEntries.length
+          ? 'Movimentações atuais e histórico Hermes anterior, preservados separadamente por fonte.'
+        : entries.length
         ? 'Movimentações carregadas das fontes oficiais, em ordem cronológica.'
         : warnings.length
           ? 'Não foi possível conferir todas as fontes. Atualize ou consulte o portal do tribunal.'
