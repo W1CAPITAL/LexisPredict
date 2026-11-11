@@ -53,11 +53,12 @@ describe('TJPR PROJUDI MNI 2.2.2',()=>{
    fetchImpl:fetchMock as any,
   });
   expect(result).toMatchObject({applicable:true,configured:true,ok:true,found:true,source:'TJPR PROJUDI'});
-  expect(result.events).toHaveLength(1);
+  expect(result.events).toHaveLength(2);
   expect(result.events[0]).toMatchObject({
    at:'2026-11-11T10:14:00-03:00',
    text:'Concedida justiça gratuita · Intimação para apresentação de contestação',
   });
+  expect(result.events[1].at).toBe('2026-11-11T00:30:00-03:00');
   const [url,init]=fetchMock.mock.calls[0];
   expect(String(url)).toContain('/projudiIntercomunicacaoWebService222');
   expect(init.headers.SOAPAction).toContain('/consultarProcesso');
