@@ -3,20 +3,7 @@
  * Scanner antigo continua intacto; novos callers podem usar isto.
  */
 import { fetchResilient } from './http-resilient';
-import { resolveDataJudAlias } from './datajud';
-
-const COURT_ALIASES: Record<string, string> = {
-  '8.26': 'tjsp',
-  '8.19': 'tjrj',
-  '8.13': 'tjmg',
-  '8.21': 'tjrs',
-  '8.16': 'tjpr',
-  '8.24': 'tjsc',
-  '8.05': 'tjba',
-  '8.06': 'tjce',
-  '8.17': 'tjpe',
-  '8.07': 'tjdft',
-};
+import { isDataJudUseAuthorized, resolveCurrentDataJudKey, resolveDataJudAlias } from './datajud';
 
 export async function probeDataJudHost(cnjDigits: string): Promise<{
   ok: boolean;
@@ -28,13 +15,13 @@ export async function probeDataJudHost(cnjDigits: string): Promise<{
   if (digits.length !== 20) {
     return { ok: false, latencyMs: 0, error: 'CNJ inválido' };
   }
-  const aliasPart = `${digits[13]}.${digits.substring(14, 16)}`;
-  const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(digits);
+  if (!isDataJudUseAuthorized()) {
+    return { ok:false, latencyMs:0, error:'DataJud desativado até autorização expressa do CNJ para o uso pretendido.' };
+  }
+  const alias = resolveDataJudAlias(digits);
+  if (!alias) return { ok:false, latencyMs:0, error:'Tribunal não reconhecido no CNJ; nenhum endpoint foi presumido.' };
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-  const key =
-    process.env.DATAJUD_API_KEY ||
-    process.env.CNJ_API_KEY ||
-    '';
+  const key = resolveCurrentDataJudKey();
 
   const res = await fetchResilient(url, {
     method: 'POST',
@@ -42,7 +29,7 @@ export async function probeDataJudHost(cnjDigits: string): Promise<{
     retries: 2,
     label: `datajud:${alias}`,
     headers: {
-      Authorization: key ? `APIKey ${key}` : '',
+      Authorization: `APIKey ${key}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
