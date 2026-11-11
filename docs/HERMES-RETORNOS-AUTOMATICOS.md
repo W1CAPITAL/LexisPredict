@@ -34,13 +34,14 @@ classificar urgência da fila e sugerir próximo retorno administrativo.
 - Para CNJ do TJPR (`8.16`), quando DataJud falha ou não traz movimento posterior
   ao último retorno, o Hermes aciona automaticamente o serviço oficial PROJUDI
   MNI 2.2.2, em 1º ou 2º grau conforme o final do CNJ.
-- O MNI usa `idConsultante` e `senhaConsultante` no XML SOAP. O TJPR fornece
-  privativamente o identificador e o código para gerar a senha diária MD5
-  (`código + yyyyMMdd`, data de Brasília). Configure no ambiente de produção:
-  `TJPR_PROJUDI_MNI_ID` e `TJPR_PROJUDI_MNI_CODE` (ou os aliases
-  `TJPR_PROJUDI_MNI_ID_MANIFESTANTE` e `TJPR_PROJUDI_MNI_SECRET_CODE`).
-- Sem essas credenciais, o Hermes registra a pendência e continua DataJud/DJEN;
-  não automatiza a tela pública do Projudi porque ela apresenta reCAPTCHA.
+- O MNI 2.2.2 é consultado sem cadastro, login ou senha, conforme a Resolução
+  TJPR 532-OE/2026, de 23/03/2026. Os campos de autenticação obrigatórios no WSDL
+  são enviados vazios, sem segredos ou variáveis adicionais.
+- A consulta pede somente movimentos públicos: cabeçalho e documentos ficam
+  desativados. O Hermes não lê nem persiste complementos de movimentação, que
+  devem permanecer ocultos em toda consulta pública automatizada.
+- O portal público com reCAPTCHA não é automatizado; a integração usa o serviço
+  SCMPP/MNI oficial, sem contornar controles de acesso.
 - e-SAJ/eproc/PJe/Jus.br não são raspados por automação de navegador: páginas
   com login, captcha ou WAF não são contornadas. Fontes adicionais só entram
   quando houver API oficial e autorização técnica do respectivo tribunal.
@@ -81,10 +82,10 @@ processual. Processos encerrados não recebem rascunho automático.
 - `pnpm run typecheck`, `pnpm test` e `pnpm run build` no CI.
 - A documentação técnica oficial do TJPR para o SCMPP descreve os endpoints
   MNI 2.2.2, o identificador/código privativos e a senha MD5 diária:
-  https://sti.tjpr.jus.br/documents/d/planejamento/servico-de-consulta-as-movimentacoes-processuais-publicas-automatizado-scmpp-pdf
-- A consulta automatizada MNI só fica plenamente ativa depois que o TJPR
-  emite as credenciais e elas são adicionadas como secrets na Vercel; não
-  colocar identificador ou código no GitHub, no banco em texto ou em logs.
+  https://portal.tjpr.jus.br/pesquisa_athos/anexo/7150778
+- A consulta MNI pública não exige secrets da Vercel; a autorização decorre da
+  Resolução TJPR 532-OE/2026 e se limita aos dados públicos previstos na
+  Resolução CNJ 121/2010.
 - Conferir job `cron.job` e `cron.job_run_details`, status HTTP da
   `net._http_response` e novas linhas de `hermes_return_reviews`.
 - Verificar 401 do endpoint sem token. Não copiar o valor do Vault para logs.
