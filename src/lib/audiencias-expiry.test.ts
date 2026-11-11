@@ -17,7 +17,7 @@ describe('Expiração de audiências pelo horário de Brasília',()=>{
  it('não apaga evento de hoje sem horário final comprovado',()=>{
   expect(isAudienciaExpirada({data:'2026-11-11',dataFim:null,horaFim:null},now)).toBe(false);
  });
- it('não apaga designação sem data confirmada',()=>{
+ it('usa o fuso local do tribunal para decidir se o último dia passou',()=>{\n  const beforeMtEnd=new Date('2026-11-11T14:30:00.000Z'); // 08:30 em Mato Grosso\n  expect(isAudienciaExpirada({data:'2026-11-11',dataFim:'2026-11-11',horaFim:'09:00',fuso:'MT'},beforeMtEnd)).toBe(false);\n  expect(isAudienciaExpirada({data:'2026-11-10',fuso:'MT'},beforeMtEnd)).toBe(true);\n });\n it('não apaga designação sem data confirmada',()=>{
   expect(isAudienciaExpirada({data:null,dataFim:null},now)).toBe(false);
  });
  it('agenda a limpeza automática e restringe a limpeza manual à empresa autenticada',()=>{
