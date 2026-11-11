@@ -7,6 +7,9 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
   const api=read('src/app/api/carteira/fast/route.ts');
   expect(api).toContain('const companyWide = Boolean(ctx.isSuperAdmin || ctx.isSupervisor)');
   expect(api).toContain('const ownerScope: string | null = companyWide ? null : ctx.auth_id');
+  const action=read('src/app/actions/processos-kpis-action.ts');
+  expect(action).toContain('Boolean(ctx.isSuperAdmin || ctx.isSupervisor)');
+  expect(action).toContain("query.in(\"created_by\", ownerIds)");
   expect(api).toContain('getPortfolioSnapshotCached(empresaId,ownerScope)');
   expect(api).toContain('getStoredCasesPageForEmpresa(empresaId, limit, offset');
  });
