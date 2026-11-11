@@ -5,7 +5,8 @@ const read=(p:string)=>readFileSync(p,'utf8');
 describe('KPIs empresariais e busca contínua de audiências',()=>{
  it('faz o snapshot agregado sempre por empresa, mantendo a lista respeitando o escopo',()=>{
   const api=read('src/app/api/carteira/fast/route.ts');
-  expect(api).toContain('const ownerScope: string | null = null');
+  expect(api).toContain('const companyWide = Boolean(ctx.isSuperAdmin || ctx.isSupervisor)');
+  expect(api).toContain('const ownerScope: string | null = companyWide ? null : ctx.auth_id');
   expect(api).toContain('getPortfolioSnapshotCached(empresaId,ownerScope)');
   expect(api).toContain('getStoredCasesPageForEmpresa(empresaId, limit, offset');
  });
