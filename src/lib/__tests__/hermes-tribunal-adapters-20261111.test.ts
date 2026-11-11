@@ -25,8 +25,8 @@ describe('Hermes · conectores oficiais MNI/SCMPP com evidência verificada',()=
   expect(fetcher.mock.calls[0][0]).toContain('projudi.tjpr.jus.br');
   expect(fetcher.mock.calls[1][0]).toContain('projudi.tjpr.jus.br');
   const soap=fetcher.mock.calls[1][1].body as string;
-  expect(soap).toContain('<mni:numeroProcesso>'+CNJ+'</mni:numeroProcesso>');
-  expect(soap).toContain('<mni:incluirDocumentos>false</mni:incluirDocumentos>');
+  expect(soap).toContain('<tip:numeroProcesso>'+CNJ+'</tip:numeroProcesso>');
+  expect(soap).toContain('<tip:incluirDocumentos>false</tip:incluirDocumentos>');
   expect(fetcher.mock.calls[0][1].redirect).toBe('error');
   expect(fetcher.mock.calls[1][1].redirect).toBe('error');
  });
