@@ -22,6 +22,7 @@ import { HermesPriorityQueue } from "@/components/hermes/hermes-priority-queue";
 import { HermesCompanyPanel } from "@/components/hermes/hermes-company-panel";
 import {HermesStalledMonitoring} from "@/components/hermes/hermes-stalled-monitoring";
 import {HermesPortfolioMonitoring} from '@/components/hermes/hermes-portfolio-monitoring';
+import {HermesTjPortalGrid} from '@/components/hermes/hermes-tj-portal-grid';
 import "./hermes-office.css";
 
 type ViewMode = "3d" | "2d";
@@ -135,6 +136,12 @@ export default function Hermes3DLexisPage() {
           </div>
         </header>
 
+        <details className="rounded-2xl border border-white/20 bg-[#16151b] p-4" id="hermes-tribunais">
+          <summary className="cursor-pointer text-sm font-bold text-white">Consulta por tribunal · 27 TJs · abrir portais oficiais</summary>
+          <div className="mt-4 rounded-xl bg-background p-4">
+            <HermesTjPortalGrid/>
+          </div>
+        </details>
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="h3d-scene-shell min-w-0 overflow-hidden rounded-3xl">
             <div className="h3d-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
