@@ -7,7 +7,7 @@ vi.mock('@/lib/server-db',()=>({
  getSupabaseAdmin:vi.fn(),
 }));
 
-const mockContext={auth_id:'auth-user',empresa_id:'tenant-a',caseScope:'empresa',isSupervisor:false,isSuperAdmin:false};
+const mockContext={auth_id:'auth-user',empresa_id:'tenant-a',caseScope:'mine',isSupervisor:true,isSuperAdmin:false};
 
 describe('P0 KPIs empresariais: leitura completa e filtro autenticado',()=>{
  beforeEach(()=>{
