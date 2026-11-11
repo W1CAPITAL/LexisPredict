@@ -192,7 +192,7 @@ async function obtainCourtSnapshot(cnj:string,lastReturn:string|null,manual=fals
   fonteAlternativa='DJEN e DataJud indisponíveis nesta verificação de '+sourceContext+'. O Hermes mantém o caso pendente e reconsulta automaticamente; não presume ausência de movimentação.';
  }
  return {
-  djenOk,datajudOk,datajudUpdatedAt,datajudIndexTimestamp,events,courtApiOk,courtApiAttempted,courtApiSource,courtApiError,
+  djenOk,datajudOk,datajudUpdatedAt,datajudIndexTimestamp,datajudRestricted,events,courtApiOk,courtApiAttempted,courtApiSource,courtApiError,
   sourceErrors:{
    djen:djenOk?null:diagnostic(djen.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
    datajud:datajudOk?null:diagnostic(dj.status==='rejected'?null:datajud?.message||'Não encontrado no índice ou fonte indisponível.'),
@@ -220,6 +220,7 @@ async function persistResult(
       datajud: result.datajudOk ? 'consultado' : 'indisponivel',
       datajudUpdatedAt:snapshot.datajudUpdatedAt||null,
       datajudIndexTimestamp:snapshot.datajudIndexTimestamp||null,
+      datajudRestricted:snapshot.datajudRestricted===true,
       tribunalApi: snapshot.courtApiOk ? 'consultado' : snapshot.courtApiAttempted ? 'indisponivel' : 'nao_acionado',
       tribunalApiOk: snapshot.courtApiOk,
       tribunalApiSource: snapshot.courtApiSource || null,
@@ -253,7 +254,7 @@ export async function reviewHermesCase(input: {
   const name = row.cliente || String(row.dados?.cliente || '');
   const manual=input.mode==='manual';
   let snapshot:CourtSnapshotWithDiagnostic={ djenOk:false,datajudOk:false,events:[],courtApiOk:false,courtApiAttempted:false,
-    datajudUpdatedAt:null,datajudIndexTimestamp:null,
+    datajudUpdatedAt:null,datajudIndexTimestamp:null,datajudRestricted:false,
     sourceErrors:{djen:'Consulta não executada.',datajud:'Consulta não executada.',projudi:null,fonteAlternativa:null} };
   if (cnj && !isCasoEncerrado(row)) snapshot = await obtainCourtSnapshot(cnj, row.ultimo_retorno,manual);
   const result = buildHermesReturnReview({
