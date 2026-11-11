@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
 import Link from "next/link";
 import {Sidebar} from "@/components/layout/sidebar";
+import {resolveOfficialCourtPortal} from "@/lib/hermes-official-fallbacks";
 import {CalendarDays,RefreshCcw,ExternalLink,Search,Gavel,Clock,ShieldCheck,AlertCircle} from "lucide-react";
 type Audiencia = {
  id:number;processo_id:number;protocolo_ref:string;cliente:string|null;advogado:string|null;tribunal:string|null;
@@ -45,7 +46,12 @@ export default function AudienciasPage(){
  const tomorrow=useMemo(()=>{const date=new Date(now+"T12:00:00Z");date.setUTCDate(date.getUTCDate()+1);return date.toISOString().slice(0,10);},[now]);
  const filtered=useMemo(()=>{
   const term=query.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const dated=new Set(items.filter(x=>x.data_evento&&x.situacao!=="cancelada")
+    .map(x=>x.processo_id+":"+x.tipo));
   return items.filter(x=>{
+    // "Data a verificar" permanece no histórico, mas não duplica uma nova data
+    // recebida para a mesma audiência, ainda que não validada oficialmente.
+    if(x.situacao==="data_pendente"&&dated.has(x.processo_id+":"+x.tipo))return false;
     const last=x.data_fim||x.data_evento;
     if(period==="proximas"&&(!last||last<now||x.situacao==="cancelada"))return false;
     if(period==="pendentes"&&x.data_evento!==null)return false;
@@ -72,7 +78,7 @@ export default function AudienciasPage(){
     <header className="flex flex-wrap items-start justify-between gap-4">
      <div className="space-y-1"><div className="flex items-center gap-2 text-sm font-semibold text-primary"><Gavel size={17}/> LexisPredict · Hermes</div>
       <h1 className="text-3xl font-bold tracking-tight">Audiências e sessões</h1>
-      <p className="max-w-3xl text-sm text-muted-foreground">Datas extraídas de publicações oficiais do DJEN e movimentos do DataJud. O retorno do cliente nunca é tratado como data de audiência.</p>
+      <p className="max-w-3xl text-sm text-muted-foreground">Audiências oficiais do DJEN/DataJud e notificações recebidas, identificadas separadamente. A confirmação da fonte judicial é indicada em cada registro. O retorno do cliente nunca é tratado como data de audiência.</p>
      </div>
      <div className="flex flex-wrap gap-2"><Link href="/agenda" className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold hover:bg-muted"><CalendarDays size={16}/> Ver agenda</Link>
       <button type="button" onClick={()=>{setLoading(true);void load();}} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90" disabled={loading}><RefreshCcw size={16} className={loading?"animate-spin":""}/> Atualizar tela</button>
@@ -94,12 +100,15 @@ export default function AudienciasPage(){
     <div className="space-y-3">
       {!loading&&filtered.length===0&&<div className="rounded-2xl border border-dashed border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground">Nenhum evento encontrado neste filtro. Isso não comprova ausência de audiência no tribunal.</div>}
       {filtered.map(x=>{
-       const url=officialLink(x.fonte_url),portal=officialLink(x.portal_url),meeting=meetingLink(x.meeting_url);
+       const url=officialLink(x.fonte_url);
+       const portal=officialLink(x.portal_url)||officialLink(resolveOfficialCourtPortal(x.protocolo_ref)?.url||null);
+       const meeting=meetingLink(x.meeting_url);
+       const communicated=x.fonte==="NOTIFICACAO";
        const canceled=x.situacao==="cancelada",pending=x.situacao==="data_pendente";
        return <article key={x.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm md:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
          <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2"><span className={"rounded-full px-2.5 py-1 text-[11px] font-bold "+(canceled?"bg-muted text-muted-foreground":pending?"bg-amber-100 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100":"bg-rose-100 text-rose-950 dark:bg-rose-900/40 dark:text-rose-100")}>{canceled?"Cancelada":pending?"Data a confirmar":nomeTipo[x.tipo]||x.tipo}</span><span className="text-xs text-muted-foreground">{x.tribunal||"Tribunal não identificado"} · {x.fonte}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><span className={"rounded-full px-2.5 py-1 text-[11px] font-bold "+(canceled?"bg-muted text-muted-foreground":pending?"bg-amber-100 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100":"bg-rose-100 text-rose-950 dark:bg-rose-900/40 dark:text-rose-100")}>{canceled?"Cancelada":pending?"Data a confirmar":communicated?"Notificação recebida":nomeTipo[x.tipo]||x.tipo}</span><span className="text-xs text-muted-foreground">{x.tribunal||"Tribunal não identificado"} · {communicated?"Informação do escritório":x.fonte}</span></div>
           <h2 className="text-lg font-semibold">{x.cliente||"Cliente sem nome"}</h2><p className="break-all text-xs text-muted-foreground">{x.protocolo_ref}</p>
           <p className="text-xs text-muted-foreground">Advogado: {x.advogado||"Não informado"}</p>
          </div>
@@ -110,7 +119,8 @@ export default function AudienciasPage(){
           <p className="text-xs text-muted-foreground">{x.modalidade==="virtual"?"Virtual":x.modalidade==="presencial"?"Presencial":"Modalidade não confirmada"}</p>
          </div>
         </div>
-        <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{x.evidencia}</p>
+        {communicated&&<p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">Data informada por notificação; aguarda confirmação no tribunal. Não representa consulta oficial concluída.</p>}
+        <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{x.evidencia}</p>
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
           {meeting&&<a className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-bold text-foreground hover:bg-primary/15" target="_blank" rel="noreferrer noopener" href={meeting}><ExternalLink size={14}/> Link da audiência citado no ato</a>}
           {url&&<a className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted" target="_blank" rel="noreferrer noopener" href={url}><ExternalLink size={14}/> Ato judicial</a>}
