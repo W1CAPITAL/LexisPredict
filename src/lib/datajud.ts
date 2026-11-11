@@ -19,8 +19,47 @@ export const COURT_ALIASES: Record<string, string> = {
   "5.11": "trt11", "5.12": "trt12", "5.13": "trt13", "5.14": "trt14", "5.15": "trt15",
   "5.16": "trt16", "5.17": "trt17", "5.18": "trt18", "5.19": "trt19", "5.20": "trt20",
   "5.21": "trt21", "5.22": "trt22", "5.23": "trt23", "5.24": "trt24",
-  "2.00": "stj", "2.01": "stj", "3.00": "tst", "3.01": "tst",
-  "6.00": "tse", "7.00": "stm"
+  "3.00": "stj", "5.00": "tst", "6.00": "tse", "7.00": "stm",
+  "6.01": "tre-ac",
+  "6.02": "tre-al",
+  "6.03": "tre-am",
+  "6.04": "tre-ap",
+  "6.05": "tre-ba",
+  "6.06": "tre-ce",
+  "6.07": "tre-dft",
+  "6.08": "tre-es",
+  "6.09": "tre-go",
+  "6.10": "tre-ma",
+  "6.11": "tre-mt",
+  "6.12": "tre-ms",
+  "6.13": "tre-mg",
+  "6.14": "tre-pa",
+  "6.15": "tre-pb",
+  "6.16": "tre-pr",
+  "6.17": "tre-pe",
+  "6.18": "tre-pi",
+  "6.19": "tre-rj",
+  "6.20": "tre-rn",
+  "6.21": "tre-rs",
+  "6.22": "tre-ro",
+  "6.23": "tre-rr",
+  "6.24": "tre-sc",
+  "6.25": "tre-se",
+  "6.26": "tre-sp",
+  "6.27": "tre-to",
+  "7.01": "stm",
+  "7.02": "stm",
+  "7.03": "stm",
+  "7.04": "stm",
+  "7.05": "stm",
+  "7.06": "stm",
+  "7.07": "stm",
+  "7.08": "stm",
+  "7.09": "stm",
+  "7.10": "stm",
+  "7.11": "stm",
+  "7.12": "stm",
+  "9.13": "tjmmg", "9.21": "tjmrs", "9.26": "tjmsp"
 };
 
 /** Resolve o alias DataJud a partir do CNJ, cobrindo TJ/TRF/TRT/superiores. */
@@ -28,16 +67,7 @@ export function resolveDataJudAlias(cnj: string): string | null {
   const digits = String(cnj || "").replace(/\D/g, "");
   if (digits.length !== 20) return null;
   const aliasPart = `${digits[13]}.${digits.substring(14, 16)}`;
-  const direct = COURT_ALIASES[aliasPart];
-  if (direct) return direct;
-  const justice = digits[13];
-  const tribunal = Number(digits.substring(14, 16));
-  if (justice === "5" && tribunal >= 1 && tribunal <= 24) return `trt${tribunal}`;
-  if (justice === "2" && (tribunal === 0 || tribunal === 1)) return "stj";
-  if (justice === "3" && (tribunal === 0 || tribunal === 1)) return "tst";
-  if (justice === "6" && tribunal === 0) return "tse";
-  if (justice === "7" && tribunal === 0) return "stm";
-  return null;
+  return COURT_ALIASES[aliasPart] || null;
 }
 
 /** Chave pública vigente publicada pelo CNJ. Ela pode ser rotacionada sem aviso. */
