@@ -5,7 +5,8 @@ import { loadScanQueue, saveScanQueue, clearScanQueue, remainingProtocolos } fro
  */
 import { create } from 'zustand';
 import { scanSingleCaseAction } from '@/app/actions/case-actions';
-import {fetchDataJud,isDataJudUseAuthorized,resolveDataJudAlias} from '@/lib/datajud';
+import {resolveDataJudAlias} from '@/lib/datajud-aliases';
+import {probeDataJudHealthAction} from '@/app/actions/datajud-actions';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
@@ -218,37 +219,31 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocols) => {
-    if(!isDataJudUseAuthorized()){
-      set({courtHealthMap:{}});
-      get().addLog({
-        protocolo:'SISTEMA',
-        message:'Auditoria DataJud não executada: uso da API pública está bloqueado até existir autorização aplicável. O resultado do DJEN não será contado como sucesso DataJud.',
-        latency:0,success:false,type:'error',engine:'Local',source:'DataJud',
-      });
-      return;
-    }
-    // Uma amostra por alias real (J/TR do CNJ), nunca pelo segmento OOOO
-    // que identifica a unidade/ordem sequencial do processo.
     const targets=new Map<string,string>();
     for(const raw of protocols){
-      const cnj=String(raw||'').replace(/\\D/g,'');
+      const cnj=String(raw||'').replace(/\D/g,'');
       const alias=resolveDataJudAlias(cnj);
       if(alias&&!targets.has(alias))targets.set(alias,cnj);
     }
     for(const [alias,cnj] of [...targets.entries()].slice(0,8)){
-      const started=Date.now();
-      const result=await fetchDataJud(cnj,1,{
-        fast:true,cloudBudget:true,forceRefresh:true,timeoutMs:8000,
-      });
-      const latency=Number(result?.latency)||Date.now()-started;
-      const success=result?.error===false&&result?.found===true;
-      get().updateCourtHealth(alias,latency,success);
+      const result=await probeDataJudHealthAction(cnj);
+      if(result.errorCode==='terms_restricted'){
+        set({courtHealthMap:{}});
+        get().addLog({
+          protocolo:'SISTEMA',
+          message:'Auditoria DataJud não executada: os termos da API pública não autorizam este uso comercial. O sucesso do DJEN não será contado como sucesso DataJud.',
+          latency:0,success:false,type:'error',engine:'Local',source:'DataJud',
+        });
+        return;
+      }
+      const latency=Number(result.latencyMs)||0;
+      get().updateCourtHealth(alias,latency,result.success);
       get().addLog({
         protocolo:cnj,
-        message:success
-          ?'DataJud '+alias.toUpperCase()+' respondeu; '+(Number(result?.movimentos?.length)||0)+' movimento(s) retornado(s).'
-          :String(result?.message||'DataJud não confirmou a consulta para '+alias.toUpperCase()+'.'),
-        latency,success,type:success?'ok':'error',engine:'Nuvem',source:'DataJud',
+        message:result.success
+          ?'DataJud '+alias.toUpperCase()+' respondeu; '+(result.movementCount||0)+' movimento(s) retornado(s).'
+          :String(result.message||'DataJud não confirmou a consulta para '+alias.toUpperCase()+'.'),
+        latency,success:result.success,type:result.success?'ok':'error',engine:'Nuvem',source:'DataJud',
       });
     }
   },
