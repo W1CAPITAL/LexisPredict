@@ -259,11 +259,8 @@ export async function runHermesDueReviewBatch(maxCases = 2) {
       results.push({ processId: Number(claim.processo_id), state: 'unavailable' });
     }
   }
-  // A ronda de parados só usa um turno do cron quando não há retorno vencido a revisar.
-  const stalled=results.length===0&&Date.now()-started<3000
-    ?await runHermesStalledReviewBatch()
-    :{processed:0,state:'deferred' as const};
-  return { ok: true, processed: results.length, results, stalled, elapsedMs: Date.now() - started };
+  // Processos parados executam em agenda própria: a fila de retornos não pode bloqueá-los.
+  return { ok: true, processed: results.length, results, elapsedMs: Date.now() - started };
 }
 
 /** A falta de movimentação é monitorada independentemente do retorno administrativo.
