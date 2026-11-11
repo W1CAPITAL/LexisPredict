@@ -572,6 +572,11 @@ export function ProcessosCommandCenter(props: Props) {
         ...pageData,
         page:nextPage,
         entries:mergeProcessTimelineEntries(current.entries,pageData.entries),
+        // Paginar DJEN não deve apagar o estado DataJud confirmado na página 1.
+        sourceStatus:current.sourceStatus,
+        datajudMovements:current.datajudMovements,
+        historicDataJudMovements:current.historicDataJudMovements,
+        djenPublications:(current.djenPublications||0)+(pageData.djenPublications||0),
         warnings:[...new Set([...(current.warnings||[]),...(pageData.warnings||[])])]
       };
       historyCache.current.set(selectedCnj,merged);
