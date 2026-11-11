@@ -9,11 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type Review = NonNullable<Extract<Awaited<ReturnType<typeof getHermesReturnReviewAction>>, { ok: true }>['review']>;
+type CourtScanner = NonNullable<Extract<Awaited<ReturnType<typeof getHermesReturnReviewAction>>, {ok:true}>['courtScanner']>;
+type CourtScannerDetails = NonNullable<Extract<Awaited<ReturnType<typeof getHermesReturnReviewAction>>, {ok:true}>['courtScannerDetails']>;
 
 const fmt = (iso: unknown) => {
   const raw = String(iso || "");
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? m[3] + "/" + m[2] + "/" + m[1] : "—";
+};
+const fmtTime = (iso:unknown) => {
+ const value=new Date(String(iso||''));
+ return Number.isFinite(value.getTime())?value.toLocaleString('pt-BR',{
+  timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short',
+ }):'—';
 };
 export function HermesReturnReviewButton({ processId, compact = false }: { processId: number; compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
@@ -27,6 +35,8 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [djenOnly,setDjenOnly] = React.useState<{
     ok:boolean; error:string|null; checkedAt:string; items:DjenItemRaw[]; count:number;
   }|null>(null);
+  const [courtScanner,setCourtScanner]=React.useState<CourtScanner|null>(null);
+  const [courtScannerDetails,setCourtScannerDetails]=React.useState<CourtScannerDetails|null>(null);
   const [scmppBusy,setScmppBusy]=React.useState(false);
   const [scmppResult,setScmppResult]=React.useState<{
     status:string;message:string;checkedAt:string;httpStatus:number|null;movementsConfirmed:false
@@ -104,6 +114,8 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
         if(!result.ok)throw new Error(result.error);
       }
       setReview(result.review as Review | null);
+      setCourtScanner(result.courtScanner||null);
+      setCourtScannerDetails(result.courtScannerDetails||null);
       setRegistered({ next: result.nextReturnRegistered, last: result.lastReturnRegistered,status:result.returnDateStatus });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Revisão indisponível.");
@@ -184,8 +196,24 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 {courtPortal.label}
               </a>}
             </div>
+            {courtScanner&&<section aria-label="Scanner automático de movimentações do tribunal"
+              className="space-y-2 rounded-lg border border-[#945878]/30 bg-card p-3 text-xs">
+              <p className="font-semibold text-foreground">Scanner automático do tribunal · {courtScanner.source}</p>
+              <p className="text-muted-foreground">{courtScanner.message}</p>
+              {courtScannerDetails?.checkedAt&&<p>Última tentativa no tribunal: {fmtTime(courtScannerDetails.checkedAt)}
+                {courtScannerDetails.httpStatus!==null&&' · HTTP '+courtScannerDetails.httpStatus}</p>}
+              <p>{courtScanner.verified
+                ?courtScanner.movements+' movimento(s) público(s) anteriormente verificado(s).'
+                :'Nenhuma movimentação deste processo confirmada diretamente pelo tribunal.'}</p>
+              {courtScannerDetails?.verifiedAt&&<p>Última verificação de movimentos: {fmtTime(courtScannerDetails.verifiedAt)}</p>}
+              {courtScanner.blocked&&courtScanner.holdUntil&&
+                <p className="font-semibold text-amber-700 dark:text-amber-300">
+                  Serviço do tribunal em pausa até {fmtTime(courtScanner.holdUntil)}. Isso afeta a fonte, não o retorno do cliente.
+                </p>}
+              <p className="text-muted-foreground">Consulta MNI/SCMPP independente do DataJud e do DJEN. Acessar o WSDL não consulta os movimentos do processo.</p>
+            </section>}
             {nationalPlan?.scmpp&&review&&!review.datajud_ok&&<section className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <p><strong className="text-foreground">SCMPP · TJPR:</strong> há serviço oficial de movimentos públicos, mas a integração ainda não validada neste ambiente impede tratá-lo como consulta concluída. A Resolução TJPR 532/2026 prevê acesso público sem login; o manual SOAP antigo ainda descreve credenciais. O botão TJPR acima abre a consulta pública humana. O Hermes não atravessa bloqueios do tribunal.</p>
+              <p><strong className="text-foreground">SCMPP · TJPR:</strong> o WSDL descreve o serviço, mas não prova que o tribunal aceitou uma consulta de movimentos. O scanner automático acima apresenta a última tentativa efetiva por processo e a pausa da fonte. A Resolução TJPR 532/2026 prevê acesso público sem login; o manual SOAP antigo ainda descreve credenciais. O Hermes não atravessa bloqueios do tribunal.</p>
               <p className="flex flex-wrap gap-3">
                 <a href={nationalPlan.scmpp.documentationUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Manual técnico SCMPP</a>
                 <a href={nationalPlan.scmpp.legalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Resolução TJPR 532/2026</a>
