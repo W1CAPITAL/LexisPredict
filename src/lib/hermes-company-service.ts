@@ -206,6 +206,7 @@ export type HermesPortfolioCaseSummary={
  processId:number;client:string;cnj:string;
  state:'scanning'|'ready'|'partial'|'unavailable'|'skipped';
  checkedAt:string|null;datajudOk:boolean;djenOk:boolean;
+ datajudIndexedAt:string|null;datajudUpdatedAt:string|null;
  findings:Record<string,any>;events:Array<{source:'DataJud'|'DJEN';at:string;text:string;url:string|null}>;
  sourceErrors:Record<string,string|null>;
 };
@@ -214,7 +215,7 @@ export async function getHermesPortfolioSummaries(
 ):Promise<HermesPortfolioCaseSummary[]>{
  const db=await getSupabaseAdmin();
  const {data:scans,error}=await db.from('hermes_portfolio_scans')
-  .select('processo_id,state,checked_at,datajud_ok,djen_ok,findings,source_errors')
+  .select('processo_id,state,checked_at,datajud_ok,djen_ok,datajud_indexed_at,datajud_updated_at,findings,source_errors')
   .eq('empresa_id',empresaId).order('checked_at',{ascending:false,nullsFirst:false})
   .limit(Math.max(1,Math.min(limit,100)));
  if(error)throw new Error('Dossiês Hermes indisponíveis.');
@@ -232,6 +233,8 @@ export async function getHermesPortfolioSummaries(
    cnj:String(row.protocolo_ref||'').slice(0,35),
    state:s.state as HermesPortfolioCaseSummary['state'],
    checkedAt:s.checked_at||null,datajudOk:s.datajud_ok===true,djenOk:s.djen_ok===true,
+   datajudIndexedAt:s.datajud_indexed_at||null,
+   datajudUpdatedAt:s.datajud_updated_at||null,
    findings:(s.findings&&typeof s.findings==='object'&&!Array.isArray(s.findings))?s.findings:{},
    events:[],
    sourceErrors:(s.source_errors&&typeof s.source_errors==='object')?s.source_errors:{},

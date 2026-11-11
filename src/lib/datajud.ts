@@ -263,7 +263,9 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       };
     }
 
-    if (data._shards?.failed > 0 && (!data.hits?.hits || data.hits.hits.length === 0)) {
+    // Mesmo com hit, shards incompletos não confirmam o histórico integral.
+    // O Hermes mantém o último dossiê verificado e reconsulta depois.
+    if (data?._shards?.failed > 0) {
       if (attempt < maxAttempts) {
         await sleep(600);
         return fetchDataJudUncached(cnj, attempt + 1, options);
