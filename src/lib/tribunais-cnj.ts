@@ -39,6 +39,9 @@ export const TRIBUNAIS_CNJ: Record<
 export function getTribunalFromCnj(cnj: string) {
   const clean = cnj.replace(/\D/g, "");
   if (clean.length !== 20) return null;
+  // Este catálogo cobre somente o ramo 8 (Justiça Estadual).
+  // Um TRT 5.02 não pode ser confundido com TJAL 8.02.
+  if (clean[13] !== '8') return null;
   const code = clean.substring(14, 16);
   return TRIBUNAIS_CNJ[code] || null;
 }

@@ -4,7 +4,7 @@ import React from "react";
 import { Bot, ClipboardCopy, Loader2, RefreshCw, FileSearch } from "lucide-react";
 import { getHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
 import {djenBuscaProcesso,type DjenItemRaw} from "@/lib/djen-client";
-import {resolveOfficialCourtPortal,OFFICIAL_DJEN_PUBLIC_PORTAL} from "@/lib/hermes-official-fallbacks";
+import {resolveOfficialCourtPortal,getHermesNationalSourcePlan,OFFICIAL_DJEN_PUBLIC_PORTAL,OFFICIAL_JUSBR_PORTAL} from "@/lib/hermes-official-fallbacks";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -28,6 +28,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
     ok:boolean; error:string|null; checkedAt:string; items:DjenItemRaw[]; count:number;
   }|null>(null);
   const courtPortal=React.useMemo(()=>resolveOfficialCourtPortal(protocolo),[protocolo]);
+  const nationalPlan=React.useMemo(()=>getHermesNationalSourcePlan(protocolo),[protocolo]);
 
   async function queryOfficialBrazil(processId:number){
     const response=await fetch('/api/hermes-office?action=review',{
@@ -151,6 +152,11 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-bold text-foreground hover:bg-muted">
                 Portal oficial do DJEN
               </a>
+              {nationalPlan?.otherPortals.map(p=><a key={p.url} href={p.url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-bold text-foreground hover:bg-muted">{p.label}</a>)}
+              <a href={OFFICIAL_JUSBR_PORTAL} target="_blank" rel="noopener noreferrer"
+                title="Jus.br: consulta nacional mediante login autorizado; não é uma API pública para robôs"
+                className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-bold text-foreground hover:bg-muted">Jus.br · consulta nacional</a>
               {courtPortal&&<a href={courtPortal.url} target="_blank" rel="noopener noreferrer"
                 title={courtPortal.scope} className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-bold text-foreground hover:bg-muted">
                 {courtPortal.label}
@@ -191,7 +197,8 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                     <p className="font-semibold">Diagnóstico das consultas oficiais</p>
                     {!review.djen_ok&&<p>DJEN: {String(sourceErrors.djen||'Fonte não confirmada.')}</p>}
                     {!review.datajud_ok&&<p>DataJud: {String(sourceErrors.datajud||'Fonte não confirmada.')}</p>}
-                    <p className="mt-1 text-muted-foreground">Uma fonte pode responder mesmo quando a outra falha. Reconsulte sem presumir que não houve movimentação.</p>
+                    {sourceErrors.fonteAlternativa&&<p className="mt-2 font-medium text-foreground">{sourceErrors.fonteAlternativa}</p>}
+                    <p className="mt-1 text-muted-foreground">Uma fonte pode responder mesmo quando a outra falha. DJEN confirma publicações, não a cronologia integral do tribunal.</p>
                   </div>;
                 })()}
                 {String(registered.next || "") !== String(review.due_on || "") && (
