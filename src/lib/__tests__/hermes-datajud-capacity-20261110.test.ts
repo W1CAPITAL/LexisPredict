@@ -3,10 +3,11 @@ import {readFileSync} from 'node:fs';
 import {fetchDataJud} from '@/lib/datajud';
 const read=(file:string)=>readFileSync(file,'utf8');
 const cnj='1002670-83.2025.8.26.0271';
-afterEach(()=>vi.unstubAllGlobals());
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
 describe('Hermes: DataJud em sobrecarga oficial',()=>{
  it('identifica HTTP 429 do Elasticsearch, sem alegar processo ausente ou fonte confirmada',async()=>{
+  vi.stubEnv('DATAJUD_USE_AUTHORIZED','true');
   const fetchMock=vi.fn().mockResolvedValue({
    ok:false,status:429,
    headers:{get:(key:string)=>key.toLowerCase()==='retry-after'?'120':null},
@@ -21,6 +22,7 @@ describe('Hermes: DataJud em sobrecarga oficial',()=>{
   expect(fetchMock).toHaveBeenCalledTimes(1);
  });
  it('não converte timed_out interno da API em sucesso',async()=>{
+  vi.stubEnv('DATAJUD_USE_AUTHORIZED','true');
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({
     ok:true,status:200,
     json:async()=>({timed_out:true,_shards:{total:1,successful:0,failed:1},hits:{hits:[]}})
