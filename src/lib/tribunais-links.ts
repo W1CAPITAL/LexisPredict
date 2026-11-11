@@ -57,11 +57,26 @@ export const TRIBUNAIS_TJ: TribunalLink[] = [
 export const TRIBUNAIS_TRF: TribunalLink[] = [
   { codigo: '4.01', sigla: 'TRF1', nome: 'TRF 1ª Região', url: 'https://pje1g.trf1.jus.br/consultapublica/ConsultaPublica/listView.seam', sistema: 'pje' },
   { codigo: '4.02', sigla: 'TRF2', nome: 'TRF 2ª Região', url: 'https://eproc.jfrj.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
+  { codigo: '4.03', sigla: 'TRF3', nome: 'TRF 3ª Região', url: 'https://www.trf3.jus.br/', sistema: 'outro' },
   { codigo: '4.04', sigla: 'TRF4', nome: 'TRF 4ª Região', url: 'https://consulta.trf4.jus.br/trf4/controlador.php?acao=consulta_processual_pesquisa', sistema: 'outro' },
+  { codigo: '4.05', sigla: 'TRF5', nome: 'TRF 5ª Região', url: 'https://open.trf5.jus.br/index.php/consulta-processual-fisico-e-eletronico', sistema: 'outro' },
   { codigo: '4.06', sigla: 'TRF6', nome: 'TRF 6ª Região', url: 'https://eproc1g.trf6.jus.br/eproc/externo_controlador.php?acao=processo_consulta_publica', sistema: 'eproc' },
 ];
 
-export const TODOS_TRIBUNAIS = [...TRIBUNAIS_TJ, ...TRIBUNAIS_TRF];
+/** Portais de consulta humana, não APIs ou endpoints de scraping. */
+export const TRIBUNAIS_TRT_CONHECIDOS:TribunalLink[]=[
+  {codigo:'5.02',sigla:'TRT2',nome:'TRT 2ª Região',url:'https://ww2.trt2.jus.br/servicos/acesso-online/processo-judicial-eletronico-pje/page',sistema:'pje'},
+  {codigo:'5.03',sigla:'TRT3',nome:'TRT 3ª Região',url:'https://portal.trt3.jus.br/internet/servicos/pje',sistema:'pje'},
+];
+export const TRIBUNAIS_SUPERIORES:TribunalLink[]=[
+  {codigo:'2.00',sigla:'STJ',nome:'Superior Tribunal de Justiça',url:'https://www.stj.jus.br/',sistema:'outro'},
+  {codigo:'2.01',sigla:'STJ',nome:'Superior Tribunal de Justiça',url:'https://www.stj.jus.br/',sistema:'outro'},
+  {codigo:'3.00',sigla:'TST',nome:'Tribunal Superior do Trabalho',url:'https://www.tst.jus.br/',sistema:'outro'},
+  {codigo:'3.01',sigla:'TST',nome:'Tribunal Superior do Trabalho',url:'https://www.tst.jus.br/',sistema:'outro'},
+  {codigo:'6.00',sigla:'TSE',nome:'Tribunal Superior Eleitoral',url:'https://www.tse.jus.br/',sistema:'outro'},
+  {codigo:'7.00',sigla:'STM',nome:'Superior Tribunal Militar',url:'https://www.stm.jus.br/',sistema:'outro'},
+];
+export const TODOS_TRIBUNAIS=[...TRIBUNAIS_TJ,...TRIBUNAIS_TRF,...TRIBUNAIS_TRT_CONHECIDOS,...TRIBUNAIS_SUPERIORES];
 
 export function codigoJusticaFromCnj(cnj: string): string | null {
   const d = String(cnj || '').replace(/\D/g, '');
