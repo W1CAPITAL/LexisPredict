@@ -50,7 +50,7 @@ export async function loadHermesReviewCase(db: Awaited<ReturnType<typeof getSupa
  * Reservations use Postgres as a cross-instance circuit breaker, not process memory.
  * The CNJ can return 429 due to an overloaded Elasticsearch queue.
  */
-async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any>{
+export async function requestDataJudWithCapacity(cnj:string,manual:boolean,probeTimeoutMs?:number):Promise<any>{
  const plan=getHermesNationalSourcePlan(cnj);
  if(!plan)return {error:true,errorCode:'unknown_jurisdiction',message:'Ramo/tribunal não identificado pelo número CNJ; nenhuma API incorreta será consultada.'};
  const alias=plan.alias;
@@ -71,7 +71,8 @@ async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any
  let result:any;
  try{
   result=await fetchDataJud(cnj, 1, {
-   fast: true, cloudBudget: true, forceRefresh: manual, timeoutMs: manual?44_000:38_000,
+   fast: true, cloudBudget: true, forceRefresh: manual,
+   timeoutMs:probeTimeoutMs?Math.min(38_000,Math.max(5_000,probeTimeoutMs)):(manual?44_000:38_000),
   });
  }catch(error){
   result={error:true,errorCode:'network_error',
