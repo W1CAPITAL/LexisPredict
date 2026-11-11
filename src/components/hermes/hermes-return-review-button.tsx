@@ -15,6 +15,12 @@ const fmt = (iso: unknown) => {
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? m[3] + "/" + m[2] + "/" + m[1] : "—";
 };
+const fmtTimestamp = (value:unknown) => {
+  const date=new Date(String(value||''));
+  return Number.isFinite(date.getTime())
+    ?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(date)
+    :'—';
+};
 export function HermesReturnReviewButton({ processId, compact = false }: { processId: number; compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -199,10 +205,14 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                   const tribunalApiAutomated=snapshot.tribunalApiAutomated===true;
                   const tribunalApiOk=snapshot.tribunalApiOk===true;
                   const tribunalApiAttempted=snapshot.tribunalApiAttempted===true;
+                  const datajudUpdatedAt=typeof snapshot.datajudUpdatedAt==='string'?snapshot.datajudUpdatedAt:null;
+                  const datajudIndexTimestamp=typeof snapshot.datajudIndexTimestamp==='string'?snapshot.datajudIndexTimestamp:null;
                   return <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-5">
                     <p className="font-semibold">Diagnóstico das consultas oficiais</p>
                     {!review.djen_ok&&<p>DJEN: {String(sourceErrors.djen||'Fonte não confirmada.')}</p>}
                     {!review.datajud_ok&&<p>DataJud: {String(sourceErrors.datajud||'Fonte não confirmada.')}</p>}
+                    {review.datajud_ok&&datajudUpdatedAt&&<p>Atualização informada do registro DataJud: {fmtTimestamp(datajudUpdatedAt)}</p>}
+                    {review.datajud_ok&&datajudIndexTimestamp&&<p>Entrada deste registro no índice DataJud: {fmtTimestamp(datajudIndexTimestamp)}</p>}
                     {tribunalApiAutomated&&<p>TJPR PROJUDI MNI: {tribunalApiOk?'consulta oficial confirmada':tribunalApiAttempted?String(sourceErrors.projudi||'Fonte não confirmada.'):'não acionado nesta rodada'}</p>}
                     {sourceErrors.fonteAlternativa&&<p className="mt-2 font-medium text-foreground">{sourceErrors.fonteAlternativa}</p>}
                     <p className="mt-1 text-muted-foreground">DJEN confirma publicações; DataJud e MNI confirmam movimentos processuais. Uma fonte não substitui o escopo das demais.</p>
