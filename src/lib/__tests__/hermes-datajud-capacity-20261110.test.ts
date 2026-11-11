@@ -34,7 +34,8 @@ describe('Hermes: DataJud em sobrecarga oficial',()=>{
   const service=read('src/lib/hermes-return-service.ts');
   expect(service).toContain("rpc('hermes_reserve_datajud_slot'");
   expect(service).toContain("rpc('hermes_finish_datajud_slot'");
-  expect(service).toContain('resolveDataJudAlias');
+  expect(service).toContain('getHermesNationalSourcePlan');
+  expect(service).toContain("errorCode:'unknown_jurisdiction'");
   expect(service).toContain('retry_at');
   expect(service).toContain('DataJud em pausa');
   expect(service).toContain('fetchDjenComunicacoes(cnj');
