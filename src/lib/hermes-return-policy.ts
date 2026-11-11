@@ -1,6 +1,6 @@
 /**
  * Hermes Return Intelligence — deterministic recommendations from verified
- * DJEN / DataJud snapshots. No LLM, no outbound message, no appointment write.
+ * DJEN, DataJud and authorized tribunal MNI snapshots. No LLM, no outbound message, no appointment write.
  */
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { validReturnDay } from '@/lib/wa-daily-return-policy';
