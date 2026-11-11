@@ -20,6 +20,19 @@ describe('audiencias oficiais', () => {
     expect(a).toHaveLength(1);
     expect(a[0]).toMatchObject({tipo:'sessao_virtual',data:'2026-11-04',dataFim:'2026-11-11',hora:'09:00',horaFim:'09:00'});
   });
+  it('não confunde prazo anterior à sessão com término do julgamento virtual', () => {
+    const notice='PAUTA DE SESSÃO VIRTUAL DE JULGAMENTO. Os autos serão julgados eletronicamente em sessão virtual com início em 24/11/2026 às 00:00. Eventual oposição ao julgamento virtual deverá ser requerida até 10/11/2026.';
+    const a=extrairAudienciasOficiais(notice);
+    expect(a).toHaveLength(1);
+    expect(a[0].data).toBe('2026-11-24');
+    expect(a[0].dataFim).toBeNull();
+    expect(a[0].horaFim).toBeNull();
+  });
+  it('não confunde última data sem indicação de encerramento com fim da sessão', () => {
+    const a=extrairAudienciasOficiais('SESSÃO VIRTUAL DE JULGAMENTO. Início em 24/11/2026. Publicação 25/11/2026; inscrições até 26/11/2026.');
+    expect(a[0].data).toBe('2026-11-24');
+    expect(a[0].dataFim).toBeNull();
+  });
   it('aceita data por extenso sem confundir data da publicação', () => {
     const a=extrairAudienciasOficiais('Certifico que foi designada audiência de conciliação para o dia 12 de novembro de 2026, às 10h30.');
     expect(a[0].data).toBe('2026-11-12');
