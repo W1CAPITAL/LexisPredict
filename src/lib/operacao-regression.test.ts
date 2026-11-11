@@ -72,6 +72,25 @@ describe('Busca e apreensão e risco', () => {
     expect(k.riskScore).toBe(0);
     expect(k.countEncerradoCarteira).toBe(0);
   });
+  it('usa a data real do retorno e não status manual antigo nos KPIs compartilhados', () => {
+    const staleClosed = base({
+      status: 'Atenção',
+      status_interno: 'EM ANDAMENTO',
+      situacao: 'EM ANDAMENTO',
+      statusManual: 'Automatico',
+      proximo_retorno: '2026-09-10',
+      ultimo_retorno: '2026-09-10',
+      dados: {
+        status: 'Encerrado',
+        situacao: 'ENCERRADO',
+        status_interno: 'ENCERRADO',
+        statusManual: 'Encerrado',
+      },
+    });
+    const k = computeKpiUnificado([staleClosed], { ref: new Date('2026-09-14T15:00:00Z') });
+    expect(k.countVencido).toBe(1);
+    expect(buildDashboardMetrics([staleClosed]).countVencido).toBe(1);
+  });
   it('não soma o mesmo caso várias vezes; painel e dossiê concordam', () => {
     const cases = [base({ proximoPrazo: '2026-01-01', classe_acao: 'Busca e Apreensão', evento_resumo: 'Defiro a busca e apreensão.' }), base({ id: '2', protocolo: '20000001220268260100' }), base({ id: '3', protocolo: '30000001220268260100', situacao: 'ENCERRADO' })];
     const k = computeKpiUnificado(cases);
