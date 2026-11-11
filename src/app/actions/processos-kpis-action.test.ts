@@ -52,5 +52,5 @@ describe('P0 KPIs empresariais: leitura completa e filtro autenticado',()=>{
   const result=await fetchProcessosEmpresaKpisAction(false);
   expect(result).toMatchObject({ok:true,total:1,ativos:1,encerradosCarteira:0,vencidos:1});
   expect(ownerFilterCalls).toBe(0);
- });;
+ });
 });
