@@ -85,17 +85,23 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
       const sessionDates = dates(head);
       const qualified = /sessao virtual|pauta de sessao|intimacao de pauta|data da sessao/.test(normalizedHead);
       if (qualified && sessionDates.length) {
-        const start = sessionDates[0];
-        // Uma data de prazo para oposição/destaque (ou data da publicação)
-        // não é o fim da sessão. Exigir data >= início e referência explícita
-        // ao encerramento do julgamento próxima à própria data final.
-        const end = sessionDates.slice(1).find((item) => {
+        // A data de publicação pode anteceder a sessão. Preferir a data
+        // vinculada expressamente ao início em vez da primeira data do texto.
+        const start = sessionDates.find((item) => {
+          const preceding = clean(head.slice(Math.max(0, item.index - 125), item.index));
+          const near = preceding.slice(-100);
+          return /\b(?:inicio|iniciara|iniciarao|abertura|comeco)\b/.test(near)
+            && !/\b(?:prazo|oposicao|destaque|inscricao|publicacao|manifestacao)\b/.test(near);
+        }) || sessionDates[0];
+        // Não transformar data da publicação ou prazo de manifestação
+        // em término da sessão, mesmo quando a data é posterior ao início.
+        const end = sessionDates.filter((item) => item.index > start.index).find((item) => {
           if (item.date < start.date) return false;
-          const context = clean(head.slice(Math.max(start.index, item.index - 125), item.index));
-          const recent = context.slice(-110);
-          const definite = /\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\b/.test(recent);
-          const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(recent)
-            && !/\b(?:oposicao|destaque|inscric|prazo|petic|manifestac)\w*\b/.test(recent);
+          const preceding = clean(head.slice(Math.max(start.index, item.index - 175), item.index));
+          const near = preceding.slice(-145);
+          if (/\b(?:prazo|oposicao|destaque|inscricao|inscricoes|peticionamento|manifestacao|sustentacao|publicacao)\b/.test(near)) return false;
+          const definite = /\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\b/.test(near);
+          const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(near);
           return definite || sessionUntil;
         }) || null;
         const firstHour = clock(head, start.index, true) || clock(head, start.index);
