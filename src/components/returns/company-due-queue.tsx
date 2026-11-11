@@ -9,7 +9,7 @@ import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
 import type {LegalCase} from '@/lib/case-logic';
 import {listCompanyDueReturns} from '@/lib/company-return-queue';
-import {loadAllDuePages} from '@/lib/today-due-consistency';
+import {loadAllCompanyDueReturns} from '@/lib/today-due-consistency';
 import {useAdmin} from '@/hooks/use-admin';
 
 type Filter='all'|'overdue'|'today';
@@ -33,16 +33,7 @@ export function CompanyDueQueue(){
   if(!companyId){setCases(null);return;}
   const controller=new AbortController();
   setBusy(true);setError('');setCases(null);
-  void loadAllDuePages<LegalCase>(async offset=>{
-   const params=new URLSearchParams({field: 'proximo-retorno',to:today,offset:String(offset)});
-   const response=await fetch('/api/carteira/filtered?'+params.toString(),{
-    credentials:'same-origin',cache:'no-store',signal:controller.signal,
-   });
-   const payload=await response.json().catch(()=>null);
-   if(!response.ok||payload?.ok!==true||!Array.isArray(payload.cases))
-    throw new Error(payload?.error||'Não foi possível ler todos os retornos da empresa.');
-   return {cases:payload.cases as LegalCase[],hasMore:payload.hasMore===true};
-  },{maxCases:100000,signal:controller.signal})
+  void loadAllCompanyDueReturns<LegalCase>(today,{maxCases:100000,signal:controller.signal})
    .then(all=>{if(!controller.signal.aborted)setCases(all);})
    .catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'A consulta não foi concluída.');})
    .finally(()=>{if(!controller.signal.aborted)setBusy(false);});
