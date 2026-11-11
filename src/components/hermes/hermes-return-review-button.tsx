@@ -162,6 +162,10 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 {courtPortal.label}
               </a>}
             </div>
+            {nationalPlan?.scmpp&&review&&!review.datajud_ok&&<p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <strong className="text-foreground">SCMPP · TJPR:</strong> há serviço oficial de movimentos públicos, mas a integração ainda não validada neste ambiente impede tratá-lo como consulta concluída. O botão TJPR acima abre a consulta pública humana; o Hermes não atravessa bloqueios do tribunal.{' '}
+              <a href={nationalPlan.scmpp.documentationUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Documento técnico oficial</a>
+            </p>}
             {djenOnly&&<section aria-label="Consulta DJEN independente" className="space-y-2 rounded-xl border border-[#945878]/30 bg-card p-3">
               <p className="font-semibold">DJEN independente · {fmt(djenOnly.checkedAt)}</p>
               <p className="text-xs text-muted-foreground">Consulta pelo navegador, sem alterar a revisão salva. Publicações DJEN não equivalem à confirmação DataJud ou ao histórico integral do tribunal.</p>
