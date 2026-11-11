@@ -40,7 +40,7 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
      <span className="rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold text-[#f3d9e5]">{statusLabel[item.state]}</span>
     </div>
     <p className="mt-2 text-xs text-[#e7d4df]">
-     Última movimentação DataJud conhecida: {date(item.lastMovementAt)}
+     Última movimentação oficial conhecida: {date(item.lastMovementAt)}
      {item.daysWithoutMovement!==null?` · ${item.daysWithoutMovement} dia(s)`:''}
     </p>
     {item.sourceErrors.ultimaPublicacaoDjen&&<p className="mt-1 text-xs text-[#e7d4df]">Última publicação DJEN encontrada: {date(item.sourceErrors.ultimaPublicacaoDjen)}</p>}
