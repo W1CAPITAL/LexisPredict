@@ -1,6 +1,7 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
+import {extractDataJudSourceRevision,retainDataJudSourceRevision} from '@/lib/datajud-source-freshness';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
 import {buildHermesJudicialFindings} from '@/lib/hermes-judicial-findings';
@@ -95,7 +96,10 @@ export async function requestDataJudWithCapacity(cnj:string,manual:boolean,probe
 }
 
 /** Independent court verification: no WhatsApp queue and no changes to process or return dates. */
-type CourtSnapshotWithDiagnostic=HermesCourtSnapshot&{sourceErrors:Record<'djen'|'datajud'|'fonteAlternativa',string|null>};
+type CourtSnapshotWithDiagnostic=HermesCourtSnapshot&{
+ datajudIndexedAt?:string|null;datajudUpdatedAt?:string|null;
+ sourceErrors:Record<'djen'|'datajud'|'fonteAlternativa',string|null>;
+};
 async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual=false): Promise<CourtSnapshotWithDiagnostic> {
   const fromDay = validReturnDay(lastReturn);
   const beginning = fromDay
@@ -108,6 +112,7 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
   const diario = djen.status === 'fulfilled' ? djen.value : null;
   const datajudOk = !!datajud && datajud.error === false && datajud.found === true;
+  const datajudRevision=extractDataJudSourceRevision(datajud);
   const djenOk = !!diario && diario.success === true;
   const events: HermesCourtEvent[] = [];
   if (datajudOk) {
@@ -148,7 +153,10 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
       :sourceMode==='no-current-source'
       ?`DJEN e DataJud indisponíveis nesta verificação de ${sourceContext}. O Hermes mantém o caso pendente, reconsulta depois e indica consulta autorizada no portal oficial.`
       :null;
-  return { djenOk, datajudOk, events,sourceErrors:{
+  return { djenOk, datajudOk, events,
+   datajudIndexedAt:datajudRevision?.indexedAt||null,
+   datajudUpdatedAt:datajudRevision?.updatedAt||null,
+   sourceErrors:{
     djen:djenOk?null:diagnostic(djen.status==='rejected'?null:diario?.error||'Resposta da fonte não confirmada.'),
     datajud:datajudOk?null:diagnostic(dj.status==='rejected'?null:datajud?.message||'Não encontrado no índice ou fonte indisponível.'),
     fonteAlternativa,
@@ -344,8 +352,17 @@ export async function persistHermesPortfolioSnapshot(
  const now=new Date().toISOString();
  // Partial retries must NEVER discard the older verified source.
  const {data:prior,error:readError}=await db.from('hermes_portfolio_scans')
-  .select('events').eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
+  .select('events,datajud_indexed_at,datajud_updated_at').eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
  if(readError)throw new Error('Falha ao preservar histórico judicial anterior: '+readError.code);
+ // O horário do indexador nunca é substituído por checked_at. Uma falha 429
+ // conserva os últimos metadados DataJud confirmados anteriormente.
+ const datajudRevision=retainDataJudSourceRevision({
+  indexedAt:prior?.datajud_indexed_at||null,
+  updatedAt:prior?.datajud_updated_at||null,
+ },snapshot.datajudOk?{
+  indexedAt:snapshot.datajudIndexedAt||null,
+  updatedAt:snapshot.datajudUpdatedAt||null,
+ }:null);
  const events=mergeHermesCourtHistory(
   Array.isArray(prior?.events)?prior.events as HermesCourtEvent[]:[],
   snapshot.events
@@ -357,6 +374,8 @@ export async function persistHermesPortfolioSnapshot(
  const {error}=await db.from('hermes_portfolio_scans').upsert({
   empresa_id:row.empresa_id,processo_id:row.id,state,
   checked_at:now,attempted_at:now,datajud_ok:snapshot.datajudOk,djen_ok:snapshot.djenOk,
+  datajud_indexed_at:datajudRevision.indexedAt,
+  datajud_updated_at:datajudRevision.updatedAt,
   last_datajud_movement_at:findings.latestCourtMovement,
   last_djen_publication_at:findings.latestDjenPublication,
   source_errors:snapshot.sourceErrors,events,findings,
