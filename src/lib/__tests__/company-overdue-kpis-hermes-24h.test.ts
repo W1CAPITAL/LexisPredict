@@ -26,6 +26,10 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
   expect(service).toContain("rpc('hermes_claim_portfolio_scan_batch'");
   expect(service).toContain('p_limit:2');
   expect(service).toContain('atualizarAudienciasDeConsulta');
+  const queue=read('supabase/migrations/20261111141000_hermes_portfolio_fair_24h_queue.sql');
+  expect(queue).toContain('WHEN r.processo_id IS NULL THEN 0');
+  expect(queue).toContain("WHEN r.state IN ('ready','skipped') AND r.checked_at<now()-interval '24 hours' THEN 1");
+  expect(queue).toContain("WHEN r.state='partial' AND r.checked_at<now()-interval '12 hours' THEN 2");
  });
  it('compartilha a mesma regra de retorno vencido entre KPIs, filas, relatórios e agentes',()=>{
   const surfaces=[
