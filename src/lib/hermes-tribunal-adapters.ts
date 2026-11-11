@@ -134,6 +134,27 @@ function xmlEscape(s:string):string{
  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
+/** Lê o soapAction da operação MNI no binding SOAP, sem confiar em outras operações. */
+function readSoapActionFromBinding(wsdl:string,operationName:string):string|null{
+ const $=load(wsdl,{xmlMode:true});
+ for(const node of findLocal($,'operation').toArray()){
+  const op=$(node);
+  const parent=op.parent().get(0) as {name?:string}|undefined;
+  if(local(parent?.name)!=='binding'||attrLocal(op,'name')!==operationName)continue;
+  const soap=op.children().filter((_i,child)=>{
+   const tag=String((child as {name?:string}).name||'').toLowerCase();
+   return local(tag)==='operation'&&(tag.startsWith('soap:')||tag.startsWith('soap12:'));
+  }).first();
+  if(!soap.length)continue;
+  const attrs=soap.attr()||{};
+  const key=Object.keys(attrs).find(k=>local(k)==='soapaction');
+  if(key===undefined)continue;
+  const value=String(attrs[key]??'');
+  if(value.length>512||/[\r\n]/.test(value))return null;
+  return value;
+ }
+ return null;
+}
 function publicMniEnvelope(cnj:string,ns:string,adapter:TribunalAdapter):string{
  // Credenciais SOMENTE se configuradas explicitamente para o tribunal.
  const prefix=adapter.tribunal==='TJPR'?'HERMES_MNI_TJPR':'HERMES_MNI_TJPE';
@@ -177,11 +198,12 @@ export async function runOfficialTribunalConnector(rawCnj:string):Promise<Tribun
    !/^https?:\/\/www\.cnj\.jus\.br\/mni/.test(namespace))
    return response('unexpected_response',adapter,[],wsdl.status,'Namespace desconhecido; contrato requer revisão.');
   const soap=publicMniEnvelope(cnj,namespace,adapter);
-  // O SOAPAction curto "consultarProcesso" não identifica a operação no
-  // binding SOAP 1.1. Prioriza o URI oficial informado no próprio WSDL.
-  const wsdlAction=/<(?:[\w-]+:)?operation\b[^>]*\bsoapAction=["']([^"']+)["']/i.exec(xml)?.[1]||'';
-  const soapAction=wsdlAction.startsWith(namespace)&&wsdlAction.endsWith('consultarProcesso')
-   ?wsdlAction:namespace.replace(/\/?$/,'/')+'consultarProcesso';
+  // O WSDL pode anunciar varias operacoes: respeitar exclusivamente
+  // o soapAction do binding consultarProcesso, inclusive quando vazio.
+  const publishedAction=readSoapActionFromBinding(xml,'consultarProcesso');
+  const soapAction=publishedAction===null
+   ?namespace.replace(/\/?$/,'/')+'consultarProcesso'
+   :publishedAction;
   const res=await fetch(adapter.endpoint,{
    method:'POST',redirect:'error',cache:'no-store',
    headers:{'Content-Type':'text/xml; charset=utf-8','SOAPAction':'"'+soapAction+'"',Accept:'text/xml,application/soap+xml'},
