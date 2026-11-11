@@ -30,7 +30,8 @@ describe('TJPR SCMPP MNI SOAP binding real',()=>{
   vi.stubGlobal('fetch',f);
   const r=await runOfficialTribunalConnector(cnj);
   expect(r.status).toBe('restricted');expect(r.movements).toEqual([]);
-  it('um erro HTTP 500 pausa todos os processos da mesma fonte sem bloquear tribunal diferente',()=>{
+ });
+ it('um erro HTTP 500 pausa todos os processos da mesma fonte sem bloquear tribunal diferente',()=>{
   const sql=readFileSync('supabase/migrations/20261111213000_hermes_tribunal_global_cooldown.sql','utf8');
   expect(sql).toContain('AND NOT EXISTS');
   expect(sql).toContain('busy.adapter');
