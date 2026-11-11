@@ -5,6 +5,7 @@
  */
 
 import { LegalCase, isCasoEncerrado } from './case-logic';
+import { isCasoVencido } from './vencimentos';
 
 export interface GrupoStats {
   chave: string;
@@ -71,7 +72,7 @@ function agrupar(cases: LegalCase[], chaveFn: (c: LegalCase) => string | null): 
   const grupos: GrupoStats[] = [];
   for (const [chave, itens] of mapa) {
     const ativos = itens.filter((c) => !isCasoEncerrado(c));
-    const vencidos = itens.filter((c) => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
+    const vencidos = itens.filter((c) => isCasoVencido(c)).length;
     const novoAndamento = itens.filter((c) => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
     const baixas = itens.filter((c) => !!c.datajud_encerrado_tribunal).length;
     const procedentes = itens.filter(isProcedente).length;
@@ -117,7 +118,7 @@ export function calcularEstatisticas(cases: LegalCase[]): InsightsResultado {
   const improcedentes = lista.filter(isImprocedente).length;
   const baixas = lista.filter((c) => !!c.datajud_encerrado_tribunal).length;
   const novoAndamento = lista.filter((c) => !!c.tem_novo_andamento || !!c.tem_atualizacao_pos_retorno).length;
-  const vencidos = lista.filter((c) => c.status === 'Vencido' || c.status === 'Caso Crítico').length;
+  const vencidos = lista.filter((c) => isCasoVencido(c)).length;
   const taxaProcedenciaGeral = procedentes + improcedentes > 0 ? (procedentes / (procedentes + improcedentes)) * 100 : 0;
   const riscoMedio = ativos.length ? Math.min(100, Math.round((vencidos / ativos.length) * 100 + (novoAndamento / ativos.length) * 50)) : 0;
 

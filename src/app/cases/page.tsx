@@ -66,6 +66,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCasoVencido } from '@/lib/vencimentos';
 import { useAppStore } from '@/store/use-app-store';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
@@ -192,7 +193,7 @@ const CaseRow = React.memo(({
       <td className="px-8 py-5 text-[11px] text-foreground font-bold uppercase truncate max-w-[120px]"><span>{c.advogado}</span></td>
       <td className="px-8 py-5">
         <div className="flex flex-col gap-2">
-          <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", (c.status === 'Vencido' || c.status === 'Caso Crítico') ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>{c.status}</Badge>
+          <Badge variant="outline" className={cn("px-3 py-1 text-[10px] font-black uppercase rounded-lg border-none", (isCasoVencido(c) || c.status === 'Caso Crítico') ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>{c.status}</Badge>
           <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-foreground"><CalendarDays size={14} className="text-primary" /><span>{c.proximoPrazo || 'S/ Prazo'}</span></div>
         </div>
       </td>
@@ -1166,7 +1167,7 @@ function CasesContent() {
     for (const c of cases) {
       const st = String(c.status || '');
       if (st === 'É Hoje' || st === 'E Hoje' || c.tem_novo_andamento) pendentes++;
-      if (st === 'Vencido' || st === 'Caso Crítico') vencidos++;
+      if (isCasoVencido(c)) vencidos++;
       if (c.tem_novo_andamento) novidades++;
       if (st === 'No Prazo') ok++;
     }

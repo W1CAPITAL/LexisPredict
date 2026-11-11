@@ -7,6 +7,7 @@ import { isBuscaApreensaoReal } from '@/lib/ba-real';
  */
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
+import { isCasoVencido } from './vencimentos';
 import { diasAtePrazo, statusEfetivo } from './prazo-status';
 
 export type PriorityBand =
@@ -85,7 +86,7 @@ export function scoreCasePriority(c: LegalCase): PriorityResult {
   }
 
   const d = dias(c);
-  if (st === 'Vencido' || st === 'Caso Crítico' || (d !== null && d < 0)) {
+  if (isCasoVencido(c) || st === 'Caso Crítico') {
     return { score: 700 + Math.min(99, Math.abs(d ?? 0)), band: 'vencido', label: 'Vencido' };
   }
   if (st === 'É Hoje' || d === 0) {

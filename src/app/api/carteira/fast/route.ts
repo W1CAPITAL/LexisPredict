@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
     const offset = safeInt(u.searchParams.get('offset'), 0, 100000);
     const empresaId = String(ctx.empresa_id);
 
-    const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
+    // Supervisores veem os KPIs da empresa; demais perfis permanecem no próprio escopo.
+    const companyWide = Boolean(ctx.isSuperAdmin || ctx.isSupervisor);
+    const ownerScope: string | null = companyWide ? null : ctx.auth_id;
     const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',

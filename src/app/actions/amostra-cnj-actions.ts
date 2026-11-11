@@ -1,12 +1,10 @@
 "use server";
 
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
-import { COURT_ALIASES } from "@/lib/datajud";
+import { COURT_ALIASES } from "@/lib/datajud-aliases";
+import { isDataJudUseAuthorized } from "@/lib/datajud-policy";
+import { resolveCurrentDataJudKey } from "@/lib/datajud";
 import { extrairHitEstatistico, formatCnj } from "@/lib/amostra-cnj-estatistica";
-
-const DATAJUD_PUBLIC_KEY =
-  "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_API_KEY = (process.env.DATAJUD_API_KEY || "").trim() || DATAJUD_PUBLIC_KEY;
 
 const DEFAULT_ALIASES = ["tjsp", "tjrj", "tjmg", "tjpr", "tjrs", "tjsc", "tjes", "tjba"];
 
@@ -49,7 +47,7 @@ async function datajudSearch(alias: string, searchAfter: any[] | null, size = 80
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `APIKey ${DATAJUD_API_KEY}`,
+        Authorization: `APIKey ${resolveCurrentDataJudKey()}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -78,6 +76,7 @@ export async function resumoAmostraCnjAction() {
 export async function coletarLoteExtincaoAction(input?: { aliases?: string[]; alvo?: number }) {
   const ctx = await getUserContext();
   if (!ctx.empresa_id) return { success: false, message: "Sessão expirada", inseridos: 0, vistos: 0 };
+  if (!isDataJudUseAuthorized()) return { success:false, message:'Coleta DataJud desativada: os termos vigentes vedam uso comercial dos dados e exigem autorização expressa do CNJ.', inseridos:0, vistos:0 };
   const admin = await getSupabaseAdmin();
   const aliases = (input?.aliases?.length ? input.aliases : DEFAULT_ALIASES).filter(aliasValido);
   const alvo = Math.min(10000, Math.max(100, input?.alvo || 10000));

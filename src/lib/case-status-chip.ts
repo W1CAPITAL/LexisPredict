@@ -2,6 +2,7 @@
  * Um chip principal por processo — evita 5 badges dizendo a mesma coisa.
  */
 import type { LegalCase } from './case-logic';
+import { isCasoVencido } from './vencimentos';
 
 export type StatusChip = {
   label: string;
@@ -84,9 +85,8 @@ export function getStatusChip(c: LegalCase | null | undefined): StatusChip {
   if (String((c as any).evento_tipo || '').includes('audiencia')) {
     return { label: 'Audiência', tone: 'info' };
   }
-  if (c.status === 'Vencido' || c.status === 'Caso Crítico') {
-    return { label: 'Prazo vencido', tone: 'danger' };
-  }
+  if (isCasoVencido(c)) return { label: 'Retorno vencido', tone: 'danger' };
+  if (c.status === 'Caso Crítico') return { label: 'Caso crítico', tone: 'danger' };
   if (c.status === 'É Hoje') return { label: 'Prazo hoje', tone: 'warn' };
   return { label: 'Em acompanhamento', tone: 'muted' };
 }

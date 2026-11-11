@@ -23,6 +23,19 @@ describe('Hermes: publicação no DJEN não é movimentação no tribunal',()=>{
   expect(result.lastMovementAt).toBe('2026-09-01');
   expect(result.lastPublicationAt).toBe('2026-11-10');
  });
+ it('usa movimento do TJPR PROJUDI MNI como fonte oficial quando DataJud está limitado',()=>{
+  const result=evaluateHermesStalledEvidence({
+   today,djenOk:true,datajudOk:false,courtApiOk:true,
+   lastKnownDataJudMove:null,lastKnownDjenPublication:null,
+   events:[
+    {source:'DJEN',at:'2026-11-10',text:'Publicação da sentença',url:null},
+    {source:'TJPR PROJUDI',at:'2026-11-09',text:'Concedida justiça gratuita',url:null},
+   ]
+  });
+  expect(result.state).toBe('recent_movement');
+  expect(result.lastMovementAt).toBe('2026-11-09');
+  expect(result.lastPublicationAt).toBe('2026-11-10');
+ });
  it('com ambas APIs indisponíveis, exige nova consulta sem alegar ausência de movimentação',()=>{
   const result=evaluateHermesStalledEvidence({
    today,datajudOk:false,djenOk:false,lastKnownDataJudMove:'2026-09-01',lastKnownDjenPublication:'2026-09-10',events:[]

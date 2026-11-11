@@ -2,7 +2,7 @@ import {afterEach,describe,expect,it,vi} from 'vitest';
 import {buildHermesVerifiedMeeting,cleanHermesReportText} from '@/lib/hermes-verified-meeting';
 import {fetchDataJud} from '@/lib/datajud';
 
-afterEach(()=>vi.unstubAllGlobals());
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
 describe('Hermes: DataJud, atas e vencimentos confiáveis',()=>{
  it('não declara ausência de vencidos quando existe retorno válido pendente',()=>{
@@ -18,6 +18,7 @@ describe('Hermes: DataJud, atas e vencimentos confiáveis',()=>{
   expect(text).toContain('Retornos');
  });
  it('trata timeout interno do índice DataJud como falha, nunca como processo inexistente',async()=>{
+  vi.stubEnv('DATAJUD_USE_AUTHORIZED','true');
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue({
    ok:true,status:200,
    json:async()=>({timed_out:true,_shards:{total:3,successful:1,failed:2},hits:{hits:[]}})
@@ -27,6 +28,7 @@ describe('Hermes: DataJud, atas e vencimentos confiáveis',()=>{
   expect(result.found).not.toBe(false);
  });
  it('consulta o DataJud pelo formato exato recomendado pelo CNJ, sem alternativa fuzzy em paralelo',async()=>{
+  vi.stubEnv('DATAJUD_USE_AUTHORIZED','true');
   const fn=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({timed_out:false,_shards:{failed:0},hits:{hits:[]}})});
   vi.stubGlobal('fetch',fn);
   await fetchDataJud('1002670-83.2025.8.26.0271',1,{forceRefresh:true,fast:true,cloudBudget:true,timeoutMs:5000});

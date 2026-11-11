@@ -40,6 +40,7 @@ import {
 } from 'recharts';
 import { LexisChartTooltip } from '@/components/charts/lexis-chart-tooltip';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
+import { isCasoVencido } from '@/lib/vencimentos';
 
 // CONSTANTES DE ESTILO PADRÃO LEXIS PREDICT - TODAS AS LETRAS EM PRETO
 const TICK_DARK = { fill: 'currentColor', fontSize: 10, fontWeight: 700 };
@@ -84,7 +85,7 @@ export default function AnalyticsPage() {
     const totalAtivos = ativos.length;
     
     const statusCounts = {
-      vencidos: cases.filter(c => c.status === 'Vencido' && !isCasoEncerrado(c)).length,
+      vencidos: cases.filter((c) => isCasoVencido(c)).length,
       hoje: cases.filter(c => c.status === 'É Hoje' && !isCasoEncerrado(c)).length,
       atencao: cases.filter(c => c.status === 'Atenção' && !isCasoEncerrado(c)).length,
       noPrazo: cases.filter(c => c.status === 'No Prazo' && !isCasoEncerrado(c)).length,
@@ -108,7 +109,7 @@ export default function AnalyticsPage() {
       }
       officeStats[office].total++;
       if (isCasoEncerrado(c)) officeStats[office].encerrados++;
-      else if (c.status === 'Vencido') officeStats[office].vencidos++;
+      else if (isCasoVencido(c)) officeStats[office].vencidos++;
       else officeStats[office].healthy++;
     });
 

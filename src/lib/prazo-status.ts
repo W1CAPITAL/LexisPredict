@@ -108,6 +108,10 @@ export function statusPorPrazo(
  */
 export function statusEfetivo(c: {
   proximoPrazo?: string | null;
+  proximo_retorno?: string | null;
+  proximoRetorno?: string | null;
+  ultimoRetorno?: string | null;
+  ultimo_retorno?: string | null;
   status?: string | null;
   statusManual?: string | null;
   situacao?: string | null;
@@ -118,6 +122,9 @@ export function statusEfetivo(c: {
   if (manual && manual !== 'Automatico' && fixed.includes(manual)) {
     return manual as CaseStatus;
   }
-  // Se status gravado parece de prazo, sempre recalcula (evita cache velho)
-  return statusPorPrazo(c.proximoPrazo, { situacao: c.situacao });
+  const prazo = normalizarDataPrazo(c.proximo_retorno || c.proximoRetorno || c.proximoPrazo);
+  const ultimo = normalizarDataPrazo(c.ultimo_retorno || c.ultimoRetorno);
+  const status = statusPorPrazo(prazo, { situacao: c.situacao });
+  if (status === 'Vencido' && prazo && ultimo && ultimo > prazo) return 'Atenção';
+  return status;
 }

@@ -4,7 +4,7 @@ import { extrairAudienciasOficiais, type AudienciaExtraida } from '@/lib/audienc
 import {extractOfficialHearingLink} from '@/lib/hermes-judicial-findings';
 import {filtrarAudienciasVigentes} from '@/lib/audiencias-expiry';
 
-type Fonte = {source:'DJEN'|'DataJud'; text:string; url?:string|null; publishedAt?:string|null};
+type Fonte = {source:'DJEN'|'DataJud'|'TJPR PROJUDI'; text:string; url?:string|null; publishedAt?:string|null};
 export type ProcessoAudiencia = {
   id: number; empresa_id: string|null; protocolo_ref: string|null; cliente: string|null;
   advogado: string|null; tribunal: string|null; djen_last_ok?: boolean|null;
@@ -50,7 +50,7 @@ export function prepararAudienciasDoProcesso(row:ProcessoAudiencia, fontes:Fonte
     const events=filtrarAudienciasVigentes(extrairAudienciasOficiais(doc.text.slice(0,80000)));
     for(const e of events){
       const evidenceAt=typeof doc.publishedAt==='string' ? Date.parse(doc.publishedAt) : 0;
-      const weight=source==='DJEN'?2:1;
+      const weight=source==='TJPR PROJUDI'?3:source==='DJEN'?2:1;
       const item={
         empresa_id:row.empresa_id,processo_id:row.id,chave:e.chave,
         protocolo_ref:row.protocolo_ref,cliente:row.cliente,advogado:row.advogado,

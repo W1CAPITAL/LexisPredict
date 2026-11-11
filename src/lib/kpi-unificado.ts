@@ -7,6 +7,8 @@ import { temBaCarteira } from './flags-operacionais';
  */
 import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
+import { hojeBrasilYmd } from "@/lib/atendimento-semana";
 import { statusEfetivo } from "@/lib/prazo-status";
 import { countAtendidosNestaSemana, labelSemanaAtual } from "@/lib/atendimento-semana";
 import {
@@ -21,9 +23,8 @@ export function temNovidadeCnj(c: any): boolean {
   return resolveTemNovoAndamento(c);
 }
 
-export function isVencidoAtivo(c: any): boolean {
-  const s = statusEfetivo(c);
-  return s === "Vencido" || c?.status === "Caso Crítico" || c?.statusManual === "Caso Crítico";
+export function isVencidoAtivo(c: any, hoje?: string): boolean {
+  return isCasoVencido(c, hoje);
 }
 
 /** Risco 0–100 — mesma conta no Painel e no Dossiê. */
@@ -64,7 +65,8 @@ export function computeKpiUnificado(cases: any[], opts?: { baHitDigits?: string[
   const ativosList = list.filter((c) => !isCasoEncerrado(c));
   const activeTotal = ativosList.length;
 
-  const countVencido = ativosList.filter(isVencidoAtivo).length;
+  const hoje = hojeBrasilYmd(ref);
+  const countVencido = ativosList.filter((c) => isVencidoAtivo(c, hoje)).length;
   const countHoje = ativosList.filter((c) => statusEfetivo(c) === "É Hoje").length;
   const countAtencao = ativosList.filter((c) => statusEfetivo(c) === "Atenção").length;
   const countSaudavel = ativosList.filter((c) => statusEfetivo(c) === "No Prazo").length;
@@ -77,7 +79,7 @@ export function computeKpiUnificado(cases: any[], opts?: { baHitDigits?: string[
   const caseScores = ativosList.map(c => {
     const status = statusEfetivo(c);
     return Math.max(
-      isVencidoAtivo(c) ? 100 : status === 'É Hoje' ? 70 : status === 'Atenção' ? 40 : status === 'Sem Prazo' ? 15 : 0,
+      isVencidoAtivo(c, hoje) ? 100 : status === 'É Hoje' ? 70 : status === 'Atenção' ? 40 : status === 'Sem Prazo' ? 15 : 0,
       temBaCarteira(c, baSet) ? 90 : 0,
       temNovidadeCnj(c) ? 25 : 0,
     );

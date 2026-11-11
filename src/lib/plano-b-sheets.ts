@@ -3,6 +3,8 @@
  * Link "qualquer pessoa com o link" funciona via endpoint gviz (não /export).
  */
 
+import { isCasoVencido } from './vencimentos';
+
 export type PlanoBRow = {
   protocolo: string;
   cliente: string;
@@ -313,7 +315,7 @@ export function computePlanoBKpis(rows: PlanoBRow[]) {
   for (const r of rows) {
     const st = (r.status || "Sem Prazo").trim() || "Sem Prazo";
     byStatus[st] = (byStatus[st] || 0) + 1;
-    if (/vencido|crítico|critico/i.test(st)) vencidos++;
+    if (isCasoVencido({ status: r.status, situacao: r.situacao, proximoRetorno: r.proximoRetorno, ultimoRetorno: r.ultimoRetorno })) vencidos++;
     if (/arquiv|encerr/i.test(st) || /encerr/i.test(r.situacao || "")) arquivados++;
     if (!r.telefone?.trim()) semTel++;
   }

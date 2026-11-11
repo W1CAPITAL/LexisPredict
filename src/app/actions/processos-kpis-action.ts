@@ -2,6 +2,7 @@
 
 import { isCasoEncerrado, isBaixaTribunal } from "@/lib/status-encerrado";
 import {isCasoVencido} from "@/lib/vencimentos";
+import { resolveSituacaoFromRow, resolveStatusManualFromRow } from "@/lib/resolve-situacao";
 
 export type ProcessosEmpresaKpis = {
   ok: boolean;
@@ -15,13 +16,15 @@ export type ProcessosEmpresaKpis = {
 
 function rowAsCase(row: any) {
   const d = row?.dados && typeof row.dados === "object" ? row.dados : {};
+  const situacao = resolveSituacaoFromRow(row, d);
+  const statusManual = resolveStatusManualFromRow(row, d, situacao);
   return {
     status: row?.status ?? d.status ?? null,
-    proximo_retorno:row?.proximo_retorno ?? null,
-    ultimo_retorno:row?.ultimo_retorno ?? null,
-    situacao: d.situacao ?? row?.status_interno ?? null,
-    statusManual: d.statusManual ?? null,
-    status_interno: row?.status_interno ?? d.status_interno ?? null,
+    proximo_retorno: row?.proximo_retorno ?? null,
+    ultimo_retorno: row?.ultimo_retorno ?? null,
+    situacao,
+    statusManual,
+    status_interno: row?.status_interno ?? situacao,
     via_scan_auto_encerrar: d.via_scan_auto_encerrar ?? row?.via_scan_auto_encerrar,
     operacao_sistema: d.operacao_sistema,
     datajud_encerrado_tribunal: row?.datajud_encerrado_tribunal,
@@ -35,7 +38,7 @@ function rowAsCase(row: any) {
   };
 }
 
-export async function fetchProcessosEmpresaKpisAction(companyView = false): Promise<ProcessosEmpresaKpis> {
+export async function fetchProcessosEmpresaKpisAction(_companyView = true): Promise<ProcessosEmpresaKpis> {
   try {
     const { getUserContext, getSupabaseAdmin } = await import("@/lib/server-db");
     const ctx = await getUserContext();
@@ -64,23 +67,17 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
     }
 
     const empresaId = String(ctx.empresa_id);
-    const authId = String(ctx.auth_id || '');
-    // CompanyView is only enabled by the dedicated company-read screen.
-    const companyWide = companyView || ctx.caseScope === "empresa" || !!(ctx.isSupervisor || ctx.isSuperAdmin);
-    // Both auth UUID and legacy usuarios.id are valid responsible IDs.
-    // Never trust an owner ID sent by the browser.
-    const ownerIds = [authId];
+    const companyWide = Boolean(ctx.isSuperAdmin || ctx.isSupervisor);
+    // KPIs empresariais são liberados para supervisores; demais perfis
+    // continuam limitados aos processos vinculados ao próprio usuário.
+    let ownerIds: string[] = [];
     if (!companyWide) {
-      const { data: profile, error: profileError } = await admin.from("usuarios")
-        .select("id,auth_user_id")
-        .eq("empresa_id", empresaId)
-        .eq("auth_user_id", authId)
-        .maybeSingle();
-      if (profileError) {
-        return { ok:false,total:0,ativos:0,encerradosCarteira:0,baixasTribunal:0,vencidos:0,
-          error:"Falha ao confirmar o responsável da carteira." };
-      }
-      if (profile?.id && !ownerIds.includes(String(profile.id))) ownerIds.push(String(profile.id));
+      const { data: owners, error: ownersError } = await admin.from('usuarios')
+        .select('id,auth_user_id')
+        .eq('empresa_id', empresaId)
+        .or(`id.eq.${ctx.auth_id},auth_user_id.eq.${ctx.auth_id}`);
+      if (ownersError) throw new Error('Não foi possível validar o escopo individual dos indicadores.');
+      ownerIds = [...new Set([ctx.auth_id, ...(owners || []).flatMap((owner: any) => [owner.id, owner.auth_user_id]).filter(Boolean).map(String)])];
     }
     const pageSize = 1000;
     let offset = 0;
@@ -96,14 +93,11 @@ export async function fetchProcessosEmpresaKpisAction(companyView = false): Prom
         .select(
           "id, status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
         )
-        .eq("empresa_id", empresaId)
-        .order("id", { ascending: true })
-        .range(offset, offset + pageSize - 1);
+        .eq("empresa_id", empresaId);
+      if (!companyWide) query = query.in("created_by", ownerIds);
+      query = query.order("id", { ascending: true }).range(offset, offset + pageSize - 1);
 
-      if (!companyWide) {
-        if (!authId) break;
-        query = query.in("created_by", ownerIds);
-      }
+
 
       const { data, error } = await query;
 

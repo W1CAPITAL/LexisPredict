@@ -1,18 +1,22 @@
-/** Mapa de fontes judiciais oficiais para o Hermes. Os portais não constituem APIs.
- * Não automatizar páginas e-SAJ/eproc/PJe, nem atravessar login/captcha/WAF.
- * As APIs programáticas publicamente documentadas usadas pelo Hermes são DJEN
- * e DataJud. A consulta Jus.br requer login; a API Datalake/GeCli requer aprovação.
+/** Mapa de fontes judiciais oficiais para o Hermes.
+ * Não automatizar portais e-SAJ/eproc/PJe/Projudi nem atravessar login/captcha/WAF.
+ * TJPR: a Resolução 532-OE/2026 prevê SCMPP automatizado sem cadastro/login
+ * e oculta complementos; o guia técnico MNI 2.2.2 ainda descreve credenciais
+ * privadas. O adaptador legado permanece pendente até validar o contrato público
+ * atualizado do endpoint. Jus.br requer login; Datalake/GeCli exige aprovação.
  */
 import {getTribunalByCnj} from '@/lib/tribunais-links';
-import {TRIBUNAIS_TJ} from '@/lib/tribunais-links';
+import {COURT_ALIASES} from '@/lib/datajud-aliases';
+import {isDataJudUseAuthorized} from '@/lib/datajud-policy';
 
 export type OfficialCourtPortal={label:string;url:string;scope:string};
 export type HermesNationalSourcePlan={
  tribunal:string;
  alias:string;
  cnjCode:string;
- automated:['DJEN','DataJud'];
- tribunalApiAutomated:false;
+ automated:string[];
+ tribunalApiAutomated:boolean;
+ tribunalApiAuthRequired:boolean;
  tribunalPortal:OfficialCourtPortal|null;
  otherPortals:OfficialCourtPortal[];
  jusbr:{url:'https://www.jus.br/';authRequired:true};
@@ -27,10 +31,8 @@ const OVERRIDES:Record<string,OfficialCourtPortal>={
  '5.03':{label:'TRT3 · Processo Judicial Eletrônico',url:'https://portal.trt3.jus.br/internet/servicos/pje',scope:'Portal oficial; consulta automatizada privada em massa não é autorizada.'},
  '4.03':{label:'TRF3 · Consulta Processual',url:'https://www.trf3.jus.br/',scope:'Escolha Justiça Federal de São Paulo, MS ou TRF3 e a instância.'},
  '4.05':{label:'TRF5 · Consulta Processual',url:'https://open.trf5.jus.br/index.php/consulta-processual-fisico-e-eletronico',scope:'Selecione o sistema processual adequado (PJe ou físico) e a instância.'},
- '2.00':{label:'STJ · Consulta Processual',url:'https://www.stj.jus.br/',scope:'Pesquisa pública oficial; processos restritos dependem de credenciais.'},
- '2.01':{label:'STJ · Consulta Processual',url:'https://www.stj.jus.br/',scope:'Pesquisa pública oficial; processos restritos dependem de credenciais.'},
- '3.00':{label:'TST · Portal Oficial',url:'https://www.tst.jus.br/',scope:'Selecione consulta processual pública.'},
- '3.01':{label:'TST · Portal Oficial',url:'https://www.tst.jus.br/',scope:'Selecione consulta processual pública.'},
+ '3.00':{label:'STJ · Consulta Processual',url:'https://processo.stj.jus.br/processo/pesquisa/',scope:'Consulta pública oficial do Superior Tribunal de Justiça.'},
+ '5.00':{label:'TST · Portal Oficial',url:'https://www.tst.jus.br/',scope:'Selecione consulta processual pública.'},
  '6.00':{label:'TSE · Portal Oficial',url:'https://www.tse.jus.br/',scope:'Selecione consulta pública.'},
  '7.00':{label:'STM · Portal Oficial',url:'https://www.stm.jus.br/',scope:'Selecione consulta pública.'}
 };
@@ -40,20 +42,7 @@ export const OFFICIAL_JUSBR_PORTAL='https://www.jus.br/';
 export const OFFICIAL_GECLI_REQUEST='https://gestao-clientes.pdpj.jus.br/';
 
 function courtAlias(code:string):string|null{
- const m=/^(\d)\.(\d{2})$/.exec(code);
- if(!m)return null;
- const justice=m[1],tribunal=Number(m[2]);
- if(justice==='8'){
-  const tj=TRIBUNAIS_TJ.find(t=>t.codigo===code);
-  return tj?tj.sigla.toLowerCase():null;
- }
- if(justice==='4'&&tribunal>=1&&tribunal<=6)return 'trf'+tribunal;
- if(justice==='5'&&tribunal>=1&&tribunal<=24)return 'trt'+tribunal;
- if(justice==='2'&&(tribunal===0||tribunal===1))return 'stj';
- if(justice==='3'&&(tribunal===0||tribunal===1))return 'tst';
- if(justice==='6'&&tribunal===0)return 'tse';
- if(justice==='7'&&tribunal===0)return 'stm';
- return null;
+ return COURT_ALIASES[code]||null;
 }
 function isOfficialLink(url:string):boolean{
  try{
@@ -89,7 +78,8 @@ export function getHermesNationalSourcePlan(cnj:unknown):HermesNationalSourcePla
   }));
  return {
   tribunal:alias.toUpperCase(),alias,cnjCode:code,
-  automated:['DJEN','DataJud'],tribunalApiAutomated:false,
+  automated:['DJEN',...(isDataJudUseAuthorized()?['DataJud']:[]),...(code==='8.16'?['TJPR PROJUDI MNI']:[])],
+  tribunalApiAutomated:code==='8.16',tribunalApiAuthRequired:false,
   tribunalPortal:tribunalPortal||null,otherPortals,
   jusbr:{url:'https://www.jus.br/',authRequired:true},
   datalake:{applicationUrl:'https://gestao-clientes.pdpj.jus.br/',requiresApproval:true},

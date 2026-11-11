@@ -60,7 +60,7 @@ import { linhaFase, linhaDonoAto, linhaDonoPasso } from '@/lib/fase-resumo';
 import { OpsCaseLine } from '@/components/ops/ops-case-line';
 import { computeOpsLinha, computeOpsKpis } from '@/lib/ops-linha';
 import { listAdvogados, sortCasesByPrazo } from '@/lib/case-filters'
-import {isVencidoAcionavelCRM} from '@/lib/vencimentos'
+import {isCasoVencido} from '@/lib/vencimentos'
 import { scoreGroupPriority } from '@/lib/case-priority';
 import { CaseBadges } from '@/components/cases/case-badges';
 import { gerarTarefasJuridicas } from '@/lib/automacao-tarefas';
@@ -778,10 +778,10 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
       let currentScore = 0;
       const statusUpper = statusEfetivo(c).toUpperCase();
       if (statusUpper.includes('CRÍTICO')) currentScore = 50;
-      else if (statusUpper === 'VENCIDO') currentScore = 40;
+      else if (isCasoVencido(c)) currentScore = 40;
       else if (statusUpper === 'É HOJE') currentScore = 30;
       if (currentScore > g.statusScore) g.statusScore = currentScore;
-      if (statusUpper === 'VENCIDO' || statusUpper.includes('CRÍTICO')) {
+      if (isCasoVencido(c)) {
         g.vencidos++;
         const atraso = c.diasFaltando ? Math.abs(c.diasFaltando) : 0;
         if (atraso > g.diasAtrasoMax) g.diasAtrasoMax = atraso;
@@ -854,7 +854,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
             return isAtendidoHoje(c.proximoPrazo || c.proximo_retorno || c.PROXIMO_RETORNO);
           });
         }
-        if (filaFiltro === 'vencido') return g.cases.some((c)=>isVencidoAcionavelCRM(c));
+        if (filaFiltro === 'vencido') return g.cases.some((c)=>isCasoVencido(c));
         if (filaFiltro === 'novidade') return g.hasUpdate || g.cases.some((c: any) => temNovidadeIdentificada(c));
         if (filaFiltro === 'ba') return g.hasBA;
         if (filaFiltro === 'audiencia') return !!(g as any).hasAudiencia || g.cases.some((c: any) => temAudienciaPendente(c));

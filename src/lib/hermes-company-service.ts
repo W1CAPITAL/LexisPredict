@@ -162,12 +162,12 @@ export type HermesStalledSummary={
  processId:number;client:string;cnj:string;
  state:'scanning'|'confirmed_idle'|'no_dated_movement'|'partial'|'unavailable'|'recent_movement';
  checkedAt:string|null;lastMovementAt:string|null;daysWithoutMovement:number|null;
- djenOk:boolean;datajudOk:boolean;sourceErrors:Record<string,string|null>;
+ djenOk:boolean;datajudOk:boolean;tribunalApiOk:boolean;tribunalApiSource:string|null;tribunalApiAttempted:boolean;sourceErrors:Record<string,string|null>;
 };
 export async function getHermesStalledSummaries(empresaId:string):Promise<HermesStalledSummary[]>{
  const db=await getSupabaseAdmin();
  const {data:reviews,error}=await db.from('hermes_stalled_reviews')
-  .select('processo_id,state,checked_at,last_movement_at,days_without_movement,djen_ok,datajud_ok,source_errors')
+  .select('processo_id,state,checked_at,last_movement_at,days_without_movement,djen_ok,datajud_ok,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at,source_errors')
   .eq('empresa_id',empresaId).order('checked_at',{ascending:false}).limit(60);
  if(error)throw new Error('O painel de processos parados não pode ser carregado.');
  if(!reviews?.length)return [];
@@ -192,6 +192,8 @@ export async function getHermesStalledSummaries(empresaId:string):Promise<Hermes
    checkedAt:row.checked_at||null,lastMovementAt:row.last_movement_at||null,
    daysWithoutMovement:typeof row.days_without_movement==='number'?row.days_without_movement:null,
    djenOk:row.djen_ok===true,datajudOk:row.datajud_ok===true,
+   tribunalApiOk:row.tribunal_api_ok===true,tribunalApiSource:row.tribunal_api_source||null,
+   tribunalApiAttempted:!!row.tribunal_api_checked_at,
    sourceErrors:errors,
   }];
  }).sort((a,b)=>{
@@ -206,7 +208,8 @@ export type HermesPortfolioCaseSummary={
  processId:number;client:string;cnj:string;
  state:'scanning'|'ready'|'partial'|'unavailable'|'skipped';
  checkedAt:string|null;datajudOk:boolean;djenOk:boolean;
- findings:Record<string,any>;events:Array<{source:'DataJud'|'DJEN';at:string;text:string;url:string|null}>;
+ tribunalApiOk:boolean;tribunalApiSource:string|null;tribunalApiAttempted:boolean;
+ findings:Record<string,any>;events:Array<{source:'DataJud'|'DJEN'|'TJPR PROJUDI';at:string;text:string;url:string|null}>;
  sourceErrors:Record<string,string|null>;
 };
 export async function getHermesPortfolioSummaries(
@@ -214,7 +217,7 @@ export async function getHermesPortfolioSummaries(
 ):Promise<HermesPortfolioCaseSummary[]>{
  const db=await getSupabaseAdmin();
  const {data:scans,error}=await db.from('hermes_portfolio_scans')
-  .select('processo_id,state,checked_at,datajud_ok,djen_ok,findings,source_errors')
+  .select('processo_id,state,checked_at,datajud_ok,djen_ok,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at,findings,source_errors')
   .eq('empresa_id',empresaId).order('checked_at',{ascending:false,nullsFirst:false})
   .limit(Math.max(1,Math.min(limit,100)));
  if(error)throw new Error('Dossiês Hermes indisponíveis.');
@@ -232,6 +235,8 @@ export async function getHermesPortfolioSummaries(
    cnj:String(row.protocolo_ref||'').slice(0,35),
    state:s.state as HermesPortfolioCaseSummary['state'],
    checkedAt:s.checked_at||null,datajudOk:s.datajud_ok===true,djenOk:s.djen_ok===true,
+   tribunalApiOk:s.tribunal_api_ok===true,tribunalApiSource:s.tribunal_api_source||null,
+   tribunalApiAttempted:!!s.tribunal_api_checked_at,
    findings:(s.findings&&typeof s.findings==='object'&&!Array.isArray(s.findings))?s.findings:{},
    events:[],
    sourceErrors:(s.source_errors&&typeof s.source_errors==='object')?s.source_errors:{},

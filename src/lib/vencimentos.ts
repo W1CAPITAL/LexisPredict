@@ -27,7 +27,7 @@ export function classificarVencimento(c:CaseVencimento,hoje?:string){
  const historicoPrazo=asDate(c.proximo_prazo);
  const dr=diasAtePrazo(retorno,hoje);
  const dp=diasAtePrazo(historicoPrazo,hoje);
- const vencido=dr!==null&&dr<0&&(!ultimo||!!retorno&&ultimo<retorno);
+ const vencido=dr!==null&&dr<0&&(!ultimo||!!retorno&&ultimo<=retorno);
  // Status anterior não prova atraso: é somente um alerta de qualidade cadastral.
  const marcado=/^(vencido|caso cr[ií]tico)$/i.test(String(c.status||c.statusManual||"").trim());
  const inconsistencia=marcado!==vencido;

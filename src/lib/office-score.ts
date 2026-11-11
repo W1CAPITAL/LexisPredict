@@ -6,6 +6,7 @@
 
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
+import { isCasoVencido } from './vencimentos';
 import { resolveTemNovoAndamento } from './novidade';
 import {
   hasAudienciaPosRetorno,
@@ -32,7 +33,7 @@ function basePoints(c: LegalCase): number {
   if (c.status === 'No Prazo') p += 2;
   if (c.status === 'Atenção') p -= 1;
   if (c.status === 'É Hoje') p -= 3;
-  if (c.status === 'Vencido' || c.status === 'Caso Crítico') p -= 5;
+  if (isCasoVencido(c) || c.status === 'Caso Crítico') p -= 5;
   if (resolveTemNovoAndamento(c)) p -= 2;
   if (c.datajud_encerrado_tribunal) p += 4;
   if (c.em_cumprimento_sentenca) p += 1;
@@ -77,7 +78,7 @@ export function scoreByGroup(
     }
 
     row.total += 1;
-    if (c.status === 'Vencido' || c.status === 'Caso Crítico') row.vencidos += 1;
+    if (isCasoVencido(c)) row.vencidos += 1;
     if (resolveTemNovoAndamento(c)) row.novidades += 1;
     if (c.datajud_encerrado_tribunal) row.baixas += 1;
     if (isSentencaProcedente(c)) row.procedentes += 1;

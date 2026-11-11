@@ -4,6 +4,7 @@
  */
 import type { LegalCase } from "@/lib/case-logic";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
 import { isBuscaApreensaoReal } from "@/lib/ba-real";
 import { detectFlagsFase } from "@/lib/processos-parados";
 import {
@@ -58,7 +59,7 @@ export function computeOpsLinha(c?: LegalCase | null): OpsLinha {
   if (baReal) {
     score = 100;
     tags.push("BA real");
-  } else if (st === "Caso Crítico" || st === "Vencido") {
+  } else if (st === "Caso Crítico" || isCasoVencido(c)) {
     score = 92;
     tags.push("prazo");
   } else if (flags.replicaPendente) {
@@ -134,7 +135,7 @@ export function computeOpsKpis(cases: LegalCase[] | null | undefined): OpsKpis {
   for (const c of ativos) {
     const o = computeOpsLinha(c);
     const st = statusOf(c);
-    if (st === "Vencido" || st === "Caso Crítico") vencidos++;
+    if (isCasoVencido(c)) vencidos++;
     if (o.tags.includes("réplica") || o.fase === "Réplica pendente") replicaPendente++;
     if (o.tags.includes("cumprimento") || o.fase === "Cumprimento em aberto") cumprimentoAberto++;
     if (o.diasTribunal != null && o.diasTribunal >= 45) silencio45++;

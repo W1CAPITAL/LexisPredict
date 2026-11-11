@@ -184,6 +184,7 @@ export async function agentCarteiraKpisAction() {
     const { getStoredCasesForEmpresa } = await import("@/lib/server-db");
     const { isCasoEncerrado } = await import("@/lib/status-encerrado");
     const { diasAtePrazo } = await import("@/lib/prazo-status");
+    const { isCasoVencido, classificarVencimento } = await import("@/lib/vencimentos");
     const cases = await getStoredCasesForEmpresa(c.empresa_id!, true);
     let total = cases.length;
     let vencidos = 0;
@@ -205,7 +206,7 @@ export async function agentCarteiraKpisAction() {
 
     for (const raw of cases) {
       const x: any = raw;
-      if (isCasoEncerrado(x) || /arquiv|encerr/i.test(String(x.status || x.situacao || x.statusInterno || ""))) {
+      if (isCasoEncerrado(x)) {
         arquivados++;
         continue;
       }
@@ -214,14 +215,12 @@ export async function agentCarteiraKpisAction() {
       let dias = typeof x.diasFaltando === "number" ? x.diasFaltando : diasAtePrazo(prazo);
       if (dias == null && prazo) dias = diasAtePrazo(prazo);
 
-      const isVenc =
-        st === "Vencido" ||
-        /vencid/i.test(st) ||
-        (typeof dias === "number" && dias < 0);
+      const classificacao = classificarVencimento(x);
+      const isVenc = isCasoVencido(x);
 
       if (isVenc) {
         vencidos++;
-        const diasVencido = typeof dias === "number" && dias < 0 ? Math.abs(dias) : 0;
+        const diasVencido = Math.abs(classificacao.dias ?? (typeof dias === "number" ? dias : 0));
         vencidosList.push({
           cliente: String(x.cliente || x.cliente_nome || "—"),
           protocolo: String(x.protocolo || x.protocolo_ref || "—"),

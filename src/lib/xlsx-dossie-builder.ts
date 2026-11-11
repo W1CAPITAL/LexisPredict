@@ -2,6 +2,8 @@
 
 import JSZip from 'jszip';
 import { EXPORT_HEADERS, CNJ_TRIBUNAL_MAP, tribunalFromProtocolo } from './xlsx-schema';
+import { isCasoVencido } from './vencimentos';
+import { isCasoEncerrado } from './status-encerrado';
 
 export type DossieCase = Record<string, any>;
 
@@ -25,18 +27,6 @@ function colRef(idx: number): string {
 
 function sim(v: any) {
   return v ? 'SIM' : 'NAO';
-}
-
-function isEncerradoStatus(s: string) {
-  return /encerrad|arquivad|extint|finaliz/i.test(s || '');
-}
-
-function isVencido(s: string) {
-  return /vencido|cr[ií]tico/i.test(s || '');
-}
-
-function isEmAndamento(s: string) {
-  return !isEncerradoStatus(s);
 }
 
 function parseFlexDate(raw: string): Date | null {
@@ -100,7 +90,16 @@ export function normalizeCase(r: DossieCase) {
   const proximo = String(r.proximoRetorno || r.proximo_retorno || r.proximoPrazo || dados.proximoPrazo || '').trim();
 
   const dsr = diasSemRetorno(retorno || null);
-  const ativo = !isEncerradoStatus(status) && !isEncerradoStatus(String(r.status_interno || dados.status_interno || ''));
+  const caseState = {
+    ...r,
+    status,
+    status_interno: r.status_interno || r.statusInterno || dados.status_interno,
+    situacao: r.situacao || dados.situacao,
+    statusManual: r.statusManual || dados.statusManual,
+    dados,
+  };
+  const encerradoCarteira = isCasoEncerrado(caseState);
+  const ativo = !encerradoCarteira;
   const retornoLongo = ativo && (dsr === null || dsr >= 30);
   const situacaoRetorno = !ativo ? 'ENCERRADO — NÃO APLICÁVEL' :
     dsr === null ? 'NUNCA REGISTRADO' :
@@ -139,7 +138,7 @@ export function normalizeCase(r: DossieCase) {
       r.tem_novo_andamento || r.tem_atualizacao_pos_retorno || r.djen_nova_comunicacao || dados.tem_novo_andamento
     ),
     encerrado_tribunal: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
-    encerrado_carteira: sim(isEncerradoStatus(r.status) || isEncerradoStatus(r.situacao) || isEncerradoStatus(dados.situacao)),
+    encerrado_carteira: sim(encerradoCarteira),
     /** @deprecated alias: preferir encerrado_tribunal */
     encerrado: sim(r.datajud_encerrado_tribunal || dados.datajud_encerrado_tribunal),
     ba: sim(r.indicio_busca_apreensao || dados.indicio_busca_apreensao),
@@ -378,9 +377,9 @@ export async function buildDossieXlsxBase64(
   const assMap = new Map<string, number>();
 
   for (const r of list) {
-    if (isEmAndamento(r.status)) emAndamento++;
+    if (!isCasoEncerrado(r)) emAndamento++;
     else encerrados++;
-    if (isVencido(r.status)) vencidos++;
+    if (isCasoVencido(r)) vencidos++;
     if (!r.telefone || r.telefone === '-' || r.telefone.toUpperCase() === 'GRUPO') semTelefone++;
     if (!r.advogado || r.advogado === '-') semAdvogado++;
     if (!r.cliente) semCliente++;
@@ -395,7 +394,7 @@ export async function buildDossieXlsxBase64(
     if (r.retorno) comRetorno++;
     else semRetorno++;
     if (r.sem_retorno_30d === 'SIM') semRetornoLongo++;
-    if (isVencido(r.status) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.sem_retorno_30d === 'SIM') criticos++;
+    if (isCasoVencido(r) || r.ba === 'SIM' || r.novo_andamento === 'SIM' || r.sem_retorno_30d === 'SIM') criticos++;
 
     statusMap.set(r.status || '—', (statusMap.get(r.status || '—') || 0) + 1);
     escMap.set(r.escritorio || 'Sem escritório', (escMap.get(r.escritorio || 'Sem escritório') || 0) + 1);
@@ -508,7 +507,7 @@ export async function buildDossieXlsxBase64(
   // —— Auditoria
   const criticosList = list.filter(
     (r) =>
-      isVencido(r.status) ||
+      isCasoVencido(r) ||
       !r.telefone ||
       !r.advogado ||
       !r.cliente ||
@@ -787,9 +786,9 @@ export async function buildProcessosProfissionalXlsxBase64(
     procRows.push({ values: ['TOTAIS', ...Array(PROC_COLS.length - 1).fill('')], styleRow: 'total' });
   }
 
-  const emAndamento = list.filter((x) => isEmAndamento(x.status)).length;
-  const encerrados = list.filter((x) => isEncerradoStatus(x.status)).length;
-  const vencidos = list.filter((x) => isVencido(x.status)).length;
+  const emAndamento = list.filter((x) => !isCasoEncerrado(x)).length;
+  const encerrados = list.filter((x) => isCasoEncerrado(x)).length;
+  const vencidos = list.filter((x) => isCasoVencido(x)).length;
   const ba = list.filter((x) => x.ba === 'SIM').length;
   const cumprimento = list.filter((x) => x.cumprimento === 'SIM').length;
   const atendidosSemana = list.filter((x) => x.atendido_semana).length;

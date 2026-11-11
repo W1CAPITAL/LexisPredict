@@ -4,6 +4,7 @@
  */
 import type { LegalCase } from './case-logic';
 import { isCasoEncerrado } from './status-encerrado';
+import { isCasoVencido } from './vencimentos';
 
 export type BiKpi = {
   id: string;
@@ -50,9 +51,7 @@ export function buildBiCompliance(cases: LegalCase[]) {
   const cumprimento = ativos.filter(
     (c) => c.em_cumprimento_sentenca || c.evento_tipo === 'cumprimento_sentenca'
   );
-  const vencidos = ativos.filter(
-    (c) => c.status === 'Vencido' || c.status === 'Caso Crítico'
-  );
+  const vencidos = ativos.filter((c) => isCasoVencido(c));
   const semRetorno7 = ativos.filter((c) => {
     const d = daysSince(
       (c.ultimoRetorno as any) || (c as any).ultimo_retorno || null
@@ -111,7 +110,7 @@ export function buildBiCompliance(cases: LegalCase[]) {
     },
     {
       id: 'vencidos',
-      label: 'Vencidos / críticos',
+      label: 'Retornos vencidos',
       value: vencidos.length,
       unit: `(${taxaVencido}%)`,
       tone: taxaVencido > 40 ? 'bad' : 'warn',

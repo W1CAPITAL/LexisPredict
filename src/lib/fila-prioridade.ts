@@ -8,6 +8,7 @@
  */
 
 import type { LegalCase } from './case-logic';
+import { isCasoVencido } from './vencimentos';
 import { isCasoEncerrado } from './status-encerrado';
 import { resolveTemNovoAndamento } from './novidade';
 import {
@@ -144,7 +145,7 @@ export function scorePreditivo(c: LegalCase): number {
   const dias = diasSemRetorno(c.ultimoRetorno);
   s += Math.min(20, Math.floor(dias / 5)); // 0–20 conforme atraso de contato
 
-  if (c.status === 'Caso Crítico' || c.status === 'Vencido') s += 12;
+  if (c.status === 'Caso Crítico' || isCasoVencido(c)) s += 12;
   else if (c.status === 'É Hoje') s += 8;
   else if (c.status === 'Atenção') s += 4;
 
@@ -235,7 +236,7 @@ export function pesoFila(c: LegalCase): number {
 
   // 7. Prazo
   if (c.status === 'Caso Crítico') w += W.status_critico;
-  else if (c.status === 'Vencido') w += W.status_vencido;
+  else if (isCasoVencido(c)) w += W.status_vencido;
   else if (c.status === 'É Hoje') w += W.status_hoje;
   else if (c.status === 'Atenção') w += W.status_atencao;
 
@@ -384,7 +385,8 @@ export function rotuloPrioridade(c: LegalCase): string {
     return 'Prioridade IA';
   if ((c as any).tem_custas) return 'Custas';
   if (temNovidade(c)) return 'Nova movimentação';
-  if (c.status === 'Vencido' || c.status === 'Caso Crítico') return 'Prazo vencido';
+  if (isCasoVencido(c)) return 'Retorno vencido';
+  if (c.status === 'Caso Crítico') return 'Caso crítico';
   if (c.status === 'É Hoje') return 'Prazo hoje';
   const pred = scorePreditivo(c);
   if (pred >= 55) return rotuloPreditivo(pred);

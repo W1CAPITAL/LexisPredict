@@ -18,6 +18,11 @@ describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>
   expect(isCasoVencido(attendedAfter,hoje)).toBe(false);
   expect(isCasoVencido({...expired,status_interno:'ENCERRADO'},hoje)).toBe(false);
  });
+ it('counts a return scheduled on the same date as the last contact when that date has passed',()=>{
+  const sameDay={...base,status:'Atenção',proximo_retorno:'2026-10-20',ultimo_retorno:'2026-10-20'};
+  expect(isCasoVencido(sameDay,hoje)).toBe(true);
+  expect(isCasoVencido({...sameDay,ultimo_retorno:'2026-10-21'},hoje)).toBe(false);
+ });
  it('prioritizes the canonical status over stale JSON',()=>{
   expect(isVencidoNoCRM({...base,status:'No Prazo',dados:{status:'Vencido'}})).toBe(false);
   expect(isVencidoNoCRM({...base,status:null,dados:{status:'Vencido'}})).toBe(true);
@@ -44,7 +49,7 @@ describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>
 
  it('explains the real 10-versus-9 discrepancy without hiding an ended case',()=>{
   const open=Array.from({length:9},(_,i)=>({...base,status:'Vencido',proximo_retorno:`2026-10-${String(i+1).padStart(2,'0')}`}));
-  const closed={...base,status:'Vencido',dados:{statusManual:'Encerrado'}};
+  const closed={...base,status:'Vencido',status_interno:'ENCERRADO',dados:{statusManual:'Encerrado'}};
   const totals=resumirCentralVencidos(prepared([...open,closed]));
   expect(totals.todos).toBe(10);
   expect(totals.ativosMarcados).toBe(9);

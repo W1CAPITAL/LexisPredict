@@ -57,7 +57,7 @@ function finding<T extends string>(value:T,event:HermesCourtEvent):HermesFinding
   value,source:event.source,date:asDate(event.at),
   excerpt:textOnly(event.text).slice(0,470),
   url:officialUrl(event.url),
-  basis:event.source==='DataJud'?'movimento_oficial':'indicio_textual',
+  basis:event.source==='DJEN'?'indicio_textual':'movimento_oficial',
  };
 }
 function decision(raw:string):'procedente'|'parcialmente_procedente'|'improcedente'|null{
@@ -70,17 +70,18 @@ function decision(raw:string):'procedente'|'parcialmente_procedente'|'improceden
  if(/(?:julgo|julgad[oa]s?).{0,36}procedentes?/.test(t))return 'procedente';
  return null;
 }
-function latest(events:HermesCourtEvent[],source:HermesCourtEvent['source']):string|null{
- return events.filter(e=>e.source===source).map(e=>asDate(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null;
+function latest(events:HermesCourtEvent[],source:HermesCourtEvent['source']|'court'):string|null{
+ return events.filter(e=>source==='court'?(e.source==='DataJud'||e.source==='TJPR PROJUDI'):e.source===source)
+  .map(e=>asDate(e.at)).filter((v):v is string=>!!v).sort().at(-1)||null;
 }
 export function buildHermesJudicialFindings(input:readonly HermesCourtEvent[]):HermesJudicialFindings{
  const events=[...input]
-  .filter(e=>e&&['DataJud','DJEN'].includes(e.source)&&textOnly(e.text).length>=5)
+  .filter(e=>e&&['DataJud','DJEN','TJPR PROJUDI'].includes(e.source)&&textOnly(e.text).length>=5)
   .sort((a,b)=>b.at.localeCompare(a.at))
   .slice(0,110);
  const result:HermesJudicialFindings={
   verdict:null,enforcement:null,attorneyFees:null,legalAid:null,courtCosts:null,hearings:[],
-  latestCourtMovement:latest(events,'DataJud'),
+  latestCourtMovement:latest(events,'court'),
   latestDjenPublication:latest(events,'DJEN'),
   allCourtMovementsConfirmed:false,
  };

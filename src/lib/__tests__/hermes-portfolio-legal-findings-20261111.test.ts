@@ -45,6 +45,16 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(found.hearings[0]?.time).toBe('10:30');
   expect(found.hearings[0]?.meetingUrl).toBe('https://meet.google.com/abc-defg-hij');
  });
+ it('classifica MNI do TJPR como movimento oficial e extrai audiência do ato do tribunal',()=>{
+  const result=buildHermesJudicialFindings([
+   ev('TJPR PROJUDI','Designo audiência de instrução para 18/12/2026 às 10h30. Concedida justiça gratuita.'),
+  ]);
+  expect(result.legalAid?.value).toBe('deferida');
+  expect(result.legalAid?.source).toBe('TJPR PROJUDI');
+  expect(result.legalAid?.basis).toBe('movimento_oficial');
+  expect(result.hearings[0]?.date).toBe('2026-12-18');
+  expect(result.latestCourtMovement).toBe('2026-11-10');
+ });
  it('não transforma data de publicação em data de audiência',()=>{
   const result=buildHermesJudicialFindings([ev('DJEN','Audiência poderá ser designada oportunamente.')]);
   expect(result.hearings).toHaveLength(0);
@@ -61,7 +71,8 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(route).toContain('runHermesPortfolioScanBatch');
   expect(route.indexOf("if (!authorized(request))")).toBeLessThan(route.indexOf("mode === 'portfolio'"));
   const service=read('src/lib/hermes-return-service.ts');
-  expect(service).toContain("rpc('hermes_claim_portfolio_scan'");
+  expect(service).toContain("rpc('hermes_claim_portfolio_scan_batch'");
+  expect(service).toContain('p_limit:2');
   expect(service).toContain("from('hermes_portfolio_scans')");
   expect(service).toContain('atualizarAudienciasDeConsulta');
   expect(service).not.toContain('sendWhatsApp');

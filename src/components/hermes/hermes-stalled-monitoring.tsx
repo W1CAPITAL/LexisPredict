@@ -5,7 +5,7 @@ import {resolveOfficialCourtPortal,OFFICIAL_JUSBR_PORTAL,getHermesNationalSource
 
 const statusLabel:Record<HermesStalledSummary['state'],string>={
  scanning:'Consulta oficial em andamento',
- confirmed_idle:'Sem movimentação DataJud recente; DJEN consultado',
+ confirmed_idle:'Sem movimentação oficial recente; fontes de movimento consultadas',
  no_dated_movement:'Consulta concluída, sem data de movimento recuperável',
  partial:'Consulta parcial · fonte pendente',
  unavailable:'Consulta indisponível',
@@ -20,8 +20,8 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
     <h2 className="mt-2 flex items-center gap-2 text-xl font-black"><Activity size={20}/> Processos parados</h2>
     <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#e8d4df]">
      O scanner acompanha processos ativos com pelo menos 15 dias sem sinal recente cadastrado.
-     Verifica DJEN e DataJud independentemente do retorno ao cliente. Uma fonte indisponível
-     não confirma ausência de movimentação e não torna o retorno vencido.
+     Verifica DJEN, DataJud e, quando houver integração oficial autorizada, a API do tribunal,
+     independentemente do retorno ao cliente. Uma fonte indisponível não confirma ausência de movimentação e não torna o retorno vencido.
     </p>
    </div>
    <Link href="/processos-parados" className="inline-flex items-center gap-2 rounded-lg border border-white/25 px-3 py-2 text-xs font-bold text-white hover:bg-white/10">
@@ -40,16 +40,18 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
      <span className="rounded-full border border-white/20 px-2 py-1 text-[11px] font-bold text-[#f3d9e5]">{statusLabel[item.state]}</span>
     </div>
     <p className="mt-2 text-xs text-[#e7d4df]">
-     Última movimentação DataJud conhecida: {date(item.lastMovementAt)}
+     Última movimentação oficial conhecida: {date(item.lastMovementAt)}
      {item.daysWithoutMovement!==null?` · ${item.daysWithoutMovement} dia(s)`:''}
     </p>
     {item.sourceErrors.ultimaPublicacaoDjen&&<p className="mt-1 text-xs text-[#e7d4df]">Última publicação DJEN encontrada: {date(item.sourceErrors.ultimaPublicacaoDjen)}</p>}
+    {item.sourceErrors.projudi&&<p className="mt-1 text-xs text-[#e7d4df]">TJPR PROJUDI MNI: {item.sourceErrors.projudi}</p>}
     <p className="mt-1 flex items-center gap-2 text-xs text-[#e7d4df]">
      <Clock3 size={13}/> Verificado: {date(item.checkedAt)}
     </p>
     <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
      <span className="rounded-lg border border-white/20 px-2 py-1">DJEN: {item.djenOk?'consultado':'sem confirmação'}</span>
      <span className="rounded-lg border border-white/20 px-2 py-1">DataJud: {item.datajudOk?'consultado':'sem confirmação'}</span>
+     {item.tribunalApiSource&&<span className="rounded-lg border border-white/20 px-2 py-1">{item.tribunalApiSource}: {item.tribunalApiOk?'consultado':item.tribunalApiAttempted?'sem confirmação':'não acionado'}</span>}
     </div>
     {!item.datajudOk&&item.sourceErrors.datajud&&<p className="mt-2 rounded-lg border border-[#e4bed0]/20 bg-black/15 px-3 py-2 text-xs leading-relaxed text-[#f0d4e0]">
      DataJud: {item.sourceErrors.datajud}

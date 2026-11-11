@@ -4,6 +4,7 @@ type StalledEvidenceInput={
  today:string;
  djenOk:boolean;
  datajudOk:boolean;
+ courtApiOk?:boolean;
  events:readonly HermesCourtEvent[];
  lastKnownDataJudMove:string|null;
  lastKnownDjenPublication:string|null;
@@ -26,7 +27,7 @@ function mostRecent(values:readonly (string|null)[]):string|null{
 export function evaluateHermesStalledEvidence(input:StalledEvidenceInput){
  const lastMovementAt=mostRecent([
   input.lastKnownDataJudMove,
-  ...input.events.filter(e=>e.source==='DataJud').map(e=>e.at),
+  ...input.events.filter(e=>e.source==='DataJud'||(e.source==='TJPR PROJUDI'&&input.courtApiOk===true)).map(e=>e.at),
  ]);
  const lastPublicationAt=mostRecent([
   input.lastKnownDjenPublication,
@@ -35,9 +36,10 @@ export function evaluateHermesStalledEvidence(input:StalledEvidenceInput){
  const today=asDay(input.today);
  const daysWithoutMovement=today&&lastMovementAt?
   Math.max(0,Math.round((Date.parse(today+'T12:00:00Z')-Date.parse(lastMovementAt+'T12:00:00Z'))/86400000)):null;
+ const movementSourceOk=input.datajudOk||input.courtApiOk===true;
  const state:StalledEvidenceState=
-  !input.datajudOk&&!input.djenOk?'unavailable':
-  !input.datajudOk||!input.djenOk?'partial':
+  !movementSourceOk&&!input.djenOk?'unavailable':
+  !movementSourceOk||!input.djenOk?'partial':
   daysWithoutMovement===null?'no_dated_movement':
   daysWithoutMovement>=15?'confirmed_idle':'recent_movement';
  return {state,lastMovementAt,lastPublicationAt,daysWithoutMovement};

@@ -5,6 +5,7 @@ import { isBuscaApreensaoReal } from './ba-real';
 import { detectarBaCompleto, publicacaoBateComCarteira } from './busca-apreensao-logic';
 import { computeKpiUnificado } from './kpi-unificado';
 import { buildDashboardMetrics } from './dashboard-metrics';
+import { computeOpsKpis } from './ops-linha';
 import { statusEfetivo } from './prazo-status';
 import { resolveTemNovoAndamento } from './novidade';
 import { splitDjenDateRange, djenRetryDelay, waitForDjen } from './djen-scan-control';
@@ -71,6 +72,30 @@ describe('Busca e apreensão e risco', () => {
     expect(k.countBA).toBe(0);
     expect(k.riskScore).toBe(0);
     expect(k.countEncerradoCarteira).toBe(0);
+  });
+  it('reabre estado legado contraditório e conta o retorno vencido em todos os KPIs operacionais', () => {
+    const staleClosed = processarCaso({
+      id: '241195',
+      cliente: 'MARCOS JUNIOR COSTA WENTZ',
+      protocolo: cnj,
+      status: 'Atenção',
+      status_interno: 'EM ANDAMENTO',
+      proximo_retorno: '2026-09-10',
+      ultimo_retorno: '2026-09-10',
+      dados: {
+        status: 'Encerrado',
+        situacao: 'ENCERRADO',
+        status_interno: 'ENCERRADO',
+        statusManual: 'Encerrado',
+      },
+    });
+    expect(staleClosed.situacao).toBe('EM ANDAMENTO');
+    expect(staleClosed.statusManual).toBe('Automatico');
+    expect(staleClosed.status).toBe('Vencido');
+    const k = computeKpiUnificado([staleClosed], { ref: new Date('2026-09-14T15:00:00Z') });
+    expect(k.countVencido).toBe(1);
+    expect(buildDashboardMetrics([staleClosed]).countVencido).toBe(1);
+    expect(computeOpsKpis([staleClosed]).vencidos).toBe(1);
   });
   it('não soma o mesmo caso várias vezes; painel e dossiê concordam', () => {
     const cases = [base({ proximoPrazo: '2026-01-01', classe_acao: 'Busca e Apreensão', evento_resumo: 'Defiro a busca e apreensão.' }), base({ id: '2', protocolo: '20000001220268260100' }), base({ id: '3', protocolo: '30000001220268260100', situacao: 'ENCERRADO' })];
