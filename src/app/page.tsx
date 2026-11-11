@@ -249,7 +249,7 @@ export default function Dashboard() {
     const activeTotal = u.activeTotal;
     const countEncerradoCarteira = u.countEncerradoCarteira;
     const countEncerradoTribunal = u.countEncerradoTribunal;
-    const countVencido = u.countVencido;
+    const countVencido = portfolioSummary?.vencidos ?? u.countVencido;
     const countHoje = u.countHoje;
     const countAtencao = u.countAtencao;
     const countSaudavel = u.countSaudavel;
@@ -409,11 +409,11 @@ export default function Dashboard() {
             )}
             {portfolioSummary && (
               <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs font-medium text-blue-900">
-                <strong>{portfolioSummary.total.toLocaleString('pt-BR')} processos no seu escopo.</strong>
+                <strong>{portfolioSummary.total.toLocaleString('pt-BR')} processos na empresa.</strong>
                 {' '}O painel exibe {cases.length} processos recentes para abrir mais rápido.
                 Totais de ativos, vencidos, baixas, encerrados e procedentes vêm de uma única consulta agregada ao Supabase;
                 análises detalhadas e filas desta tela consideram os processos recentes exibidos.
-                {' '}<Link className="underline font-bold" href="/cases">Abrir minha carteira completa</Link>
+                {' '}<Link className="underline font-bold" href="/cases">Abrir carteira completa</Link>
               </div>
             )}
             <DashboardVisualOverview
