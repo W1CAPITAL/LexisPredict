@@ -4,6 +4,7 @@ import { fetchDataJud } from '@/lib/datajud';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
 import {buildHermesJudicialFindings} from '@/lib/hermes-judicial-findings';
+import {mergeHermesCourtHistory,buildHermesVerifiedProcessPatch} from '@/lib/hermes-portfolio-evidence';
 import { fetchDjenComunicacoes, resolveDjenPublicacaoLink } from '@/lib/djen';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { brazilToday, validReturnDay } from '@/lib/wa-daily-return-policy';
@@ -340,13 +341,18 @@ export async function persistHermesPortfolioSnapshot(
  row:ProcessRow,snapshot:CourtSnapshotWithDiagnostic
 ){
  const now=new Date().toISOString();
- const findings=buildHermesJudicialFindings(snapshot.events);
+ // Partial retries must NEVER discard the older verified source.
+ const {data:prior,error:readError}=await db.from('hermes_portfolio_scans')
+  .select('events').eq('empresa_id',row.empresa_id).eq('processo_id',row.id).maybeSingle();
+ if(readError)throw new Error('Falha ao preservar histórico judicial anterior: '+readError.code);
+ const events=mergeHermesCourtHistory(
+  Array.isArray(prior?.events)?prior.events as HermesCourtEvent[]:[],
+  snapshot.events
+ );
+ const findings=buildHermesJudicialFindings(events);
  const state:'ready'|'partial'|'unavailable'=
   snapshot.datajudOk&&snapshot.djenOk?'ready':
   snapshot.datajudOk||snapshot.djenOk?'partial':'unavailable';
- const events=[...snapshot.events]
-  .filter(e=>e.at&&e.text).sort((a,b)=>b.at.localeCompare(a.at))
-  .slice(0,120).map(e=>({...e,text:e.text.slice(0,2400)}));
  const {error}=await db.from('hermes_portfolio_scans').upsert({
   empresa_id:row.empresa_id,processo_id:row.id,state,
   checked_at:now,attempted_at:now,datajud_ok:snapshot.datajudOk,djen_ok:snapshot.djenOk,
@@ -355,7 +361,21 @@ export async function persistHermesPortfolioSnapshot(
   source_errors:snapshot.sourceErrors,events,findings,
  },{onConflict:'empresa_id,processo_id'});
  if(error)throw new Error('Falha ao gravar histórico oficial Hermes: '+error.code);
- return {state,eventsSaved:events.length,hearings:findings.hearings.length};
+ // Only actual verified DataJud movements can change the CRM's last court movement.
+ // DJEN publication dates are never used to claim a tribunal movement.
+ const patch=buildHermesVerifiedProcessPatch({
+  snapshot,checkedAt:now,
+  lastDataJudMovement:row.datajud_ultimo_movimento,
+  lastMovement:row.ultima_movimentacao,
+  lastDjenPublication:row.djen_ultima_data,
+ });
+ let crmSynced=true;
+ if(Object.keys(patch).length){
+  const {error:syncError}=await db.from('processos').update(patch)
+   .eq('empresa_id',row.empresa_id).eq('id',row.id);
+  if(syncError){crmSynced=false;console.warn('[Hermes carteira] Atualização de movimentos CRM falhou:',syncError.code);}
+ }
+ return {state,eventsSaved:events.length,hearings:findings.hearings.length,crmSynced};
 }
 
 /** A carteira inteira é elegível: nenhuma condição de "parado" ou retorno.
