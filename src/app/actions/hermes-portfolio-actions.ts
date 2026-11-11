@@ -19,13 +19,15 @@ export async function getHermesPortfolioByCnjAction(raw:string){
  const portal=resolveOfficialCourtPortal(digits);
  if(!process)return {ok:true,found:false,portal:portal?.url||null};
  const {data:scan,error}=await db.from('hermes_portfolio_scans')
-  .select('state,checked_at,datajud_ok,djen_ok,events,findings,source_errors')
+  .select('state,checked_at,datajud_ok,djen_ok,tribunal_api_ok,tribunal_api_source,tribunal_api_checked_at,events,findings,source_errors')
   .eq('empresa_id',String(ctx.empresa_id)).eq('processo_id',process.id).maybeSingle();
  if(error)return {ok:false,found:false,error:'Histórico Hermes indisponível.'};
  if(!scan)return {ok:true,found:false,processId:process.id,portal:portal?.url||null};
  return {ok:true,found:true,processId:process.id,portal:portal?.url||null,
   state:scan.state,checkedAt:scan.checked_at,
   datajudOk:scan.datajud_ok===true,djenOk:scan.djen_ok===true,
+  tribunalApiOk:scan.tribunal_api_ok===true,tribunalApiSource:scan.tribunal_api_source||null,
+  tribunalApiAttempted:!!scan.tribunal_api_checked_at,
   findings:scan.findings,events:Array.isArray(scan.events)?scan.events.slice(0,90):[],
   sourceErrors:scan.source_errors};
 }
