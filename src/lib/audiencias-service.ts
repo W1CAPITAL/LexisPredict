@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/server-db';
 import { extrairAudienciasOficiais, type AudienciaExtraida } from '@/lib/audiencias-monitor';
 import {extractOfficialHearingLink} from '@/lib/hermes-judicial-findings';
 import {filtrarAudienciasVigentes} from '@/lib/audiencias-expiry';
+import {mergeHearingEvidence} from '@/lib/audiencias-source-priority';
 
 type Fonte = {source:'DJEN'|'DataJud'; text:string; url?:string|null; publishedAt?:string|null};
 export type ProcessoAudiencia = {
@@ -69,6 +70,25 @@ export function prepararAudienciasDoProcesso(row:ProcessoAudiencia, fontes:Fonte
   }
   return [...selected.values()].map(v=>v.item);
 }
+
+/** Evita que um movimento DataJud incompleto apague data, hora ou Teams do DJEN.
+ * Uma notificação pode ser confirmada posteriormente, nunca o contrário.
+ */
+function conciliarEvidencias(
+ incoming:Record<string,unknown>[],
+ existing:Record<string,unknown>[]
+):Record<string,unknown>[]{
+ const byKey=new Map(existing.map(item=>[
+  [item.empresa_id,item.processo_id,item.chave].join(':'),item
+ ]));
+ const updates:Record<string,unknown>[]=[];
+ for(const item of incoming){
+  const key=[item.empresa_id,item.processo_id,item.chave].join(':');
+  const merged=mergeHearingEvidence(byKey.get(key),item);
+  if(merged)updates.push(merged);
+ }
+ return updates;
+}
 /** Fontes confiáveis: somente resposta efetiva do scanner/Hermes ou documento oficial previamente salvo. */
 export async function atualizarAudienciasDeConsulta(input:{
   empresaId:string;processoId:number;fontes?:Fonte[]
@@ -80,9 +100,16 @@ export async function atualizarAudienciasDeConsulta(input:{
   if(error||!row)return {ok:false,total:0,error:'Processo não acessível nesta empresa'};
   const registros=prepararAudienciasDoProcesso(row as ProcessoAudiencia,input.fontes||[]);
   if(!registros.length)return {ok:true,total:0};
-  const result=await db.from('audiencias_monitoradas').upsert(registros,{onConflict:'empresa_id,processo_id,chave'});
+  const keys=registros.map(x=>String(x.chave));
+  const {data:existentes,error:oldError}=await db.from('audiencias_monitoradas')
+    .select('empresa_id,processo_id,chave,fonte,modalidade,hora_local,hora_fim,data_fim,fuso,fonte_url,portal_url,meeting_url,evidencia')
+    .eq('empresa_id',input.empresaId).eq('processo_id',input.processoId).in('chave',keys);
+  if(oldError)return {ok:false,total:0,error:'Não foi possível conciliar as evidências anteriores'};
+  const atualizacoes=conciliarEvidencias(registros,(existentes||[]) as Record<string,unknown>[]);
+  if(!atualizacoes.length)return {ok:true,total:0};
+  const result=await db.from('audiencias_monitoradas').upsert(atualizacoes,{onConflict:'empresa_id,processo_id,chave'});
   if(result.error)return {ok:false,total:0,error:result.error.code||'Persistência não disponível'};
-  return {ok:true,total:registros.length};
+  return {ok:true,total:atualizacoes.length};
 }
 /**
  * Percorre a carteira em micro-lotes para reconstruir o índice a partir de
@@ -115,9 +142,16 @@ export async function atualizarIndiceAudienciasLote(limit=120){
     latest.set(String(item.empresa_id)+':'+String(item.processo_id)+':'+String(item.chave),item);
   }
   if(latest.size){
-    // Variações antigas entre dados e coluna oficial são preservadas: não apaga nada.
-    const result=await db.from('audiencias_monitoradas').upsert([...latest.values()],{onConflict:'empresa_id,processo_id,chave'});
-    if(result.error)throw new Error('Falha ao atualizar índice de audiências');
+    const ids=rows.map(row=>row.id);
+    const {data:existing,error:existingError}=await db.from('audiencias_monitoradas')
+      .select('empresa_id,processo_id,chave,fonte,modalidade,hora_local,hora_fim,data_fim,fuso,fonte_url,portal_url,meeting_url,evidencia')
+      .in('processo_id',ids).limit(1000);
+    if(existingError)throw new Error('Não foi possível conferir evidência antiga da agenda');
+    const changes=conciliarEvidencias([...latest.values()],(existing||[]) as Record<string,unknown>[]);
+    if(changes.length){
+      const result=await db.from('audiencias_monitoradas').upsert(changes,{onConflict:'empresa_id,processo_id,chave'});
+      if(result.error)throw new Error('Falha ao atualizar índice de audiências');
+    }
   }
   const last=rows.at(-1)?.id || after;
   const progressResult=await db.from('audiencias_monitor_cursor').upsert({id:'global',ultimo_id:last,atualizado_em:new Date().toISOString()});
@@ -150,12 +184,14 @@ export async function verificarUmaAudienciaAgendada() {
   const attempt=await db.from('audiencias_monitoradas')
     .update({ultima_tentativa_em:attemptAt}).eq('empresa_id',row.empresa_id).eq('processo_id',row.processo_id);
   if(attempt.error)throw new Error('Não foi possível registrar a tentativa oficial');
-  const [{fetchDjenComunicacoes,resolveDjenPublicacaoLink},{fetchDataJud}]=await Promise.all([
-    import('@/lib/djen'),import('@/lib/datajud'),
+  // O monitor segue a mesma fila de capacidade DataJud do Hermes (429/timeout).
+  // Não tenta 6,5 segundos e não ignora o cooldown dos demais scanners.
+  const [{fetchDjenComunicacoes,resolveDjenPublicacaoLink},{requestDataJudWithCapacity}]=await Promise.all([
+    import('@/lib/djen'),import('@/lib/hermes-return-service'),
   ]);
   const since=new Date(Date.now()-120*86400000).toISOString().slice(0,10);
   const [dj,djen]=await Promise.allSettled([
-    fetchDataJud(cnj,1,{fast:true,cloudBudget:true,timeoutMs:6500}),
+    requestDataJudWithCapacity(cnj,false,25_000),
     fetchDjenComunicacoes(cnj,{dataInicio:since,cloudBudget:true}),
   ]);
   const datajud=dj.status==='fulfilled'?dj.value:null;
