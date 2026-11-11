@@ -109,7 +109,7 @@ export function buildHermesJudicialFindings(input:readonly HermesCourtEvent[]):H
    else if(/(?:defiro|deferid[ao]|concedo|concedid[ao]).{0,65}(?:justica gratuita|gratuidade da justica|assistencia judiciaria)/.test(t))
      result.legalAid=finding('deferida',ev);
   }
-  if(!result.courtCosts&&/custas processuais|recolhimento das custas|pagamento de custas/.test(t)){
+  if(!result.courtCosts&&/custas processuais|recolhimento das custas|pagamento de custas|fixad[ao]s?\s+as\s+custas/.test(t)){
    const amount=/custas.{0,100}?R\$\s*([\d.,]+)/i.exec(raw);
    result.courtCosts={...finding('custas_mencionadas',ev),
     amount:amount?'R$ '+amount[1]:null,paymentStatus:'nao_determinado'};
