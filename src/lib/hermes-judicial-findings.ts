@@ -35,7 +35,7 @@ function officialUrl(value:unknown):string|null{
   return url.protocol==='https:' && (url.hostname.endsWith('.jus.br')||url.hostname==='jus.br')?url.href:null;
  }catch{return null;}
 }
-function videoLink(raw:string):string|null{
+export function extractOfficialHearingLink(raw:string):string|null{
  if(!/audien|sess[aã]o|videoconfer|virtual/i.test(raw))return null;
  const urls=raw.match(/https:\/\/[^\s<>\\"'()]+/gi)||[];
  for(const candidate of urls){
@@ -120,7 +120,7 @@ export function buildHermesJudicialFindings(input:readonly HermesCourtEvent[]):H
    if(hearingKeys.has(key))continue;
    hearingKeys.add(key);
    result.hearings.push({date:a.data,endDate:a.dataFim,time:a.hora,kind:a.tipo,
-    meetingUrl:videoLink(raw),source:ev.source,excerpt:a.trecho.slice(0,450),url:officialUrl(ev.url)});
+    meetingUrl:extractOfficialHearingLink(raw),source:ev.source,excerpt:a.trecho.slice(0,450),url:officialUrl(ev.url)});
   }
   if(result.hearings.length>25)result.hearings=result.hearings.slice(0,25);
  }
