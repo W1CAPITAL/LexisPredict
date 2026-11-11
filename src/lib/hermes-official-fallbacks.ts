@@ -1,12 +1,12 @@
 /** Mapa de fontes judiciais oficiais para o Hermes.
  * Não automatizar portais e-SAJ/eproc/PJe/Projudi nem atravessar login/captcha/WAF.
- * TJPR é a exceção: disponibiliza o SCMPP/MNI 2.2.2 para consulta pública
- * automatizada sem cadastro, login ou senha, conforme Resolução TJPR 532-OE/2026.
- * Jus.br requer login; a API Datalake/GeCli requer aprovação.
+ * TJPR: a Resolução 532-OE/2026 prevê SCMPP automatizado sem cadastro/login
+ * e oculta complementos; o guia técnico MNI 2.2.2 ainda descreve credenciais
+ * privadas. O adaptador legado permanece pendente até validar o contrato público
+ * atualizado do endpoint. Jus.br requer login; Datalake/GeCli exige aprovação.
  */
 import {getTribunalByCnj} from '@/lib/tribunais-links';
 import {COURT_ALIASES,isDataJudUseAuthorized} from '@/lib/datajud';
-import {TRIBUNAIS_TJ} from '@/lib/tribunais-links';
 
 export type OfficialCourtPortal={label:string;url:string;scope:string};
 export type HermesNationalSourcePlan={
