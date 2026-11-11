@@ -18,7 +18,7 @@ export const getPortfolioSnapshotCached = unstable_cache(
       throw new Error('portfolio_snapshot_unavailable');
     }
     return data[0] as Record<string,unknown>;
-  },['lexis-portfolio-snapshot-v2'],{revalidate:30}
+  },['lexis-portfolio-snapshot-v3'],{revalidate:30}
 );
 export const getMeritoSnapshotCached = unstable_cache(
   async (empresaId:string,ownerId:string|null) => {
