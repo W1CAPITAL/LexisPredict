@@ -12,8 +12,9 @@ export type HermesNationalSourcePlan={
  tribunal:string;
  alias:string;
  cnjCode:string;
- automated:['DJEN','DataJud'];
- tribunalApiAutomated:false;
+ automated:string[];
+ tribunalApiAutomated:boolean;
+ tribunalApiAuthRequired:boolean;
  tribunalPortal:OfficialCourtPortal|null;
  otherPortals:OfficialCourtPortal[];
  jusbr:{url:'https://www.jus.br/';authRequired:true};
