@@ -334,11 +334,12 @@ export async function runHermesStalledReviewBatch(){
   const cnj=normalizedCnj(row.protocolo_ref||row.dados?.protocolo);
   const snapshot=cnj?await obtainCourtSnapshot(cnj,null,false):{
    djenOk:false,datajudOk:false,events:[] as HermesCourtEvent[],
-   sourceErrors:{djen:'CNJ inválido',datajud:'CNJ inválido',fonteAlternativa:'Número CNJ inválido. Verificação automática não executada.'}
+   courtApiOk:false,courtApiAttempted:false,
+   sourceErrors:{djen:'CNJ inválido',datajud:'CNJ inválido',projudi:null,fonteAlternativa:'Número CNJ inválido. Verificação automática não executada.'}
   };
   // DataJud guarda movimentações; DJEN guarda publicações, sem presunção de equivalência.
   const verified=evaluateHermesStalledEvidence({
-   today,djenOk:snapshot.djenOk,datajudOk:snapshot.datajudOk,
+   today,djenOk:snapshot.djenOk,datajudOk:snapshot.datajudOk,courtApiOk:snapshot.courtApiOk,
    events:snapshot.events,
    lastKnownDataJudMove:row.datajud_last_ok===true?validReturnDay(row.datajud_ultimo_movimento):null,
    lastKnownDjenPublication:row.djen_last_ok===true?validReturnDay(row.djen_ultima_data):null,
@@ -356,6 +357,8 @@ export async function runHermesStalledReviewBatch(){
    checked_at:checkedAt,attempted_at:checkedAt,
    last_movement_at:last,days_without_movement:daysWithoutMovement,
    djen_ok:snapshot.djenOk,datajud_ok:snapshot.datajudOk,
+   tribunal_api_ok:snapshot.courtApiOk,tribunal_api_source:snapshot.courtApiSource||null,
+   tribunal_api_checked_at:snapshot.courtApiAttempted?checkedAt:null,
    source_errors:{...snapshot.sourceErrors,ultimaPublicacaoDjen:verified.lastPublicationAt},evidence,
   },{onConflict:'empresa_id,processo_id'});
   if(saveError)throw saveError;
@@ -405,8 +408,8 @@ export async function persistHermesPortfolioSnapshot(
   source_errors:snapshot.sourceErrors,events,findings,
  },{onConflict:'empresa_id,processo_id'});
  if(error)throw new Error('Falha ao gravar histórico oficial Hermes: '+error.code);
- // Only actual verified DataJud movements can change the CRM's last court movement.
- // DJEN publication dates are never used to claim a tribunal movement.
+ // Only verified DataJud or authorized tribunal API movements can change the CRM's
+ // generic last-court-movement date. DJEN publication dates never do.
  const patch=buildHermesVerifiedProcessPatch({
   snapshot,checkedAt:now,
   lastDataJudMovement:row.datajud_ultimo_movimento,
