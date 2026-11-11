@@ -176,6 +176,22 @@ async function scheduledOfficeMeeting() {
  */
 export async function GET(request: Request) {
   const mode = new URL(request.url).searchParams.get('hermesRoute');
+  if(mode==='office'&&new URL(request.url).searchParams.get('action')==='scmpp-health'){
+    const ctx=await getUserContext();
+    if(!ctx?.auth_id||!ctx?.empresa_id||ctx.isViewer)return NextResponse.json(
+      {ok:false,error:'Acesso não autorizado ao diagnóstico SCMPP.'},
+      {status:403,headers:privateHeaders}
+    );
+    // Consulta um contrato WSDL fixo, sem número CNJ, senha ou scraping.
+    // Não interfere com a janela de cooldown DataJud.
+    const instance=new URL(request.url).searchParams.get('instance');
+    if(instance!=='1g'&&instance!=='2g')return NextResponse.json(
+      {ok:false,error:'Instância inválida.'},{status:400,headers:privateHeaders}
+    );
+    const {probeTjprScmppWsdl}=await import('@/lib/tjpr-scmpp-diagnostic');
+    const probe=await probeTjprScmppWsdl(instance);
+    return NextResponse.json({ok:true,probe},{headers:privateHeaders});
+  }
   if (mode === 'office' && new URL(request.url).searchParams.get('format')==='pdf') return getOfficePdf();
   if (mode === 'office') return getOfficePanel();
   if (!authorized(request)) return NextResponse.json(
