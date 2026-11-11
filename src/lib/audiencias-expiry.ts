@@ -28,7 +28,7 @@ function localDay(now:Date,timeZone:string):string{
 }
 function validDay(value:unknown):string|null{
  const raw=String(value??'').trim();
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw))return null;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return null;
  const date=new Date(raw+'T12:00:00Z');
  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===raw?raw:null;
 }
