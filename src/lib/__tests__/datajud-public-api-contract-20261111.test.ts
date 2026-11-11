@@ -81,7 +81,7 @@ describe('Contrato da API pública DataJud (CNJ)',()=>{
   expect(api).toContain('getUserContext()');
   expect(api).toContain("mode==='cpf'||mode==='nome'||mode==='cnpj'");
   expect(api).toContain('status:422');
-  expect(api).toContain('cloudBudget:true');
+  expect(api).toContain('requestDataJudWithCapacity(cnj,false,25_000)');
   expect(integration).toContain('datajudMode:');
   expect(integration).toContain('status:422');
  });
