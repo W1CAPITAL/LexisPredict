@@ -176,7 +176,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const isFast = options.fast === true;
 
   // AGORA: fast ainda dá tempo real ao tribunal + 1 retry
-  const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs) ? Math.min(46_000,Math.max(5_000,options.timeoutMs)) : resolveDataJudTimeoutMs({cloudBudget:options.cloudBudget,fast:isFast});
+  const timeoutMs = options.timeoutMs && Number.isFinite(options.timeoutMs) ? Math.min(95_000,Math.max(5_000,options.timeoutMs)) : resolveDataJudTimeoutMs({cloudBudget:options.cloudBudget,fast:isFast});
   const maxAttempts = options.cloudBudget ? 1 : 3;
 
   try {
