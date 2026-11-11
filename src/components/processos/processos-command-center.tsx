@@ -1194,8 +1194,13 @@ export function ProcessosCommandCenter(props: Props) {
                   {activeHistory?.data?.tribunalConnector&&(
                     <div className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-900 dark:text-emerald-100">
                       <b>Scanner automático do tribunal:</b> {activeHistory.data.tribunalConnector.source}
-                      {' · '}{activeHistory.data.tribunalMovements||0} movimentos públicos verificados,
-                      última verificação em {fmtTimelineDate(activeHistory.data.tribunalConnector.verifiedAt||'')}.
+                      {' · '}Estado: {activeHistory.data.tribunalConnector.status}.
+                      {' · '}{activeHistory.data.tribunalMovements||0} movimentos públicos armazenados.
+                      {activeHistory.data.tribunalConnector.verifiedAt
+                        ? ' Última verificação efetiva em '+fmtTimelineDate(activeHistory.data.tribunalConnector.verifiedAt)+'.'
+                        : ' Nenhuma movimentação deste conector foi confirmada ainda.'}
+                      {activeHistory.data.tribunalConnector.nextAllowedAt&&
+                        ' Próxima janela de tentativa: '+fmtTimelineDate(activeHistory.data.tribunalConnector.nextAllowedAt)+'.'}
                       <span className="block">Fonte direta do tribunal, independente do DataJud e do DJEN. Consulta e validação limitada a movimentos públicos.</span>
                     </div>
                   )}
