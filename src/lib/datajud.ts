@@ -24,29 +24,52 @@ export const COURT_ALIASES: Record<string, string> = {
 };
 
 /** Resolve o alias DataJud a partir do CNJ, cobrindo TJ/TRF/TRT/superiores. */
-export function resolveDataJudAlias(cnj: string): string {
-  const digits = cnj.replace(/\D/g, "");
-  if (digits.length !== 20) return "tjsp";
+export function resolveDataJudAlias(cnj: string): string | null {
+  const digits = String(cnj || "").replace(/\D/g, "");
+  if (digits.length !== 20) return null;
   const aliasPart = `${digits[13]}.${digits.substring(14, 16)}`;
   const direct = COURT_ALIASES[aliasPart];
   if (direct) return direct;
   const justice = digits[13];
-  if (justice === "5") return `trt${Number(digits.substring(14, 16))}`;
-  if (justice === "2") return "stj";
-  if (justice === "3") return "tst";
-  if (justice === "6") return "tse";
-  if (justice === "7") return "stm";
-  return "tjsp";
+  const tribunal = Number(digits.substring(14, 16));
+  if (justice === "5" && tribunal >= 1 && tribunal <= 24) return `trt${tribunal}`;
+  if (justice === "2" && (tribunal === 0 || tribunal === 1)) return "stj";
+  if (justice === "3" && (tribunal === 0 || tribunal === 1)) return "tst";
+  if (justice === "6" && tribunal === 0) return "tse";
+  if (justice === "7" && tribunal === 0) return "stm";
+  return null;
 }
 
-/** Chave DataJud: prefira env. Fallback = chave PÚBLICA oficial do CNJ (API pública). */
+/** Chave pública vigente publicada pelo CNJ. Ela pode ser rotacionada sem aviso. */
 const DATAJUD_PUBLIC_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
-const DATAJUD_API_KEY = (process.env.DATAJUD_API_KEY || '').trim().replace(/^APIKey\\s+/i,'') || DATAJUD_PUBLIC_KEY;
+const DATAJUD_API_KEY = normalizeDataJudApiKey(process.env.DATAJUD_API_KEY || process.env.CNJ_API_KEY || '') || DATAJUD_PUBLIC_KEY;
 let liveDataJudKey:{value:string;until:number}|null=null;
-/** Uses only the public API key published by CNJ; never stores private secrets in logs. */
+
+/** Normaliza tanto o valor bruto quanto o cabeçalho completo copiado da Wiki do CNJ. */
+export function normalizeDataJudApiKey(value:unknown):string{
+ return String(value||'').trim()
+  .replace(/^Authorization\\s*:\\s*/i,'')
+  .replace(/^APIKey\\s+/i,'')
+  .trim();
+}
+
+/** Extrai a chave pública atual do conteúdo oficial da Wiki do CNJ. */
+export function extractDataJudPublicKey(page:string):string|null{
+ const text=String(page||'').replace(/&nbsp;|&#160;/gi,' ');
+ const match=text.match(/(?:Authorization\\s*:\\s*)?APIKey\\s+([A-Za-z0-9_+/=-]{30,})/i);
+ return match?.[1]||null;
+}
+
+/** Ativação apenas após autorização expressa do CNJ para o uso pretendido. */
+export function isDataJudUseAuthorized():boolean{
+ return process.env.DATAJUD_USE_AUTHORIZED==='true';
+}
+
+/** Uses only the public API key published by CNJ; never stores keys in logs. */
 export function resolveCurrentDataJudKey():string{
  return liveDataJudKey?.until && liveDataJudKey.until>Date.now()?liveDataJudKey.value:DATAJUD_API_KEY;
 }
+
 /** CNJ rotates its public key; refresh it once on HTTP 401/403 instead of repeating an expired key. */
 export async function refreshPublicDataJudKey():Promise<string|null>{
  if(liveDataJudKey&&liveDataJudKey.until>Date.now())return liveDataJudKey.value;
@@ -57,11 +80,10 @@ export async function refreshPublicDataJudKey():Promise<string|null>{
   });
   if(!response.ok)return null;
   const page=(await response.text()).slice(0,150000);
-  const match=page.match(/Authorization:\\s*APIKey\\s+([A-Za-z0-9_+=\\/-]{30,})/i) ||
-    page.match(/APIKey\\s+([A-Za-z0-9_+=\\/-]{30,})/i);
-  if(!match?.[1])return null;
-  liveDataJudKey={value:match[1],until:Date.now()+6*60*60*1000};
-  return liveDataJudKey.value;
+  const key=extractDataJudPublicKey(page);
+  if(!key)return null;
+  liveDataJudKey={value:key,until:Date.now()+6*60*60*1000};
+  return key;
  }catch{return null;}
 }
 
@@ -128,180 +150,27 @@ export function extrairPolos(partes: any[]): { ativo: string[]; passivo: string[
 }
 
 /**
- * Busca processos no DataJud por nome de parte (não há índice oficial de CPF).
- * Varre aliases informados (padrão: principais TJs).
+ * A API Pública do DataJud não disponibiliza campos de CPF/CNPJ/OAB ou nome
+ * das partes para pesquisa. Localize a pessoa no CRM e consulte o CNJ.
  */
 export async function searchDataJudByNome(
-  nome: string,
-  opts?: { aliases?: string[]; size?: number; classeCodigo?: number }
-): Promise<{ success: boolean; items: any[]; error?: string }> {
-  const q = String(nome || '').trim();
-  if (q.length < 5) return { success: false, items: [], error: 'Nome muito curto' };
-
-  const aliases = opts?.aliases || [
-    'tjsp', 'tjrj', 'tjmg', 'tjba', 'tjrs', 'tjpr', 'tjsc', 'tjgo', 'tjpe', 'tjce', 'tjdft'
-  ];
-  const size = opts?.size || 5;
-  const items: any[] = [];
-
-  for (const alias of aliases) {
-    if (items.length >= 20) break;
-    try {
-      const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-      const must: any[] = [{ match: { 'partes.nome': { query: q, operator: 'and' } } }];
-      if (opts?.classeCodigo) {
-        must.push({ match: { 'classe.codigo': opts.classeCodigo } });
-      }
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 25000);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `APIKey ${DATAJUD_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ size, query: { bool: { must } } }),
-        signal: controller.signal,
-        cache: 'no-store',
-      });
-      clearTimeout(id);
-      if (!response.ok) continue;
-      const data = await response.json();
-      for (const hit of data.hits?.hits || []) {
-        const source = hit._source || {};
-        const partesRaw = Array.isArray(source.partes) ? source.partes : [];
-        const polos = extrairPolos(partesRaw);
-        items.push({
-          numeroProcesso: source.numeroProcesso,
-          classe: source.classe?.nome || 'N/A',
-          classeCodigo: source.classe?.codigo ?? null,
-          grau: source.grau || null,
-          tribunal: source.tribunal || alias.toUpperCase(),
-          orgaoJulgador: source.orgaoJulgador?.nome || null,
-          poloAtivo: polos.ativo,
-          poloPassivo: polos.passivo,
-          partes: partesRaw,
-          dataAjuizamento: source.dataAjuizamento || null,
-        });
-      }
-    } catch {
-      // tribunal offline — segue
-    }
-  }
-
-  return { success: true, items };
+  nome:string,
+  _opts?:{aliases?:string[];size?:number;classeCodigo?:number}
+):Promise<{success:boolean;items:any[];error?:string}>{
+ const query=String(nome||'').trim();
+ return {success:false,items:[],error:query
+  ?'A API pública do DataJud não oferece pesquisa por nome de parte. Localize o processo no CRM/tribunal e consulte pelo CNJ.'
+  :'Nome não informado.'};
 }
 
-/**
- * Busca processos no DataJud por CPF/CNPJ da parte.
- * Tenta vários campos usados pelos tribunais (schema não é uniforme).
- * Retorna lista com polo ativo/passivo e classe (inclui BA, revisional, etc.).
- */
 export async function searchDataJudByCpf(
-  documento: string,
-  opts?: { aliases?: string[]; size?: number; onlyBA?: boolean }
-): Promise<{ success: boolean; items: any[]; error?: string }> {
-  const digits = String(documento || '').replace(/\D/g, '');
-  if (digits.length < 11) {
-    return { success: false, items: [], error: 'CPF/CNPJ inválido (mín. 11 dígitos)' };
-  }
-
-  const aliases = opts?.aliases || [
-    'tjsp', 'tjrj', 'tjmg', 'tjba', 'tjrs', 'tjpr', 'tjsc', 'tjgo', 'tjpe', 'tjce',
-    'tjdft', 'tjes', 'tjmt', 'tjms', 'tjma', 'tjpb', 'tjrn', 'tjpi', 'tjal', 'tjse',
-  ];
-  const size = opts?.size || 8;
-  const items: any[] = [];
-  const seen = new Set<string>();
-
-  // Campos possíveis de documento nos índices (varia por tribunal)
-  const docFields = [
-    'partes.numeroDocumentoPrincipal',
-    'partes.numeroDocumento',
-    'partes.documento',
-    'partes.cpfCnpj',
-    'partes.cpf',
-    'partes.cnpj',
-  ];
-
-  for (const alias of aliases) {
-    if (items.length >= 30) break;
-    try {
-      const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
-      const should = docFields.map((f) => ({ match: { [f]: digits } }));
-      // Também tenta com máscara parcial de CPF (xxx.xxx.xxx-xx) se 11 dígitos
-      if (digits.length === 11) {
-        const masked = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-        should.push({ match: { 'partes.numeroDocumentoPrincipal': masked } as any });
-        should.push({ match: { 'partes.documento': masked } as any });
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 28000);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `APIKey ${DATAJUD_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          size,
-          query: { bool: { should, minimum_should_match: 1 } },
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (!response.ok) continue;
-      const data = await response.json();
-      // Skill: 200 parcial com shards failed → não confiar em "vazio" absoluto
-      const hits = data?.hits?.hits;
-      if (!Array.isArray(hits)) continue;
-
-      for (const hit of hits) {
-        const source = hit?._source;
-        if (!source) continue;
-        const num = String(source.numeroProcesso || '').replace(/\D/g, '');
-        if (!num || seen.has(num)) continue;
-
-        // Confirma se alguma parte realmente carrega o documento (reduz falso positivo)
-        const partesRaw = Array.isArray(source.partes) ? source.partes : [];
-        const docHit = partesRaw.some((p: any) => {
-          const blob = `${p?.numeroDocumentoPrincipal || ''} ${p?.numeroDocumento || ''} ${p?.documento || ''} ${p?.cpf || ''} ${p?.cnpj || ''} ${p?.cpfCnpj || ''}`.replace(/\D/g, '');
-          return blob.includes(digits);
-        });
-        // Se o tribunal não expõe o doc nas partes, ainda aceita o hit do ES
-        if (partesRaw.length > 0 && !docHit && digits.length >= 11) {
-          // mantém se o match veio do índice mesmo sem echo no _source
-        }
-
-        const classeNome = String(source.classe?.nome || source.classe?.codigo || '').toUpperCase();
-        const isBA = /BUSCA\s+E\s+APREENS/.test(classeNome);
-        if (opts?.onlyBA && !isBA) continue;
-
-        seen.add(num);
-        const polos = extrairPolos(partesRaw);
-        items.push({
-          numeroProcesso: source.numeroProcesso || num,
-          tribunal: source.tribunal || alias.toUpperCase(),
-          grau: source.grau || null,
-          classe: source.classe?.nome || source.classe?.codigo || null,
-          classeCodigo: source.classe?.codigo ?? null,
-          orgaoJulgador: source.orgaoJulgador?.nome || null,
-          dataAjuizamento: source.dataAjuizamento || null,
-          poloAtivo: polos.ativo,
-          poloPassivo: polos.passivo,
-          partes: partesRaw,
-          isBuscaApreensao: isBA,
-          alias,
-        });
-      }
-    } catch {
-      // timeout / rede — tenta próximo tribunal
-      continue;
-    }
-  }
-
-  return { success: true, items, error: items.length === 0 ? 'Nenhum processo encontrado para este documento nos tribunais consultados.' : undefined };
+  documento:string,
+  _opts?:{aliases?:string[];size?:number;onlyBA?:boolean}
+):Promise<{success:boolean;items:any[];error?:string}>{
+ const digits=String(documento||'').replace(/\\D/g,'');
+ return {success:false,items:[],error:digits
+  ?'A API pública do DataJud não oferece pesquisa por CPF/CNPJ/OAB. Localize o processo no CRM/tribunal e consulte pelo CNJ.'
+  :'Documento não informado.'};
 }
 
 export async function fetchDataJud(cnj: string, attempt = 1, options: DataJudOptions = {}): Promise<any> {
@@ -318,11 +187,24 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
   const startTime = Date.now();
 
   if (cnjLimpo.length !== 20) {
-    return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido.", attempts: attempt };
+    return { numeroProcesso: cnj, movimentos: [], error: true, message: "CNJ inválido.", errorCode:'invalid_cnj', attempts: attempt };
+  }
+  if (!isDataJudUseAuthorized()) {
+    return {
+      numeroProcesso:cnjLimpo,movimentos:[],error:true,errorCode:'terms_restricted',
+      message:'Consulta DataJud desativada: os termos vigentes vedam uso comercial dos dados. É necessária autorização expressa do CNJ para este uso.',
+      attempts:attempt,
+    };
   }
 
-  const aliasPart = `${cnjLimpo[13]}.${cnjLimpo.substring(14, 16)}`;
-  const alias = COURT_ALIASES[aliasPart] || resolveDataJudAlias(cnjLimpo);
+  const alias = resolveDataJudAlias(cnjLimpo);
+  if (!alias) {
+    return {
+      numeroProcesso:cnjLimpo,movimentos:[],error:true,errorCode:'unknown_jurisdiction',
+      message:'Código de tribunal não reconhecido no número CNJ; nenhum endpoint foi presumido.',
+      attempts:attempt,
+    };
+  }
   const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`;
 
   // O índice público armazena o número sem máscara (20 dígitos).
@@ -358,7 +240,7 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
 
     if ((response.status === 401 || response.status === 403) && !overrideKey) {
       const fresh=await refreshPublicDataJudKey();
-      if(fresh&&fresh!==DATAJUD_API_KEY){
+      if(fresh&&fresh!==resolveCurrentDataJudKey()){
         return fetchDataJudUncached(cnj,attempt,options,fresh);
       }
     }
@@ -462,6 +344,10 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       movimentos: Array.isArray(source.movimentos) ? source.movimentos : [],
       found: true,
       dataAjuizamento: source.dataAjuizamento || null,
+      dataHoraUltimaAtualizacao: source.dataHoraUltimaAtualizacao || null,
+      indexTimestamp: source['@timestamp'] || null,
+      took: Number.isFinite(data?.took) ? data.took : null,
+      shardsFailed: Number.isFinite(data?._shards?.failed) ? data._shards.failed : null,
       partes: partesRaw,
       poloAtivo: polos.ativo,
       poloPassivo: polos.passivo,
