@@ -1191,6 +1191,14 @@ export function ProcessosCommandCenter(props: Props) {
                   {activeHistory?.error ? (
                     <p role="alert" className="mb-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-200">{activeHistory.error}</p>
                   ):null}
+                  {activeHistory?.data?.tribunalConnector&&(
+                    <div className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-900 dark:text-emerald-100">
+                      <b>Scanner automático do tribunal:</b> {activeHistory.data.tribunalConnector.source}
+                      {' · '}{activeHistory.data.tribunalMovements||0} movimentos públicos verificados,
+                      última verificação em {fmtTimelineDate(activeHistory.data.tribunalConnector.verifiedAt||'')}.
+                      <span className="block">Fonte direta do tribunal, independente do DataJud e do DJEN. Consulta e validação limitada a movimentos públicos.</span>
+                    </div>
+                  )}
                   {activeHistory?.data?.warnings?.length ? (
                     <div className="mb-2 rounded-lg border border-amber-400/20 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-200">
                       <b>Fontes com consulta parcial:</b> {activeHistory.data.warnings.join(' · ')}
