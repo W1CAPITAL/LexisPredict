@@ -96,7 +96,7 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
     : new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const [dj, djen] = await Promise.allSettled([
     requestDataJudWithCapacity(cnj,manual),
-    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, hermesManual: manual, forceRefresh: manual }),
+    fetchDjenComunicacoes(cnj, { dataInicio: beginning, cloudBudget: !manual, hermesManual: manual, forceRefresh: manual, hermesDualFormat:true }),
   ]);
   const datajud = dj.status === 'fulfilled' ? dj.value : null;
   const diario = djen.status === 'fulfilled' ? djen.value : null;

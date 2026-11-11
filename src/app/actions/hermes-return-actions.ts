@@ -27,7 +27,7 @@ export async function getHermesReturnReviewAction(processId: number) {
       .order('due_on', { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error('A revisão judicial está indisponível.');
     return { ok: true as const, review: data || null,
-      nextReturnRegistered: row.proximo_retorno, lastReturnRegistered: row.ultimo_retorno,
+      protocolo: row.protocolo_ref, nextReturnRegistered: row.proximo_retorno, lastReturnRegistered: row.ultimo_retorno,
       returnDateStatus:classifyHermesReturnDate(row.ultimo_retorno,row.proximo_retorno,brazilToday()),
     };
   } catch (e) { return { ok: false as const, error: e instanceof Error ? e.message : 'Falha ao carregar revisão.' }; }
