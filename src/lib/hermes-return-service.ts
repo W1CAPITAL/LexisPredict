@@ -211,7 +211,7 @@ async function persistResult(
       tribunalApiSource: snapshot.courtApiSource || null,
       tribunalApiAttempted: snapshot.courtApiAttempted,
       origin: 'official-public-apis-and-authorized-court-mni',
-      sourceMode:classifyHermesOfficialFallback(result.datajudOk,result.djenOk),
+      sourceMode:snapshot.courtApiOk&&snapshot.djenOk?'djen+tribunal-api':classifyHermesOfficialFallback(result.datajudOk,result.djenOk),
       tribunal:getHermesNationalSourcePlan(cnj)?.tribunal||null,
       officialPortal:getHermesNationalSourcePlan(cnj)?.tribunalPortal?.url||'https://www.jus.br/',
       tribunalApiAutomated:getHermesNationalSourcePlan(cnj)?.tribunalApiAutomated===true,
@@ -376,7 +376,7 @@ export async function runHermesStalledReviewBatch(){
 
 
 /** Um dossiê oficial rastreável por processo e empresa.
- * "ready" significa DUAS FONTES consultadas, jamais autos integrais.
+ * "ready" significa DJEN e uma fonte de movimento (DataJud ou MNI), jamais autos integrais.
  * Nunca atualiza retorno, mérito administrativo, cobrança ou mensagem ao cliente.
  */
 export async function persistHermesPortfolioSnapshot(
