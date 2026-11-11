@@ -2,6 +2,7 @@ import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
 import { extrairAudienciasOficiais, type AudienciaExtraida } from '@/lib/audiencias-monitor';
 import {extractOfficialHearingLink} from '@/lib/hermes-judicial-findings';
+import {filtrarAudienciasVigentes} from '@/lib/audiencias-expiry';
 
 type Fonte = {source:'DJEN'|'DataJud'; text:string; url?:string|null; publishedAt?:string|null};
 export type ProcessoAudiencia = {
@@ -46,7 +47,7 @@ export function prepararAudienciasDoProcesso(row:ProcessoAudiencia, fontes:Fonte
   for(const doc of caseEvidence(row,fontes)){
     if(!doc.text || doc.text.length<15)continue;
     const source=doc.source;
-    const events=extrairAudienciasOficiais(doc.text.slice(0,80000));
+    const events=filtrarAudienciasVigentes(extrairAudienciasOficiais(doc.text.slice(0,80000)));
     for(const e of events){
       const evidenceAt=typeof doc.publishedAt==='string' ? Date.parse(doc.publishedAt) : 0;
       const weight=source==='DJEN'?2:1;
