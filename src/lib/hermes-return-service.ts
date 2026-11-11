@@ -383,35 +383,56 @@ export async function persistHermesPortfolioSnapshot(
  */
 export async function runHermesPortfolioScanBatch(){
  const db=await getSupabaseAdmin();
- const {data,error}=await db.rpc('hermes_claim_portfolio_scan',{p_today:brazilToday()});
+ const {data,error}=await db.rpc('hermes_claim_portfolio_scan_batch',{
+  p_today:brazilToday(),p_limit:2,
+ });
  if(error)throw new Error('Fila de carteira judicial indisponível: '+error.message);
- const claim=(data||[])[0] as {empresa_id:string;processo_id:number}|undefined;
- if(!claim)return {processed:0,state:'empty' as const};
- const company=String(claim.empresa_id),processId=Number(claim.processo_id);
- try{
-  const row=await loadHermesReviewCase(db,company,processId);
-  if(!row)throw new Error('Processo não acessível pela empresa.');
-  const cnj=normalizedCnj(row.protocolo_ref||row.dados?.protocolo);
-  if(!cnj)throw new Error('CNJ incompleto.');
-  const snapshot=await obtainCourtSnapshot(cnj,null,false);
-  const output=await persistHermesPortfolioSnapshot(db,row,snapshot);
-  // Reaproveitar o índice de audiências existente para /audiencias e /agenda.
-  if(snapshot.djenOk||snapshot.datajudOk){
+ const claims=(Array.isArray(data)?data:[]) as Array<{empresa_id:string;processo_id:number}>;
+ if(!claims.length)return {processed:0,state:'empty' as const,officialEvents:0,hearings:0};
+
+ // Duas consultas independentes por minuto. O limitador DataJud continua
+ // controlando a capacidade por tribunal; a consulta DJEN de cada processo
+ // segue mesmo quando o DataJud está em cooldown.
+ const results=await Promise.all(claims.map(async claim=>{
+  const company=String(claim.empresa_id),processId=Number(claim.processo_id);
+  try{
+   const row=await loadHermesReviewCase(db,company,processId);
+   if(!row)throw new Error('Processo não acessível pela empresa.');
+   const cnj=normalizedCnj(row.protocolo_ref||row.dados?.protocolo);
+   if(!cnj)throw new Error('CNJ incompleto.');
+   const snapshot=await obtainCourtSnapshot(cnj,null,false);
+   const output=await persistHermesPortfolioSnapshot(db,row,snapshot);
+   // Reaproveitar o índice de audiências existente para /audiencias e /agenda.
+   if(snapshot.djenOk||snapshot.datajudOk){
+    try{
+     const {atualizarAudienciasDeConsulta}=await import('@/lib/audiencias-service');
+     const fontes=snapshot.events.map(e=>({source:e.source,text:e.text,url:e.url,publishedAt:e.at}));
+     const hearings=await atualizarAudienciasDeConsulta({
+      empresaId:company,processoId:processId,fontes,
+     });
+     if(!hearings.ok)console.warn('[Hermes carteira] Falha ao indexar audiências confirmadas.');
+    }catch{console.warn('[Hermes carteira] Índice de audiências não atualizado.');}
+   }
+   return {
+    processId,processed:1,state:output.state,
+    officialEvents:output.eventsSaved,hearings:output.hearings,
+   };
+  }catch{
    try{
-    const {atualizarAudienciasDeConsulta}=await import('@/lib/audiencias-service');
-    const fuentes=snapshot.events.map(e=>({source:e.source,text:e.text,url:e.url,publishedAt:e.at}));
-    const hearings=await atualizarAudienciasDeConsulta({
-     empresaId:company,processoId:processId,fontes:fuentes,
-    });
-    if(!hearings.ok)console.warn('[Hermes carteira] Falha ao indexar audiências confirmadas.');
-   }catch{console.warn('[Hermes carteira] Índice de audiências não atualizado.');}
+    await db.from('hermes_portfolio_scans').update({
+     state:'unavailable',checked_at:new Date().toISOString(),attempted_at:new Date().toISOString(),
+     source_errors:{system:'Não foi possível concluir esta verificação oficial; nenhum andamento foi presumido.'},
+    }).eq('empresa_id',company).eq('processo_id',processId);
+   }catch{console.warn('[Hermes carteira] Não foi possível registrar a falha da consulta.');}
+   return {processId,processed:1,state:'unavailable' as const,officialEvents:0,hearings:0};
   }
-  return {processed:1,state:output.state,officialEvents:output.eventsSaved,hearings:output.hearings};
- }catch{
-  await db.from('hermes_portfolio_scans').update({
-   state:'unavailable',checked_at:new Date().toISOString(),attempted_at:new Date().toISOString(),
-   source_errors:{system:'Não foi possível concluir esta verificação oficial; nenhum andamento foi presumido.'},
-  }).eq('empresa_id',company).eq('processo_id',processId);
-  return {processed:1,state:'unavailable' as const};
- }
+ }));
+ const state=results.every(r=>r.state==='ready')?'ready':
+  results.every(r=>r.state==='unavailable')?'unavailable':'partial';
+ return {
+  processed:results.length,state,
+  officialEvents:results.reduce((sum,r)=>sum+r.officialEvents,0),
+  hearings:results.reduce((sum,r)=>sum+r.hearings,0),
+  results,
+ };
 }
