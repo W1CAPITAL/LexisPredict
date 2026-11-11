@@ -92,7 +92,7 @@ export function getHermesNationalSourcePlan(cnj:unknown):HermesNationalSourcePla
  return {
   tribunal:alias.toUpperCase(),alias,cnjCode:code,
   automated:code==='8.16'?['DJEN','DataJud','TJPR PROJUDI MNI']:['DJEN','DataJud'],
-  tribunalApiAutomated:code==='8.16',tribunalApiAuthRequired:code==='8.16',
+  tribunalApiAutomated:code==='8.16',tribunalApiAuthRequired:false,
   tribunalPortal:tribunalPortal||null,otherPortals,
   jusbr:{url:'https://www.jus.br/',authRequired:true},
   datalake:{applicationUrl:'https://gestao-clientes.pdpj.jus.br/',requiresApproval:true},
