@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
     const totalAtivos = ativos.length;
     
     const statusCounts = {
-      vencidos: cases.filter(isCasoVencido).length,
+      vencidos: cases.filter((c) => isCasoVencido(c)).length,
       hoje: cases.filter(c => c.status === 'É Hoje' && !isCasoEncerrado(c)).length,
       atencao: cases.filter(c => c.status === 'Atenção' && !isCasoEncerrado(c)).length,
       noPrazo: cases.filter(c => c.status === 'No Prazo' && !isCasoEncerrado(c)).length,
