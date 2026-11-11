@@ -11,7 +11,7 @@ const official=(value:unknown):string|null=>{
  try{const u=new URL(String(value||''));return u.protocol==='https:'&&(u.hostname==='jus.br'||u.hostname.endsWith('.jus.br'))?u.href:null;}catch{return null;}
 };
 function normalizeEvent(raw:HermesCourtEvent):HermesCourtEvent|null{
- if(!raw||!['DataJud','DJEN'].includes(raw.source))return null;
+ if(!raw||!['DataJud','DJEN','TJPR PROJUDI'].includes(raw.source))return null;
  const at=day(raw.at),text=plain(raw.text);
  if(!at||!text)return null;
  return {source:raw.source,at,text,url:official(raw.url)};
@@ -35,11 +35,9 @@ export function mergeHermesCourtHistory(
  }
  const ordered=[...map.values()].sort(newer);
  const cap=Math.max(2,Math.min(250,Math.trunc(limit)));
- const minimumEach=Math.floor(cap/2);
- const preferred=[
-  ...ordered.filter(v=>v.source==='DataJud').slice(0,minimumEach),
-  ...ordered.filter(v=>v.source==='DJEN').slice(0,minimumEach),
- ];
+ const sources:HermesCourtEvent['source'][]=['DataJud','DJEN','TJPR PROJUDI'];
+ const minimumEach=Math.floor(cap/sources.length);
+ const preferred=sources.flatMap(source=>ordered.filter(v=>v.source===source).slice(0,minimumEach));
  const chosen=new Map<string,HermesCourtEvent>();
  for(const e of preferred)chosen.set(key(e),e);
  for(const e of ordered){if(chosen.size>=cap)break;chosen.set(key(e),e);}
@@ -71,8 +69,14 @@ export function buildHermesVerifiedProcessPatch(input:{
     patch.datajud_ultimo_movimento=at+'T12:00:00Z';
     patch.datajud_ultimo_nome=plain(last.text,500);
    }
-   if(!day(input.lastMovement)||at>day(input.lastMovement)!)patch.ultima_movimentacao=at;
   }
+ }
+ const latestOfficialMovement=(input.snapshot.events||[])
+  .filter(e=>(e.source==='DataJud'||e.source==='TJPR PROJUDI')&&day(e.at)&&plain(e.text))
+  .sort(newer)[0];
+ if(latestOfficialMovement){
+  const at=day(latestOfficialMovement.at)!;
+  if(!day(input.lastMovement)||at>day(input.lastMovement)!)patch.ultima_movimentacao=at;
  }
  if(input.snapshot.djenOk){
   patch.djen_last_ok=true;
