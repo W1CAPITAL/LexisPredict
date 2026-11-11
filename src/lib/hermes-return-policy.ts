@@ -36,6 +36,7 @@ export type HermesReturnResult = {
   suggestedNextReturn: string | null;
   djenOk: boolean;
   datajudOk: boolean;
+  courtApiOk: boolean;
 };
 type Input = {
   cliente?: string | null;
