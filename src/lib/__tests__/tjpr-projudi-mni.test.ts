@@ -14,7 +14,6 @@ const xml=`<?xml version="1.0" encoding="UTF-8"?>
    <types:sucesso>true</types:sucesso>
    <types:mensagem>Processo consultado com sucesso</types:mensagem>
    <types:processo>
-    <mni:tipoProcessoJudicial>
      <mni:movimento dataHora="2026-11-11T10:14:00-03:00" nivelSigilo="0">
       <mni:movimentoLocal codigoMovimento="1" codigoPaiNacional="1" descricao="Concedida justiça gratuita"/>
       <mni:complemento>Intimação para apresentação de contestação</mni:complemento>
@@ -22,7 +21,6 @@ const xml=`<?xml version="1.0" encoding="UTF-8"?>
      <mni:movimento dataHora="2026-11-10T09:00:00-03:00" nivelSigilo="2">
       <mni:movimentoLocal codigoMovimento="2" codigoPaiNacional="2" descricao="Movimento sigiloso"/>
      </mni:movimento>
-    </mni:tipoProcessoJudicial>
    </types:processo>
   </svc:consultarProcessoResposta>
  </soap:Body>
