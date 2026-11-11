@@ -1,7 +1,9 @@
 "use server";
 
 import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
-import { COURT_ALIASES, isDataJudUseAuthorized, resolveCurrentDataJudKey } from "@/lib/datajud";
+import { COURT_ALIASES } from "@/lib/datajud-aliases";
+import { isDataJudUseAuthorized } from "@/lib/datajud-policy";
+import { resolveCurrentDataJudKey } from "@/lib/datajud";
 import { extrairHitEstatistico, formatCnj } from "@/lib/amostra-cnj-estatistica";
 
 const DEFAULT_ALIASES = ["tjsp", "tjrj", "tjmg", "tjpr", "tjrs", "tjsc", "tjes", "tjba"];
