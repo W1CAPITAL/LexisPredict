@@ -32,7 +32,6 @@ describe('TJPR PROJUDI MNI público 2.2.2',()=>{
  it('consulta o endpoint oficial sem cadastro, login ou senha',async()=>{
   const fetchMock=vi.fn().mockResolvedValue(new Response(xml,{status:200,headers:{'content-type':'text/xml'}}));
   const result=await fetchTJPRProjudiProcess(cnj,{
-   now:new Date('2026-11-11T15:00:00.000Z'),
    fetchImpl:fetchMock as any,
   });
   expect(result).toMatchObject({applicable:true,configured:true,ok:true,found:true,source:'TJPR PROJUDI'});
