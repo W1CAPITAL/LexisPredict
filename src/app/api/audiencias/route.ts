@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {reviewHermesCase} from '@/lib/hermes-return-service';
 import {atualizarAudienciasDeConsulta} from '@/lib/audiencias-service';
+import {compactarAudienciasVisiveis} from '@/lib/audiencias-compactar';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -20,7 +21,7 @@ export async function GET(){
       .eq('empresa_id',ctx.empresa_id)
       .order('data_evento',{ascending:true,nullsFirst:false}).limit(800);
     if(error)throw error;
-    return NextResponse.json({ok:true,items:data||[],consultadoEm:new Date().toISOString()},{headers});
+    return NextResponse.json({ok:true,items:compactarAudienciasVisiveis(data||[]),consultadoEm:new Date().toISOString()},{headers});
   }catch(error){
     console.error('[audiencias] list',error instanceof Error?error.message:'erro');
     return NextResponse.json({ok:false,error:'Agenda de audiências indisponível'},{status:503,headers});
