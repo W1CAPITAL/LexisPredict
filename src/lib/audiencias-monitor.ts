@@ -87,21 +87,21 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
       if (qualified && sessionDates.length) {
         // Intervalo explícito publicado pelo DJEN: "Período da sessão:
         // 24/11/2026 00:00 a 01/12/2026 23:59". Precede datas de publicação/prazos.
-        const explicitPeriod = /periodo da sessao\\s*:?\\s*(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]20\\d{2})\\s*(?:as?\\s*)?(\\d{1,2}:\\d{2})?\\s*(?:a|ate|–|-)\\s*(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]20\\d{2})\\s*(?:as?\\s*)?(\\d{1,2}:\\d{2})?/i.exec(normalizedHead);
+        const explicitPeriod = /periodo da sessao\s*:?\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]20\d{2})\s*(?:as?\s*)?(\d{1,2}:\d{2})?\s*(?:a|ate|–|-)\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]20\d{2})\s*(?:as?\s*)?(\d{1,2}:\d{2})?/i.exec(normalizedHead);
         const explicitDates = explicitPeriod ? dates(explicitPeriod[0]) : [];
         const start = explicitDates[0] || sessionDates.find((item) => {
           const preceding = clean(head.slice(Math.max(0, item.index - 125), item.index));
           const near = preceding.slice(-100);
-          return /\\b(?:inicio|iniciara|iniciarao|abertura|comeco)\\b/.test(near)
-            && !/\\b(?:prazo|oposicao|destaque|inscricao|publicacao|manifestacao)\\b/.test(near);
+          return /\b(?:inicio|iniciara|iniciarao|abertura|comeco)\b/.test(near)
+            && !/\b(?:prazo|oposicao|destaque|inscricao|publicacao|manifestacao)\b/.test(near);
         }) || sessionDates[0];
         const end = explicitDates[1] || sessionDates.filter((item) => item.index > start.index).find((item) => {
           if (item.date < start.date) return false;
           const preceding = clean(head.slice(Math.max(start.index, item.index - 175), item.index));
           const near = preceding.slice(-145);
-          if (/\\b(?:prazo|oposicao|destaque|inscricao|inscricoes|peticionamento|manifestacao|sustentacao|publicacao)\\b/.test(near)) return false;
-          const definite = /\\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\\b/.test(near);
-          const sessionUntil = /\\b(?:sessao|julgamento)\\b.{0,75}\\bate\\b/.test(near);
+          if (/\b(?:prazo|oposicao|destaque|inscricao|inscricoes|peticionamento|manifestacao|sustentacao|publicacao)\b/.test(near)) return false;
+          const definite = /\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\b/.test(near);
+          const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(near);
           return definite || sessionUntil;
         }) || null;
         const firstHour = explicitPeriod?.[2] || clock(head, start.index, true) || clock(head, start.index);
