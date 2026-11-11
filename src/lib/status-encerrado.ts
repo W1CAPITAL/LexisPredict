@@ -58,15 +58,16 @@ export function isCasoEncerrado(c: any): boolean {
   const d = c.dados && typeof c.dados === 'object' ? c.dados : {};
   // A carteira usa colunas tipadas como fonte de verdade. Quando a linha já
   // traz situacao/status_interno resolvidos, não reintroduzir flags antigas do JSON.
-  const hasTypedSituation = Boolean(String(c.situacao || c.status_interno || '').trim());
+  const row = { ...c, status_interno: c.status_interno ?? c.statusInterno };
+  const hasTypedSituation = Boolean(String(row.situacao || row.status_interno || '').trim());
   const situ = String(
-    c.situacao || c.status_interno || resolveSituacaoFromRow(c, d) || ''
+    row.situacao || row.status_interno || resolveSituacaoFromRow(row, d) || ''
   ).toUpperCase();
   const manual = String(
-    c.statusManual || resolveStatusManualFromRow(c, d, situ) || ''
+    c.statusManual || resolveStatusManualFromRow(row, d, situ) || ''
   ).toUpperCase();
-  const status = String(c.status || (hasTypedSituation ? '' : d.status || '')).toUpperCase();
-  const internal = String(c.status_interno || (hasTypedSituation ? '' : d.status_interno || '')).toUpperCase();
+  const status = String(row.status || (hasTypedSituation ? '' : d.status || '')).toUpperCase();
+  const internal = String(row.status_interno || (hasTypedSituation ? '' : d.status_interno || '')).toUpperCase();
   const blob = `${status} ${situ} ${manual} ${internal}`.trim();
 
   if (hasStrongEncerrado(situ) || hasStrongEncerrado(manual)) return true;
