@@ -85,7 +85,7 @@ export function normalizeDataJudApiKey(value:unknown):string{
 
 /** Extrai a chave pública atual do conteúdo oficial da Wiki do CNJ. */
 export function extractDataJudPublicKey(page:string):string|null{
- const text=String(page||'').replace(/&nbsp;|&#160;/gi,' ');
+ const text=String(page||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ');
  const match=text.match(/(?:Authorization\s*:\s*)?APIKey\s+([A-Za-z0-9_+/=-]{30,})/i);
  return match?.[1]||null;
 }
