@@ -41,7 +41,7 @@ describe('Fila unificada de retornos da empresa',()=>{
   const tasks=read('src/app/tarefas/page.tsx');
   const cases=read('src/app/cases/page.tsx');
   const queue=read('src/components/returns/company-due-queue.tsx');
-  for(const page of [tasks,cases])expect(page).toContain('CompanyDueQueue');
+  for(const page of [tasks,cases])expect(page).toMatch(/return\\s*<CompanyDueQueue\\s*\\/>/);
   expect(queue).toContain("field: 'proximo-retorno'");
   expect(queue).toContain('loadAllDuePages');
   expect(queue).toContain('HermesReturnReviewButton');
