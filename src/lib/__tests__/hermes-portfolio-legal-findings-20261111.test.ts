@@ -68,7 +68,7 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
  });
  it('protege o banco por empresa, cobre todos os processos ativos com CNJ, sem exigir estarem parados',()=>{
   const sql=read('supabase/migrations/20261111080000_hermes_portfolio_scans.sql');
-  expect(sql).toContain('enable row level security');
+  expect(sql).toMatch(/enable row level security/i);
   expect(sql).toContain('service_role');
   expect(sql).toContain('hermes_claim_portfolio_scan');
   expect(sql).toContain('p.empresa_id is not null');
