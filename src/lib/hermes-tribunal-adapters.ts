@@ -73,7 +73,7 @@ export function parseMniPublicMovements(xml:string,cnj:string):{
  if(/<(?:[\w-]+:)?(?:Fault|faultcode)\b/i.test(xml))return {status:'restricted',movements:[]};
  if(!/<(?:[\w-]+:)?(?:consultarProcessoResposta|consultarProcessoResponse|processo)\b/i.test(xml))
   return {status:'unexpected_response',movements:[]};
- const $=load(xml,{xmlMode:true,decodeEntities:true});
+ const $=load(xml,{xmlMode:true});
  const answers=findLocal($,'consultarprocessoresposta').add(findLocal($,'consultarprocessoresponse'));
  const successNode=answers.first();
  const successAttr=attrLocal(successNode,'sucesso')||
