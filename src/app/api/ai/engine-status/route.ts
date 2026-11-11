@@ -9,9 +9,13 @@ export const revalidate=0;
 export const maxDuration=15;
 
 /** Authenticated status: no hosts, tokens or API keys in responses. */
-export async function GET() {
+export async function GET(request:Request) {
   const ctx=await getUserContext();
   if(!ctx?.auth_id || !ctx?.empresa_id) return NextResponse.json({error:'Unauthorized'},{status:401});
+  if(new URL(request.url).searchParams.get('probe')==='colibri'){
+    const state=await probeColibri();
+    return NextResponse.json(state,{headers:{'Cache-Control':'private, no-store'}});
+  }
   const [colibri,minicpm,needle]=await Promise.all([probeColibri(),probeMiniCpm(),probeNeedle()]);
   return NextResponse.json({
     colibri,
