@@ -24,14 +24,7 @@ export type TJPRProjudiResult={
  endpoint?:string;
 };
 
-type FetchOptions={
- now?:Date;
- fetchImpl?:typeof fetch;
-};
-
-const escapeXml=(value:string)=>value
- .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
- .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+type FetchOptions={fetchImpl?:typeof fetch};
 
 function localName(node:any):string{
  return String(node?.name||node?.tagName||'').split(':').pop()?.toLowerCase()||'';
