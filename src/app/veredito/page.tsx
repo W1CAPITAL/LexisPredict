@@ -389,6 +389,17 @@ export default function VereditoPage() {
                  {result.hermesEvidence.findings?.legalAid&&<p className="text-xs">Justiça gratuita: {result.hermesEvidence.findings.legalAid.value} · confirmar decisão</p>}
                  {result.hermesEvidence.findings?.courtCosts&&<p className="text-xs">Custas mencionadas: {result.hermesEvidence.findings.courtCosts.amount||'sem valor expresso'} · exigibilidade depende de decisão e gratuidade</p>}
                  {Array.isArray(result.hermesEvidence.findings?.hearings)&&result.hermesEvidence.findings.hearings.slice(0,5).map((h:any,i:number)=><p className="text-xs" key={i}>Audiência {h.kind}: {h.date}{h.time?' às '+h.time:''} · {h.source}{h.meetingUrl?<a className="ml-2 underline" href={h.meetingUrl} target="_blank" rel="noopener noreferrer">Abrir link citado no ato</a>:null}</p>)}
+                 {Array.isArray(result.hermesEvidence.events) && result.hermesEvidence.events.length>0&&<div className="rounded-xl border border-border bg-card/60 p-3">
+                   <h4 className="text-sm font-bold">Histórico judicial registrado</h4>
+                   <p className="mt-1 text-xs text-muted-foreground">Eventos recuperados na última consulta Hermes. Movimentação DataJud e Publicação DJEN são fontes distintas. Este histórico pode estar incompleto.</p>
+                   <ol className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+                    {result.hermesEvidence.events.slice(0,60).map((ev:any,i:number)=><li key={i} className="border-b border-border/50 pb-2 text-xs">
+                       <p className="font-bold">{ev.source==='DataJud'?'Movimentação DataJud':'Publicação DJEN'} · {String(ev.at||'Data não identificada').slice(0,10)}</p>
+                       <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{String(ev.text||'').slice(0,650)}</p>
+                       {typeof ev.url==='string'&&ev.url.startsWith('https://')&&<a className="mt-1 inline-block font-semibold underline" target="_blank" rel="noreferrer noopener" href={ev.url}>Abrir publicação oficial</a>}
+                     </li>)}
+                   </ol>
+                 </div>}
                  {result.hermesEvidence.portal&&<a className="block text-xs font-bold underline" href={result.hermesEvidence.portal} target="_blank" rel="noopener noreferrer">Abrir consulta oficial do tribunal</a>}
                  <p className="text-xs text-muted-foreground">Esses são sinais processuais rastreáveis, não conclusão judicial definitiva nem valor para cobrança.</p>
                 </section>}

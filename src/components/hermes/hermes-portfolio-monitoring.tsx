@@ -1,8 +1,53 @@
+'use client';
+import {useState} from 'react';
+import {getHermesPortfolioByCnjAction} from '@/app/actions/hermes-portfolio-actions';
 import Link from 'next/link';
 import {Activity,CalendarDays,ShieldAlert} from 'lucide-react';
 import type {HermesPortfolioCaseSummary} from '@/lib/hermes-company-service';
 const d=(s?:string|null)=>s&&/^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
 const merits:Record<string,string>={procedente:'Procedente',parcialmente_procedente:'Parcialmente procedente',improcedente:'Improcedente'};
+type SavedEvent={source:'DataJud'|'DJEN';at:string;text:string;url?:string|null};
+function HistoryButton({cnj}:{cnj:string}){
+ const [events,setEvents]=useState<SavedEvent[]>([]);
+ const [loading,setLoading]=useState(false);
+ const [loaded,setLoaded]=useState(false);
+ const [opened,setOpened]=useState(false);
+ const [error,setError]=useState('');
+ async function load(){
+  if(loading)return;
+  if(loaded){setOpened(v=>!v);return;}
+  setLoading(true);setError('');
+  try{
+   const response=await getHermesPortfolioByCnjAction(cnj);
+   if(!response.ok||!response.found){
+    setError('Histórico oficial não disponível para este processo ou usuário.');return;
+   }
+   const rows=Array.isArray(response.events)?response.events:[];
+   setEvents(rows.filter((e):e is SavedEvent=>
+      e!==null&&typeof e==='object'&&
+      (e.source==='DataJud'||e.source==='DJEN')&&typeof e.text==='string'
+    ).slice(0,60));
+   setLoaded(true);setOpened(true);
+  }catch{setError('Falha ao carregar os eventos judiciais.');}
+  finally{setLoading(false);}
+ }
+ return <div className="mt-3 border-t border-border pt-3">
+  <button type="button" onClick={()=>void load()} disabled={loading}
+   className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold hover:bg-muted disabled:opacity-50">
+   {loading?'Carregando fontes...':opened?'Ocultar histórico':'Carregar histórico'}
+  </button>
+  {error&&<p role="alert" className="mt-2 text-xs text-amber-700 dark:text-amber-300">{error}</p>}
+  {opened&&<div className="mt-2 max-h-64 space-y-2 overflow-y-auto rounded-lg bg-muted/25 p-2">
+    <p className="text-xs text-muted-foreground">Histórico recuperado pelo Hermes; pode estar incompleto quando a fonte não respondeu. DJEN não substitui a consulta aos autos.</p>
+    {events.length===0?<p className="text-xs text-muted-foreground">Nenhum evento recuperado nesta consulta.</p>:
+     <ol className="space-y-2">{events.map((e,i)=><li key={i} className="rounded-md border border-border bg-card p-2">
+      <p className="text-xs font-bold">{e.source==='DataJud'?'Movimentação DataJud':'Publicação DJEN'} · {d(e.at)}</p>
+      <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{e.text.slice(0,550)}</p>
+      {e.url?.startsWith('https://')&&<a href={e.url} target="_blank" rel="noreferrer noopener" className="mt-1 inline-block text-xs font-semibold underline">Consultar fonte</a>}
+     </li>)}</ol>}
+   </div>}
+ </div>;
+}
 export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSummary[]}){
  return <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-6" id="hermes-portfolio-monitor">
   <div>
@@ -28,6 +73,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
      {f.courtCosts?.value&&<p className="mt-1 text-xs">Custas: {f.courtCosts.amount||'valor não localizado'} · exigibilidade não verificada</p>}
      {!m&&!hearing&&!f.enforcement&&!f.attorneyFees&&!f.courtCosts&&!f.legalAid&&<p className="mt-2 text-xs text-muted-foreground">Nenhum sinal dessas categorias recuperado; isso não confirma que os autos estejam sem movimentação.</p>}
      {r.state!=='ready'&&<p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300"><ShieldAlert size={13} className="shrink-0"/> {r.sourceErrors.datajud||r.sourceErrors.djen||'Fonte pendente de confirmação'}</p>}
+     <HistoryButton cnj={r.cnj}/>
      <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold underline">
       <Link href={'/veredito?cnj='+encodeURIComponent(r.cnj)}>Consultar no Veredito</Link>
       <Link href={'/processos?search='+encodeURIComponent(r.cnj)}>Abrir processo</Link>

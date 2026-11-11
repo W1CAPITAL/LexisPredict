@@ -75,6 +75,29 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(sql).not.toContain('ultima_movimentacao <');
   expect(sql).not.toContain('proximo_retorno<=p_today');
  });
+ it('protege contra datas judiciais invertidas mesmo se o extrator regressar',()=>{
+  const sql=read('supabase/migrations/20261111112000_hermes_findings_json_integrity.sql');
+  expect(read('supabase/migrations/20261111105000_hermes_hearing_integrity.sql')).toContain('audiencias_monitoradas_end_after_start');
+  expect(sql).toContain('hermes_portfolio_scans');
+  expect(sql).toContain('jsonb_set');
+ });
+ it('não consulta nem retorna eventos de outra empresa, mesmo com CNJ informado',()=>{
+  const action=read('src/app/actions/hermes-portfolio-actions.ts');
+  expect(action).toContain('getUserContext()');
+  expect(action).toContain("if(!ctx?.auth_id||!ctx?.empresa_id)");
+  expect((action.match(/\.eq\('empresa_id',String\(ctx\.empresa_id\)\)/g)||[]).length).toBeGreaterThanOrEqual(2);
+  expect(action).toContain("Array.isArray(scan.events)?scan.events.slice(0,90):[]");
+ });
+ it('exibe o histórico oficial armazenado sem confundir publicações DJEN com movimentos do tribunal',()=>{
+  const veredito=read('src/app/veredito/page.tsx');
+  expect(veredito).toContain('Histórico judicial registrado');
+  expect(veredito).toContain('Movimentação DataJud');
+  expect(veredito).toContain('Publicação DJEN');
+  const dashboard=read('src/components/hermes/hermes-portfolio-monitoring.tsx');
+  expect(dashboard).toContain('Carregar histórico');
+  expect(dashboard).toContain('getHermesPortfolioByCnjAction');
+  expect(read('src/app/actions/hermes-portfolio-actions.ts')).toContain(".eq('empresa_id',String(ctx.empresa_id))");
+ });
  it('o veredito mostra fonte jurídica confirmada e o relatório Hermes lista as consultas',()=>{
   expect(read('src/app/veredito/page.tsx')).toContain('getHermesPortfolioByCnjAction');
   expect(read('src/app/veredito/page.tsx')).toContain('Conclusões encontradas em fontes oficiais');
