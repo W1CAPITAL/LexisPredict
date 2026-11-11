@@ -7,7 +7,7 @@ import {CalendarDays,RefreshCcw,ExternalLink,Search,Gavel,Clock,ShieldCheck,Aler
 type Audiencia = {
  id:number;processo_id:number;protocolo_ref:string;cliente:string|null;advogado:string|null;tribunal:string|null;
  tipo:string;data_evento:string|null;data_fim:string|null;hora_local:string|null;hora_fim:string|null;fuso:string|null;
- modalidade:string;situacao:string;fonte:string;fonte_url:string|null;portal_url:string|null;evidencia:string;
+ modalidade:string;situacao:string;fonte:string;fonte_url:string|null;portal_url:string|null;meeting_url:string|null;evidencia:string;
  verificado_em:string;
 };
 const nomeTipo:Record<string,string>={
@@ -23,6 +23,7 @@ function todayBrazil(){
  const pick=(type:string)=>parts.find(p=>p.type===type)?.value||"";
  return pick("year")+"-"+pick("month")+"-"+pick("day");
 }
+function meetingLink(raw:string|null){if(!raw)return null;try{const u=new URL(raw);const h=u.hostname.toLowerCase();return u.protocol==='https:'&&(h==='meet.google.com'||h==='teams.microsoft.com'||h==='zoom.us'||h.endsWith('.zoom.us')||h==='webex.com'||h.endsWith('.webex.com')||h==='jus.br'||h.endsWith('.jus.br'))?u.href:null;}catch{return null;}}
 function officialLink(raw:string|null){if(!raw)return null;try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname.endsWith(".jus.br")||u.hostname==="cnj.jus.br")?u.href:null;}catch{return null;}}
 export default function AudienciasPage(){
  const [items,setItems]=useState<Audiencia[]>([]),[loading,setLoading]=useState(true);
@@ -94,7 +95,7 @@ export default function AudienciasPage(){
     <div className="space-y-3">
       {!loading&&filtered.length===0&&<div className="rounded-2xl border border-dashed border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground">Nenhum evento encontrado neste filtro. Isso não comprova ausência de audiência no tribunal.</div>}
       {filtered.map(x=>{
-       const url=officialLink(x.fonte_url),portal=officialLink(x.portal_url);
+       const url=officialLink(x.fonte_url),portal=officialLink(x.portal_url),meeting=meetingLink(x.meeting_url);
        const canceled=x.situacao==="cancelada",pending=x.situacao==="data_pendente";
        return <article key={x.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm md:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -112,6 +113,7 @@ export default function AudienciasPage(){
         </div>
         <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{x.evidencia}</p>
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {meeting&&<a className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-bold text-foreground hover:bg-primary/15" target="_blank" rel="noreferrer noopener" href={meeting}><ExternalLink size={14}/> Link da audiência citado no ato</a>}
           {url&&<a className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted" target="_blank" rel="noreferrer noopener" href={url}><ExternalLink size={14}/> Ato judicial</a>}
           {portal&&<a className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted" target="_blank" rel="noreferrer noopener" href={portal}><ExternalLink size={14}/> Portal de sessões</a>}
           <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50" disabled={busy!==null} onClick={()=>void refreshCase(x.processo_id)}><RefreshCcw size={14} className={busy===x.processo_id?"animate-spin":""}/> Consultar DataJud + DJEN</button>
