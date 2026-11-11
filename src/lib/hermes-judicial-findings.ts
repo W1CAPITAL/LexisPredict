@@ -60,14 +60,14 @@ function finding<T extends string>(value:T,event:HermesCourtEvent):HermesFinding
   basis:event.source==='DataJud'?'movimento_oficial':'indicio_textual',
  };
 }
-function decision(raw:string):HermesJudicialFindings['verdict'] extends HermesFinding<infer V>|null?V|null:null{
+function decision(raw:string):'procedente'|'parcialmente_procedente'|'improcedente'|null{
  const t=normalized(raw);
  // Não concluir sobre recurso, alegação ou tutela provisória com texto isolado.
  if(/recurso contra|recorre d[ae]|apela(?:cao)? contra|requer.{0,65}(?:seja )?julgad|pedido de tutela|liminar|sentenca de outro processo|sentenca que julgou/.test(t))return null;
  if(!/\b(julgo|julgad[oa]s?|sentenca.{0,35}(?:procedent|improcedent))\b/.test(t))return null;
- if(/parcialmente procedentes?|procedentes? em parte|julgad[oa]s? em parte/.test(t))return 'parcialmente_procedente' as any;
- if(/(?:julgo|julgad[oa]s?).{0,36}improcedentes?/.test(t))return 'improcedente' as any;
- if(/(?:julgo|julgad[oa]s?).{0,36}procedentes?/.test(t))return 'procedente' as any;
+ if(/parcialmente procedentes?|procedentes? em parte|julgad[oa]s? em parte/.test(t))return 'parcialmente_procedente';
+ if(/(?:julgo|julgad[oa]s?).{0,36}improcedentes?/.test(t))return 'improcedente';
+ if(/(?:julgo|julgad[oa]s?).{0,36}procedentes?/.test(t))return 'procedente';
  return null;
 }
 function latest(events:HermesCourtEvent[],source:HermesCourtEvent['source']):string|null{
