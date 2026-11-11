@@ -76,6 +76,7 @@ describe('DataJud: consulta pública por CNJ e limites de pesquisa',()=>{
     numeroProcesso:'00008323520184013202',tribunal:'TRF1',grau:'JE',
     dataHoraUltimaAtualizacao:'2025-02-11T18:10:28.605Z',
     '@timestamp':'2025-02-27T00:01:02.798609151Z',
+    poloAtivo:[{nome:'Empresa Autora Ltda'}],poloPassivo:['Banco Réu S.A.'],
     movimentos:[{codigo:26,nome:'Distribuição',dataHora:'2018-10-30T14:06:24.000Z'}],
    }}]},
   }),{status:200,headers:{'content-type':'application/json'}}));
@@ -94,7 +95,7 @@ describe('DataJud: consulta pública por CNJ e limites de pesquisa',()=>{
    error:false,found:true,tribunal:'TRF1',
    dataHoraUltimaAtualizacao:'2025-02-11T18:10:28.605Z',
    indexTimestamp:'2025-02-27T00:01:02.798609151Z',
-   took:29,shardsFailed:0,
+   took:29,shardsFailed:0,poloAtivo:['Empresa Autora Ltda'],poloPassivo:['Banco Réu S.A.'],
   });
  });
 });
