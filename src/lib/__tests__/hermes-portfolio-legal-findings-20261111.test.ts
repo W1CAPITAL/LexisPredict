@@ -81,6 +81,13 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(sql).toMatch(/data_fim\s*>=\s*data_evento/);
   expect(sql).toContain('jsonb_set');
  });
+ it('não consulta nem retorna eventos de outra empresa, mesmo com CNJ informado',()=>{
+  const action=read('src/app/actions/hermes-portfolio-actions.ts');
+  expect(action).toContain('getUserContext()');
+  expect(action).toContain("if(!ctx?.auth_id||!ctx?.empresa_id)");
+  expect((action.match(/\.eq\('empresa_id',String\(ctx\.empresa_id\)\)/g)||[]).length).toBeGreaterThanOrEqual(2);
+  expect(action).toContain("Array.isArray(scan.events)?scan.events.slice(0,90):[]");
+ });
  it('exibe o histórico oficial armazenado sem confundir publicações DJEN com movimentos do tribunal',()=>{
   const veredito=read('src/app/veredito/page.tsx');
   expect(veredito).toContain('Histórico judicial registrado');
