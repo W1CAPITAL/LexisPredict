@@ -104,9 +104,9 @@ export default function AudienciasPage(){
           <p className="text-xs text-muted-foreground">Advogado: {x.advogado||"Não informado"}</p>
          </div>
          <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-left md:text-right">
-          <p className="flex items-center gap-2 text-lg font-bold"><Clock size={18}/> {formatDay(x.data_evento)}</p>
-          {x.hora_local&&<p className="text-sm font-semibold">Às {x.hora_local} {x.fuso||"(horário do tribunal)"}</p>}
-          {x.data_fim&&<p className="text-xs text-muted-foreground">Término: {formatDay(x.data_fim)} {x.hora_fim||""}</p>}
+          <p className="flex items-center gap-2 text-sm font-bold"><Clock size={16}/> {x.tipo==="sessao_virtual"||x.tipo==="sessao_julgamento"?"Período da sessão":"Data do evento"}</p>
+          <p className="text-sm font-semibold">Início: {formatDay(x.data_evento)}{x.hora_local?" às "+x.hora_local:""} {x.fuso||"(horário do tribunal)"}</p>
+          {x.data_fim&&<p className="text-sm font-semibold text-foreground">Término: {formatDay(x.data_fim)}{x.hora_fim?" às "+x.hora_fim:""}</p>}
           <p className="text-xs text-muted-foreground">{x.modalidade==="virtual"?"Virtual":x.modalidade==="presencial"?"Presencial":"Modalidade não confirmada"}</p>
          </div>
         </div>
