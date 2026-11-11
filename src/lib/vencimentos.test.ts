@@ -49,7 +49,7 @@ describe('P0 vencidos: número do CRM não é contagem de retorno atrasado',()=>
 
  it('explains the real 10-versus-9 discrepancy without hiding an ended case',()=>{
   const open=Array.from({length:9},(_,i)=>({...base,status:'Vencido',proximo_retorno:`2026-10-${String(i+1).padStart(2,'0')}`}));
-  const closed={...base,status:'Vencido',dados:{statusManual:'Encerrado'}};
+  const closed={...base,status:'Vencido',status_interno:'ENCERRADO',dados:{statusManual:'Encerrado'}};
   const totals=resumirCentralVencidos(prepared([...open,closed]));
   expect(totals.todos).toBe(10);
   expect(totals.ativosMarcados).toBe(9);
