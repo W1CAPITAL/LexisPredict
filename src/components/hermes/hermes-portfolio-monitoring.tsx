@@ -73,6 +73,7 @@ export function HermesPortfolioMonitoring({items}:{items:HermesPortfolioCaseSumm
      {f.courtCosts?.value&&<p className="mt-1 text-xs">Custas: {f.courtCosts.amount||'valor não localizado'} · exigibilidade não verificada</p>}
      {!m&&!hearing&&!f.enforcement&&!f.attorneyFees&&!f.courtCosts&&!f.legalAid&&<p className="mt-2 text-xs text-muted-foreground">Nenhum sinal dessas categorias recuperado; isso não confirma que os autos estejam sem movimentação.</p>}
      {r.state!=='ready'&&<p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300"><ShieldAlert size={13} className="shrink-0"/> {r.sourceErrors.datajud||r.sourceErrors.djen||'Fonte pendente de confirmação'}</p>}
+     {r.sourceErrors.projudi&&<p className="mt-1 text-xs text-amber-700 dark:text-amber-300">TJPR PROJUDI MNI: {r.sourceErrors.projudi}</p>}
      <HistoryButton cnj={r.cnj}/>
      <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold underline">
       <Link href={'/veredito?cnj='+encodeURIComponent(r.cnj)}>Consultar no Veredito</Link>
