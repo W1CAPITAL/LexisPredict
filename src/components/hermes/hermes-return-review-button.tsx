@@ -27,8 +27,30 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [djenOnly,setDjenOnly] = React.useState<{
     ok:boolean; error:string|null; checkedAt:string; items:DjenItemRaw[]; count:number;
   }|null>(null);
+  const [scmppBusy,setScmppBusy]=React.useState(false);
+  const [scmppResult,setScmppResult]=React.useState<{
+    status:string;message:string;checkedAt:string;httpStatus:number|null;movementsConfirmed:false
+  }|null>(null);
   const courtPortal=React.useMemo(()=>resolveOfficialCourtPortal(protocolo),[protocolo]);
   const nationalPlan=React.useMemo(()=>getHermesNationalSourcePlan(protocolo),[protocolo]);
+
+  async function checkScmppAvailability(){
+    if(scmppBusy||!nationalPlan?.scmpp)return;
+    setScmppBusy(true);setScmppResult(null);
+    try{
+      const response=await fetch('/api/hermes-office?action=scmpp-health&instance=1g',{
+        method:'GET',credentials:'same-origin',cache:'no-store',
+      });
+      const body=await response.json();
+      if(!response.ok||!body.ok)throw Error('Verificação não disponível para esta sessão.');
+      setScmppResult(body.probe);
+    }catch{
+      setScmppResult({
+        status:'unavailable',message:'Não foi possível consultar o diagnóstico SCMPP.',
+        checkedAt:new Date().toISOString(),httpStatus:null,movementsConfirmed:false,
+      });
+    }finally{setScmppBusy(false);}
+  }
 
   async function queryOfficialBrazil(processId:number){
     const response=await fetch('/api/hermes-office?action=review',{
@@ -162,10 +184,22 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 {courtPortal.label}
               </a>}
             </div>
-            {nationalPlan?.scmpp&&review&&!review.datajud_ok&&<p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <strong className="text-foreground">SCMPP · TJPR:</strong> há serviço oficial de movimentos públicos, mas a integração ainda não validada neste ambiente impede tratá-lo como consulta concluída. O botão TJPR acima abre a consulta pública humana; o Hermes não atravessa bloqueios do tribunal.{' '}
-              <a href={nationalPlan.scmpp.documentationUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Documento técnico oficial</a>
-            </p>}
+            {nationalPlan?.scmpp&&review&&!review.datajud_ok&&<section className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <p><strong className="text-foreground">SCMPP · TJPR:</strong> há serviço oficial de movimentos públicos, mas a integração ainda não validada neste ambiente impede tratá-lo como consulta concluída. A Resolução TJPR 532/2026 prevê acesso público sem login; o manual SOAP antigo ainda descreve credenciais. O botão TJPR acima abre a consulta pública humana. O Hermes não atravessa bloqueios do tribunal.</p>
+              <p className="flex flex-wrap gap-3">
+                <a href={nationalPlan.scmpp.documentationUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Manual técnico SCMPP</a>
+                <a href={nationalPlan.scmpp.legalUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Resolução TJPR 532/2026</a>
+              </p>
+              <Button type="button" variant="outline" size="sm" disabled={scmppBusy||busy}
+                onClick={()=>void checkScmppAvailability()} className="h-8 gap-2">
+                {scmppBusy?<Loader2 size={13} className="animate-spin"/>:<FileSearch size={13}/>}
+                Testar acesso SCMPP (1º grau)
+              </Button>
+              {scmppResult&&<p role="status" className="rounded-md border border-border bg-background p-2 leading-5">
+                {scmppResult.message} {scmppResult.httpStatus!==null?'HTTP '+scmppResult.httpStatus+'. ':''}
+                <span className="block font-medium">Nenhuma movimentação é confirmada por este teste.</span>
+              </p>}
+            </section>}
             {djenOnly&&<section aria-label="Consulta DJEN independente" className="space-y-2 rounded-xl border border-[#945878]/30 bg-card p-3">
               <p className="font-semibold">DJEN independente · {fmt(djenOnly.checkedAt)}</p>
               <p className="text-xs text-muted-foreground">Consulta pelo navegador, sem alterar a revisão salva. Publicações DJEN não equivalem à confirmação DataJud ou ao histórico integral do tribunal.</p>

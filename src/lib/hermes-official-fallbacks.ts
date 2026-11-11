@@ -13,7 +13,7 @@ export type HermesNationalSourcePlan={
  cnjCode:string;
  automated:['DJEN','DataJud'];
  tribunalApiAutomated:false;
- scmpp?:{name:'TJPR SCMPP';wsdl:string;availability:'not_verified';documentationUrl:string};
+ scmpp?:{name:'TJPR SCMPP';wsdl:string;availability:'not_verified';documentationUrl:string;legalUrl:string};
  tribunalPortal:OfficialCourtPortal|null;
  otherPortals:OfficialCourtPortal[];
  jusbr:{url:'https://www.jus.br/';authRequired:true};
@@ -95,7 +95,8 @@ export function getHermesNationalSourcePlan(cnj:unknown):HermesNationalSourcePla
    name:'TJPR SCMPP' as const,
    wsdl:'https://projudi.tjpr.jus.br/projudi_consulta/webservices/projudiIntercomunicacaoWebService222?wsdl',
    availability:'not_verified' as const,
-   documentationUrl:'https://acessibilidade.tjpr.jus.br/documents/d/planejamento/servico-de-consulta-as-movimentacoes-processuais-publicas-automatizado-scmpp-pdf',
+   documentationUrl:'https://sti.tjpr.jus.br/documents/d/planejamento/servico-de-consulta-as-movimentacoes-processuais-publicas-automatizado-scmpp-pdf',
+   legalUrl:'https://portal.tjpr.jus.br/pesquisa_athos/anexo/7150778',
   }}:{}),
   tribunalPortal:tribunalPortal||null,otherPortals,
   jusbr:{url:'https://www.jus.br/',authRequired:true},
