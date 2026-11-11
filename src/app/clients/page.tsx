@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { LegalCase, processarCaso } from '@/lib/case-logic';
+import { isCasoVencido } from '@/lib/vencimentos';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,8 +99,8 @@ export default function ClientDirectory() {
       .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => {
         // Ordenação por criticidade: Clientes com mais processos vencidos no topo
-        const vencidosA = a[1].cases.filter(c => c.status === 'Vencido').length;
-        const vencidosB = b[1].cases.filter(c => c.status === 'Vencido').length;
+        const vencidosA = a[1].cases.filter(c => isCasoVencido(c)).length;
+        const vencidosB = b[1].cases.filter(c => isCasoVencido(c)).length;
         
         if (vencidosB !== vencidosA) return vencidosB - vencidosA;
         
@@ -151,7 +152,7 @@ export default function ClientDirectory() {
   };
 
   const getClientRisk = (clientCases: LegalCase[]) => {
-    const vencidos = clientCases.filter(c => c.status === 'Vencido').length;
+    const vencidos = clientCases.filter(c => isCasoVencido(c)).length;
     if (vencidos > 0) return { label: 'CRÍTICO', color: 'text-red-600', icon: <ShieldAlert size={14}/> };
     return { label: 'ESTÁVEL', color: 'text-emerald-600', icon: <CheckCircle2 size={14}/> };
   };
