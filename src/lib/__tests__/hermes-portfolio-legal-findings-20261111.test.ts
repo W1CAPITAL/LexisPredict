@@ -71,7 +71,7 @@ describe('Hermes: evidências jurídicas da carteira completa',()=>{
   expect(sql).toMatch(/enable row level security/i);
   expect(sql).toContain('service_role');
   expect(sql).toContain('hermes_claim_portfolio_scan');
-  expect(sql).toContain('p.empresa_id is not null');
+  expect(sql).toMatch(/p\.empresa_id is not null/i);
   expect(sql).not.toContain('ultima_movimentacao <');
   expect(sql).not.toContain('proximo_retorno<=p_today');
  });
