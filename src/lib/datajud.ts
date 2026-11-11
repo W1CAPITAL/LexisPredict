@@ -239,8 +239,9 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
     const latency = Date.now() - startTime;
 
     if ((response.status === 401 || response.status === 403) && !overrideKey) {
+      const previousKey=resolveCurrentDataJudKey();
       const fresh=await refreshPublicDataJudKey();
-      if(fresh&&fresh!==resolveCurrentDataJudKey()){
+      if(fresh&&fresh!==previousKey){
         return fetchDataJudUncached(cnj,attempt,options,fresh);
       }
     }
