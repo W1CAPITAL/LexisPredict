@@ -20,7 +20,6 @@ describe('Expiração de audiências pelo horário de Brasília',()=>{
  it('não apaga designação sem data confirmada',()=>{
   expect(isAudienciaExpirada({data:null,dataFim:null},now)).toBe(false);
  });
-});
  it('agenda a limpeza automática e restringe a limpeza manual à empresa autenticada',()=>{
   const migration=readFileSync('supabase/migrations/20261111145000_prune_expired_audiencias.sql','utf8');
   expect(migration).toContain('p_empresa_id IS NULL OR empresa_id=p_empresa_id');
