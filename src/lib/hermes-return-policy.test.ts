@@ -45,6 +45,26 @@ describe('Hermes: automação de retornos com evidência', () => {
     expect(result.highlights.some(x => /último retorno/i.test(x.text))).toBe(true);
   });
 
+  it('usa TJPR PROJUDI MNI como fonte oficial de movimentos quando DataJud falha', () => {
+    const result = buildHermesReturnReview(base, {
+      djenOk: true, datajudOk: false, courtApiOk: true, courtApiSource: 'TJPR PROJUDI',
+      events: [{ source: 'TJPR PROJUDI', at: '2026-11-09', text: 'Concedida justiça gratuita', url: null }],
+    });
+    expect(result.state).toBe('ready');
+    expect(result.datajudOk).toBe(false);
+    expect(result.highlights[0].source).toBe('TJPR PROJUDI');
+    expect(result.messageDraft).toContain('TJPR PROJUDI');
+  });
+
+  it('não trata ausência de credenciais MNI como consulta TJPR concluída', () => {
+    const result = buildHermesReturnReview(base, {
+      djenOk: true, datajudOk: false, courtApiOk: false, courtApiAttempted: true,
+      courtApiSource: 'TJPR PROJUDI', events: [],
+    });
+    expect(result.state).toBe('partial');
+    expect(result.highlights.some(x => x.source === 'TJPR PROJUDI' && /credenciais|configur/i.test(x.text))).toBe(true);
+  });
+
   it('não considera processo encerrado como retorno automaticamente contatado', () => {
     const result = buildHermesReturnReview({ ...base, status: 'ENCERRADO' }, both);
     expect(result.state).toBe('skipped');
