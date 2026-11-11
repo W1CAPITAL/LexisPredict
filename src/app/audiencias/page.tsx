@@ -28,7 +28,7 @@ function officialLink(raw:string|null){if(!raw)return null;try{const u=new URL(r
 export default function AudienciasPage(){
  const [items,setItems]=useState<Audiencia[]>([]),[loading,setLoading]=useState(true);
  const [error,setError]=useState(""),[query,setQuery]=useState("");
- const [period,setPeriod]=useState("proximas"),[busy,setBusy]=useState<number|null>(null);
+ const [period,setPeriod]=useState("todas"),[busy,setBusy]=useState<number|null>(null);
  const load=useCallback(async(signal?:AbortSignal)=>{
   try{
    const res=await fetch("/api/audiencias",{cache:"no-store",credentials:"same-origin",signal});
