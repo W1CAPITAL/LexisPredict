@@ -108,8 +108,10 @@ export async function searchProcessesByNomeAction(nome: string): Promise<{
       const c=raw as any;
       const dados=c.dados&&typeof c.dados==='object'?c.dados:{};
       const parties=Array.isArray(c.partes)?c.partes:Array.isArray(dados.partes)?dados.partes:[];
-      const active=Array.isArray(c.poloAtivo)?c.poloAtivo:Array.isArray(dados.poloAtivo)?dados.poloAtivo:[];
-      const passive=Array.isArray(c.poloPassivo)?c.poloPassivo:Array.isArray(dados.poloPassivo)?dados.poloPassivo:[];
+      const activeRaw=Array.isArray(c.poloAtivo)?c.poloAtivo:Array.isArray(dados.poloAtivo)?dados.poloAtivo:[];
+      const passiveRaw=Array.isArray(c.poloPassivo)?c.poloPassivo:Array.isArray(dados.poloPassivo)?dados.poloPassivo:[];
+      const active=activeRaw.map((p:any)=>typeof p==='string'?p:String(p?.nome||p?.razaoSocial||'')).filter(Boolean);
+      const passive=passiveRaw.map((p:any)=>typeof p==='string'?p:String(p?.nome||p?.razaoSocial||'')).filter(Boolean);
       const names=[
         c.cliente,c.cliente_nome,dados.cliente,dados.nomeParte,
         ...parties.map((p:any)=>p?.nome||p?.razaoSocial||p?.pessoa?.nome),
