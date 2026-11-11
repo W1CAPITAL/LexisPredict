@@ -1,7 +1,7 @@
 /** Compartilhado por /report, /supervisao e ambos os exportadores PDF.
  * Relata somente evidências persistidas e nunca calcula chance de êxito judicial. */
 import { buildHermesOfficeIntelligence, type HermesCaseHealth } from '@/lib/hermes-company-intelligence';
-import type { HermesOfficeDailyRow } from '@/lib/hermes-company-service';
+import type { HermesOfficeDailyRow,HermesPortfolioCaseSummary } from '@/lib/hermes-company-service';
 import {diagnosticsSections,type HermesPortfolioDiagnostics} from '@/lib/hermes-diagnostics-policy';
 import { REPORT_COLORS, reportDate, type ReportSection } from '@/lib/report/visual-report';
 import {cleanHermesReportText} from '@/lib/hermes-verified-meeting';
@@ -10,7 +10,7 @@ function safeLine(value:unknown, limit=420):string {
  return cleanHermesReportText(value).replace(/\s+/g,' ').trim().slice(0,limit);
 }
 
-export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:HermesCaseHealth[],diagnostics:HermesPortfolioDiagnostics|null=null):ReportSection[]{
+export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:HermesCaseHealth[],diagnostics:HermesPortfolioDiagnostics|null=null,portfolioScans:HermesPortfolioCaseSummary[]=[]):ReportSection[]{
  if(!row || !row.metrics || typeof row.metrics !== 'object') return diagnosticsSections(diagnostics);
  const office=buildHermesOfficeIntelligence(row.metrics,row.day);
  const m=office.counters;
@@ -48,6 +48,30 @@ export function buildHermesPdfSections(row:HermesOfficeDailyRow|null,cases:Herme
     safeLine(c.client,70),safeLine(c.cnj||'Não informado',42),
     safeLine(c.level,45),safeLine(c.sourceStatus,90),
    ]),
+  });
+ }
+ const recent=portfolioScans.slice(0,12);
+ if(recent.length){
+  sections.push({
+   id:'hermes-judicial-evidence',kind:'table',title:'Hermes · histórico e indícios judiciais',
+   subtitle:'Amostra de consultas oficiais da empresa. Publicação DJEN não é histórico integral; rótulos de decisão e custas exigem o teor.',
+   columns:['Cliente / CNJ','Fontes','Resultado extraído','Consulta'],
+   rows:recent.map(s=>{
+    const f=s.findings||{};
+    const signals=[
+      f.verdict?.value?'Mérito: '+f.verdict.value+' ('+f.verdict.source+')':null,
+      f.hearings?.length?'Audiência: '+String(f.hearings[0].date||''):null,
+      f.enforcement?.value?'Cumprimento: '+f.enforcement.value:null,
+      f.attorneyFees?.value?'Sucumbência citada':null,
+      f.legalAid?.value?'JG: '+f.legalAid.value:null,
+      f.courtCosts?.value?'Custas citadas':null,
+    ].filter(Boolean);
+    return [
+     safeLine(s.client,48)+' · '+safeLine(s.cnj,33),
+     (s.datajudOk?'DataJud consultado':'DataJud pendente')+' / '+(s.djenOk?'DJEN consultado':'DJEN pendente'),
+     safeLine(signals.join('; ')||'Sem sinal extraído',160),safeLine(s.checkedAt||'—',24),
+    ];
+   }),
   });
  }
  return [...sections,...diagnosticsSections(diagnostics)];
