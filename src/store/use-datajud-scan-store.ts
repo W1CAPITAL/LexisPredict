@@ -5,6 +5,7 @@ import { loadScanQueue, saveScanQueue, clearScanQueue, remainingProtocolos } fro
  */
 import { create } from 'zustand';
 import { scanSingleCaseAction } from '@/app/actions/case-actions';
+import {fetchDataJud,isDataJudUseAuthorized,resolveDataJudAlias} from '@/lib/datajud';
 import { scanInteractiveCase } from '@/lib/interactive-tribunal-scan';
 import { useAppStore } from '@/store/use-app-store';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
@@ -217,12 +218,38 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocols) => {
-    for (const proto of protocols.slice(0, 8)) {
-      const start = Date.now();
-      const res = await scanSingleCaseAction(proto, { fast: true, mode: 'both' });
-      const latency = Date.now() - start;
-      const courtId = proto.split('.')[4];
-      if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
+    if(!isDataJudUseAuthorized()){
+      set({courtHealthMap:{}});
+      get().addLog({
+        protocolo:'SISTEMA',
+        message:'Auditoria DataJud não executada: uso da API pública está bloqueado até existir autorização aplicável. O resultado do DJEN não será contado como sucesso DataJud.',
+        latency:0,success:false,type:'error',engine:'Local',source:'DataJud',
+      });
+      return;
+    }
+    // Uma amostra por alias real (J/TR do CNJ), nunca pelo segmento OOOO
+    // que identifica a unidade/ordem sequencial do processo.
+    const targets=new Map<string,string>();
+    for(const raw of protocols){
+      const cnj=String(raw||'').replace(/\\D/g,'');
+      const alias=resolveDataJudAlias(cnj);
+      if(alias&&!targets.has(alias))targets.set(alias,cnj);
+    }
+    for(const [alias,cnj] of [...targets.entries()].slice(0,8)){
+      const started=Date.now();
+      const result=await fetchDataJud(cnj,1,{
+        fast:true,cloudBudget:true,forceRefresh:true,timeoutMs:8000,
+      });
+      const latency=Number(result?.latency)||Date.now()-started;
+      const success=result?.error===false&&result?.found===true;
+      get().updateCourtHealth(alias,latency,success);
+      get().addLog({
+        protocolo:cnj,
+        message:success
+          ?'DataJud '+alias.toUpperCase()+' respondeu; '+(Number(result?.movimentos?.length)||0)+' movimento(s) retornado(s).'
+          :String(result?.message||'DataJud não confirmou a consulta para '+alias.toUpperCase()+'.'),
+        latency,success,type:success?'ok':'error',engine:'Nuvem',source:'DataJud',
+      });
     }
   },
 
