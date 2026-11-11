@@ -79,6 +79,10 @@ function nodeText($:cheerio.CheerioAPI,node:any):string{
 function attribute(node:any,name:string):string{
  return String(node?.attribs?.[name]||'').trim();
 }
+function normalizeMniDateTime(value:string):string{
+ const raw=value.trim();
+ return /^\\d{4}-\\d{2}-\\d{2}T/.test(raw)&&!/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(raw)?raw+'-03:00':raw;
+}
 function safeMessage(value:unknown):string{
  return String(value||'').replace(/<[^>]*>/g,' ').replace(/[\r\n\t]+/g,' ')
   .replace(/\s+/g,' ').trim().slice(0,220);
@@ -103,7 +107,8 @@ function parseMniProcess(xml:string):{success:boolean;message:string;found:boole
   for(const movement of descendants(processNode,'movimento')){
    const secrecy=Number(attribute(movement,'nivelSigilo')||0);
    if(Number.isFinite(secrecy)&&secrecy>0)continue;
-   const at=attribute(movement,'dataHora');
+   const rawAt=attribute(movement,'dataHora');
+   const at=rawAt?normalizeMniDateTime(rawAt):'';
    if(!at||!Number.isFinite(Date.parse(at)))continue;
    const local=firstDescendant(movement,'movimentoLocal');
    const national=firstDescendant(movement,'movimentoNacional');
@@ -172,6 +177,11 @@ export async function fetchTJPRProjudiProcess(cnjRaw:string,options:FetchOptions
    signal:controller.signal,
    cache:'no-store',
   });
+  const contentLength=Number(response.headers.get('content-length')||0);
+  if(contentLength>MAX_RESPONSE_CHARS){
+   return {...base,applicable:true,configured:true,ok:false,found:false,endpoint,
+    message:'Resposta do TJPR PROJUDI MNI excedeu o limite de segurança.',errorCode:'invalid_response'};
+  }
   const body=await response.text();
   if(response.status===429){
    return {...base,applicable:true,configured:true,ok:false,found:false,endpoint,
