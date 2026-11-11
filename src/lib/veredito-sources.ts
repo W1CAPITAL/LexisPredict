@@ -1,6 +1,6 @@
 /**
  * Resolução de fontes para Veredito: DataJud primeiro; se vazio/erro → DJEN.
- * Movimentos DJEN são normalizados para o mesmo shape de timeline.
+ * Publicações DJEN ficam SEPARADAS das movimentações DataJud.
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
  */
 
@@ -110,15 +110,13 @@ export async function resolveVereditoByCnj(
     return {
       success: true,
       fonte: 'ambos',
-      movimentos: [...movimentosDj, ...movimentosDjen].sort((a, b) =>
-        String(b.dataHora || '').localeCompare(String(a.dataHora || ''))
-      ),
+      movimentos: movimentosDj,
       comunicacoes,
       dataJudRaw,
       djenRaw,
       datajudError,
       djenError,
-      message: 'Timeline unificada DataJud + DJEN.',
+      message: 'Movimentos DataJud e publicações DJEN consultados separadamente.',
     };
   }
 
@@ -140,14 +138,14 @@ export async function resolveVereditoByCnj(
     return {
       success: true,
       fonte: 'djen',
-      movimentos: movimentosDjen,
+      movimentos: [],
       comunicacoes,
       dataJudRaw,
       djenRaw,
       datajudError,
       djenError,
       message:
-        'DataJud sem movimentos para este CNJ. Exibindo publicações do DJEN (diário oficial).',
+        'Publicações DJEN consultadas; movimentos processuais não confirmados pelo DataJud.',
     };
   }
 
