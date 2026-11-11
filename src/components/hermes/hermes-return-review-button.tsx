@@ -83,7 +83,8 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
       const sourceSnapshot=result.review?.source_snapshot&&typeof result.review.source_snapshot==='object'
         ?result.review.source_snapshot as Record<string,unknown>:{};
       const movementSourceOk=result.review?.datajud_ok===true||sourceSnapshot.tribunalApiOk===true;
-      const incomplete=!(result.review?.djen_ok===true&&movementSourceOk);
+      const datajudRestricted=sourceSnapshot.datajudRestricted===true;
+      const incomplete=!(result.review?.djen_ok===true&&(movementSourceOk||datajudRestricted));
       const stale=!Number.isFinite(checked)||Date.now()-checked>(incomplete?2:360)*60*1000;
       if(autoRefresh&&stale){
         await queryOfficialBrazil(processId);
