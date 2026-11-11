@@ -1,12 +1,4 @@
 {
-  "functions": {
-    "api/bacen-sgs.ts": {
-      "maxDuration": 15
-    },
-    "api/inbound-lead.ts": {
-      "maxDuration": 15
-    }
-  },
   "crons": [
     {
       "path": "/api/cron/wa-daily-return",
