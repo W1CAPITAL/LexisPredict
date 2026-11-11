@@ -786,7 +786,8 @@ export default function Dashboard() {
                   <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Signal size={24} className="text-primary" /> Rede Judicial
                   </h2>
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Disponibilidade DataJud por tribunal (quando autorizado)</p>\n                  <p className="text-[10px] text-muted-foreground">O teste mede a resposta do DataJud; publicações DJEN não contam como sucesso dessa API.</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Disponibilidade DataJud por tribunal (quando autorizado)</p>
+                  <p className="text-[10px] text-muted-foreground">O teste mede a resposta do DataJud; publicações DJEN não contam como sucesso dessa API.</p>
                 </div>
                 <Button 
                   onClick={handleConnectivityCheck} 
