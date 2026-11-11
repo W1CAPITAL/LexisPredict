@@ -55,7 +55,7 @@ describe('Hermes nacional: fontes oficiais por jurisdição e escalonamento',()=
   const tjpr=getHermesNationalSourcePlan(num('8','16'));
   expect(tjpr?.tribunalApiAutomated).toBe(true);
   expect(tjpr?.automated).toContain('TJPR PROJUDI MNI');
-  expect(tjpr?.tribunalApiAuthRequired).toBe(true);
+  expect(tjpr?.tribunalApiAuthRequired).toBe(false);
   expect(resolveOfficialCourtPortal(num('8','26'))?.label).toContain('TJSP');
  });
  it('para tribunais sem portal direto já catalogado, oferece acesso autenticado via Jus.br',()=>{
