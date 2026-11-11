@@ -86,9 +86,18 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
       const qualified = /sessao virtual|pauta de sessao|intimacao de pauta|data da sessao/.test(normalizedHead);
       if (qualified && sessionDates.length) {
         const start = sessionDates[0];
-        // A data final só é aceita se a própria publicação mencionar "término" ou "até".
-        const end = /\b(?:termino|ate)\b/.test(normalizedHead) && sessionDates.length > 1
-          ? sessionDates[sessionDates.length - 1] : null;
+        // Uma data de prazo para oposição/destaque (ou data da publicação)
+        // não é o fim da sessão. Exigir data >= início e referência explícita
+        // ao encerramento do julgamento próxima à própria data final.
+        const end = sessionDates.slice(1).find((item) => {
+          if (item.date < start.date) return false;
+          const context = clean(head.slice(Math.max(start.index, item.index - 125), item.index));
+          const recent = context.slice(-110);
+          const definite = /\b(?:termino|terminara|encerramento|fim da sessao|data final da sessao)\b/.test(recent);
+          const sessionUntil = /\b(?:sessao|julgamento)\b.{0,75}\bate\b/.test(recent)
+            && !/\b(?:oposicao|destaque|inscric|prazo|petic|manifestac)\w*\b/.test(recent);
+          return definite || sessionUntil;
+        }) || null;
         const firstHour = clock(head, start.index, true) || clock(head, start.index);
         const endHour = end ? (clock(head, end.index, true) || clock(head, end.index)) : null;
         found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined));
