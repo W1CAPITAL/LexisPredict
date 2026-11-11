@@ -27,4 +27,23 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
   expect(service).toContain('p_limit:2');
   expect(service).toContain('atualizarAudienciasDeConsulta');
  });
+ it('compartilha a mesma regra de retorno vencido entre KPIs, filas, relatórios e agentes',()=>{
+  const surfaces=[
+   'src/lib/kpi-unificado.ts','src/lib/dashboard-metrics.ts','src/lib/ops-linha.ts',
+   'src/lib/office-score.ts','src/lib/bi-compliance.ts','src/lib/ia-preditiva.ts',
+   'src/lib/case-priority.ts','src/lib/fila-prioridade.ts','src/lib/case-filters.ts',
+   'src/app/clients/page.tsx','src/app/analytics/page.tsx','src/app/cases/page.tsx',
+   'src/app/report/completo/page.tsx','src/app/tarefas/page.tsx',
+   'src/app/actions/processos-kpis-action.ts','src/app/actions/crm-agent-actions.ts',
+   'src/components/dashboard/office-stats.tsx','src/lib/case-status-chip.ts',
+   'src/lib/xlsx-dossie-builder.ts','src/lib/plano-b-sheets.ts',
+  ];
+  for(const path of surfaces)expect(read(path),path).toContain('isCasoVencido');
+  expect(read('src/app/page.tsx')).toContain('portfolioSummary?.vencidos');
+  expect(read('src/app/vencidos/page.tsx')).not.toMatch(/statusManual\\s*:\\s*dados->>statusManual/);
+  const logic=read('src/lib/case-logic.ts');
+  expect(logic).toContain('resolveSituacaoFromRow');
+  expect(logic).toContain('resolveStatusManualFromRow');
+ });
+
 });
