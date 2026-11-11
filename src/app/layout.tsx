@@ -21,6 +21,7 @@ import './report-visual-system.css';
 import './video-fluid-navigation.css';
 import './wine-silver-brand.css';
 import './swarm-loading.css';
+import './swarm-native-transition.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
@@ -37,6 +38,7 @@ import { ThemeBoot } from "@/components/system/theme-boot";
 import { UiPrefsApplier } from "@/components/system/ui-prefs-applier";
 import { AUTHORITY_PRESETS, hexToHsl, getPresetColors } from '@/lib/theme';
 import { GuestModeBanner } from '@/components/auth/guest-mode-banner';
+import { SwarmNativeTransition } from '@/components/system/swarm-native-transition';
 
 const PRESET_BOOT_SNAPSHOT = AUTHORITY_PRESETS.map((p) => ({
   id: p.id,
@@ -239,6 +241,7 @@ export default function RootLayout({
         <AuthProvider>
           <MetalPrefsApplier />
           <ThemeBoot />
+          <SwarmNativeTransition />
           <UiPrefsApplier />
           <div className="relative z-10 min-h-screen">
             <GuestModeBanner />
