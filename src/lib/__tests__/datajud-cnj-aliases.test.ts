@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {COURT_ALIASES,resolveDataJudAlias} from '@/lib/datajud';
+import {COURT_ALIASES,resolveDataJudAlias} from '@/lib/datajud-aliases';
 
 const cnj=(justice:string,tribunal:string)=>'1234567892026'+justice+tribunal+'0001';
 
