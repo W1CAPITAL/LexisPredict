@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import React from 'react';
 import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
-import { runHermesDueReviewBatch,runHermesStalledReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
+import { runHermesDueReviewBatch,runHermesStalledReviewBatch,runHermesPortfolioScanBatch,reviewHermesCase } from '@/lib/hermes-return-service';
 import {
   getHermesCompanyDaily, getHermesCaseHealth, getHermesStalledSummaries, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
@@ -179,6 +179,16 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   if (mode === 'meeting') return scheduledOfficeMeeting();
+  // Fonte oficial da carteira inteira, independente de retorno e de silêncio processual.
+  if (mode === 'portfolio') {
+    try{
+      const result=await runHermesPortfolioScanBatch();
+      return NextResponse.json({ok:true,...result},{headers:{'Cache-Control':'no-store'}});
+    }catch(e){
+      console.error('[Hermes carteira] Falha no scanner',e instanceof Error?e.message:'erro');
+      return NextResponse.json({ok:false,error:'Consulta judicial da carteira indisponível.'},{status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   // Same authenticated Vercel function: independent monitor cannot starve while due returns are pending.
   if (mode === 'stalled') {
     try {
