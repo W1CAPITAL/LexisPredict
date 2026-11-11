@@ -41,4 +41,22 @@ describe('TJPR SCMPP MNI SOAP binding real',()=>{
   expect(sql).toContain("interval '24 hours'");
   expect(sql).toContain('SKIP LOCKED');
  });
+
+ it('usa SOAPAction exclusivo da operacao consultarProcesso, ignorando outras operacoes do WSDL',async()=>{
+  const multi='<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="'+ns+'"><wsdl:binding><wsdl:operation name="consultarAvisos"><soap:operation xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:outro"/></wsdl:operation><wsdl:operation name="consultarProcesso"><soap:operation xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:tjpr:consultarProcesso"/></wsdl:operation></wsdl:binding></wsdl:definitions>';
+  const f=vi.fn().mockResolvedValueOnce(new Response(multi,{status:200})).mockResolvedValueOnce(new Response('<soap:Fault/>',{status:500}));
+  vi.stubGlobal('fetch',f);
+  await runOfficialTribunalConnector(cnj);
+  expect(f).toHaveBeenCalledTimes(2);
+  expect(f.mock.calls[1][1].headers.SOAPAction).toBe('"urn:tjpr:consultarProcesso"');
+ });
+ it('preserva SOAPAction vazio quando assim anunciado no binding oficial',async()=>{
+  const blank='<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="'+ns+'"><wsdl:binding><wsdl:operation name="consultarProcesso"><soap:operation xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" soapAction=""/></wsdl:operation></wsdl:binding></wsdl:definitions>';
+  const f=vi.fn().mockResolvedValueOnce(new Response(blank,{status:200})).mockResolvedValueOnce(new Response('<soap:Fault/>',{status:500}));
+  vi.stubGlobal('fetch',f);
+  await runOfficialTribunalConnector(cnj);
+  expect(f).toHaveBeenCalledTimes(2);
+  expect(f.mock.calls[1][1].headers.SOAPAction).toBe('""');
+ });
+
 });
