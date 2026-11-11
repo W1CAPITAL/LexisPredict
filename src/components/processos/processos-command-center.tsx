@@ -535,11 +535,12 @@ export function ProcessosCommandCenter(props: Props) {
       const result=await fetchProcessosMovementsAction(selectedDbId,cnj,1,true);
       let visible=result;
       if(result.success&&previous&&shouldPreservePreviousDataJud(
-        previous.datajudMovements||0,result.sourceStatus?.datajud||'unavailable'
+        (previous.datajudMovements||previous.historicDataJudMovements||0),result.sourceStatus?.datajud||'unavailable'
       )){
         const oldDataJud=previous.entries.filter(x=>x.source==='DataJud');
         if(oldDataJud.length){
           visible={...result,
+            historicDataJudMovements:previous.datajudMovements||previous.historicDataJudMovements||0,
             entries:mergeProcessTimelineEntries(result.entries,oldDataJud),
             warnings:[...new Set([...(result.warnings||[]),
               'Histórico DataJud anterior preservado nesta sessão; os movimentos antigos não foram revalidados agora.'])],
