@@ -179,6 +179,19 @@ export function extrairPolos(partes: any[]): { ativo: string[]; passivo: string[
   return { ativo, passivo, outros };
 }
 
+/** A Portaria CNJ 374/2026 prevê polos ativo/passivo apenas quando pessoas jurídicas. */
+function extractPublicCorporatePoleNames(value:unknown):string[]{
+ const values=Array.isArray(value)?value:value==null?[]:[value];
+ const names=values.map(entry=>{
+  if(typeof entry==='string')return entry.trim();
+  if(!entry||typeof entry!=='object')return '';
+  const item=entry as Record<string,unknown>;
+  const name=item.razaoSocial||item.nome||item.nomeParte;
+  return typeof name==='string'?name.trim():'';
+ }).filter(name=>name.length>=3).map(name=>name.slice(0,180));
+ return [...new Set(names)].slice(0,50);
+}
+
 /**
  * A API Pública do DataJud não disponibiliza campos de CPF/CNPJ/OAB ou nome
  * das partes para pesquisa. Localize a pessoa no CRM e consulte o CNJ.
@@ -362,8 +375,16 @@ async function fetchDataJudUncached(cnj: string, attempt = 1, options: DataJudOp
       };
     }
 
-    const partesRaw = Array.isArray(source.partes) ? source.partes : [];
-    const polos = extrairPolos(partesRaw);
+    // A API pública não deve ser usada para extrair CPF/CNPJ ou partes físicas.
+    // Desde a Portaria CNJ 374/2026, a resposta mínima pode incluir polos
+    // somente quando as partes são pessoas jurídicas.
+    const poloAtivo=extractPublicCorporatePoleNames(source.poloAtivo);
+    const poloPassivo=extractPublicCorporatePoleNames(source.poloPassivo);
+    const partesRaw=[
+      ...poloAtivo.map(nome=>({nome,polo:'ATIVO',tipo:'PESSOA JURIDICA'})),
+      ...poloPassivo.map(nome=>({nome,polo:'PASSIVO',tipo:'PESSOA JURIDICA'})),
+    ];
+    const polos=extrairPolos(partesRaw);
 
     return {
       numeroProcesso: source.numeroProcesso || cnjLimpo,
