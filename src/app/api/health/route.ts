@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
  * Health check leve — NÃO usa DB pesado.
  * Confirma processo vivo + env críticas + uptime.
  */
-export async function GET(request:Request) {
-  const scope=new URL(request.url).searchParams.get('scope');
+export async function GET(request?:Request) {
+  const scope=request?new URL(request.url).searchParams.get('scope'):null;
   if(scope==='commercial'){
     return NextResponse.json({
       ok:true,product:'LexisPredict Commercial',
