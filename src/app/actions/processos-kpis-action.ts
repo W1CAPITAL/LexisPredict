@@ -67,9 +67,18 @@ export async function fetchProcessosEmpresaKpisAction(_companyView = true): Prom
     }
 
     const empresaId = String(ctx.empresa_id);
-    // KPIs são agregados da empresa inteira para todos os cargos.
-    // O tenant vem exclusivamente do contexto autenticado; a lista detalhada
-    // continua obedecendo ao escopo individual nas rotas próprias.
+    const companyWide = Boolean(ctx.isSuperAdmin || ctx.isSupervisor);
+    // KPIs empresariais são liberados para supervisores; demais perfis
+    // continuam limitados aos processos vinculados ao próprio usuário.
+    let ownerIds: string[] = [];
+    if (!companyWide) {
+      const { data: owners, error: ownersError } = await admin.from('usuarios')
+        .select('id,auth_user_id')
+        .eq('empresa_id', empresaId)
+        .or(`id.eq.${ctx.auth_id},auth_user_id.eq.${ctx.auth_id}`);
+      if (ownersError) throw new Error('Não foi possível validar o escopo individual dos indicadores.');
+      ownerIds = [...new Set([ctx.auth_id, ...(owners || []).flatMap((owner: any) => [owner.id, owner.auth_user_id]).filter(Boolean).map(String)])];
+    }
     const pageSize = 1000;
     let offset = 0;
     let total = 0;
@@ -79,14 +88,14 @@ export async function fetchProcessosEmpresaKpisAction(_companyView = true): Prom
     let vencidos = 0;
 
     for (;;) {
-      const query = admin
+      let query = admin
         .from("processos")
         .select(
           "id, status, status_interno, proximo_retorno, ultimo_retorno, datajud_encerrado_tribunal, datajud_encerrado_motivo, em_cumprimento_sentenca, cumprimento_pendente_necessario, djen_ultimo_resumo, dados"
         )
-        .eq("empresa_id", empresaId)
-        .order("id", { ascending: true })
-        .range(offset, offset + pageSize - 1);
+        .eq("empresa_id", empresaId);
+      if (!companyWide) query = query.in("created_by", ownerIds);
+      query = query.order("id", { ascending: true }).range(offset, offset + pageSize - 1);
 
 
 
