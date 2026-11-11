@@ -17,6 +17,7 @@ import { mensagemScanHttp } from '@/lib/scan-http-pt';
 import { labelResultadoCumprimentoScan, cumprimentoPendenteIndefinido } from '@/lib/cumprimento-scan-labels';
 import {scanSourceLogMessage} from '@/lib/scan-result-label';
 import { cloudSourceCooldownMs, shouldRetryPendingCloudSources } from '@/lib/cloud-scan-recovery';
+import {selectDataJudHealthSamples} from '@/lib/datajud-health-sampling';
 
 export type ScanStatus = 'idle' | 'running' | 'paused' | 'done' | 'cancelled';
 export type ScanMode = 'datajud' | 'djen' | 'both';
@@ -217,13 +218,29 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
   },
 
   runInitialHealthCheck: async (protocols) => {
-    for (const proto of protocols.slice(0, 8)) {
-      const start = Date.now();
-      const res = await scanSingleCaseAction(proto, { fast: true, mode: 'both' });
-      const latency = Date.now() - start;
-      const courtId = proto.split('.')[4];
-      if (courtId) get().updateCourtHealth(courtId, latency, !!res.success);
-    }
+    // Auditoria opcional: até três tribunais distintos em paralelo, não oito
+    // scans híbridos sequenciais. O servidor verifica o CNJ com controle de
+    // capacidade; resposta DJEN jamais aumenta a taxa de confirmação DataJud.
+    const samples=selectDataJudHealthSamples(protocols,3);
+    await Promise.all(samples.map(async ({cnj,courtCode})=>{
+      const start=Date.now();
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),29_000);
+      let verified=false;
+      try{
+        const response=await fetch('/api/datajud-search',{
+          method:'POST',cache:'no-store',signal:controller.signal,
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({mode:'cnj',query:cnj}),
+        });
+        if(response.ok){
+          const data=await response.json();
+          verified=data?.success===true&&data?.data?.found===true&&data?.data?.error===false;
+        }
+      }catch{/* Fonte indisponível ou timeout; não anunciar sucesso. */}
+      finally{clearTimeout(timer);}
+      get().updateCourtHealth(courtCode,Date.now()-start,verified);
+    }));
   },
 
   restoreCloudScan: (empresaId,userId) => {
