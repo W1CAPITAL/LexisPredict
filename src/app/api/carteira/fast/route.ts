@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
     const offset = safeInt(u.searchParams.get('offset'), 0, 100000);
     const empresaId = String(ctx.empresa_id);
 
-    const ownerScope=scope==='empresa'||ctx.caseScope==='empresa'?null:ctx.auth_id;
+    // Resumos agregados de KPIs são sempre da empresa inteira.
+    // Somente a página de processos respeita scope=mine/empresa.
+    const ownerScope: string | null = null;
     const [listResult, countResult, meritoResult, retornoResult] = await Promise.all([
       getStoredCasesPageForEmpresa(empresaId, limit, offset, false, {
         companyReadOnly: scope === 'empresa',
