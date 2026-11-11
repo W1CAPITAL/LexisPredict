@@ -27,7 +27,7 @@ describe('Expiração de audiências pelo horário de Brasília',()=>{
  });
  it('agenda a limpeza automática e restringe a limpeza manual à empresa autenticada',()=>{
   const migration=readFileSync('supabase/migrations/20261111122541_prune_hearings_after_local_day_20261111.sql','utf8');
-  expect(migration).toContain('p_empresa_id IS NULL OR empresa_id=p_empresa_id');
+  expect(migration).toContain('p_empresa_id IS NULL OR a.empresa_id=p_empresa_id');
   expect(migration).toContain("'America/Sao_Paulo'");
   expect(migration).toContain("'America/Cuiaba'");
   expect(migration).toContain('COALESCE(a.data_fim,a.data_evento) <');
