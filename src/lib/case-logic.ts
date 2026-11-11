@@ -281,8 +281,9 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
   const dadosStatus = data.dados && typeof data.dados === 'object' ? data.dados : data;
-  const hasTypedInternal = Boolean(String(data.status_interno || data.statusInterno || '').trim());
-  const resolvedSituacao = resolveSituacaoFromRow(data, dadosStatus);
+  const statusRow = { ...data, status_interno: data.status_interno ?? data.statusInterno };
+  const hasTypedInternal = Boolean(String(statusRow.status_interno || '').trim());
+  const resolvedSituacao = resolveSituacaoFromRow(statusRow, dadosStatus);
   const situacao = String(
     hasTypedInternal || /^(ENCERRAD|ARQUIVAD|EXTINT|BAIXA|FINALIZAD)/i.test(String(data.status || ''))
       ? resolvedSituacao
@@ -299,7 +300,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const manualCandidate = dadosStatus.statusManual ?? dadosStatus.STATUS_MANUAL
     ?? data.statusManual ?? data.STATUS_MANUAL;
   const statusManual = resolveStatusManualFromRow(
-    data,
+    statusRow,
     { ...dadosStatus, statusManual: manualCandidate },
     situacao
   ) || 'Automatico';
@@ -332,6 +333,7 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     advogado,
     escritorio,
     situacao,
+    status_interno: statusRow.status_interno || situacao,
     proximoPrazo: proximoPrazoRaw, 
     ultimoRetorno: ultimoRetornoRaw,
     status: isCasoEncerrado({ situacao, statusManual }) ? 'Encerrado' : (statusManual === 'Automatico' || ['Vencido','É Hoje','Atenção','No Prazo','Sem Prazo'].includes(String(statusManual)))
