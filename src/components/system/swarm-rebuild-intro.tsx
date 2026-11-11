@@ -34,6 +34,7 @@ export function SwarmRebuildIntro() {
 
   return (
     <div
+      key={activePath}
       className="lx-swarm-rebuild"
       role="status"
       aria-live="polite"
