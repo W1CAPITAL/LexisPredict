@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
+import {buildHermesJudicialFindings} from '@/lib/hermes-judicial-findings';
 import { fetchDjenComunicacoes, resolveDjenPublicacaoLink } from '@/lib/djen';
 import { isCasoEncerrado } from '@/lib/status-encerrado';
 import { brazilToday, validReturnDay } from '@/lib/wa-daily-return-policy';
@@ -111,7 +112,12 @@ async function obtainCourtSnapshot(cnj: string, lastReturn: string | null,manual
     const movements = Array.isArray(datajud.movimentos) ? datajud.movimentos : [];
     for (const movement of movements) {
       const at = eventDate(movement?.dataHora || movement?.data || movement?.dataMovimento);
-      const text = String(movement?.nome || movement?.descricao || '').trim();
+      const name=String(movement?.nome || movement?.descricao || '').trim();
+      // Metadados TPU/complementos públicos: não representam o inteiro teor da decisão.
+      const extras=(Array.isArray(movement?.complementosTabelados)?movement.complementosTabelados:[])
+        .slice(0,8).map((x:any)=>[x?.nome,x?.descricao,x?.valor]
+         .filter(v=>typeof v==='string'||typeof v==='number').join(': ')).filter(Boolean);
+      const text=[name,...extras].filter(Boolean).join(' · ').slice(0,2400);
       if (at && text) events.push({ source: 'DataJud', at, text, url: null });
     }
   }
@@ -213,6 +219,7 @@ export async function reviewHermesCase(input: {
       text:'Data de próximo retorno incompatível com o último atendimento: requer correção no cadastro; não é retorno vencido.'});
   }
   await persistResult(db, row, due, result, cnj,snapshot.sourceErrors);
+  if(cnj){try{await persistHermesPortfolioSnapshot(db,row,snapshot);}catch{console.warn('[Hermes] Índice judicial da carteira não atualizado.');}}
   // Hermes atua como verificador oficial também da pauta; nenhuma mensagem é enviada.
   if (snapshot.djenOk || snapshot.datajudOk) {
     try {
@@ -311,6 +318,8 @@ export async function runHermesStalledReviewBatch(){
    source_errors:{...snapshot.sourceErrors,ultimaPublicacaoDjen:verified.lastPublicationAt},evidence,
   },{onConflict:'empresa_id,processo_id'});
   if(saveError)throw saveError;
+  try{await persistHermesPortfolioSnapshot(db,row,snapshot as CourtSnapshotWithDiagnostic);}
+  catch{console.warn('[Hermes] Índice judicial da carteira não atualizado na revisão de parados.');}
   return {processed:1,state};
  }catch{
   await db.from('hermes_stalled_reviews').update({
