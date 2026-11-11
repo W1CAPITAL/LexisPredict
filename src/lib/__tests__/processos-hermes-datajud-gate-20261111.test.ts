@@ -35,6 +35,7 @@ describe('Hermes · histórico de movimentos DataJud + DJEN sem falso sucesso',(
   expect(ui).toContain('resolveOfficialCourtPortal');
   expect(ui).toContain('Consulta parcial');
   expect(ui).toContain('Histórico DataJud anterior');
+  expect(ui).toContain('previous.historicDataJudMovements');
  });
  it('a consulta das páginas adicionais DJEN não repete DataJud',()=>{
   const action=read('src/app/actions/processos-movements-action.ts');
