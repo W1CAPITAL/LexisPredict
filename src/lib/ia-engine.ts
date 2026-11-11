@@ -8,7 +8,7 @@
  */
 
 import { plainTextFromDjen, classifyEventFromText, summarizeDjenKeywords } from '@/lib/djen';
-import { extrairPolos } from '@/lib/datajud';
+import { extrairPolos } from '@/lib/datajud-party';
 import { cpfValido, cnpjValido } from '@/lib/cpf-cnpj';
 
 export type EventoDetectado = {
