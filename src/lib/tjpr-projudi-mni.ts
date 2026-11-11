@@ -73,7 +73,7 @@ function descendants(node:any,name:string):any[]{
 function firstDescendant(node:any,name:string):any|null{
  return descendants(node,name)[0]||null;
 }
-function nodeText($:cheerio.CheerioAPI,node:any):string{
+function nodeText($:any,node:any):string{
  return node?$(node).text().replace(/\s+/g,' ').trim():'';
 }
 function attribute(node:any,name:string):string{
@@ -90,7 +90,7 @@ function safeMessage(value:unknown):string{
 
 function parseMniProcess(xml:string):{success:boolean;message:string;found:boolean;events:TJPRProjudiEvent[]}|null{
  try{
-  const $=cheerio.load(xml,{xmlMode:true,decodeEntities:true});
+  const $=cheerio.load(xml,{xmlMode:true};
   const root=$.root().get(0);
   const fault=firstDescendant(root,'faultstring');
   if(fault)return {success:false,message:nodeText($,fault)||'Falha SOAP do TJPR.',found:false,events:[]};
