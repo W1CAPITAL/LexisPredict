@@ -4,6 +4,7 @@
  */
 import type { LegalCase } from "@/lib/case-logic";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
 import { isBuscaApreensaoReal } from "@/lib/ba-real";
 import { detectFlagsFase } from "@/lib/processos-parados";
 import {
