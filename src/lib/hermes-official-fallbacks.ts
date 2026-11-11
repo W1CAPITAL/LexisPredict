@@ -13,6 +13,7 @@ export type HermesNationalSourcePlan={
  cnjCode:string;
  automated:['DJEN','DataJud'];
  tribunalApiAutomated:false;
+ scmpp?:{name:'TJPR SCMPP';wsdl:string;availability:'not_verified';documentationUrl:string};
  tribunalPortal:OfficialCourtPortal|null;
  otherPortals:OfficialCourtPortal[];
  jusbr:{url:'https://www.jus.br/';authRequired:true};
@@ -90,6 +91,12 @@ export function getHermesNationalSourcePlan(cnj:unknown):HermesNationalSourcePla
  return {
   tribunal:alias.toUpperCase(),alias,cnjCode:code,
   automated:['DJEN','DataJud'],tribunalApiAutomated:false,
+  ...(code==='8.16'?{scmpp:{
+   name:'TJPR SCMPP' as const,
+   wsdl:'https://projudi.tjpr.jus.br/projudi_consulta/webservices/projudiIntercomunicacaoWebService222?wsdl',
+   availability:'not_verified' as const,
+   documentationUrl:'https://acessibilidade.tjpr.jus.br/documents/d/planejamento/servico-de-consulta-as-movimentacoes-processuais-publicas-automatizado-scmpp-pdf',
+  }}:{}),
   tribunalPortal:tribunalPortal||null,otherPortals,
   jusbr:{url:'https://www.jus.br/',authRequired:true},
   datalake:{applicationUrl:'https://gestao-clientes.pdpj.jus.br/',requiresApproval:true},
