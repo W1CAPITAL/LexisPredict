@@ -1,6 +1,6 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
-import { fetchDataJud } from '@/lib/datajud';
+import { fetchDataJud, isDataJudUseAuthorized } from '@/lib/datajud';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
 import {buildHermesJudicialFindings} from '@/lib/hermes-judicial-findings';
@@ -52,6 +52,7 @@ export async function loadHermesReviewCase(db: Awaited<ReturnType<typeof getSupa
  * The CNJ can return 429 due to an overloaded Elasticsearch queue.
  */
 async function requestDataJudWithCapacity(cnj:string,manual:boolean):Promise<any>{
+ if(!isDataJudUseAuthorized())return {error:true,errorCode:'terms_restricted',message:'DataJud desativado até autorização expressa do CNJ para o uso pretendido.'};
  const plan=getHermesNationalSourcePlan(cnj);
  if(!plan)return {error:true,errorCode:'unknown_jurisdiction',message:'Ramo/tribunal não identificado pelo número CNJ; nenhuma API incorreta será consultada.'};
  const alias=plan.alias;
