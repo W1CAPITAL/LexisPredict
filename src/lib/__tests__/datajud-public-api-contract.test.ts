@@ -98,4 +98,25 @@ describe('DataJud: consulta pública por CNJ e limites de pesquisa',()=>{
    took:29,shardsFailed:0,poloAtivo:['Empresa Autora Ltda'],poloPassivo:['Banco Réu S.A.'],
   });
  });
+ it('renova a chave pública na Wiki do CNJ e repete uma única vez após 401',async()=>{
+  vi.stubEnv('DATAJUD_USE_AUTHORIZED','true');
+  const rotated='rotated-public-key-123456789012345678901234567890==';
+  const payload={
+   took:1,timed_out:false,_shards:{failed:0},
+   hits:{total:{value:1,relation:'eq'},hits:[{_source:{
+    numeroProcesso:'00008323520184013202',tribunal:'TRF1',movimentos:[],
+   }}]},
+  };
+  const fetchMock=vi.fn()
+   .mockResolvedValueOnce(new Response('unauthorized',{status:401}))
+   .mockResolvedValueOnce(new Response('<code>Authorization: APIKey '+rotated+'</code>',{status:200}))
+   .mockResolvedValueOnce(new Response(JSON.stringify(payload),{status:200,headers:{'content-type':'application/json'}}));
+  vi.stubGlobal('fetch',fetchMock);
+  const result=await fetchDataJud('00008323520184013202',1,{forceRefresh:true,cloudBudget:true});
+  expect(result).toMatchObject({error:false,found:true});
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(String(fetchMock.mock.calls[1][0])).toContain('datajud-wiki.cnj.jus.br/api-publica/acesso');
+  expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('APIKey '+rotated);
+ });
+
 });
