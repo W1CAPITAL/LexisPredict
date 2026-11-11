@@ -59,3 +59,10 @@ describe('audiencias oficiais', () => {
     expect(a[0]).toMatchObject({data:null,situacao:'data_pendente'});
   });
 });
+
+  it('lê o intervalo completo da pauta virtual no formato Período da sessão', () => {
+    const notice='Disponibilizado no Diário Eletrônico - Pauta - Sessão Virtual - Resolução CNJ 591/24. Período da sessão: 24/11/2026 00:00 a 01/12/2026 23:59. Sequencial: 13.';
+    const out=extrairAudienciasOficiais(notice);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({tipo:'sessao_virtual',data:'2026-11-24',dataFim:'2026-12-01',hora:'00:00',horaFim:'23:59'});
+  });
