@@ -198,6 +198,18 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   if (mode === 'meeting') return scheduledOfficeMeeting();
+  if (mode === 'court-connectors') {
+    try {
+      const {runHermesTribunalConnectorBatch}=await import('@/lib/hermes-tribunal-scanner');
+      const result=await runHermesTribunalConnectorBatch();
+      return NextResponse.json(result,{headers:{'Cache-Control':'no-store'}});
+    }catch(error){
+      console.error('[Hermes Tribunal] Scanner oficial indisponível:',
+        error instanceof Error?error.message:'erro');
+      return NextResponse.json({ok:false,error:'Scanner dos serviços oficiais indisponível.'},
+        {status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   if (mode === 'hearings') {
     try {
       const {verificarUmaAudienciaAgendada}=await import('@/lib/audiencias-service');
