@@ -3,7 +3,7 @@
  * pessoais para a API Pública do CNJ (campos não suportados pelo índice).
  */
 import {NextResponse} from 'next/server';
-import {fetchDataJud} from '@/lib/datajud';
+import {requestDataJudWithCapacity} from '@/lib/hermes-return-service';
 import {getUserContext} from '@/lib/server-db';
 
 export const runtime='nodejs';
@@ -27,7 +27,7 @@ export async function POST(request:Request){
   if(mode!=='cnj')return NextResponse.json({success:false,error:'Modo inválido.'},{status:400,headers});
   const cnj=raw.replace(/\D/g,'');
   if(cnj.length!==20)return NextResponse.json({success:false,error:'CNJ inválido.'},{status:400,headers});
-  const result=await fetchDataJud(cnj,1,{fast:true,cloudBudget:true,timeoutMs:25_000});
+  const result=await requestDataJudWithCapacity(cnj,false,25_000);
   return NextResponse.json({
     success:result.error===false&&result.found===true,
     data:result,
