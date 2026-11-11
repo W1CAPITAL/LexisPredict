@@ -13,7 +13,7 @@ export async function GET(){
   try {
     const db=await getSupabaseAdmin();
     const {data,error}=await db.from('audiencias_monitoradas')
-      .select('id,processo_id,protocolo_ref,cliente,advogado,tribunal,tipo,data_evento,data_fim,hora_local,hora_fim,fuso,modalidade,situacao,fonte,fonte_url,portal_url,evidencia,verificado_em,atualizado_em')
+      .select('id,processo_id,protocolo_ref,cliente,advogado,tribunal,tipo,data_evento,data_fim,hora_local,hora_fim,fuso,modalidade,situacao,fonte,fonte_url,portal_url,meeting_url,evidencia,verificado_em,atualizado_em')
       .eq('empresa_id',ctx.empresa_id)
       .order('data_evento',{ascending:true,nullsFirst:false}).limit(800);
     if(error)throw error;
