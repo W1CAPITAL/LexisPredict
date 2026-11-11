@@ -49,7 +49,6 @@ export default function AudienciasPage(){
     const last=x.data_fim||x.data_evento;
     if(period==="proximas"&&(!last||last<now||x.situacao==="cancelada"))return false;
     if(period==="pendentes"&&x.data_evento!==null)return false;
-    if(period==="passadas"&&(!last||last>=now))return false;
     if(term){const blob=[x.cliente,x.advogado,x.protocolo_ref,x.tribunal,x.tipo].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();if(!blob.includes(term))return false;}
     return true;
   });
@@ -89,7 +88,7 @@ export default function AudienciasPage(){
     <div className="rounded-2xl border border-border bg-card p-3">
      <div className="flex flex-wrap items-center gap-3">
       <label className="relative min-w-[210px] flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cliente, processo, advogado ou tribunal" className="w-full rounded-xl border border-input bg-background py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"/></label>
-      <label className="text-sm text-muted-foreground">Exibir <select value={period} onChange={e=>setPeriod(e.target.value)} className="ml-2 rounded-xl border border-input bg-background px-3 py-2 text-foreground"><option value="proximas">Próximas</option><option value="pendentes">Data a verificar</option><option value="passadas">Passadas</option><option value="todas">Todas</option></select></label>
+      <label className="text-sm text-muted-foreground">Exibir <select value={period} onChange={e=>setPeriod(e.target.value)} className="ml-2 rounded-xl border border-input bg-background px-3 py-2 text-foreground"><option value="proximas">Próximas</option><option value="pendentes">Data a verificar</option><option value="todas">Todas</option></select></label>
      </div>
     </div>
     <div className="space-y-3">
