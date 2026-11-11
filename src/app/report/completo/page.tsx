@@ -58,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { BiCompliancePanel } from "@/components/dashboard/bi-compliance-panel";
 import { useAppStore } from "@/store/use-app-store";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
+import { isCasoVencido } from "@/lib/vencimentos";
 import { computeCarteiraKpis } from "@/lib/carteira-kpis";
 import { computeKpiUnificado } from "@/lib/kpi-unificado";
 import { checkIfSuperAdmin, checkIfSupervisor } from "@/lib/supabase";
@@ -270,7 +271,7 @@ export default function UnifiedReport() {
     const isMaster = checkIfSuperAdmin(profile) || checkIfSupervisor(profile);
 
     const myAtivos = cases.filter(c => c.created_by === profile?.auth_user_id && !isCasoEncerrado(c));
-    const myVencidos = myAtivos.filter(c => c.status === 'Vencido' || c.status === 'Caso Crítico').slice(0, 10);
+    const myVencidos = myAtivos.filter(c => isCasoVencido(c)).slice(0, 10);
     const myNovidades = myAtivos.filter(c => !!c.tem_novo_andamento).slice(0, 10);
 
     const riskScore = u.riskScore;
