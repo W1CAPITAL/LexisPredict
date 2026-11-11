@@ -20,8 +20,8 @@ export function HermesStalledMonitoring({items}:{items:HermesStalledSummary[]}){
     <h2 className="mt-2 flex items-center gap-2 text-xl font-black"><Activity size={20}/> Processos parados</h2>
     <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#e8d4df]">
      O scanner acompanha processos ativos com pelo menos 15 dias sem sinal recente cadastrado.
-     Verifica DJEN e DataJud independentemente do retorno ao cliente. Uma fonte indisponível
-     não confirma ausência de movimentação e não torna o retorno vencido.
+     Verifica DJEN, DataJud e, quando houver integração oficial autorizada, a API do tribunal,
+     independentemente do retorno ao cliente. Uma fonte indisponível não confirma ausência de movimentação e não torna o retorno vencido.
     </p>
    </div>
    <Link href="/processos-parados" className="inline-flex items-center gap-2 rounded-lg border border-white/25 px-3 py-2 text-xs font-bold text-white hover:bg-white/10">
