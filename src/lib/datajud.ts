@@ -48,15 +48,15 @@ let liveDataJudKey:{value:string;until:number}|null=null;
 /** Normaliza tanto o valor bruto quanto o cabeçalho completo copiado da Wiki do CNJ. */
 export function normalizeDataJudApiKey(value:unknown):string{
  return String(value||'').trim()
-  .replace(/^Authorization\\s*:\\s*/i,'')
-  .replace(/^APIKey\\s+/i,'')
+  .replace(/^Authorization\s*:\s*/i,'')
+  .replace(/^APIKey\s+/i,'')
   .trim();
 }
 
 /** Extrai a chave pública atual do conteúdo oficial da Wiki do CNJ. */
 export function extractDataJudPublicKey(page:string):string|null{
  const text=String(page||'').replace(/&nbsp;|&#160;/gi,' ');
- const match=text.match(/(?:Authorization\\s*:\\s*)?APIKey\\s+([A-Za-z0-9_+/=-]{30,})/i);
+ const match=text.match(/(?:Authorization\s*:\s*)?APIKey\s+([A-Za-z0-9_+/=-]{30,})/i);
  return match?.[1]||null;
 }
 
@@ -167,7 +167,7 @@ export async function searchDataJudByCpf(
   documento:string,
   _opts?:{aliases?:string[];size?:number;onlyBA?:boolean}
 ):Promise<{success:boolean;items:any[];error?:string}>{
- const digits=String(documento||'').replace(/\\D/g,'');
+ const digits=String(documento||'').replace(/\D/g,'');
  return {success:false,items:[],error:digits
   ?'A API pública do DataJud não oferece pesquisa por CPF/CNPJ/OAB. Localize o processo no CRM/tribunal e consulte pelo CNJ.'
   :'Documento não informado.'};
