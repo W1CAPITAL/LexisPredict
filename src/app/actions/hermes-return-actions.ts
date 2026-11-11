@@ -46,7 +46,8 @@ export async function refreshHermesReturnReviewAction(processId: number) {
     const sourceSnapshot=recent?.source_snapshot&&typeof recent.source_snapshot==='object'
       ?recent.source_snapshot as Record<string,unknown>:{};
     const tribunalApiOk=sourceSnapshot.tribunalApiOk===true;
-    const hasMovementSource=recent?.datajud_ok===true||tribunalApiOk;
+    const datajudRestricted=sourceSnapshot.datajudRestricted===true;
+    const hasMovementSource=recent?.datajud_ok===true||tribunalApiOk||datajudRestricted;
     if (recent?.checked_at && Date.now() - Date.parse(recent.checked_at) < (recent.djen_ok === true && hasMovementSource ? 15 : 2) * 60 * 1000) {
       return { ok: true as const, reused: true };
     }
