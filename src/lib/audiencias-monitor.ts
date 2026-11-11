@@ -108,7 +108,6 @@ export function extrairAudienciasOficiais(text: string | null | undefined): Audi
         const endHour = explicitPeriod?.[4] || (end ? (clock(head, end.index, true) || clock(head, end.index)) : null);
         found.push(build(/sessao virtual/.test(normalizedHead) ? 'sessao_virtual' : 'sessao_julgamento', start.date, end?.date || null, firstHour, endHour, head, undefined));
       }
-      }
     }
   }
   // Uma data de movimentação ou prazo do banco não é uma data de audiência.
