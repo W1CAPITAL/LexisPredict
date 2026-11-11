@@ -50,10 +50,7 @@ export function buildDashboardMetrics(cases: LegalCase[], labels?: {
   const ativos = unified.ativosList;
   const activeTotal = ativos.length;
 
-  const countVencido = ativos.filter((c) => {
-    const s = statusEfetivo(c);
-    return s === 'Vencido' || c.status === 'Caso Crítico' || c.statusManual === 'Caso Crítico';
-  }).length;
+  const countVencido = unified.countVencido;
   const countHoje = ativos.filter((c) => statusEfetivo(c) === 'É Hoje').length;
   const countAtencao = ativos.filter((c) => statusEfetivo(c) === 'Atenção').length;
   const countSaudavel = ativos.filter((c) => statusEfetivo(c) === 'No Prazo').length;
