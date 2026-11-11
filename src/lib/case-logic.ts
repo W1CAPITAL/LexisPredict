@@ -7,6 +7,7 @@ import { startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
 import { diasAtePrazo, statusPorPrazo, normalizarDataPrazo, hojeBrasilISO } from './prazo-status';
 import { sanitizeDateCell } from './csv-import-engine';
 import { isCasoEncerrado as isCasoEncerradoCore } from './status-encerrado';
+import { resolveSituacaoFromRow, resolveStatusManualFromRow } from './resolve-situacao';
 
 /**
  * LÓGICA JURÍDICA PURA — STATUS, RISCO, TRIBUNAL CNJ
@@ -220,11 +221,18 @@ export function isCasoEncerrado(c: any): boolean {
 }
 
 export function calcularStatus(
-  proximoRetorno: string | null | undefined, 
+  proximoRetorno: string | null | undefined,
   situacao: string | null | undefined,
-  alertLimit: number = 3
+  alertLimit: number = 3,
+  ultimoRetorno?: string | null
 ): CaseStatus {
-  return statusPorPrazo(proximoRetorno, { situacao, alertLimit });
+  const prazo = normalizarDataPrazo(proximoRetorno);
+  const ultimo = normalizarDataPrazo(ultimoRetorno);
+  const calculado = statusPorPrazo(prazo, { situacao, alertLimit });
+  // Se o último atendimento ocorreu depois do retorno agendado, o dado está
+  // inconsistente e não deve ser apresentado/contado como retorno vencido.
+  if (calculado === 'Vencido' && prazo && ultimo && ultimo > prazo) return 'Atenção';
+  return calculado;
 }
 
 export function extrairTribunal(protocolo: string): { tribunal: string; link: string; } {
@@ -272,7 +280,14 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
   const protocolo = String(data.protocolo ?? data.PROTOCOLO ?? '').trim();
   const advogado = fixEncoding(data.ADVOGADO || data.advogado || 'NÃO ATRIBUÍDO').toUpperCase();
   const escritorio = fixEncoding(data.ESCRITORIO || data.escritorio || '').trim().toUpperCase();
-  const situacao = String(data.situacao || data.SITUACAO || data.status_interno || data.STATUS || 'EM ANDAMENTO').toUpperCase();
+  const dadosStatus = data.dados && typeof data.dados === 'object' ? data.dados : data;
+  const hasTypedInternal = Boolean(String(data.status_interno || data.statusInterno || '').trim());
+  const resolvedSituacao = resolveSituacaoFromRow(data, dadosStatus);
+  const situacao = String(
+    hasTypedInternal || /^(ENCERRAD|ARQUIVAD|EXTINT|BAIXA|FINALIZAD)/i.test(String(data.status || ''))
+      ? resolvedSituacao
+      : (data.situacao || data.SITUACAO || resolvedSituacao || 'EM ANDAMENTO')
+  ).toUpperCase();
   
   const proximoPrazoRaw = sanitizeDateCell(
     data.proximoPrazo ?? data.proximo_retorno ?? data.PROXIMO_RETORNO ?? data.PROXIMO_PRAZO ?? data.proximo_prazo ?? ''
@@ -281,10 +296,16 @@ export function processarCaso(raw: any, thresholds?: { alertLimit: number }): Le
     data.ultimoRetorno ?? data.ultimo_retorno ?? data.ULTIMO_RETORNO ?? data.RETORNO ?? data.ultimo_atendimento ?? ''
   );
   
-  const statusManual = data.STATUS_MANUAL || data.statusManual || 'Automatico';
+  const manualCandidate = dadosStatus.statusManual ?? dadosStatus.STATUS_MANUAL
+    ?? data.statusManual ?? data.STATUS_MANUAL;
+  const statusManual = resolveStatusManualFromRow(
+    data,
+    { ...dadosStatus, statusManual: manualCandidate },
+    situacao
+  ) || 'Automatico';
 
   const tribunalData = extrairTribunal(protocolo);
-  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3);
+  const statusCalculado = calcularStatus(proximoPrazoRaw, situacao, thresholds?.alertLimit || 3, ultimoRetornoRaw);
 
   let observacao = fixEncoding(data.OBSERVACAO || data.OBSERVACOES || data.observacao || '');
   const produtos = data.PRODUTOS || data.produtos || '';
