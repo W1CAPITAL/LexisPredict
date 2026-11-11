@@ -2,6 +2,7 @@
 
 import JSZip from 'jszip';
 import { EXPORT_HEADERS, CNJ_TRIBUNAL_MAP, tribunalFromProtocolo } from './xlsx-schema';
+import { isCasoVencido } from './vencimentos';
 
 export type DossieCase = Record<string, any>;
 
@@ -29,10 +30,6 @@ function sim(v: any) {
 
 function isEncerradoStatus(s: string) {
   return /encerrad|arquivad|extint|finaliz/i.test(s || '');
-}
-
-function isVencido(s: string) {
-  return /vencido|cr[ií]tico/i.test(s || '');
 }
 
 function isEmAndamento(s: string) {
