@@ -101,12 +101,13 @@ processual. Processos encerrados não recebem rascunho automático.
 - `pnpm run typecheck`, `pnpm test` e `pnpm run build` no CI.
 - A documentação técnica oficial do TJPR para o SCMPP descreve os endpoints
   MNI 2.2.2 e os endpoints legados:
-  https://portal.tjpr.jus.br/pesquisa_athos/anexo/7150778
+  https://acessibilidade.tjpr.jus.br/documents/d/planejamento/servico-de-consulta-as-movimentacoes-processuais-publicas-automatizado-scmpp-pdf
 - Resolução TJPR 532-OE/2026 (consulta pública sem cadastro/login e ocultação
   dos complementos): https://portal.tjpr.jus.br/pesquisa_athos/anexo/7150778
-- Portaria CNJ 374/2026 e Termo de Uso DataJud devem ser conferidos antes de
-  qualquer ativação comercial. Não configurar `DATAJUD_USE_AUTHORIZED` sem
-  autorização escrita aplicável.
+- Portaria CNJ 374/2026: https://atos.cnj.jus.br/atos/detalhar/6972
+- Termo de Uso DataJud: https://datajud-wiki.cnj.jus.br/api-publica/termo-uso/
+- Endpoints DataJud: https://datajud-wiki.cn.jus.br/api-publica/endpoints/
+- Não configurar `DATAJUD_USE_AUTHORIZED` sem autorização escrita aplicável.
 - Conferir job `cron.job` e `cron.job_run_details`, status HTTP da
   `net._http_response` e novas linhas de `hermes_return_reviews`.
 - Verificar 401 do endpoint sem token. Não copiar o valor do Vault para logs.
