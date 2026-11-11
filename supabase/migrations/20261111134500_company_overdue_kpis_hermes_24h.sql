@@ -157,8 +157,8 @@ WITH candidate AS (
     CASE WHEN p.proximo_retorno BETWEEN p_today AND p_today+7 THEN 0 ELSE 1 END,
     coalesce(r.checked_at,'1970-01-01'::timestamptz),
     p.id
-  FOR UPDATE OF p SKIP LOCKED
   LIMIT LEAST(GREATEST(coalesce(p_limit,2),1),2)
+  FOR UPDATE OF p SKIP LOCKED
 ),
 claimed AS (
   INSERT INTO public.hermes_portfolio_scans(
