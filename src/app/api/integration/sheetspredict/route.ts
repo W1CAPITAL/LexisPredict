@@ -62,7 +62,7 @@ export async function POST(req:NextRequest){
       }
       if(mode==='nome'){
         const result=await searchDataJudByNome(query,{size:Math.max(1,Math.min(25,Number(body.size)||12))});
-        return NextResponse.json({ok:true,mode,result},{headers:{'Cache-Control':'no-store'}});
+        return NextResponse.json({ok:result.success,mode,result,error:result.error},{headers:{'Cache-Control':'no-store'}});
       }
       if(mode==='cnj'){
         const result=await fetchDataJud(query,1,{fast:false});
