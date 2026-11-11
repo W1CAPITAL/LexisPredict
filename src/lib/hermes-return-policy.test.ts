@@ -56,13 +56,14 @@ describe('Hermes: automação de retornos com evidência', () => {
     expect(result.messageDraft).toContain('TJPR PROJUDI');
   });
 
-  it('não trata ausência de credenciais MNI como consulta TJPR concluída', () => {
+  it('não trata falha do MNI público como consulta TJPR concluída', () => {
     const result = buildHermesReturnReview(base, {
       djenOk: true, datajudOk: false, courtApiOk: false, courtApiAttempted: true,
-      courtApiSource: 'TJPR PROJUDI', events: [],
+      courtApiSource: 'TJPR PROJUDI', courtApiError: 'TJPR PROJUDI MNI respondeu HTTP 429.',
+      events: [],
     });
     expect(result.state).toBe('partial');
-    expect(result.highlights.some(x => x.source === 'TJPR PROJUDI' && /credenciais|configur/i.test(x.text))).toBe(true);
+    expect(result.highlights.some(x => x.source === 'TJPR PROJUDI' && /HTTP 429/i.test(x.text))).toBe(true);
   });
 
   it('não considera processo encerrado como retorno automaticamente contatado', () => {
