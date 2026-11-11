@@ -51,7 +51,11 @@ export async function runHermesTribunalConnectorBatch(){
  if(!adapter)return {ok:false,processed:1,status:'unsupported'};
  const result=await runOfficialTribunalConnector(claim.cnj);
  const verified=result.status==='verified'||result.status==='verified_empty';
- const movements=verified?normalizeTribunalMovements(result.movements):normalizeTribunalMovements(before.movements);
+ const previous=normalizeTribunalMovements(before.movements);
+ // Um índice parcial ou sem movimentos não apaga atos já verificados.
+ const movements=result.status==='verified'
+   ? normalizeTribunalMovements([...previous,...result.movements])
+   : previous;
  const now=new Date();
  const next=new Date(now.getTime()+NEXT_HOURS[result.status]*3600_000).toISOString();
  const {error:saveError}=await db.from('hermes_tribunal_public_movements').update({
