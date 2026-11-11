@@ -13,7 +13,7 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
   const sql=read('supabase/migrations/20261111134500_company_overdue_kpis_hermes_24h.sql');
   expect(sql).toContain('p.status_interno');
   expect(sql).toContain('p.dados->>\'situacao\'');
-  expect(sql).toMatch(/ultimo_retorno\\s*<=\\s*proximo_retorno/);
+  expect(sql).toMatch(/ultimo_retorno\s*<=\s*proximo_retorno/);
   expect(sql).not.toContain('NOT closed_manual');
  });
  it('agenda duas verificações incrementais por minuto e retenta estados parciais',()=>{
