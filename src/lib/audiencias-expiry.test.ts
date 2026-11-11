@@ -21,9 +21,9 @@ describe('Expiração de audiências pelo horário de Brasília',()=>{
   expect(isAudienciaExpirada({data:null,dataFim:null},now)).toBe(false);
  });
  it('agenda a limpeza automática e restringe a limpeza manual à empresa autenticada',()=>{
-  const migration=readFileSync('supabase/migrations/20261111145000_prune_expired_audiencias.sql','utf8');
+  const migration=readFileSync('supabase/migrations/20261111155000_prune_hearings_after_local_day.sql','utf8');
   expect(migration).toContain('p_empresa_id IS NULL OR empresa_id=p_empresa_id');
-  expect(migration).toContain("'America/Sao_Paulo'");
+  expect(migration).toContain("'America/Sao_Paulo'");\n  expect(migration).toContain("'America/Cuiaba'");\n  expect(migration).toContain('COALESCE(a.data_fim,a.data_evento) <');\n  expect(migration).not.toContain('hora_fim))::time <= local_clock');
   expect(migration).toContain("'lexis-hermes-prune-past-hearings'");
   expect(migration).toContain("'*/15 * * * *'");
   expect(migration).toContain('GRANT EXECUTE');
