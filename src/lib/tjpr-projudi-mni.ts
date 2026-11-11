@@ -1,5 +1,4 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
 import * as cheerio from 'cheerio';
 
 const TJPR_MNI_1G='https://projudi.tjpr.jus.br/projudi_consulta/webservices/projudiIntercomunicacaoWebService222';
@@ -13,7 +12,6 @@ const MAX_RESPONSE_CHARS=2_000_000;
 const PUBLIC_PROJUDI_URL='https://consulta.tjpr.jus.br/projudi_consulta/';
 
 export type TJPRProjudiEvent={source:'TJPR PROJUDI';at:string;text:string;url:string|null};
-export type TJPRMniCredentials={id:string;code:string};
 export type TJPRProjudiResult={
  applicable:boolean;
  configured:boolean;
@@ -21,13 +19,12 @@ export type TJPRProjudiResult={
  found:boolean;
  source:'TJPR PROJUDI';
  message:string|null;
- errorCode?:'not_configured'|'invalid_cnj'|'rate_limited'|'unauthorized'|'http_error'|'timeout'|'invalid_response'|'court_rejected'|'not_found';
+ errorCode?:'invalid_cnj'|'rate_limited'|'unauthorized'|'http_error'|'timeout'|'invalid_response'|'court_rejected'|'not_found';
  events:TJPRProjudiEvent[];
  endpoint?:string;
 };
 
 type FetchOptions={
- credentials?:TJPRMniCredentials|null;
  now?:Date;
  fetchImpl?:typeof fetch;
 };
@@ -35,25 +32,6 @@ type FetchOptions={
 const escapeXml=(value:string)=>value
  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
  .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-
-function brazilCompactDate(value:Date):string{
- const parts=new Intl.DateTimeFormat('en-US',{
-  timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',
- }).formatToParts(value);
- const get=(key:string)=>parts.find(p=>p.type===key)?.value||'';
- return get('year')+get('month')+get('day');
-}
-
-/** TJPR fornece o código privativo; o MNI exige a senha MD5 diária. */
-export function buildTJPRMniDynamicPassword(code:string,now:Date=new Date()):string{
- return createHash('md5').update(String(code)+brazilCompactDate(now)).digest('hex');
-}
-
-function credentialsFromEnvironment():TJPRMniCredentials|null{
- const id=String(process.env.TJPR_PROJUDI_MNI_ID||process.env.TJPR_PROJUDI_MNI_ID_MANIFESTANTE||'').trim();
- const code=String(process.env.TJPR_PROJUDI_MNI_CODE||process.env.TJPR_PROJUDI_MNI_SECRET_CODE||'').trim();
- return id&&code?{id,code}:null;
-}
 
 function localName(node:any):string{
  return String(node?.name||node?.tagName||'').split(':').pop()?.toLowerCase()||'';
@@ -114,10 +92,9 @@ function parseMniProcess(xml:string):{success:boolean;message:string;found:boole
    const national=firstDescendant(movement,'movimentoNacional');
    const description=attribute(local,'descricao')||nodeText($,local);
    const nationalCode=attribute(national,'codigoNacional');
-   const complements=descendants(movement,'complemento')
-    .map(node=>nodeText($,node)).filter(Boolean).slice(0,8);
-   const text=[description||(nationalCode?'Movimento nacional '+nationalCode:''),...complements]
-    .filter(Boolean).join(' · ').slice(0,2400);
+   // Resolução TJPR 532-OE/2026: complementos de movimentos ficam ocultos
+   // em toda consulta pública automatizada; não os ler nem persistir.
+   const text=(description||(nationalCode?'Movimento nacional '+nationalCode:'')).slice(0,1200);
    if(text)events.push({source:'TJPR PROJUDI',at,text,url:PUBLIC_PROJUDI_URL});
   }
   return {success:true,message:message||'Processo consultado no PROJUDI/TJPR.',found:true,events};
@@ -125,18 +102,19 @@ function parseMniProcess(xml:string):{success:boolean;message:string;found:boole
   return null;
 }
 
-function requestBody(cnj:string,credentials:TJPRMniCredentials,now:Date):string{
- const password=buildTJPRMniDynamicPassword(credentials.code,now);
+function requestBody(cnj:string):string{
+ // O WSDL mantém os campos de autenticação obrigatórios no schema, mas a
+ // Resolução TJPR 532-OE/2026 dispensa login e senha para dados públicos.
  return `<?xml version="1.0" encoding="UTF-8"?>
 <soap:Envelope xmlns:soap="${SOAP_NAMESPACE}" xmlns:svc="${SERVICE_NAMESPACE}" xmlns:types="${TYPES_NAMESPACE}">
  <soap:Header/>
  <soap:Body>
   <svc:consultarProcesso>
-   <types:idConsultante>${escapeXml(credentials.id)}</types:idConsultante>
-   <types:senhaConsultante>${password}</types:senhaConsultante>
+   <types:idConsultante></types:idConsultante>
+   <types:senhaConsultante></types:senhaConsultante>
    <types:numeroProcesso>${cnj}</types:numeroProcesso>
    <types:movimentos>true</types:movimentos>
-   <types:incluirCabecalho>true</types:incluirCabecalho>
+   <types:incluirCabecalho>false</types:incluirCabecalho>
    <types:incluirDocumentos>false</types:incluirDocumentos>
   </svc:consultarProcesso>
  </soap:Body>
@@ -154,12 +132,6 @@ export async function fetchTJPRProjudiProcess(cnjRaw:string,options:FetchOptions
  if(digits.length!==20||digits.slice(13,16)!=='816'){
   return {...base,applicable:false,configured:false,ok:false,found:false,message:null,errorCode:'invalid_cnj'};
  }
- const credentials=options.credentials===undefined?credentialsFromEnvironment():options.credentials;
- if(!credentials?.id?.trim()||!credentials?.code?.trim()){
-  return {...base,applicable:true,configured:false,ok:false,found:false,
-   message:'Integração oficial TJPR PROJUDI MNI não configurada: faltam as credenciais privativas do tribunal.',
-   errorCode:'not_configured'};
- }
  const secondGrade=digits.slice(16,20)==='9000';
  const endpoint=secondGrade?TJPR_MNI_2G:TJPR_MNI_1G;
  const fetcher=options.fetchImpl||fetch;
@@ -173,7 +145,7 @@ export async function fetchTJPRProjudiProcess(cnjRaw:string,options:FetchOptions
     Accept:'text/xml, application/soap+xml',
     SOAPAction:'"'+SOAP_ACTION+'"',
    },
-   body:requestBody(digits,credentials,options.now||new Date()),
+   body:requestBody(digits),
    signal:controller.signal,
    cache:'no-store',
   });
