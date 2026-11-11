@@ -33,7 +33,7 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
  });
  it('compartilha a mesma regra de retorno vencido entre KPIs, filas, relatórios e agentes',()=>{
   const surfaces=[
-   'src/lib/kpi-unificado.ts','src/lib/dashboard-metrics.ts','src/lib/ops-linha.ts',
+   'src/lib/kpi-unificado.ts','src/lib/ops-linha.ts',
    'src/lib/office-score.ts','src/lib/bi-compliance.ts','src/lib/ia-preditiva.ts',
    'src/lib/case-priority.ts','src/lib/fila-prioridade.ts','src/lib/case-filters.ts',
    'src/app/clients/page.tsx','src/app/analytics/page.tsx','src/app/cases/page.tsx',
@@ -43,6 +43,7 @@ describe('KPIs empresariais e busca contínua de audiências',()=>{
    'src/lib/xlsx-dossie-builder.ts','src/lib/plano-b-sheets.ts',
   ];
   for(const path of surfaces)expect(read(path),path).toContain('isCasoVencido');
+  expect(read('src/lib/dashboard-metrics.ts')).toContain('unified.countVencido');
   expect(read('src/app/page.tsx')).toContain('portfolioSummary?.vencidos');
   expect(read('src/app/vencidos/page.tsx')).not.toContain('statusManual:dados->>statusManual');
   const logic=read('src/lib/case-logic.ts');
