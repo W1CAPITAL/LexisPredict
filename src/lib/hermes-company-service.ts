@@ -214,7 +214,7 @@ export async function getHermesPortfolioSummaries(
 ):Promise<HermesPortfolioCaseSummary[]>{
  const db=await getSupabaseAdmin();
  const {data:scans,error}=await db.from('hermes_portfolio_scans')
-  .select('processo_id,state,checked_at,datajud_ok,djen_ok,findings,events,source_errors')
+  .select('processo_id,state,checked_at,datajud_ok,djen_ok,findings,source_errors')
   .eq('empresa_id',empresaId).order('checked_at',{ascending:false,nullsFirst:false})
   .limit(Math.max(1,Math.min(limit,100)));
  if(error)throw new Error('Dossiês Hermes indisponíveis.');
@@ -233,7 +233,7 @@ export async function getHermesPortfolioSummaries(
    state:s.state as HermesPortfolioCaseSummary['state'],
    checkedAt:s.checked_at||null,datajudOk:s.datajud_ok===true,djenOk:s.djen_ok===true,
    findings:(s.findings&&typeof s.findings==='object'&&!Array.isArray(s.findings))?s.findings:{},
-   events:Array.isArray(s.events)?s.events.slice(0,60):[],
+   events:[],
    sourceErrors:(s.source_errors&&typeof s.source_errors==='object')?s.source_errors:{},
   }];
  });
