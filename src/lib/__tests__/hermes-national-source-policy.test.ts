@@ -11,7 +11,8 @@ describe('Hermes nacional: fontes oficiais por jurisdição e escalonamento',()=
    const plan=getHermesNationalSourcePlan(number);
    expect(plan?.alias).toMatch(/^tj[a-z]{2,4}$/);
    expect(plan?.tribunal).toMatch(/^TJ/);
-   expect(plan?.automated).toEqual(['DJEN','DataJud']);
+   expect(plan?.automated).toContain('DJEN');
+   expect(plan?.automated).toContain('DataJud');
   }
   expect(getHermesNationalSourcePlan(num('8','26'))?.alias).toBe('tjsp');
   expect(getHermesNationalSourcePlan(num('8','19'))?.alias).toBe('tjrj');
@@ -31,6 +32,10 @@ describe('Hermes nacional: fontes oficiais por jurisdição e escalonamento',()=
   expect(plan?.tribunalPortal?.url).toContain('tjsp.jus.br');
   expect(plan?.otherPortals.some(p=>p.url.includes('esaj.tjsp.jus.br'))).toBe(true);
   expect(plan?.tribunalApiAutomated).toBe(false);
+  const tjpr=getHermesNationalSourcePlan(num('8','16'));
+  expect(tjpr?.tribunalApiAutomated).toBe(true);
+  expect(tjpr?.automated).toContain('TJPR PROJUDI MNI');
+  expect(tjpr?.tribunalApiAuthRequired).toBe(true);
   expect(resolveOfficialCourtPortal(num('8','26'))?.label).toContain('TJSP');
  });
  it('para tribunais sem portal direto já catalogado, oferece acesso autenticado via Jus.br',()=>{
