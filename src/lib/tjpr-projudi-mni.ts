@@ -155,7 +155,7 @@ export async function fetchTJPRProjudiProcess(cnjRaw:string,options:FetchOptions
   }
   if(response.status===401||response.status===403){
    return {...base,applicable:true,configured:true,ok:false,found:false,endpoint,
-    message:'TJPR PROJUDI MNI recusou a autenticação. Verifique as credenciais privativas da integração.',
+    message:'TJPR PROJUDI MNI recusou a consulta pública (HTTP 401/403); verifique a disponibilidade do SCMPP e o endpoint oficial.',
     errorCode:'unauthorized'};
   }
   if(!response.ok){
