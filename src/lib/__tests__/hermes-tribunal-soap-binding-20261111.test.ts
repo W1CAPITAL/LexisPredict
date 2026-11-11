@@ -42,4 +42,3 @@ describe('TJPR SCMPP MNI SOAP binding real',()=>{
   expect(sql).toContain('SKIP LOCKED');
  });
 });
-});
