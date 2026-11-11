@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {Activity,CalendarDays,ShieldAlert} from 'lucide-react';
 import type {HermesPortfolioCaseSummary} from '@/lib/hermes-company-service';
 const d=(s?:string|null)=>s&&/^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
+const age=(value:unknown)=>{const ms=Date.parse(String(value||''));if(!Number.isFinite(ms))return '';const hours=Math.max(0,Math.floor((Date.now()-ms)/3600000));return hours<24?hours+'h':Math.floor(hours/24)+'d';};
 const merits:Record<string,string>={procedente:'Procedente',parcialmente_procedente:'Parcialmente procedente',improcedente:'Improcedente'};
 type SavedEvent={source:'DataJud'|'DJEN'|'TJPR PROJUDI';at:string;text:string;url?:string|null};
 function HistoryButton({cnj}:{cnj:string}){
