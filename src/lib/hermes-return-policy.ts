@@ -16,6 +16,7 @@ export type HermesCourtSnapshot = {
   datajudOk: boolean;
   datajudUpdatedAt?: string | null;
   datajudIndexTimestamp?: string | null;
+  datajudRestricted?: boolean;
   events: HermesCourtEvent[];
   courtApiOk?: boolean;
   courtApiAttempted?: boolean;
