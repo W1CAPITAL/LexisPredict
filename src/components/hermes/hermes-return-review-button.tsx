@@ -74,7 +74,10 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
       // Opening a client without a recent saved review requests real official data immediately.
       // Never invents a draft: it is generated only after the backend source lookup.
       const checked=Date.parse(String(result.review?.checked_at||''));
-      const incomplete=!(result.review?.djen_ok===true&&result.review?.datajud_ok===true);
+      const sourceSnapshot=result.review?.source_snapshot&&typeof result.review.source_snapshot==='object'
+        ?result.review.source_snapshot as Record<string,unknown>:{};
+      const movementSourceOk=result.review?.datajud_ok===true||sourceSnapshot.tribunalApiOk===true;
+      const incomplete=!(result.review?.djen_ok===true&&movementSourceOk);
       const stale=!Number.isFinite(checked)||Date.now()-checked>(incomplete?2:360)*60*1000;
       if(autoRefresh&&stale){
         await queryOfficialBrazil(processId);
@@ -188,17 +191,21 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 </div>
                 {(() => {
                   const raw=review.source_snapshot;
-                  const info=raw && typeof raw==='object' && !Array.isArray(raw)
-                    ?(raw as Record<string,unknown>).sourceErrors:null;
+                  const snapshot=raw && typeof raw==='object' && !Array.isArray(raw)
+                    ?raw as Record<string,unknown>:{};
+                  const info=snapshot.sourceErrors;
                   const sourceErrors=info && typeof info==='object'
-                    ?info as Record<string,string|null>:null;
-                  if(!sourceErrors)return null;
+                    ?info as Record<string,string|null>:{};
+                  const tribunalApiAutomated=snapshot.tribunalApiAutomated===true;
+                  const tribunalApiOk=snapshot.tribunalApiOk===true;
+                  const tribunalApiAttempted=snapshot.tribunalApiAttempted===true;
                   return <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-5">
                     <p className="font-semibold">Diagnóstico das consultas oficiais</p>
                     {!review.djen_ok&&<p>DJEN: {String(sourceErrors.djen||'Fonte não confirmada.')}</p>}
                     {!review.datajud_ok&&<p>DataJud: {String(sourceErrors.datajud||'Fonte não confirmada.')}</p>}
+                    {tribunalApiAutomated&&<p>TJPR PROJUDI MNI: {tribunalApiOk?'consulta oficial confirmada':tribunalApiAttempted?String(sourceErrors.projudi||'Fonte não confirmada.'):'não acionado nesta rodada'}</p>}
                     {sourceErrors.fonteAlternativa&&<p className="mt-2 font-medium text-foreground">{sourceErrors.fonteAlternativa}</p>}
-                    <p className="mt-1 text-muted-foreground">Uma fonte pode responder mesmo quando a outra falha. DJEN confirma publicações, não a cronologia integral do tribunal.</p>
+                    <p className="mt-1 text-muted-foreground">DJEN confirma publicações; DataJud e MNI confirmam movimentos processuais. Uma fonte não substitui o escopo das demais.</p>
                   </div>;
                 })()}
                 {String(registered.next || "") !== String(review.due_on || "") && (
