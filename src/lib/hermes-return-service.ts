@@ -1,6 +1,7 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
-import { fetchDataJud, isDataJudUseAuthorized } from '@/lib/datajud';
+import { fetchDataJud } from '@/lib/datajud';
+import {isDataJudUseAuthorized} from '@/lib/datajud-policy';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
 import {buildHermesJudicialFindings} from '@/lib/hermes-judicial-findings';
