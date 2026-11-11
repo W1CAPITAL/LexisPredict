@@ -14,7 +14,7 @@ function formatCnj(digits:string):string{
 
 /** Health check server-side; only checks CNJs already present in the caller's tenant. */
 export async function probeDataJudHealthAction(rawCnj:string):Promise<{
- success:boolean;alias:string|null;latencyMs:number;errorCode?:string;message?:string;movementCount?:number;
+ success:boolean;found?:boolean;alias:string|null;latencyMs:number;errorCode?:string;message?:string;movementCount?:number;
 }>{
  try{
   const context=await getUserContext();
@@ -29,15 +29,15 @@ export async function probeDataJudHealthAction(rawCnj:string):Promise<{
   };
   const db=await getSupabaseAdmin();
   const {data:owned,error:lookupError}=await db.from('processos').select('id')
-   .eq('empresa_id',context.empresa_id).in('protocolo_ref',[formatCnj(cnj),cnj]).maybeSingle();
+   .eq('empresa_id',context.empresa_id).in('protocolo_ref',[formatCnj(cnj),cnj]).limit(1).maybeSingle();
   if(lookupError)return {success:false,alias,latencyMs:0,errorCode:'lookup_error',message:'Não foi possível validar o processo na carteira da empresa.'};
   if(!owned)return {success:false,alias,latencyMs:0,errorCode:'not_in_tenant',message:'O CNJ não foi localizado na carteira desta empresa.'};
   const started=Date.now();
   const result=await fetchDataJud(cnj,1,{fast:true,cloudBudget:true,forceRefresh:true,timeoutMs:8000});
   const latencyMs=Number(result?.latency)||Date.now()-started;
-  const success=result?.error===false&&result?.found===true;
+  const success=result?.error===false;
   return {
-   success,alias,latencyMs,errorCode:result?.errorCode||undefined,
+   success,found:result?.found===true,alias,latencyMs,errorCode:result?.errorCode||undefined,
    message:result?.message||undefined,movementCount:Array.isArray(result?.movimentos)?result.movimentos.length:0,
   };
  }catch(error:any){
