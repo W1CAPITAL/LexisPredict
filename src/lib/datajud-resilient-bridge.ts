@@ -1,3 +1,4 @@
+import 'server-only';
 /**
  * Ponte opcional: usa fetchResilient sem reescrever datajud.ts.
  * Scanner antigo continua intacto; novos callers podem usar isto.
