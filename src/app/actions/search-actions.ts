@@ -74,7 +74,7 @@ export async function searchProcessesByCpfAction(documento: string, onlyBA = fal
       ].filter(Boolean).join(' '));
       if(!blob.includes(digits))continue;
       const classe=String(c.situacao||c.evento_tipo||c.classe||dados.situacao||'');
-      if(onlyBA&&!/BUSCA\\s*E?\\s*APREENS/i.test(classe))continue;
+      if(onlyBA&&!/BUSCA\s*E?\s*APREENS/i.test(classe))continue;
       const cnj=String(c.protocolo||c.protocolo_ref||c.numeroProcesso||'').trim();
       hits.push({
         origem:'carteira',numeroProcesso:cnj||'CNJ não cadastrado',processoId:Number(c.id)||undefined,
@@ -102,13 +102,13 @@ export async function searchProcessesByNomeAction(nome: string): Promise<{
     const {empresa_id}=await getUserContext();
     if(!empresa_id)return {success:false,items:[],error:'Empresa não identificada.'};
     const cases=await getStoredCasesForEmpresa(empresa_id);
-    const qUp=q.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+    const qUp=q.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
     const hits:SearchHit[]=[];
     for(const raw of cases||[]){
       const c=raw as any;
       const dados=c.dados&&typeof c.dados==='object'?c.dados:{};
       const cliente=String(c.cliente||c.cliente_nome||dados.cliente||dados.nomeParte||'').trim();
-      const normalized=cliente.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+      const normalized=cliente.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
       if(!normalized||(!normalized.includes(qUp)&&!qUp.includes(normalized.slice(0,12))))continue;
       const cnj=String(c.protocolo||c.protocolo_ref||c.numeroProcesso||'').trim();
       hits.push({
