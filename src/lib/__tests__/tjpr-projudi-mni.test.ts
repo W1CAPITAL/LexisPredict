@@ -64,6 +64,14 @@ describe('TJPR PROJUDI MNI público 2.2.2',()=>{
   expect(String(fetchMock.mock.calls[0][0])).toContain('projudiIntercomunicacaoWebService2G222');
  });
 
+ it('não expõe movimentos quando o processo inteiro está em segredo de justiça',async()=>{
+  const secret=xml.replace('<types:processo>','<types:processo nivelSigilo="2">');
+  const result=await fetchTJPRProjudiProcess(cnj,{
+   fetchImpl:vi.fn().mockResolvedValue(new Response(secret,{status:200})) as any,
+  });
+  expect(result).toMatchObject({ok:false,found:false,errorCode:'not_found'});
+  expect(result.events).toEqual([]);
+ });
  it('registra 429 como limitação da fonte sem declarar processo ausente',async()=>{
   const fetchMock=vi.fn().mockResolvedValue(new Response('temporariamente indisponível',{status:429}));
   const result=await fetchTJPRProjudiProcess(cnj,{fetchImpl:fetchMock as any});
