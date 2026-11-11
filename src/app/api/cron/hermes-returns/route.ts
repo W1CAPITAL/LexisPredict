@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import React from 'react';
 import { timingSafeEqual } from 'node:crypto';
 import { getUserContext, getSupabaseAdmin } from '@/lib/server-db';
-import { runHermesDueReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
+import { runHermesDueReviewBatch,runHermesStalledReviewBatch,reviewHermesCase } from '@/lib/hermes-return-service';
 import {
   getHermesCompanyDaily, getHermesCaseHealth, getHermesStalledSummaries, getHermesOfficeEvents, getHermesRebuildRuns, getHermesPortfolioDiagnostics, runHermesEvidenceRebuild, runHermesCompanyMeeting, todayHermesBrazil,
 } from '@/lib/hermes-company-service';
@@ -179,6 +179,16 @@ export async function GET(request: Request) {
     { ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
   if (mode === 'meeting') return scheduledOfficeMeeting();
+  // Same authenticated Vercel function: independent monitor cannot starve while due returns are pending.
+  if (mode === 'stalled') {
+    try {
+      const result=await runHermesStalledReviewBatch();
+      return NextResponse.json({ok:true,...result},{headers:{'Cache-Control':'no-store'}});
+    }catch(error){
+      console.error('[Hermes Stalled] erro de agendamento',error instanceof Error?error.message:'unknown');
+      return NextResponse.json({ok:false,error:'Monitoramento de processos parados indisponível.'},{status:503,headers:{'Cache-Control':'no-store'}});
+    }
+  }
   if (mode !== null) return NextResponse.json({ ok: false, error: 'Rota desconhecida' },
     { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
