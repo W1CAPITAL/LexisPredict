@@ -23,7 +23,7 @@ describe('indexação e leitura empresarial de audiências', () => {
     const queue = read('src/components/returns/company-due-queue.tsx');
     expect(route).toContain(".eq('empresa_id', ctx.empresa_id)");
     expect(route).toContain(".lte('proximo_retorno', ate)");
-    expect(route).not.toMatch(/\\.eq\\(['"]created_by['"]/);
+    expect(route).not.toMatch(/\.eq\(['"]created_by['"]/);
     expect(queue).toContain('loadAllCompanyDueReturns');
   });
 
