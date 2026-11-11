@@ -237,7 +237,7 @@ export default function Dashboard() {
   const handleConnectivityCheck = async () => {
     if (cases.length === 0 || isCheckingConnectivity) return;
     setIsCheckingConnectivity(true);
-    const sample = cases.slice(0, 10).map(c => c.protocolo);
+    const sample = cases.map(c => c.protocolo); // seleção por tribunal ocorre no módulo DataJud (máximo 3)
     await runInitialHealthCheck(sample);
     setIsCheckingConnectivity(false);
   };
@@ -786,7 +786,7 @@ export default function Dashboard() {
                   <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Signal size={24} className="text-primary" /> Rede Judicial
                   </h2>
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Vigilância Digital DataJud (CNJ)</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Vigilância DataJud · amostragem de até 3 tribunais distintos, sem DJEN</p>
                 </div>
                 <Button 
                   onClick={handleConnectivityCheck} 
@@ -794,7 +794,7 @@ export default function Dashboard() {
                   className={cn("h-11 bg-foreground text-background hover:bg-primary hover:text-primary-foreground font-semibold uppercase text-[11px] tracking-wide px-6 rounded-xl shadow-sm w-full lg:w-auto", ui.touch)}
                 >
                   {isCheckingConnectivity ? <Loader2 size={16} className="animate-spin mr-2"/> : <Wifi size={16} className="mr-2"/>}
-                  Auditar Latência de Tribunais
+                  Verificar disponibilidade DataJud
                 </Button>
               </div>
 
@@ -811,18 +811,18 @@ export default function Dashboard() {
                             health.status === 'online' ? "bg-emerald-500 text-white" : 
                             health.status === 'slow' ? "bg-orange-500 text-white" : "bg-red-500 text-white"
                           )}>
-                            {health.status === 'online' ? 'Online' : health.status === 'slow' ? 'Instável' : 'Offline'}
+                            {health.status === 'online' ? 'Confirmado' : health.status === 'slow' ? 'Instável' : 'Não confirmado'}
                           </Badge>
                        </div>
                        
                        <div className="space-y-4">
                           <div className="flex justify-between items-end">
                              <div className="space-y-0.5">
-                                <p className="text-[8px] font-black uppercase text-muted-foreground">Latência</p>
+                                <p className="text-[8px] font-black uppercase text-muted-foreground">Duração da checagem</p>
                                 <p className="text-xl font-black tabular-nums">{Math.round(health.avgLatency)}ms</p>
                              </div>
                              <div className="text-right space-y-0.5">
-                                <p className="text-[8px] font-black uppercase text-muted-foreground">Sucesso</p>
+                                <p className="text-[8px] font-black uppercase text-muted-foreground">Confirmação DataJud</p>
                                 <p className="text-xl font-black tabular-nums text-primary">{Math.round(health.successRate * 100)}%</p>
                              </div>
                           </div>
@@ -842,7 +842,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-30 space-y-4 border-2 border-dashed border-border/20 rounded-2xl">
                      <Network size={48} />
-                     <p className="text-xs font-black uppercase tracking-widest text-center">Inicie uma auditoria para popular o mapa de rede.</p>
+                     <p className="text-xs font-black uppercase tracking-widest text-center">Sem verificações recentes nesta sessão. O Hermes continua consultando a carteira automaticamente.</p>
                   </div>
                 )}
               </div>

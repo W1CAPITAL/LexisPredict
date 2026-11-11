@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {chatAIFlow} from '@/ai/flows/chat-ai-flow';
-import {fetchDataJud,searchDataJudByCpf,searchDataJudByNome} from '@/lib/datajud';
+import {fetchDataJud} from '@/lib/datajud';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -33,6 +33,7 @@ function serviceInfo(){
     ok:true,
     service:'lexispredict',
     capabilities:['datajud','chat'],
+    datajudMode:'cnj-only',
     tenantDataExposed:false
   };
 }
@@ -56,17 +57,14 @@ export async function POST(req:NextRequest){
       const mode=clean(body.mode,20).toLowerCase();
       const query=clean(body.query,240);
       if(!query)return NextResponse.json({ok:false,error:'Query vazia.'},{status:400});
-      if(mode==='cpf'){
-        const result=await searchDataJudByCpf(query,{onlyBA:!!body.onlyBA,size:Math.max(1,Math.min(25,Number(body.size)||12))});
-        return NextResponse.json({ok:true,mode,result},{headers:{'Cache-Control':'no-store'}});
-      }
-      if(mode==='nome'){
-        const result=await searchDataJudByNome(query,{size:Math.max(1,Math.min(25,Number(body.size)||12))});
-        return NextResponse.json({ok:true,mode,result},{headers:{'Cache-Control':'no-store'}});
-      }
+      if(mode==='cpf'||mode==='cnpj'||mode==='nome')return NextResponse.json({
+        ok:false,mode,error:'A API pública DataJud não permite busca de partes por nome/CPF/CNPJ. Identifique o CNJ no cadastro autorizado.'
+      },{status:422,headers:{'Cache-Control':'no-store'}});
       if(mode==='cnj'){
-        const result=await fetchDataJud(query,1,{fast:false});
-        return NextResponse.json({ok:!result.error,mode,result,error:result.message},{headers:{'Cache-Control':'no-store'}});
+        const digits=query.replace(/\D/g,'');
+        if(digits.length!==20)return NextResponse.json({ok:false,error:'CNJ inválido.'},{status:400});
+        const result=await fetchDataJud(digits,1,{fast:true,cloudBudget:true,timeoutMs:25_000});
+        return NextResponse.json({ok:result.error===false&&result.found===true,mode,result,error:result.error?result.message:undefined},{headers:{'Cache-Control':'no-store'}});
       }
       return NextResponse.json({ok:false,error:'Modo inválido.'},{status:400});
     }

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Busca híbrida Veredito: carteira local + DataJud (CPF/nome) + enriquecimento por CNJ.
- * DataJud muitas vezes NÃO indexa CPF — por isso carteira local e busca por nome são prioritárias.
+ * Busca Veredito: CPF/CNPJ/nome somente na carteira autorizada;
+ * DataJud público apenas pelo CNJ identificado no cadastro.
  * NÃO usa APIs de saúde/SUS nem scrapers de CPF (privacidade / irrelevância jurídica).
  *
  * @copyright 2026 Davi Alves Figueredo / W1 Capital Assessoria Financeira Ltda.
@@ -12,11 +12,7 @@ import {
   getStoredCasesForEmpresa,
   getUserContext,
 } from '@/lib/server-db';
-import {
-  searchDataJudByCpf,
-  searchDataJudByNome,
-  fetchDataJud,
-} from '@/lib/datajud';
+import {fetchDataJud} from '@/lib/datajud';
 import { fetchDjenComunicacoes } from '@/lib/djen';
 
 export type SearchHit = {
@@ -54,88 +50,46 @@ function dedupeHits(items: SearchHit[]): SearchHit[] {
   return out;
 }
 
-/** CPF/CNPJ: 1) carteira local 2) DataJud multi-tribunal 3) nomes da carteira → DataJud nome */
+/** CPF/CNPJ: busca no cadastro empresarial autorizado. DataJud público recebe apenas CNJ. */
 export async function searchProcessesByCpfAction(documento: string, onlyBA = false) {
   try {
     const digits = onlyDigits(documento);
-    if (digits.length < 11) {
+    if (digits.length !== 11 && digits.length !== 14) {
       return {
         success: false,
         items: [] as SearchHit[],
-        error: 'CPF/CNPJ inválido (mín. 11 dígitos).',
+        error: 'CPF/CNPJ deve ter 11 ou 14 dígitos.',
       };
     }
 
     const { empresa_id } = await getUserContext();
+    if(!empresa_id)return {success:false,items:[] as SearchHit[],error:'Não autenticado.'};
     const hits: SearchHit[] = [];
 
-    // 1) Carteira local — match em observação, cliente, telefone, protocolo
-    if (empresa_id) {
-      const cases = await getStoredCasesForEmpresa(empresa_id);
-      for (const c of cases || []) {
-        const blob = onlyDigits(
-          `${(c as any).observacao || ''} ${(c as any).cliente || ''} ${(c as any).telefone || ''} ${(c as any).protocolo || ''}`
-        );
-        if (!blob.includes(digits)) continue;
-        hits.push({
-          origem: 'carteira',
-          numeroProcesso: (c as any).protocolo,
-          classe: (c as any).situacao || (c as any).evento_tipo || null,
-          poloAtivo: [(c as any).cliente].filter(Boolean),
-          poloPassivo: [],
-          tribunal: (c as any).tribunal,
-          cliente: (c as any).cliente,
-          aviso: 'Encontrado na sua carteira (documento em cadastro/observação).',
-        });
-      }
-    }
-
-    // 2) DataJud por documento (pode retornar 0 — limitação conhecida da API pública)
-    try {
-      const remoto = await searchDataJudByCpf(digits, { onlyBA, size: 12 });
-      for (const r of remoto.items || []) {
-        hits.push({
-          origem: 'datajud',
-          numeroProcesso: r.numeroProcesso,
-          classe: r.classe,
-          poloAtivo: r.poloAtivo || [],
-          poloPassivo: r.poloPassivo || [],
-          tribunal: r.tribunal,
-          grau: r.grau,
-          isBuscaApreensao: r.isBuscaApreensao,
-        });
-      }
-    } catch {
-      // segue
-    }
-
-    // 3) Fallback por NOME dos clientes da carteira que bateram CPF
-    const nomes = Array.from(
-      new Set(
-        hits
-          .filter((h) => h.origem === 'carteira' && h.cliente)
-          .map((h) => String(h.cliente))
-      )
-    ).slice(0, 4);
-
-    for (const nome of nomes) {
-      try {
-        const r = await searchDataJudByNome(nome, { size: 8 });
-        for (const item of r.items || []) {
-          hits.push({
-            origem: 'nome',
-            numeroProcesso: item.numeroProcesso,
-            classe: item.classe,
-            poloAtivo: item.poloAtivo || [],
-            poloPassivo: item.poloPassivo || [],
-            tribunal: item.tribunal,
-            grau: item.grau,
-            aviso: `Via nome na carteira: ${nome}`,
-          });
-        }
-      } catch {
-        // next
-      }
+    // Somente colunas do cadastro e documentos efetivamente armazenados.
+    // Nunca comparar CPF com telefone ou concatenar campos distintos.
+    const cases = await getStoredCasesForEmpresa(empresa_id);
+    for (const c of cases || []) {
+      const row=c as any;
+      const dados=row.dados&&typeof row.dados==='object'?row.dados:{};
+      const structured=[row.cpf,row.cnpj,row.documento,row.documento_cliente,
+        dados.cpf,dados.cnpj,dados.documento,dados.cpfCnpj];
+      const exact=structured.some(value=>onlyDigits(String(value||''))===digits);
+      const observation=String(row.observacao||row.observacoes||'');
+      const observed=observation.includes(digits) || observation.includes(
+        digits.length===11
+          ? digits.slice(0,3)+'.'+digits.slice(3,6)+'.'+digits.slice(6,9)+'-'+digits.slice(9)
+          : digits.slice(0,2)+'.'+digits.slice(2,5)+'.'+digits.slice(5,8)+'/'+digits.slice(8,12)+'-'+digits.slice(12)
+      );
+      if(!exact&&!observed)continue;
+      hits.push({
+        origem:'carteira',
+        numeroProcesso:row.protocolo,
+        classe:row.situacao||row.evento_tipo||null,
+        poloAtivo:[row.cliente].filter(Boolean),poloPassivo:[],
+        tribunal:row.tribunal,cliente:row.cliente,
+        aviso:'Documento encontrado no cadastro autorizado da empresa; consulta judicial disponível pelo CNJ.',
+      });
     }
 
     let finalList = dedupeHits(hits);
@@ -152,7 +106,7 @@ export async function searchProcessesByCpfAction(documento: string, onlyBA = fal
         success: true,
         items: [],
         error:
-          'Nenhum processo encontrado. A API pública DataJud frequentemente não indexa CPF/CNPJ. Cadastre o CNJ na carteira ou busque por NOME da parte / número CNJ. O DJEN só consulta por processo (CNJ), não por CPF.',
+          'Nenhum cadastro empresarial associado a esse documento. A API pública DataJud não permite pesquisa por CPF/CNPJ; identifique o número CNJ em uma fonte autorizada.',
       };
     }
 
@@ -166,7 +120,7 @@ export async function searchProcessesByCpfAction(documento: string, onlyBA = fal
   }
 }
 
-/** Nome da parte — DataJud + match parcial na carteira */
+/** Nome da parte — busca apenas na carteira empresarial; DataJud público não expõe nomes. */
 export async function searchProcessesByNomeAction(nome: string): Promise<{
   success: boolean;
   items: SearchHit[];
@@ -178,43 +132,23 @@ export async function searchProcessesByNomeAction(nome: string): Promise<{
       return { success: false, items: [], error: 'Nome muito curto (mín. 5 caracteres).' };
     }
 
-    const hits: SearchHit[] = [];
-    const { empresa_id } = await getUserContext();
-
-    if (empresa_id) {
-      const cases = await getStoredCasesForEmpresa(empresa_id);
-      const qUp = q.toUpperCase();
-      for (const c of cases || []) {
-        const cli = String((c as any).cliente || '').toUpperCase();
-        if (!cli.includes(qUp) && !qUp.includes(cli.slice(0, 12))) continue;
-        hits.push({
-          origem: 'carteira',
-          numeroProcesso: (c as any).protocolo,
-          classe: (c as any).situacao || null,
-          poloAtivo: [(c as any).cliente].filter(Boolean),
-          tribunal: (c as any).tribunal,
-          cliente: (c as any).cliente,
-          aviso: 'Match na carteira local.',
-        });
-      }
-    }
-
-    try {
-      const r = await searchDataJudByNome(q, { size: 12 });
-      for (const item of r.items || []) {
-        hits.push({
-          origem: 'datajud',
-          numeroProcesso: item.numeroProcesso,
-          classe: item.classe,
-          poloAtivo: item.poloAtivo || [],
-          poloPassivo: item.poloPassivo || [],
-          tribunal: item.tribunal,
-          grau: item.grau,
-          isBuscaApreensao: item.isBuscaApreensao,
-        });
-      }
-    } catch {
-      //
+    const hits: SearchHit[]=[];
+    const {empresa_id}=await getUserContext();
+    if(!empresa_id)return {success:false,items:[],error:'Não autenticado.'};
+    const cases=await getStoredCasesForEmpresa(empresa_id);
+    const normal=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const target=normal(q);
+    for(const c of cases||[]){
+      const row=c as any;
+      const client=String(row.cliente||'');
+      const normalized=normal(client);
+      if(!normalized||(!normalized.includes(target)&&!(target.length>=12&&target.includes(normalized))))continue;
+      hits.push({
+        origem:'carteira',numeroProcesso:row.protocolo,
+        classe:row.situacao||null,poloAtivo:[client],
+        tribunal:row.tribunal,cliente:client,
+        aviso:'Nome localizado na carteira empresarial; o DataJud será consultado pelo número CNJ.',
+      });
     }
 
     const finalList = dedupeHits(hits);
@@ -223,7 +157,7 @@ export async function searchProcessesByNomeAction(nome: string): Promise<{
         success: true,
         items: [],
         error:
-          'Nenhum processo no DataJud nem na carteira para este nome. Tente o CNJ completo ou verifique a grafia. DJEN não busca por nome — só por número do processo.',
+          'Nenhum cliente com esse nome encontrado na carteira desta empresa. A API pública DataJud não oferece pesquisa por nome da parte; identifique o CNJ por fonte autorizada.',
       };
     }
     return { success: true, items: finalList };
