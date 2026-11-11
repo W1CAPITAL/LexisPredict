@@ -27,6 +27,7 @@ import {
 } from "@/app/actions/search-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DataJudDisclaimer } from "@/components/ui/datajud-disclaimer";
+import {getHermesPortfolioByCnjAction} from '@/app/actions/hermes-portfolio-actions';
 
 type SearchHit = {
   origem?: string;
@@ -59,6 +60,8 @@ export default function VereditoPage() {
     isMounted.current = true;
     const saved = localStorage.getItem("lexisPredict_preferred_ia") || "xai";
     setModel(saved === "airforce" ? "xai" : saved);
+    const fromUrl=new URLSearchParams(window.location.search).get('cnj');
+    if(fromUrl)setCnj(fromUrl);
     return () => {
       isMounted.current = false;
     };
@@ -76,6 +79,7 @@ export default function VereditoPage() {
     setApiError(null);
 
     try {
+      const portfolioRequest=getHermesPortfolioByCnjAction(proto).catch(()=>({ok:false,found:false}));
       const timeline = await enrichProcessTimelineAction(proto).catch(() => ({
         success: false,
         movimentos: [] as any[],
@@ -84,6 +88,7 @@ export default function VereditoPage() {
         message: "Falha ao carregar timeline.",
       }));
 
+      const dossier=await portfolioRequest;
       const djenTexts = (timeline?.comunicacoes || [])
         .map((c: any) => String(c.texto || c.resumo || c.conteudo || "").replace(/<[^>]+>/g, " "))
         .filter((s: string) => s.trim().length > 20)
@@ -102,10 +107,10 @@ export default function VereditoPage() {
 
       if (!isMounted.current) return;
 
-      const hasTimeline = !!(timeline && timeline.success && (timeline.movimentos?.length || 0) > 0);
+      const hasTimeline = !!(timeline && timeline.success && ((timeline.movimentos?.length || 0) > 0 || (timeline.comunicacoes?.length || 0) > 0));
       const hasAi = !!(data && (data.success || data.dataJudRaw));
 
-      if (!hasTimeline && !hasAi) {
+      if (!hasTimeline && !hasAi && !dossier?.found) {
         const msg =
           (timeline && timeline.message) ||
           (data && data.message) ||
@@ -120,6 +125,7 @@ export default function VereditoPage() {
         ...(data || {}),
         movimentos: timeline?.movimentos || data?.dataJudRaw?.movimentos || [],
         comunicacoes: timeline?.comunicacoes || [],
+        hermesEvidence:dossier?.found===true?dossier:null,
         fonteMovimentos: timeline?.fonte || "datajud",
         avisoFontes: timeline?.message,
         resumoTecnico: data?.resumoTecnico || timeline?.message || "Timeline carregada.",
@@ -370,6 +376,22 @@ export default function VereditoPage() {
                     `Movimentos: ${result.fonteMovimentos || "servidor"}. Confira no PJe se for crítico.`}
                 </AlertDescription>
               </Alert>
+              {result.hermesEvidence&&<section className="space-y-3 rounded-xl border border-[#9b657f]/35 bg-[#783c5b]/5 p-4">
+                 <h3 className="text-sm font-black">Conclusões encontradas em fontes oficiais · Hermes</h3>
+                 <p className="text-xs text-muted-foreground">Consulta gravada: {String(result.hermesEvidence.checkedAt||'—').slice(0,19)} · DataJud {result.hermesEvidence.datajudOk?'consultado':'pendente'} · DJEN {result.hermesEvidence.djenOk?'consultado':'pendente'}. Os dados públicos não garantem o inteiro teor.</p>
+                 {result.hermesEvidence.findings?.verdict&&<div className="text-sm">
+                   <p className="font-bold">Resultado identificado: {String(result.hermesEvidence.findings.verdict.value).replaceAll('_',' ')}</p>
+                   <p className="mt-1 text-xs text-muted-foreground">Fonte: {result.hermesEvidence.findings.verdict.source} · {result.hermesEvidence.findings.verdict.basis==='indicio_textual'?'indício em publicação':'movimento oficial'} </p>
+                   <p className="mt-1 text-xs leading-relaxed">{result.hermesEvidence.findings.verdict.excerpt}</p>
+                 </div>}
+                 {result.hermesEvidence.findings?.enforcement&&<p className="text-xs">Cumprimento de sentença: {result.hermesEvidence.findings.enforcement.value} · {result.hermesEvidence.findings.enforcement.source}</p>}
+                 {result.hermesEvidence.findings?.attorneyFees&&<p className="text-xs">Honorários sucumbenciais mencionados: {result.hermesEvidence.findings.attorneyFees.percentage??'percentual não encontrado'}{result.hermesEvidence.findings.attorneyFees.percentage!=null?'%':''} · confirmar dispositivo e credor</p>}
+                 {result.hermesEvidence.findings?.legalAid&&<p className="text-xs">Justiça gratuita: {result.hermesEvidence.findings.legalAid.value} · confirmar decisão</p>}
+                 {result.hermesEvidence.findings?.courtCosts&&<p className="text-xs">Custas mencionadas: {result.hermesEvidence.findings.courtCosts.amount||'sem valor expresso'} · exigibilidade depende de decisão e gratuidade</p>}
+                 {Array.isArray(result.hermesEvidence.findings?.hearings)&&result.hermesEvidence.findings.hearings.slice(0,5).map((h:any,i:number)=><p className="text-xs" key={i}>Audiência {h.kind}: {h.date}{h.time?' às '+h.time:''} · {h.source}{h.meetingUrl?<a className="ml-2 underline" href={h.meetingUrl} target="_blank" rel="noopener noreferrer">Abrir link citado no ato</a>:null}</p>)}
+                 {result.hermesEvidence.portal&&<a className="block text-xs font-bold underline" href={result.hermesEvidence.portal} target="_blank" rel="noopener noreferrer">Abrir consulta oficial do tribunal</a>}
+                 <p className="text-xs text-muted-foreground">Esses são sinais processuais rastreáveis, não conclusão judicial definitiva nem valor para cobrança.</p>
+                </section>}
               <div>
                 <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
                   Parecer operacional
@@ -402,6 +424,15 @@ export default function VereditoPage() {
                   </ul>
                 </div>
               )}
+              {Array.isArray(result.comunicacoes) && result.comunicacoes.length>0 && <div>
+                <p className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">Publicações DJEN ({result.comunicacoes.length}) · não são movimentações DataJud</p>
+                <ul className="max-h-64 space-y-2 overflow-y-auto text-xs">
+                  {result.comunicacoes.slice(0,20).map((pub:any,i:number)=><li className="border-b border-border/50 pb-2" key={i}>
+                    <p className="font-semibold">DJEN · {String(pub.data_disponibilizacao||'Data não informada').slice(0,10)}</p>
+                    <p className="mt-1 line-clamp-3 text-muted-foreground">{String(pub.texto||'').replace(/<[^>]+>/g,' ').slice(0,800)}</p>
+                  </li>)}
+                </ul>
+              </div>}
               {result.analiseRisco && (
                 <div>
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">
