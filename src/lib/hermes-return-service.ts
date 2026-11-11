@@ -1,6 +1,7 @@
 import 'server-only';
 import { getSupabaseAdmin } from '@/lib/server-db';
 import { fetchDataJud } from '@/lib/datajud';
+import {resolveHermesDataJudTimeoutMs} from '@/lib/hermes-datajud-time-policy';
 import {extractDataJudSourceRevision,retainDataJudSourceRevision} from '@/lib/datajud-source-freshness';
 import {getHermesNationalSourcePlan,classifyHermesOfficialFallback} from '@/lib/hermes-official-fallbacks';
 import {evaluateHermesStalledEvidence} from '@/lib/hermes-stalled-evaluation';
@@ -73,7 +74,7 @@ export async function requestDataJudWithCapacity(cnj:string,manual:boolean,probe
  try{
   result=await fetchDataJud(cnj, 1, {
    fast: true, cloudBudget: true, forceRefresh: manual,
-   timeoutMs:probeTimeoutMs?Math.min(38_000,Math.max(5_000,probeTimeoutMs)):(manual?44_000:38_000),
+   timeoutMs:resolveHermesDataJudTimeoutMs(manual,probeTimeoutMs),
   });
  }catch(error){
   result={error:true,errorCode:'network_error',
