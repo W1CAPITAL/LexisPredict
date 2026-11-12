@@ -58,7 +58,6 @@
  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
  padding:20px;pointer-events:none;
  background:hsl(var(--background,0 0% 100%) / .52);
- -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
  animation:lx-swarm-route-overlay-in 160ms ease-out both;
 }
 .lx-swarm-route-loading__panel{
