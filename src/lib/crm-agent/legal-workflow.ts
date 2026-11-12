@@ -132,8 +132,9 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
     }
   }
 
+  const eventSource = text(c.evento_fonte).toLowerCase();
   const hasDjen = truthy(c.djen_nova_comunicacao) ||
-    (truthy(c.tem_novo_andamento) && text(c.evento_fonte).toLowerCase() === "djen");
+    (truthy(c.tem_novo_andamento) && ["djen", "ambos"].includes(eventSource));
   if (hasDjen) {
     signals.push("publicacao_djen");
     steps.push(makeStep(
@@ -150,7 +151,9 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
   }
 
   const hearingDate = normalizeDate(c.audiencia_data || c.data_audiencia || c.audiencia_em);
-  const hasHearing = eventType.startsWith("audiencia_") || truthy(c.tem_audiencia) || Boolean(hearingDate);
+  const hearingIsPast = Boolean(hearingDate && hearingDate < today);
+  const eventSuggestsUpcomingHearing = eventType.startsWith("audiencia_") && !/(realizad|encerrad|cancelad|passad)/i.test(eventType);
+  const hasHearing = !hearingIsPast && (eventSuggestsUpcomingHearing || truthy(c.tem_audiencia) || Boolean(hearingDate));
   if (hasHearing) {
     signals.push("audiencia");
     steps.push(makeStep(
@@ -164,7 +167,8 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
   }
 
   const judgmentTypes = ["sentenca_procedente", "sentenca_parcial", "sentenca_improcedente"];
-  if (judgmentTypes.includes(eventType)) {
+  const hasJudgment = judgmentTypes.includes(eventType) || truthy(c.sentenca_procedente) || truthy(c.sentenca_improcedente) || text(c.merito_resultado).toLowerCase() === "parcial";
+  if (hasJudgment) {
     signals.push("sentenca");
     steps.push(makeStep(
       "revisar_sentenca",
