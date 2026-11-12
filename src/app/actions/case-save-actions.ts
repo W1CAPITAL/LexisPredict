@@ -2,6 +2,7 @@
 
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib/case-logic';
+import { formatNewProcessCnj } from '@/lib/new-process-input';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
@@ -110,6 +111,9 @@ async function persistToDatabase(
     status_interno: 'situacao',
     created_by: 'created_by',
     atendido_por: 'atendido_por',
+    advogado: 'advogado',
+    escritorio: 'escritorio',
+    telefone: 'telefone',
     ultimo_retorno: 'ultimo_retorno',
     proximo_retorno: 'proximo_retorno',
     observacoes: 'observacoes',
@@ -170,6 +174,11 @@ async function persistToDatabase(
     if (processed[sourceKey] !== undefined && PROCESSOS_WRITE_COLS.has(dbKey)) {
       payload[dbKey] = processed[sourceKey];
     }
+  }
+  // O formulário usa "observacao" no objeto da carteira; a coluna SQL é plural.
+  const observationValue = processed.observacoes || processed.observacao;
+  if (observationValue !== undefined && PROCESSOS_WRITE_COLS.has('observacoes')) {
+    payload.observacoes = observationValue;
   }
 
   // ainda não tiver essa coluna.
@@ -292,7 +301,16 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
-    const processed: any = processarCaso(caseData as any);
+    const createOnly = (caseData as any).__create_only === true;
+    const inputCase = { ...caseData } as any;
+    delete inputCase.__create_only;
+    const processed: any = processarCaso(inputCase);
+    if (createOnly) {
+      const normalizedCnj = formatNewProcessCnj(String(processed.protocolo || ""));
+      if (!normalizedCnj) return { success: false, message: 'CNJ inválido: confira os 20 dígitos e os dígitos verificadores.' };
+      if (!String(processed.cliente || "").trim()) return { success: false, message: 'Nome do cliente obrigatório.' };
+      processed.protocolo = normalizedCnj;
+    }
     // Edição deve persistir também os campos operacionais que alimentam cards/flags.
     if ((caseData as any).situacao !== undefined) {
       processed.situacao = String((caseData as any).situacao || '').toUpperCase();
@@ -327,6 +345,11 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     }
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
+    // A criação é estritamente insert-only: um CNJ existente nunca vira edição
+    // acidental ao ser enviado pelo botão "Novo processo".
+    if (createOnly && existing) {
+      return { success: false, message: 'Processo já cadastrado na carteira.' };
+    }
     if (existing && !(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Processo fora da sua empresa ou sem permissão de edição.' };
     }
@@ -398,7 +421,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       await logAuditoriaSistema({
         empresaId: empresa_id,
         authUserId: auth_id,
-        acao: 'edicao',
+        acao: existing ? 'edicao' : 'criacao',
         protocolo: processed.protocolo,
         detalhes: {
           via: 'saveOneCaseAction',
@@ -414,10 +437,15 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     // PostgreSQL/Supabase is the sole source of truth for editing.
     // No outbound Google Sheets network call in the critical save path.
 
-    return { success: true, message: 'Salvo.', case: processed };
+    return { success: true, message: createOnly ? 'Processo criado.' : 'Salvo.', case: processed };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao salvar.' };
   }
+}
+
+/** Insere um processo sem permitir que um CNJ existente seja atualizado. */
+export async function createOneCaseAction(caseData: LegalCase): Promise<{ success: boolean; message: string; case?: LegalCase }> {
+  return saveOneCaseAction({ ...caseData, __create_only: true } as LegalCase);
 }
 
 export async function saveManyCasesAction(cases: LegalCase[]): Promise<{ success: boolean; saved: number; failed: number; message?: string; error?: string }> {

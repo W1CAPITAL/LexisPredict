@@ -7,6 +7,7 @@ import {Sidebar} from '@/components/layout/sidebar';
 import {HermesReturnReviewButton} from '@/components/hermes/hermes-return-review-button';
 import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
+import {NovoProcessoButton} from '@/components/cases/novo-processo-button';
 import type {LegalCase} from '@/lib/case-logic';
 import {listCompanyDueReturns} from '@/lib/company-return-queue';
 import {loadAllDuePages} from '@/lib/today-due-consistency';
@@ -74,10 +75,21 @@ export function CompanyDueQueue(){
         Todos os processos da empresa com retorno vencido válido ou previsto para hoje.
         Datas inconsistentes, processos encerrados e retornos futuros não entram nesta fila.
        </p></div>
-      <Button className="gap-2 bg-white text-[#4f2541] hover:bg-[#f3e6ed]" disabled={busy}
-       onClick={()=>{setToday(todayBrazil());refresh();}}>
-       <RefreshCw size={16} className={busy?'animate-spin':''}/> Atualizar fila
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+       <NovoProcessoButton
+        onCreated={()=>{
+         setToday(todayBrazil());
+         refresh();
+         try { localStorage.setItem("lexis_carteira_invalidation_v1", String(Date.now())); } catch {}
+         window.dispatchEvent(new Event("lexis-carteira-updated"));
+        }}
+        className="h-10 border border-white/35 bg-white/12 text-white shadow-none hover:bg-white/20"
+       />
+       <Button className="gap-2 bg-white text-[#4f2541] hover:bg-[#f3e6ed]" disabled={busy}
+        onClick={()=>{setToday(todayBrazil());refresh();}}>
+        <RefreshCw size={16} className={busy?'animate-spin':''}/> Atualizar fila
+       </Button>
+      </div>
      </div>
      <p className="mt-4 text-xs font-semibold text-[#f0dce6]">Referência: {showDate(today)} · horário de Brasília</p>
     </header>
