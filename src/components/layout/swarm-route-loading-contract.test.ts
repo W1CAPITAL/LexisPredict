@@ -31,7 +31,7 @@ describe("Swarm Rebuild – reveal original DOM in place", () => {
     expect(effect).not.toContain("document.createElement(\"canvas\")");
     expect(effect).not.toContain("requestAnimationFrame");
     expect(effect).not.toContain("drawImage");
-    expect(effect).toContain("MAX_DOM_REBUILD_ELEMENTS");
+    expect(effect).toContain("DOM_REBUILD_MAX_ELEMENTS");
   });
 
   it("supports pointer and keyboard activation of every Radix/custom tab", () => {
