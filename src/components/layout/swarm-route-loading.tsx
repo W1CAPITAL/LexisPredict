@@ -537,7 +537,7 @@ export function SwarmRouteLoading() {
           tabObserver.observe(panel, { childList: true, subtree: true, characterData: true });
         }
         tabTimer = window.setTimeout(runTabRebuild, 360);
-        tabMaxTimer = window.setTimeout(runTabRebuild, 1800);
+        tabMaxTimer = window.setTimeout(runTabRebuild, 2500);
       }, 180);
     };
 
@@ -575,8 +575,8 @@ export function SwarmRouteLoading() {
         routeObserver = new MutationObserver(scheduleRouteRebuild);
         routeObserver.observe(root, { childList: true, subtree: true, characterData: true });
       }
-      routeTimer = window.setTimeout(runRouteRebuild, 420);
-      routeMaxTimer = window.setTimeout(runRouteRebuild, 4000);
+      routeTimer = window.setTimeout(runRouteRebuild, 600);
+      routeMaxTimer = window.setTimeout(runRouteRebuild, 5000);
     };
 
     const onPreferencesChanged = (event: Event) => {
