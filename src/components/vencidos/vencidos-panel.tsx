@@ -55,15 +55,16 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    <p className="mt-2 text-xs font-semibold text-foreground">Nenhum indicador desta página, isoladamente, comprova prazo judicial perdido ou autoriza cobrança/envio automático.</p>
    <p className="mt-3 text-xs text-muted-foreground">Referência: {br(hoje)} · Datas calculadas no horário de Brasília · A contagem muda quando os dados são atualizados</p>
   </div>
-  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <div data-lexis-rebuild-tablist className="grid grid-cols-2 gap-3 lg:grid-cols-4">
    {([{id:"retorno",label:"Retornos vencidos",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
       {id:"todos",label:"Marcados vencidos no CRM",hint:`${counts.ativosMarcados} ativos · ${bloqueados} encerrados manualmente (sem cobrança)`,value:counts.todos,icon:AlertTriangle},
       {id:"revisar",label:"Cadastros para revisar",hint:"Status não combina com as datas ou com encerramento",value:counts.revisar,icon:ShieldAlert},
-      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} data-lexis-rebuild-tab onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
+      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} data-lexis-rebuild-tab aria-controls="vencidos-tab-panel" onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
     className={"rounded-2xl border p-4 text-left shadow-sm transition "+(tab===x.id?"border-rose-400 bg-rose-500/10":"border-border bg-card hover:border-rose-300")}>
      <x.icon className="h-5 w-5 text-rose-600"/><p className="mt-3 text-2xl font-black tabular-nums">{format(x.value)}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{x.label}</p><p className="mt-2 text-[11px] leading-snug text-muted-foreground">{x.hint}</p>
     </button>)}
   </div>
+  <div id="vencidos-tab-panel" data-lexis-rebuild-panel className="space-y-4">
   <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-foreground" role="status">
    {tab==="retorno"?"Retornos vencidos = a próxima data combinada com o cliente já passou e não há atendimento posterior que a resolva. Confira se houve contato não registrado. Isto NÃO é um prazo do tribunal.":
     tab==="todos"?`Status do CRM = registros marcados como Vencido/Caso Crítico, como no dashboard. Destes, ${counts.ativosMarcados} estão abertos e ${bloqueados} têm marcação manual de encerramento. Não contatar os encerrados só por esse status.`:
@@ -105,6 +106,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    </article>)}
   </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum registro nesta categoria</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
   {visible.length>visibleCount?<button type="button" onClick={()=>setVisibleCount(x=>x+40)} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:bg-muted">Mostrar mais 40 processos ({format(visible.length-visibleCount)} restantes)</button>:null}
+  </div>
  </div>;
 }
 
