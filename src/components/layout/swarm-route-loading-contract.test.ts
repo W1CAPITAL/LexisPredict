@@ -23,6 +23,8 @@ describe("Swarm loading across LexisPredict tabs", () => {
     expect(loader).toContain("<SwarmLoadingIndicator");
     expect(loader).toContain('document.addEventListener("pointerdown"');
     expect(loader).toContain('document.addEventListener("keydown"');
+    expect(loader).toContain('document.addEventListener("click"');
+    expect(loader).toContain("event.detail === 0");
     expect(loader).toContain('[role="tab"], [data-lexis-settings-tab]');
     expect(loader).toContain('tab.getAttribute("aria-current") === "page"');
     expect(loader).toContain("ArrowRight");
