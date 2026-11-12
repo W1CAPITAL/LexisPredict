@@ -6,7 +6,7 @@ import { MousePointer2 } from "lucide-react";
 import { MAX_REBUILD_TARGETS, planSwarmTargets } from "@/lib/swarm-rebuild-plan";
 
 type RebuildMarker = {
-  id: number;
+  id: string;
   x: number;
   y: number;
   width: number;
@@ -50,6 +50,7 @@ export function SwarmRouteLoading() {
     let tabTimer: number | undefined;
     let lateTimer: number | undefined;
     let alreadyBuilt = new WeakSet<HTMLElement>();
+    let markerGeneration = 0;
 
     const reduceMotion = () =>
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -145,7 +146,7 @@ export function SwarmRouteLoading() {
         .map(({ rect }, index) => {
           const [color, name] = AGENTS[index % AGENTS.length];
           return {
-            id: index,
+            id: `${++markerGeneration}-${index}`,
             x: Math.max(0, Math.min(viewport.width - 30, rect.left)),
             y: Math.max(0, Math.min(viewport.height - 35, rect.top)),
             width: Math.max(20, Math.min(rect.width, viewport.width - Math.max(0, rect.left))),
@@ -180,7 +181,7 @@ export function SwarmRouteLoading() {
 
     const handlePointer = (event: PointerEvent) => {
       const tab = findTab(event.target);
-      if (tab && tab.getAttribute("aria-disabled") !== "true" && !isSelected(tab)) {
+      if (tab && tab.getAttribute("role") === "tab" && tab.getAttribute("aria-disabled") !== "true" && !isSelected(tab)) {
         scheduleTabRebuild();
       }
     };
@@ -195,9 +196,11 @@ export function SwarmRouteLoading() {
     };
 
     const handleClick = (event: MouseEvent) => {
-      if (event.detail !== 0) return;
       const tab = findTab(event.target);
-      if (tab && tab.getAttribute("aria-disabled") !== "true" && !isSelected(tab)) {
+      if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
+      // Custom settings buttons update React state on click, not pointerdown.
+      // Synthetic clicks from assistive technology also need a route rebuild.
+      if (tab.hasAttribute("data-lexis-settings-tab") || event.detail === 0) {
         scheduleTabRebuild();
       }
     };
@@ -206,9 +209,27 @@ export function SwarmRouteLoading() {
     document.addEventListener("keydown", handleKey, true);
     document.addEventListener("click", handleClick, true);
 
-    // First paint rebuild plus one cheap pass for late-mounted page sections.
+    // First paint rebuild, then a bounded late pass for asynchronous sections.
     rebuild(false);
     lateTimer = window.setTimeout(() => rebuild(false, true), 340);
+
+    // Server Components may stream the real page well after a loading fallback.
+    // At most three debounced passes, for 12 seconds; never poll or scan endlessly.
+    let mutationPasses = 0;
+    let mutationTimer: number | undefined;
+    const observer = new MutationObserver((records) => {
+      if (mutationPasses >= 3 || !records.some((record) => record.addedNodes.length > 0)) return;
+      if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
+      mutationTimer = window.setTimeout(() => {
+        if (mutationPasses < 3) {
+          mutationPasses += 1;
+          rebuild(false, true);
+        }
+        if (mutationPasses >= 3) observer.disconnect();
+      }, 180);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    const stopObserverTimer = window.setTimeout(() => observer.disconnect(), 12_000);
 
     return () => {
       document.removeEventListener("pointerdown", handlePointer, true);
@@ -216,6 +237,9 @@ export function SwarmRouteLoading() {
       document.removeEventListener("click", handleClick, true);
       if (tabTimer !== undefined) window.clearTimeout(tabTimer);
       if (lateTimer !== undefined) window.clearTimeout(lateTimer);
+      if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
+      window.clearTimeout(stopObserverTimer);
+      observer.disconnect();
       stopActive();
     };
   }, []);
