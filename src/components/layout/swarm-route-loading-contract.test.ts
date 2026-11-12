@@ -28,7 +28,11 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(domLookup).toBeGreaterThan(gate);
     expect(effect).toContain("SWARM_REBUILD_PREFERENCES_EVENT");
     const tabListener = effect.indexOf("document.addEventListener(\"click\"", start);
+    const observer = effect.indexOf("new MutationObserver", start);
     expect(tabListener).toBeGreaterThan(gate);
+    expect(observer).toBeGreaterThan(gate);
+    expect(effect).toContain("routeObserver?.disconnect()");
+    expect(effect).toContain("routeMaxTimer");
   });
 
   it("exposes the rebuild setting and speed control in Settings", () => {
@@ -43,6 +47,7 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
       "src/components/dashboard/office-stats.tsx",
       "src/components/processos/processos-command-center.tsx",
       "src/components/vencidos/vencidos-panel.tsx",
+      "src/app/tarefas/page.tsx",
       "src/app/agenda/page.tsx",
       "src/app/hermes-3d/page.tsx",
       "src/app/plugins/page.tsx",
@@ -87,9 +92,13 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(effect).toContain("[data-lexis-settings-tab]");
     expect(effect).toContain("[data-lexis-dashboard-tablist]");
     expect(effect).toContain("[data-lexis-rebuild-tab]");
+    expect(effect).toContain("[data-lexis-rebuild-tablist] button");
+    expect(effect).toContain("aria-controls");
+    expect(effect).toContain("[data-lexis-rebuild-panel]");
     expect(effect).toContain("addEventListener(\"click\"");
     expect(effect).toContain("addEventListener(\"keydown\"");
     expect(tabs).toContain("data-lexis-rebuild-tab");
+    expect(tabs).toContain("data-lexis-rebuild-panel");
     expect(effect).toContain("ArrowLeft");
     expect(effect).toContain("activeTabPanel");
   });
