@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {canUseOpsCapability,normalizeOpsPhone,normalizeOpsCnj,validateOpsAgentDraft,validateIntakeAnswers,eligibleForRecording} from './policy';
+import {canUseOpsCapability,normalizeOpsPhone,normalizeOpsCnj,opsCnjVariants,validateOpsAgentDraft,validateIntakeAnswers,eligibleForRecording} from './policy';
 
 describe('Lexis integrated operations policy',()=>{
  it('allows operational workflow but refuses administrative permissions for operators',()=>{
@@ -20,6 +20,7 @@ describe('Lexis integrated operations policy',()=>{
  });
  it('accepts a complete case identifier only',()=>{
   expect(normalizeOpsCnj('0000000-00.2026.8.26.0001')).toBe('00000000020268260001');
+  expect(opsCnjVariants('00000000020268260001')).toEqual(['00000000020268260001','0000000-00.2026.8.26.0001']);
   expect(()=>normalizeOpsCnj('1234')).toThrow();
  });
  it('rejects agent drafts with unauthorized tools, high costs or missing human review',()=>{
