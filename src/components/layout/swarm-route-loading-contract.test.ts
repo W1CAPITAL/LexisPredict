@@ -48,7 +48,7 @@ describe("Swarm Rebuild – reveal original DOM in place", () => {
     expect(effect).toContain("cancel()");
     expect(effect).toContain("clearTimeout");
     expect(effect).toContain("restoreOriginalVisibility");
-    expect(effect).toContain("stage.remove()");
+    expect(effect).toContain("stage?.remove()");
     expect(effect).toContain("prefers-reduced-motion");
     expect(effect).toContain("Pular");
   });
