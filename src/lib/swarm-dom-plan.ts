@@ -5,7 +5,6 @@
 import {
   getSwarmRebuildProfile,
   type SwarmRebuildProfile,
-  type SwarmRebuildSpeed,
 } from "./swarm-rebuild-preferences";
 
 export type DomRebuildKind = "container" | "text" | "media";
