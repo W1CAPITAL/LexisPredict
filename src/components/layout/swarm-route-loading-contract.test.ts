@@ -31,6 +31,7 @@ describe("Swarm loading across LexisPredict tabs", () => {
   it("keeps the animation lightweight, non-blocking and motion-accessible", () => {
     expect(styles).toContain(".lx-swarm-route-loading");
     expect(styles).toContain("pointer-events:none");
+    expect(styles).not.toContain("backdrop-filter");
     expect(styles).toContain("prefers-reduced-motion:reduce");
     expect(styles).toContain('data-lexis-motion="lite"');
     expect(styles).toContain("@keyframes lx-swarm-route-progress");
