@@ -141,7 +141,7 @@ export async function checkOpsIntegrationAction(provider:IntegrationName){
     .eq('empresa_id',a.company).not(column,'is',null)
     .order(column,{ascending:false}).limit(1);
    if(error)throw error;
-   const last=data?.[0]?.[column];
+   const last=(data?.[0] as Record<string,any>|undefined)?.[column];
    state=last?'configurado':'desconhecido';
    details=last?'Última consulta registrada na carteira: '+last+'. Não significa serviço online agora.':'Nenhuma consulta confirmada na carteira.';
   }else if(provider==='whatsapp_local'){
