@@ -6,8 +6,8 @@ import {Sidebar} from "@/components/layout/sidebar";
 import {useAuth} from "@/components/auth/auth-provider";
 import {listAssignableUsersAction,type AssignableUser} from "@/app/actions/team-list-actions";
 import {
- listOpsWorkflowsAction,createOpsWorkflowAction,updateOpsWorkflowAction,
- listOpsInboxAction,saveOpsInboxAction,listOpsAgentsAction,createOpsAgentDraftAction,
+ listOpsWorkflowsAction,createOpsWorkflowAction,updateOpsWorkflowAction,importSuggestedOpsWorkflowAction,
+ listOpsInboxAction,saveOpsInboxAction,syncOpsInboxFromWhatsAppAction,listOpsAgentsAction,createOpsAgentDraftAction,
  testOpsAgentAction,publishOpsAgentAction,runOpsAgentAction,
  listOpsGrantsAction,setOpsGrantAction
 } from "@/app/actions/ops-suite-actions";
@@ -124,7 +124,8 @@ export default function OperacoesIntegradasPage(){
     <label className={field}>Responsável<select className={input} value={assigned} onChange={e=>setAssigned(e.target.value)}><option value="">Não atribuído</option>{users.map(u=><option key={u.auth_user_id} value={u.auth_user_id}>{u.nome}</option>)}</select></label>
    </div>
    <label className={field}>Instruções operacionais<textarea className={area} value={stepDescription} onChange={e=>setStepDescription(e.target.value)}/></label>
-   <div><button className={btn} disabled={busy} onClick={()=>void mutate(()=>createOpsWorkflowAction({cnj,stepKey,title:stepTitle,description:stepDescription,priority,assignedAuthId:assigned||undefined}),"Etapa salva na carteira da empresa.")}>Criar etapa</button></div>
+   <div className="flex flex-wrap gap-2"><button className={btn} disabled={busy} onClick={()=>void mutate(()=>createOpsWorkflowAction({cnj,stepKey,title:stepTitle,description:stepDescription,priority,assignedAuthId:assigned||undefined}),"Etapa salva na carteira da empresa.")}>Criar etapa</button>
+    <button className={ghost} disabled={busy||!cnj} onClick={()=>void mutate(async()=>{const r=await importSuggestedOpsWorkflowAction(cnj);setPreview(r.warnings.join("\n"));return r;},"Etapas sugeridas importadas sem sobrescrever etapas existentes.")}>Importar etapas sugeridas por evidências</button></div>
   </section>
   <div className="grid gap-3">
    {rows.map(r=><article className={card} key={r.id}>
@@ -158,6 +159,7 @@ export default function OperacoesIntegradasPage(){
    <label className={field}>Nota interna (não enviada)<textarea className={area} value={note} onChange={e=>setNote(e.target.value)} maxLength={1800}/></label>
    <div className="flex flex-wrap gap-2">
     <button className={btn} disabled={busy} onClick={()=>void mutate(()=>saveOpsInboxAction({phone,cnj:cnj||undefined,displayName:contact,state:inboxState,assignedAuthId:assigned||null,note}),"Fila do contato atualizada.")}>Registrar ou transferir</button>
+    <button className={ghost} disabled={busy} onClick={()=>void mutate(()=>syncOpsInboxFromWhatsAppAction(),"Contatos do histórico corporativo sincronizados, sem importar mensagens.")}>Importar contatos confirmados</button>
     <Link href="/whatsapp" className={ghost}>Abrir WhatsApp</Link>
    </div>
   </section>
