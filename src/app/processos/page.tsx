@@ -888,10 +888,15 @@ export default function ProcessosEmpresaPage() {
                   ? "Scanner local em execução"
                   : "Atualizar DataJud"
             }
-            onCreateProcess={() => void load(true).then(() => {
-              try { localStorage.setItem("lexis_carteira_invalidation_v1", String(Date.now())); } catch {}
-              window.dispatchEvent(new Event("lexis-carteira-updated"));
-            })}
+            onCreateProcess={() => {
+              // The server-side search hook has its own result cache; refresh it
+              // separately from the paginated portfolio after a new insert.
+              setSearchRefreshKey((current) => current + 1);
+              void load(true).then(() => {
+                try { localStorage.setItem("lexis_carteira_invalidation_v1", String(Date.now())); } catch {}
+                window.dispatchEvent(new Event("lexis-carteira-updated"));
+              });
+            }}
             canManageItem={canManageItem}
             initialProcesso={directProcess}
             autoEditProcesso={directEdit}
