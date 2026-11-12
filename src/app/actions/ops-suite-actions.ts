@@ -3,7 +3,7 @@
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {buildLegalWorkflow,formatLegalWorkflowReport} from '@/lib/crm-agent/legal-workflow';
 import {
- OPS_CAPABILITIES,canUseOpsCapability,normalizeOpsCnj,normalizeOpsPhone,
+ OPS_CAPABILITIES,canUseOpsCapability,normalizeOpsCnj,opsCnjVariants,normalizeOpsPhone,
  validateOpsAgentDraft,type OpsCapability,type OpsAgentDraft
 } from '@/lib/ops-suite/policy';
 
@@ -39,7 +39,7 @@ async function assureCompanyMember(db:any,empresaId:string,authId:string){
 async function assureCompanyCase(db:any,empresaId:string,cnj:string){
  const {data,error}=await db.from('processos')
   .select('id,protocolo_ref').eq('empresa_id',empresaId)
-  .eq('protocolo_ref',cnj).limit(1).maybeSingle();
+  .in('protocolo_ref',opsCnjVariants(cnj)).limit(1).maybeSingle();
  if(error)throw new Error('Falha ao consultar o processo.');
  if(!data)throw new Error('Processo não localizado na carteira desta empresa.');
  return data;
@@ -133,7 +133,10 @@ export async function saveOpsInboxAction(input:{
   created_by:a.actor
  };
  const q=existing?
-  a.db.from('lexis_ops_inbox').update({...patch,created_by:undefined}).eq('empresa_id',a.empresaId).eq('id',existing.id).select('id').single():
+  a.db.from('lexis_ops_inbox').update({
+   cnj,display_name:patch.display_name,state,assigned_auth_id:assigned,
+   updated_at:patch.updated_at,last_activity_at:patch.last_activity_at
+  }).eq('empresa_id',a.empresaId).eq('id',existing.id).select('id').single():
   a.db.from('lexis_ops_inbox').insert(patch).select('id').single();
  const {data,error}=await q;
  if(error)throw new Error(error.message);
@@ -172,8 +175,8 @@ export async function createOpsAgentDraftAction(input:OpsAgentDraft&{slug:string
 async function caseEvidence(a:Awaited<ReturnType<typeof access>>,raw:string){
  const cnj=normalizeOpsCnj(raw);
  const {data,error}=await a.db.from('processos')
- .select('protocolo_ref,cliente,tribunal,status,dados,djen_nova_comunicacao,djen_ultimo_resumo,djen_ultima_data,djen_ultimo_link,tem_atualizacao_pos_retorno,tem_novo_andamento,em_cumprimento_sentenca,cumprimento_pendente_necessario,indicio_busca_apreensao,busca_apreensao_confianca,busca_apreensao_motivo,datajud_encerrado_tribunal,proximo_retorno')
- .eq('empresa_id',a.empresaId).eq('protocolo_ref',cnj).maybeSingle();
+ .select('protocolo_ref,cliente,tribunal,status,dados,djen_nova_comunicacao,djen_ultimo_resumo,djen_ultima_data,djen_ultimo_link,tem_atualizacao_pos_retorno,em_cumprimento_sentenca,cumprimento_pendente_necessario,indicio_busca_apreensao,busca_apreensao_confianca,busca_apreensao_motivo,datajud_encerrado_tribunal,proximo_retorno')
+ .eq('empresa_id',a.empresaId).in('protocolo_ref',opsCnjVariants(cnj)).limit(1).maybeSingle();
  if(error||!data)throw new Error('Processo não localizado na carteira da empresa.');
  const fields=data.dados&&typeof data.dados==='object'?data.dados as Record<string,unknown>:{};
  const plan=buildLegalWorkflow({...fields,...data,protocolo:cnj});
