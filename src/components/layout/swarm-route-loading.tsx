@@ -3,7 +3,6 @@
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
-  DOM_REBUILD_DURATION_MS,
   DOM_REBUILD_MAX_ELEMENTS,
   planDomRebuild,
   type DomRebuildSource,
@@ -19,21 +18,35 @@ type RebuildElement = DomRebuildSource & {
 };
 
 const ROOT_SELECTOR = "[data-lexis-rebuild-root]";
-const TAB_SELECTOR =
-  '[role="tab"],[data-lexis-settings-tab],[data-lexis-dashboard-tablist] button,[data-lexis-tab]';
+const TAB_SELECTOR = [
+  '[role="tab"]',
+  '[role="tablist"] button',
+  "[data-lexis-settings-tab]",
+  "[data-lexis-dashboard-tablist] button",
+  "[data-lexis-tab]",
+  ".tabs-trigger",
+  "[data-tab-trigger]",
+].join(",");
+const CANDIDATE_SELECTOR = [
+  "button", "a", "input", "select", "textarea",
+  '[role="tab"]', '[role="tabpanel"]', '[role="button"]',
+  "[data-slot='card']", "[data-lexis-rebuild-item]",
+  "article", "section", "[class*='card']", "[class*='Card']",
+  "h1", "h2", "h3", "h4", "h5", "p", "span", "strong", "em",
+  "label", "small", "li", "dt", "dd", "th", "td",
+  "img", "svg", "canvas",
+].join(",");
 const OMIT_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "IFRAME", "LINK", "META"]);
-const MEDIA_TAGS = new Set(["IMG", "SVG", "CANVAS", "VIDEO"]);
+const MEDIA_TAGS = new Set(["IMG", "SVG", "CANVAS"]);
 const TEXT_TAGS = new Set([
-  "H1", "H2", "H3", "H4", "H5", "P", "SPAN", "STRONG", "EM", "LABEL",
-  "SMALL", "LI", "DT", "DD", "TH", "TD", "A", "BUTTON", "OPTION",
+  "H1", "H2", "H3", "H4", "H5", "P", "SPAN", "STRONG", "EM",
+  "LABEL", "SMALL", "LI", "DT", "DD", "TH", "TD", "A", "BUTTON",
 ]);
+const MAX_CANDIDATES = 900;
 const WORKERS = [
   ["Ada", "#0D99FF"], ["Linus", "#0ACF83"], ["Grace", "#A259FF"],
   ["Alan", "#F24E1E"], ["Margaret", "#E8467C"], ["Ken", "#FFC700"],
-  ["Barbara", "#00B5CE"], ["Dennis", "#FF7262"], ["Radia", "#14AE5C"],
-  ["Guido", "#9747FF"], ["Hedy", "#F24822"], ["Tim", "#1ABCFE"],
-  ["Katherine", "#FF8A00"], ["Edsger", "#C056A4"], ["Joan", "#39B6D5"],
-  ["Donald", "#7C6AE8"],
+  ["Barbara", "#00B5CE"], ["Dennis", "#FF7262"],
 ] as const;
 
 function hasDirectText(element: Element) {
@@ -42,7 +55,8 @@ function hasDirectText(element: Element) {
   );
 }
 function isOnScreen(rect: DOMRect, width: number, height: number) {
-  return rect.width > 2 && rect.height > 2 &&
+  return Number.isFinite(rect.left) && Number.isFinite(rect.top) &&
+    rect.width > 2 && rect.height > 2 &&
     rect.right > 0 && rect.bottom > 0 && rect.left < width && rect.top < height;
 }
 function hasVisibleSurface(style: CSSStyleDeclaration) {
@@ -65,22 +79,40 @@ function elementDepth(element: Element, root: Element) {
   }
   return depth;
 }
+function isCompactSurface(rect: DOMRect, viewportWidth: number, viewportHeight: number) {
+  // Never select the route wrapper, a full-width page background or a giant
+  // section as a single "card". This avoids hiding/revealing the whole layout.
+  return rect.width <= viewportWidth * 0.86 && rect.height <= viewportHeight * 0.78;
+}
 
 /**
- * Capture only real visual nodes inside the route template.
- * The persistent app shell/sidebar is deliberately outside this boundary.
+ * Capture measured, visible objects from the route area only. Surface cards
+ * are treated as one object; their child spans/text are not animated again.
+ * This prevents the nested clipping and overlapping labels seen in the old
+ * build while retaining independent headings, controls and standalone text.
  */
 function captureDomBlueprint(root: Element): RebuildElement[] {
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   const result: RebuildElement[] = [];
-  const candidates = root.querySelectorAll("*");
-  let visited = 0;
+  const surfaceAncestors = new WeakSet<Element>();
+  const hasSurfaceAncestor = (element: Element) => {
+    let parent = element.parentElement;
+    while (parent && parent !== root) {
+      if (surfaceAncestors.has(parent)) return true;
+      parent = parent.parentElement;
+    }
+    return false;
+  };
 
-  for (const candidate of Array.from(candidates)) {
-    if (visited++ >= 1800 || result.length >= DOM_REBUILD_MAX_ELEMENTS) break;
+  const candidates = Array.from(root.querySelectorAll(CANDIDATE_SELECTOR))
+    .slice(0, MAX_CANDIDATES)
+    .sort((a, b) => elementDepth(a, root) - elementDepth(b, root));
+
+  for (const candidate of candidates) {
+    if (result.length >= DOM_REBUILD_MAX_ELEMENTS) break;
     if (!(candidate instanceof HTMLElement) && !(candidate instanceof SVGElement)) continue;
     const element = candidate as HTMLElement | SVGElement;
-    if (OMIT_TAGS.has(element.tagName) || MEDIA_TAGS.has(element.tagName) && element.tagName === "VIDEO" && !(element as HTMLVideoElement).poster) continue;
+    if (OMIT_TAGS.has(element.tagName)) continue;
     if (element.closest("[data-swarm-rebuild-stage]")) continue;
     if (element.hasAttribute("hidden") || element.closest('[hidden],[aria-hidden="true"]')) continue;
     if (element instanceof HTMLElement && element.isContentEditable) continue;
@@ -91,13 +123,17 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
     const rect = element.getBoundingClientRect();
     if (!isOnScreen(rect, viewport.width, viewport.height)) continue;
 
-    const directText = hasDirectText(element);
     const media = MEDIA_TAGS.has(element.tagName);
-    const surface = hasVisibleSurface(style);
-    const text = directText && TEXT_TAGS.has(element.tagName);
+    const surface = hasVisibleSurface(style) &&
+      isCompactSurface(rect, viewport.width, viewport.height);
+    const text = hasDirectText(element) && TEXT_TAGS.has(element.tagName);
     const semantic = element.matches(
-      'button,a,input,select,textarea,[role="tab"],[role="tabpanel"],[data-lexis-tab]'
+      'button,a,input,select,textarea,[role="tab"],[role="tabpanel"],[role="button"],[data-lexis-tab]'
     );
+
+    // A card's descendants remain part of that card's original rendering.
+    // Keep a nested surface only when it is a separate visible control/card.
+    if (hasSurfaceAncestor(element) && !surface) continue;
     if (!media && !surface && !text && !semantic) continue;
 
     const kind = media ? "media" : surface || semantic && !text ? "container" : "text";
@@ -116,6 +152,7 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
       originalOpacity: Number(style.opacity) || 1,
       originalFilter: style.filter || "none",
     });
+    if (surface) surfaceAncestors.add(element);
   }
   return result;
 }
@@ -130,6 +167,7 @@ function restoreOriginalVisibility(node: RebuildElement) {
   }
 }
 function hideForRebuild(node: RebuildElement) {
+  // visibility does not alter width, height, flex/grid placement or scroll.
   node.element.style.setProperty("visibility", "hidden", "important");
 }
 
@@ -144,9 +182,9 @@ function createRebuildStage(onSkip: () => void, agents: number) {
   label.setAttribute("aria-live", "polite");
   label.style.cssText =
     "position:absolute;left:50%;bottom:18px;transform:translateX(-50%);" +
-    "padding:9px 12px;border-radius:10px;background:#202125;color:#fff;" +
-    "font:600 11px system-ui;white-space:nowrap;box-shadow:0 4px 22px #0004;";
-  label.textContent = "Swarm Rebuild · preparando elementos";
+    "padding:8px 11px;border-radius:9px;background:#202125;color:#fff;" +
+    "font:600 11px system-ui;white-space:nowrap;box-shadow:0 3px 16px #0003;";
+  label.textContent = "Swarm Rebuild · preparando";
   stage.appendChild(label);
 
   const skip = document.createElement("button");
@@ -155,7 +193,7 @@ function createRebuildStage(onSkip: () => void, agents: number) {
   skip.setAttribute("aria-label", "Pular reconstrução visual");
   skip.style.cssText =
     "position:absolute;left:calc(50% + 100px);bottom:18px;pointer-events:auto;" +
-    "padding:8px 11px;border:0;border-radius:7px;background:#0D99FF;color:#fff;" +
+    "padding:7px 10px;border:0;border-radius:7px;background:#0D99FF;color:#fff;" +
     "font:600 11px system-ui;cursor:pointer;";
   skip.addEventListener("click", onSkip);
   stage.appendChild(skip);
@@ -167,22 +205,21 @@ function createRebuildStage(onSkip: () => void, agents: number) {
     outline.style.cssText =
       "position:fixed;left:0;top:0;width:0;height:0;box-sizing:border-box;" +
       "border:1px dashed " + color + ";border-radius:4px;opacity:0;" +
-      "pointer-events:none;transition:opacity 90ms linear;";
+      "pointer-events:none;will-change:opacity;";
     const cursor = document.createElement("div");
     cursor.style.cssText =
       "position:fixed;left:0;top:0;display:flex;align-items:flex-start;gap:4px;" +
-      "pointer-events:none;opacity:0;will-change:transform;" +
-      "transition:transform 210ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
+      "pointer-events:none;opacity:0;will-change:transform,opacity;";
     const pointer = document.createElement("span");
     pointer.style.cssText =
       "display:block;width:0;height:0;border-top:0 solid transparent;" +
-      "border-bottom:15px solid transparent;border-left:12px solid " + color +
+      "border-bottom:14px solid transparent;border-left:11px solid " + color +
       ";filter:drop-shadow(0 1px 1px #fff);";
     const tag = document.createElement("span");
     tag.textContent = name;
     tag.style.cssText =
-      "margin-top:9px;padding:2px 5px;border-radius:2px;background:" + color +
-      ";color:#fff;font:600 10px system-ui;white-space:nowrap;";
+      "margin-top:8px;padding:2px 4px;border-radius:2px;background:" + color +
+      ";color:#fff;font:600 9px system-ui;white-space:nowrap;";
     cursor.append(pointer, tag);
     stage.append(outline, cursor);
     cursors.push({ cursor, outline });
@@ -194,20 +231,20 @@ function createRebuildStage(onSkip: () => void, agents: number) {
 function revealOriginalElement(node: RebuildElement): Animation | null {
   restoreOriginalVisibility(node);
   if (typeof node.element.animate !== "function") return null;
-  const isInline = node.element instanceof HTMLElement &&
+  const inline = node.element instanceof HTMLElement &&
     ["inline", "inline-block", "inline-flex", "inline-grid"].includes(
       getComputedStyle(node.element).display
     );
-  const from = isInline
-    ? { opacity: 0, filter: "blur(2px)" }
-    : { clipPath: "inset(0 100% 0 0)", opacity: Math.min(0.72, node.originalOpacity) };
-  const to = isInline
+  const from = inline
+    ? { opacity: 0, filter: "blur(1px)" }
+    : { clipPath: "inset(0 100% 0 0)", opacity: Math.min(0.82, node.originalOpacity) };
+  const to = inline
     ? { opacity: node.originalOpacity, filter: node.originalFilter }
     : { clipPath: node.originalClipPath, opacity: node.originalOpacity };
   try {
     return node.element.animate([from, to], {
-      duration: DOM_REBUILD_DURATION_MS,
-      easing: "cubic-bezier(.18,.72,.22,1)",
+      duration: 140,
+      easing: "cubic-bezier(.2,.7,.25,1)",
       fill: "both",
     });
   } catch {
@@ -228,7 +265,6 @@ function startDomRebuild(root: Element): () => void {
   let completed = 0;
   const pending = new Set<number>();
   const animations = new Set<Animation>();
-  const originalNodes = captured;
   const agentCount = Math.max(...tasks.map((task) => task.agent)) + 1;
   let watchdog = 0;
   let stage: HTMLDivElement | null = null;
@@ -243,14 +279,12 @@ function startDomRebuild(root: Element): () => void {
     window.clearTimeout(watchdog);
     animations.forEach((animation) => animation.cancel());
     animations.clear();
-    originalNodes.forEach(restoreOriginalVisibility);
+    captured.forEach(restoreOriginalVisibility);
     stage?.remove();
     stage = null;
   };
 
-  // Conceal with visibility only: no dimensions, position, flex/grid or scroll
-  // metrics change. Every element remains in its original DOM location.
-  originalNodes.forEach(hideForRebuild);
+  captured.forEach(hideForRebuild);
   const overlay = createRebuildStage(cleanup, agentCount);
   stage = overlay.stage;
   label = overlay.label;
@@ -259,7 +293,7 @@ function startDomRebuild(root: Element): () => void {
   const finishOne = () => {
     if (closed) return;
     completed += 1;
-    if (label) label.textContent = "Swarm Rebuild · " + completed + "/" + tasks.length + " elementos";
+    if (label) label.textContent = "Swarm Rebuild · " + completed + "/" + tasks.length;
     if (completed >= tasks.length) cleanup();
   };
 
@@ -289,11 +323,15 @@ function startDomRebuild(root: Element): () => void {
         agent.outline.style.opacity = "1";
         agent.cursor.style.opacity = "1";
         agent.cursor.style.transform =
-          "translate3d(" + rect.left + "px," + (rect.top + Math.min(12, rect.height / 3)) + "px,0)";
+          "translate3d(" + rect.left + "px," + (rect.top + Math.min(10, rect.height / 3)) + "px,0)";
       }
 
       const animation = revealOriginalElement(task);
       if (!animation) {
+        if (agent) {
+          agent.outline.style.opacity = "0";
+          agent.cursor.style.opacity = "0";
+        }
         finishOne();
         return;
       }
@@ -308,26 +346,30 @@ function startDomRebuild(root: Element): () => void {
         }
         finishOne();
       };
-      animation.oncancel = () => {
-        animations.delete(animation);
-      };
+      animation.oncancel = () => animations.delete(animation);
     }, task.startMs);
     pending.add(timer);
   }
 
   const totalMs = Math.max(...tasks.map((task) => task.startMs + task.durationMs));
-  watchdog = window.setTimeout(cleanup, totalMs + 1200);
+  watchdog = window.setTimeout(cleanup, totalMs + 900);
   return cleanup;
 }
 
 function activeTabPanel(root: Element): Element {
   const selectedTab = root.querySelector<HTMLElement>(
-    '[role="tab"][aria-selected="true"],[data-lexis-settings-tab][data-state="active"],[data-lexis-tab][aria-selected="true"]'
+    '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
+    '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"]'
   );
   const controlledId = selectedTab?.getAttribute("aria-controls");
   if (controlledId) {
     const controlledPanel = document.getElementById(controlledId);
     if (controlledPanel && root.contains(controlledPanel)) return controlledPanel;
+  }
+  const href = selectedTab?.getAttribute("href");
+  if (href?.startsWith("#")) {
+    const target = document.getElementById(href.slice(1));
+    if (target && root.contains(target)) return target;
   }
   const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
   return panels.find((panel) => {
@@ -346,9 +388,16 @@ export function SwarmRouteLoading() {
     const root = document.querySelector(ROOT_SELECTOR);
     if (!root) return;
 
-    let cleanup = startDomRebuild(root);
+    let cleanup = () => {};
+    let routeTimer = 0;
     let tabTimer = 0;
     let disposed = false;
+
+    // Wait one short frame for the route's committed layout. The capture is
+    // restricted to a selector list and stops after 900 candidates / 96 nodes.
+    routeTimer = window.setTimeout(() => {
+      if (!disposed) cleanup = startDomRebuild(root);
+    }, 48);
 
     const queueTabRebuild = () => {
       window.clearTimeout(tabTimer);
@@ -356,7 +405,7 @@ export function SwarmRouteLoading() {
         if (disposed) return;
         cleanup();
         cleanup = startDomRebuild(activeTabPanel(root));
-      }, 80);
+      }, 110);
     };
 
     const onTabClick = (event: MouseEvent) => {
@@ -364,10 +413,8 @@ export function SwarmRouteLoading() {
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
       if (!tab || !root.contains(tab)) return;
-      if (tab.getAttribute("aria-selected") === "true" || tab.dataset.state === "active") return;
       queueTabRebuild();
     };
-
     const onTabKeyDown = (event: KeyboardEvent) => {
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "Enter", " "].includes(event.key)) return;
       const target = event.target;
@@ -379,15 +426,14 @@ export function SwarmRouteLoading() {
 
     document.addEventListener("click", onTabClick, true);
     document.addEventListener("keydown", onTabKeyDown, true);
-
     return () => {
       disposed = true;
+      window.clearTimeout(routeTimer);
       window.clearTimeout(tabTimer);
       document.removeEventListener("click", onTabClick, true);
       document.removeEventListener("keydown", onTabKeyDown, true);
       cleanup();
     };
   }, [pathname]);
-
   return null;
 }
