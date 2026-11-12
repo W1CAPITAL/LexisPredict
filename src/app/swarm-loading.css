@@ -137,6 +137,12 @@
 }
 .lx-swarm-route-loading__content i:last-child{animation-delay:100ms;}
 .lx-swarm-route-loading__agents{position:absolute;right:13px;bottom:12px;transform:scale(.92);transform-origin:bottom right;}
+/* Os cursores percorrem o quadro no mesmo ciclo curto da transição de rota. */
+.lx-swarm-route-loading [data-lexis-swarm-loading] .lx-mini-swarm-actor{
+ animation-duration:560ms;animation-delay:0ms;animation-iteration-count:1;animation-fill-mode:both;
+}
+.lx-swarm-route-loading [data-lexis-swarm-loading] .lx-mini-swarm-b{animation-delay:45ms;}
+.lx-swarm-route-loading [data-lexis-swarm-loading] .lx-mini-swarm-c{animation-delay:90ms;}
 .lx-swarm-route-loading__caption{display:flex;flex-direction:column;gap:3px;margin-top:13px;}
 .lx-swarm-route-loading__caption strong{font-size:12px;font-weight:850;letter-spacing:-.01em;}
 .lx-swarm-route-loading__caption span{color:hsl(var(--muted-foreground,215 16% 47%));font-size:10px;}
