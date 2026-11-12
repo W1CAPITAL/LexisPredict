@@ -96,6 +96,7 @@ import {
 } from '@/lib/metal-preferences';
 import { NeuralEnginePanel } from '@/components/settings/neural-engine-panel';
 import { NavLayoutPanel } from '@/components/settings/nav-layout-panel';
+import { SwarmRebuildSettingsPanel } from '@/components/settings/swarm-rebuild-settings-panel';
 import { exportFullSourceCodeAction } from '@/app/actions/system-actions';
 import { listAdvogadosBanca, upsertAdvogadoBanca, desativarAdvogadoBanca } from '@/lib/server-db';
 import { listAdvogadosBancaLocal, upsertAdvogadoBancaLocal, desativarAdvogadoBancaLocal, mergeBancaRemotoLocal } from '@/lib/banca-offline';
@@ -675,6 +676,7 @@ export default function SettingsPage() {
                 { id: "Notificacoes", label: "Notificações", icon: <Bell size={14} />, keywords: "notificacao alerta prazo djen datajud tarefa navegador" },
                 { id: "Seguranca", label: "Segurança e limites", icon: <ShieldCheck size={14} />, keywords: "seguranca rls tenant cargo limite rate auth" },
                 { id: "Menu", label: "Menu e nome", icon: <Layout size={14} />, keywords: "menu sidebar dock nome layout" },
+                { id: "Swarm", label: "Swarm Rebuild", icon: <Waves size={14} />, keywords: "swarm rebuild reconstrução animação velocidade desempenho performance" },
                 { id: "Conta", label: "Conta e senha", icon: <KeyRound size={14} />, keywords: "senha conta login password" },
                 { id: "Experiencia", label: "Perfil, celular e termos", icon: <User size={14} />, keywords: "personalizacao personalidade perfil experiencia boas vindas nome cargo celular telefone whatsapp consentimento termos assinatura aceite lgpd visual" },
                 { id: "Oab", label: "OAB e certificado", icon: <Fingerprint size={14} />, keywords: "oab certificado digital advogado tribunal pje consulta autos personalizacao a1 a3" },
@@ -872,6 +874,10 @@ export default function SettingsPage() {
                   </p>
                   <NavLayoutPanel />
                 </div>
+              )}
+
+              {activeTab === 'Swarm' && (
+                <SwarmRebuildSettingsPanel />
               )}
 
               {activeTab === 'Knowledge' && (
