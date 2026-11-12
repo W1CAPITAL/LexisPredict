@@ -60,6 +60,8 @@ export function SwarmRouteLoading() {
       document.body;
     if (!root) return;
 
+    // A previously visited route must not keep cursors from the route we just left.
+    setMarkers([]);
     setPortalRoot(document.body);
     const routeKey = pathname || window.location.pathname;
     const runRouteRebuild = !seenRebuildRoutes.has(routeKey);
