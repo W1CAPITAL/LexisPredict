@@ -377,6 +377,8 @@ export default function AgendaPage() {
                     </Button>
                     <Button
                       data-lexis-rebuild-tab
+                      aria-controls="agenda-view-panel"
+                      aria-pressed={view === "week"}
                       variant={view === "week" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("week")}
@@ -385,6 +387,8 @@ export default function AgendaPage() {
                     </Button>
                     <Button
                       data-lexis-rebuild-tab
+                      aria-controls="agenda-view-panel"
+                      aria-pressed={view === "day"}
                       variant={view === "day" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("day")}
@@ -393,6 +397,8 @@ export default function AgendaPage() {
                     </Button>
                     <Button
                       data-lexis-rebuild-tab
+                      aria-controls="agenda-view-panel"
+                      aria-pressed={view === "agenda"}
                       variant={view === "agenda" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("agenda")}
@@ -529,7 +535,7 @@ export default function AgendaPage() {
 
             <div className="grid lg:grid-cols-[1fr_320px] gap-4 items-start">
               {/* Main calendar area */}
-              <div className="min-w-0 space-y-3">
+              <div id="agenda-view-panel" data-lexis-rebuild-panel className="min-w-0 space-y-3">
                 {view === "week" && (
                   <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
                     {days.map((d) => {
