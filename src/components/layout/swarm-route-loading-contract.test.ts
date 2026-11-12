@@ -41,6 +41,7 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(tabs).toContain("data-lexis-rebuild-tab");
     for (const path of [
       "src/components/dashboard/office-stats.tsx",
+      "src/components/processos/processos-command-center.tsx",
       "src/components/vencidos/vencidos-panel.tsx",
       "src/app/agenda/page.tsx",
       "src/app/hermes-3d/page.tsx",
