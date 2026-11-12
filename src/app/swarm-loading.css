@@ -88,7 +88,6 @@
  65%{opacity:1;transform:translate3d(0,0,0) scale(1);}
  100%{opacity:0;transform:translate3d(17px,8px,0) scale(1);}
 }
-html[data-lexis-motion="lite"] .lx-swarm-stage{display:none!important;}
 @media(prefers-reduced-motion:reduce){
  .lx-swarm-stage{display:none!important;}
 }
