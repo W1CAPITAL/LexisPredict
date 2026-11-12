@@ -63,13 +63,25 @@ export function SwarmRouteLoading() {
       if (radixNavigation || settingsActivation) showForTabChange();
     };
 
+    const handleTabClick = (event: MouseEvent) => {
+      // Assistive technology may activate a tab with a detail=0 synthetic click.
+      if (event.detail !== 0) return;
+
+      const tab = findTab(event.target);
+      if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
+
+      showForTabChange();
+    };
+
     scheduleHide();
     document.addEventListener("pointerdown", handleTabPointerDown, true);
     document.addEventListener("keydown", handleTabKeyDown, true);
+    document.addEventListener("click", handleTabClick, true);
 
     return () => {
       document.removeEventListener("pointerdown", handleTabPointerDown, true);
       document.removeEventListener("keydown", handleTabKeyDown, true);
+      document.removeEventListener("click", handleTabClick, true);
       if (hideTimer !== undefined) window.clearTimeout(hideTimer);
     };
   }, []);
