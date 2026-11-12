@@ -184,7 +184,7 @@ export function SwarmRouteLoading() {
         }, { once: true });
       });
 
-      const sampleEvery = Math.max(1, Math.ceil(shown.length / 6));
+      const sampleEvery = Math.max(1, Math.floor(shown.length / 6));
       const visualMarkers = prefersReducedMotion
         ? []
         : shown
