@@ -5,9 +5,10 @@
  * Respostas determinísticas quando possível (não fica “carregando” à toa).
  */
 
-import { getUserContext, getSupabaseAdmin } from "@/lib/server-db";
+import { getUserContext, getSupabaseAdmin, getStoredCasesForEmpresa } from "@/lib/server-db";
 import { ALL_SKILLS, AGENT_CATALOG } from "@/lib/crm-agent/skills";
 import type { CrmAgentId, CrmAgentRunLog } from "@/lib/crm-agent/types";
+import { buildLegalWorkflow, formatLegalWorkflowReport } from "@/lib/crm-agent/legal-workflow";
 import { processChat } from "@/lib/ai/chat-service";
 import { runCascade } from "@/lib/ai/cascade";
 import { chatAIFlow } from "@/ai/flows/chat-ai-flow";
@@ -532,6 +533,87 @@ export async function runCrmAgentAction(input: {
 
   const agentId = (input.agent_id in AGENT_CATALOG ? input.agent_id : "livre") as CrmAgentId;
   const agent = AGENT_CATALOG[agentId];
+
+  // Workflow jurídico: consulta somente a carteira da empresa autenticada.
+  // Não cria tarefas, não altera processos e não envia mensagens.
+  if (agentId === "workflow-juridico") {
+    const fromPrompt = (String(input.prompt || "").match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/) || [])[0] || "";
+    const requestedProtocol = String(input.protocolo || fromPrompt).trim();
+    const protocolDigits = requestedProtocol.replace(/\D/g, "");
+    if (!/^\d{20}$/.test(protocolDigits)) {
+      logs.push({
+        agent_id: agentId,
+        tool: "read_case_evidence",
+        ok: false,
+        summary: "CNJ completo de 20 dígitos não informado",
+        at: now(),
+      });
+      return {
+        success: false,
+        content: "",
+        logs,
+        error: "Informe o número CNJ completo de 20 dígitos no campo Protocolo/Pedido.",
+      };
+    }
+
+    try {
+      const cases = await getStoredCasesForEmpresa(c.empresa_id!, true);
+      const found = (cases || []).find((row: any) => {
+        const candidate = String(row?.protocolo || row?.protocolo_ref || row?.processo_cnj || "").replace(/\D/g, "");
+        return candidate === protocolDigits;
+      });
+      if (!found) {
+        logs.push({
+          agent_id: agentId,
+          tool: "read_case_evidence",
+          ok: false,
+          summary: "CNJ não localizado na carteira da empresa",
+          at: now(),
+        });
+        return {
+          success: false,
+          content: "",
+          logs,
+          error: "Processo não localizado na carteira desta empresa. Nenhuma outra empresa ou fonte externa foi consultada.",
+        };
+      }
+
+      const workflow = buildLegalWorkflow(found as object);
+      logs.push({
+        agent_id: agentId,
+        tool: "read_case_evidence",
+        ok: true,
+        summary: `CNJ confirmado na carteira; sinais=${workflow.signals.length}`,
+        at: now(),
+      });
+      logs.push({
+        agent_id: agentId,
+        tool: "build_legal_workflow",
+        ok: true,
+        summary: `roteiro somente leitura; etapas=${workflow.steps.length}`,
+        at: now(),
+      });
+      return {
+        success: true,
+        content: formatLegalWorkflowReport(workflow),
+        logs,
+      };
+    } catch (e: any) {
+      logs.push({
+        agent_id: agentId,
+        tool: "read_case_evidence",
+        ok: false,
+        summary: "falha ao ler a carteira da empresa",
+        at: now(),
+      });
+      return {
+        success: false,
+        content: "",
+        logs,
+        error: e?.message || "Não foi possível montar o fluxo jurídico com a carteira atual.",
+      };
+    }
+  }
   if(agentId === "pesquisa-legislativa") {
     const reference=String(input.prompt||"").trim().slice(0,1800);
     const found=await retrieveLegislationEvidence(reference);
