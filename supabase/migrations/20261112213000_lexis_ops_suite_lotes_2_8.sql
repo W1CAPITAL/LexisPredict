@@ -54,6 +54,9 @@ create table if not exists public.lexis_ops_agents (
   state text not null default 'rascunho' check(state in ('rascunho','publicado','desativado')),
   created_by uuid not null,
   published_by uuid,
+  tested_at timestamptz,
+  tested_by uuid,
+  test_details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(empresa_id,slug,version)
@@ -194,6 +197,7 @@ begin
  select * into rec from public.lexis_ops_agents
  where id=p_agent_id and empresa_id=p_tenant and state='rascunho' for update;
  if not found then raise exception 'AGENT_DRAFT_NOT_FOUND' using errcode='22023'; end if;
+ if rec.tested_at is null then raise exception 'AGENT_MUST_PASS_TEST' using errcode='22023'; end if;
  perform pg_advisory_xact_lock(hashtext(p_tenant::text||':'||rec.slug));
  update public.lexis_ops_agents set state='desativado',updated_at=now()
  where empresa_id=p_tenant and slug=rec.slug and state='publicado';
