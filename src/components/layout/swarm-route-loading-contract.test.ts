@@ -10,6 +10,8 @@ describe("Swarm Rebuild – original blueprint behavior, not fade-in decoration"
   it("runs within every route and observes in-page tabs", () => {
     expect(template).toContain("<SwarmRouteLoading />");
     expect(effect).toContain("usePathname");
+    expect(effect).toContain("useLayoutEffect");
+    expect(effect).toContain("swarmCaptureVeil");
     expect(effect).toContain("seenRebuildRoutes");
     expect(effect).toContain("seenRebuildTabs");
     expect(effect).toContain('document.addEventListener("pointerdown"');
