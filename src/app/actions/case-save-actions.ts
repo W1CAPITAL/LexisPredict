@@ -2,6 +2,7 @@
 
 import { getUserContext, getSupabaseAdmin, getProfileByAuthId, logAuditoriaSistema } from '@/lib/server-db';
 import { LegalCase, processarCaso, formatDateToISO, calcularStatus } from '@/lib/case-logic';
+import { formatNewProcessCnj } from '@/lib/new-process-input';
 import { sheetsServerPost, sheetsWebhookConfigured, mirrorAtendimento } from '@/lib/hybrid/sheets-server';
 import { hojeBrasilYmd } from '@/lib/atendimento-semana';
 import { applyFilaListaToObs } from '@/lib/fila-listas';
@@ -296,6 +297,12 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     const inputCase = { ...caseData } as any;
     delete inputCase.__create_only;
     const processed: any = processarCaso(inputCase);
+    if (createOnly) {
+      const normalizedCnj = formatNewProcessCnj(String(processed.protocolo || ""));
+      if (!normalizedCnj) return { success: false, message: 'CNJ inválido: informe os 20 dígitos do processo.' };
+      if (!String(processed.cliente || "").trim()) return { success: false, message: 'Nome do cliente obrigatório.' };
+      processed.protocolo = normalizedCnj;
+    }
     // Edição deve persistir também os campos operacionais que alimentam cards/flags.
     if ((caseData as any).situacao !== undefined) {
       processed.situacao = String((caseData as any).situacao || '').toUpperCase();
