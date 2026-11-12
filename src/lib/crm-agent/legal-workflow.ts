@@ -206,7 +206,7 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
       "operacao",
       `Próximo retorno cadastrado: ${nextReturn}`
     ));
-    warnings.push("O próximo retorno cadastrado está vencido ou é hoje; isso é um retorno operacional e não deve ser confundido com prazo processual.");
+    warnings.push("O próximo retorno cadastrado está vencido ou é hoje; é um retorno operacional, não é prazo processual e não deve ser tratado como prazo judicial.");
   }
 
   if (truthy(c.tem_atualizacao_pos_retorno) || truthy(c.tem_novo_andamento)) {
