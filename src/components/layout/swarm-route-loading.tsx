@@ -42,7 +42,7 @@ const TEXT_TAGS = new Set([
   "H1", "H2", "H3", "H4", "H5", "P", "SPAN", "STRONG", "EM",
   "LABEL", "SMALL", "LI", "DT", "DD", "TH", "TD", "A", "BUTTON",
 ]);
-const MAX_CANDIDATES = 900;
+const MAX_CANDIDATES = 500;
 const WORKERS = [
   ["Ada", "#0D99FF"], ["Linus", "#0ACF83"], ["Grace", "#A259FF"],
   ["Alan", "#F24E1E"], ["Margaret", "#E8467C"], ["Ken", "#FFC700"],
@@ -79,10 +79,10 @@ function elementDepth(element: Element, root: Element) {
   }
   return depth;
 }
-function isCompactSurface(rect: DOMRect, viewportWidth: number, viewportHeight: number) {
-  // Never select the route wrapper, a full-width page background or a giant
-  // section as a single "card". This avoids hiding/revealing the whole layout.
-  return rect.width <= viewportWidth * 0.86 && rect.height <= viewportHeight * 0.78;
+function isCompactSurface(rect: DOMRect, rootRect: DOMRect) {
+  // Measure against the route content area, not the entire viewport. This
+  // keeps full-width hero/sections from swallowing all of their child cards.
+  return rect.width <= rootRect.width * 0.78 && rect.height <= rootRect.height * 0.72;
 }
 
 /**
@@ -93,6 +93,7 @@ function isCompactSurface(rect: DOMRect, viewportWidth: number, viewportHeight: 
  */
 function captureDomBlueprint(root: Element): RebuildElement[] {
   const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const rootRect = root.getBoundingClientRect();
   const result: RebuildElement[] = [];
   const surfaceAncestors = new WeakSet<Element>();
   const hasSurfaceAncestor = (element: Element) => {
@@ -125,7 +126,7 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
 
     const media = MEDIA_TAGS.has(element.tagName);
     const surface = hasVisibleSurface(style) &&
-      isCompactSurface(rect, viewport.width, viewport.height);
+      isCompactSurface(rect, rootRect);
     const text = hasDirectText(element) && TEXT_TAGS.has(element.tagName);
     const semantic = element.matches(
       'button,a,input,select,textarea,[role="tab"],[role="tabpanel"],[role="button"],[data-lexis-tab]'
