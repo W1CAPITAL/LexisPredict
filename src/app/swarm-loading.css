@@ -154,10 +154,12 @@
 @keyframes lx-swarm-wire-build{from{opacity:.12;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0)}}
 @keyframes lx-swarm-route-progress{from{transform:scaleX(.04)}to{transform:scaleX(1)}}
 html[data-lexis-motion="lite"] .lx-swarm-route-loading,
-html[data-lexis-motion="lite"] .lx-swarm-route-loading *,
+html[data-lexis-motion="lite"] .lx-swarm-route-loading *{
+ animation:none!important;transition:none!important;
+}
+html[data-lexis-motion="lite"] .lx-swarm-route-loading__progress span{transform:scaleX(1);}
 @media(prefers-reduced-motion:reduce){
- .lx-swarm-route-loading,.lx-swarm-route-loading *,
- .lx-swarm-route-loading .lx-mini-swarm-actor{
+ .lx-swarm-route-loading,.lx-swarm-route-loading *{
   animation:none!important;transition:none!important;
  }
  .lx-swarm-route-loading__progress span{transform:scaleX(1);}
