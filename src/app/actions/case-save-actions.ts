@@ -292,7 +292,10 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     if (!empresa_id || !auth_id) return { success: false, message: 'Sessão expirada.' };
     if (!caseData?.protocolo) return { success: false, message: 'Protocolo obrigatório.' };
 
-    const processed: any = processarCaso(caseData as any);
+    const createOnly = (caseData as any).__create_only === true;
+    const inputCase = { ...caseData } as any;
+    delete inputCase.__create_only;
+    const processed: any = processarCaso(inputCase);
     // Edição deve persistir também os campos operacionais que alimentam cards/flags.
     if ((caseData as any).situacao !== undefined) {
       processed.situacao = String((caseData as any).situacao || '').toUpperCase();
@@ -327,6 +330,11 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     }
 
     const existing = await loadProcessoRow(empresa_id, processed.protocolo);
+    // A criação é estritamente insert-only: um CNJ existente nunca vira edição
+    // acidental ao ser enviado pelo botão "Novo processo".
+    if (createOnly && existing) {
+      return { success: false, message: 'Processo já cadastrado na carteira.' };
+    }
     if (existing && !(await canAccessExistingCase(ctx, existing))) {
       return { success: false, message: 'Processo fora da sua empresa ou sem permissão de edição.' };
     }
@@ -398,7 +406,7 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
       await logAuditoriaSistema({
         empresaId: empresa_id,
         authUserId: auth_id,
-        acao: 'edicao',
+        acao: existing ? 'edicao' : 'criacao',
         protocolo: processed.protocolo,
         detalhes: {
           via: 'saveOneCaseAction',
@@ -414,10 +422,15 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
     // PostgreSQL/Supabase is the sole source of truth for editing.
     // No outbound Google Sheets network call in the critical save path.
 
-    return { success: true, message: 'Salvo.', case: processed };
+    return { success: true, message: createOnly ? 'Processo criado.' : 'Salvo.', case: processed };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Falha ao salvar.' };
   }
+}
+
+/** Insere um processo sem permitir que um CNJ existente seja atualizado. */
+export async function createOneCaseAction(caseData: LegalCase): Promise<{ success: boolean; message: string; case?: LegalCase }> {
+  return saveOneCaseAction({ ...caseData, __create_only: true } as LegalCase);
 }
 
 export async function saveManyCasesAction(cases: LegalCase[]): Promise<{ success: boolean; saved: number; failed: number; message?: string; error?: string }> {
