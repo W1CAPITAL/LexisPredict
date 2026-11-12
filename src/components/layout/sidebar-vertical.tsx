@@ -64,6 +64,7 @@ const core: NavItem[] = [
   { label: "Hoje", href: "/tarefas", icon: ListTodo },
   { label: "Vencidos", href: "/vencidos", icon: ShieldAlert },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
+  { label: "Operações integradas", href: "/operacoes-integradas", icon: ListTodo },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
   { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel },
   { label: "Superagente", href: "/chat", icon: Bot },
