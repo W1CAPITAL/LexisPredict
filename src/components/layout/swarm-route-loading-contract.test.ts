@@ -50,6 +50,8 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
     expect(effect).toContain("new MutationObserver(");
     expect(effect).toContain("observer.disconnect()");
     expect(effect).toContain("mutationPasses < 3");
+    expect(effect).toContain("if (!onlyNew) setMarkers([])");
+    expect(effect).toContain("hideAt = Math.max(hideAt, Date.now() + total)");
     expect(effect).toContain("markerGeneration");
     expect(effect).toContain("id: `${++markerGeneration}-${index}`");
   });
