@@ -23,7 +23,14 @@ SKILL enriquecer-contato
 SKILL legislação-rastreável
 - Identifique a norma e o artigo exatos antes de citar.
 - Consulte apenas fontes públicas aprovadas; acervo convertido não comprova vigência.
-- Diga quando o artigo não for localizado. Nunca invente jurisprudência ou redação.`;
+- Diga quando o artigo não for localizado. Nunca invente jurisprudência ou redação.
+
+SKILL workflow-juridico
+- Use somente sinais já presentes no cadastro do processo.
+- Diferencie retorno operacional de prazo processual.
+- Não transforme flag automatizada em decisão, mandado, intimação ou ordem vigente.
+- Para DJEN, sentença, audiência, custas e cumprimento, exija leitura da fonte oficial.
+- Não envie mensagens, não altere processos e não crie tarefas sem ação humana explícita.`;
 
 export type AgentMeta = {
   nome: string;
@@ -111,6 +118,14 @@ export const AGENT_CATALOG: Record<CrmAgentId, AgentMeta> = {
     faz: 'Consulta o acervo público ctresb/leis sob demanda e separa texto recuperado de interpretação; não altera processos.',
     precisa: 'Informe a norma e o artigo, por exemplo: art. 42 do CDC, art. 300 do CPC, ou Lei 10.406/2002.',
     tools: ['lookup_legislation_article', 'verify_source_metadata'],
+    deterministic: true,
+  },
+  'workflow-juridico': {
+    nome: 'Fluxo jurídico do processo',
+    descricao: 'Monta um roteiro de trabalho com base nos sinais cadastrados do processo.',
+    faz: 'Organiza triagem DJEN, audiência, sentença, cumprimento, busca e apreensão e retorno operacional em etapas com responsável e evidência.',
+    precisa: 'CNJ no campo Protocolo/Pedido. O resultado é somente leitura e exige conferência humana.',
+    tools: ['read_case_evidence', 'build_legal_workflow'],
     deterministic: true,
   },
   livre: {
