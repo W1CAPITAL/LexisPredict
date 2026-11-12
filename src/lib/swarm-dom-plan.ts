@@ -25,8 +25,28 @@ export type DomRebuildTask<T extends DomRebuildSource> = T & {
 };
 
 export const DOM_REBUILD_MAX_ELEMENTS = 48;
+export const DOM_REBUILD_MIN_ELEMENTS = 1;
 export const DOM_REBUILD_AGENTS = 4;
 export const DOM_REBUILD_DURATION_MS = getSwarmRebuildProfile(1).durationMs;
+
+/**
+ * Evenly sample a bounded set of DOM candidates. A head-only slice misses
+ * panels that appear later in long pages and makes some tabs look unsupported.
+ */
+export function sampleDomCandidates<T>(candidates: readonly T[], maxCandidates: number): T[] {
+  const limit = Math.floor(maxCandidates);
+  if (limit <= 0 || candidates.length === 0) return [];
+  if (candidates.length <= limit) return [...candidates];
+  if (limit === 1) return [candidates[Math.floor((candidates.length - 1) / 2)]];
+
+  const sampled: T[] = [];
+  const lastIndex = candidates.length - 1;
+  for (let index = 0; index < limit; index += 1) {
+    const candidate = candidates[Math.round((index * lastIndex) / (limit - 1))];
+    if (candidate !== undefined) sampled.push(candidate);
+  }
+  return sampled;
+}
 
 export function planDomRebuild<T extends DomRebuildSource>(
   sources: readonly T[],
