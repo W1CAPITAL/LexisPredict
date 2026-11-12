@@ -52,8 +52,7 @@ export function SwarmRouteLoading() {
     let alreadyBuilt = new WeakSet<HTMLElement>();
 
     const reduceMotion = () =>
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-      document.documentElement.getAttribute("data-lexis-motion") === "lite";
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const stopActive = () => {
       for (const animation of liveAnimations) animation.cancel();
@@ -102,11 +101,14 @@ export function SwarmRouteLoading() {
       }
       if (!targets.length) return;
 
-      stopActive();
+      if (!onlyNew) stopActive();
+      else if (hideTimer !== undefined) window.clearTimeout(hideTimer);
 
-      // Reduced workload on weak notebooks and mobile devices.
+      // Reduced workload on weak notebooks, mobile devices and lite mode.
       const lightweight =
-        viewport.width <= 640 || (navigator.hardwareConcurrency || 4) <= 4;
+        viewport.width <= 640 ||
+        (navigator.hardwareConcurrency || 4) <= 4 ||
+        document.documentElement.getAttribute("data-lexis-motion") === "lite";
       const shown = targets.slice(0, lightweight ? 6 : MAX_REBUILD_TARGETS);
       const staggerMs = lightweight ? 65 : 74;
       const durationMs = lightweight ? 260 : 380;
