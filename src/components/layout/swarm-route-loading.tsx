@@ -7,7 +7,6 @@ import {
   DOM_REBUILD_MAX_ELEMENTS,
   planDomRebuild,
   type DomRebuildSource,
-  type DomRebuildTask,
 } from "@/lib/swarm-dom-plan";
 
 type RebuildElement = DomRebuildSource & {
@@ -18,11 +17,10 @@ type RebuildElement = DomRebuildSource & {
   originalOpacity: number;
   originalFilter: string;
 };
-type RebuildTask = DomRebuildTask<RebuildElement>;
 
 const ROOT_SELECTOR = "[data-lexis-rebuild-root]";
 const TAB_SELECTOR =
-  '[role="tab"],[aria-controls][data-state],[data-lexis-settings-tab],[data-lexis-dashboard-tablist] button,[data-lexis-tab]';
+  '[role="tab"],[data-lexis-settings-tab],[data-lexis-dashboard-tablist] button,[data-lexis-tab]';
 const OMIT_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "IFRAME", "LINK", "META"]);
 const MEDIA_TAGS = new Set(["IMG", "SVG", "CANVAS", "VIDEO"]);
 const TEXT_TAGS = new Set([
@@ -323,6 +321,14 @@ function startDomRebuild(root: Element): () => void {
 }
 
 function activeTabPanel(root: Element): Element {
+  const selectedTab = root.querySelector<HTMLElement>(
+    '[role="tab"][aria-selected="true"],[data-lexis-settings-tab][data-state="active"],[data-lexis-tab][aria-selected="true"]'
+  );
+  const controlledId = selectedTab?.getAttribute("aria-controls");
+  if (controlledId) {
+    const controlledPanel = document.getElementById(controlledId);
+    if (controlledPanel && root.contains(controlledPanel)) return controlledPanel;
+  }
   const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
   return panels.find((panel) => {
     if (panel.hidden) return false;
