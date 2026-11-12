@@ -391,8 +391,10 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
   return cleanup;
 }
 
-function activeTabPanel(root: Element): Element {
-  const selectedTab = root.querySelector<HTMLElement>(
+function activeTabPanel(root: Element, preferredTab?: HTMLElement): Element {
+  const selectedTab = preferredTab && root.contains(preferredTab)
+    ? preferredTab
+    : root.querySelector<HTMLElement>(
     '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
     '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"],' +
     '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"],' +
@@ -446,13 +448,13 @@ export function SwarmRouteLoading() {
       root = null;
     };
 
-    const queueTabRebuild = () => {
+    const queueTabRebuild = (tab: HTMLElement) => {
       if (!preferences.enabled || !root) return;
       window.clearTimeout(tabTimer);
       tabTimer = window.setTimeout(() => {
         if (disposed || !preferences.enabled || !root) return;
         cleanup();
-        cleanup = startDomRebuild(activeTabPanel(root), preferences.speed);
+        cleanup = startDomRebuild(activeTabPanel(root, tab), preferences.speed);
       }, 180);
     };
 
@@ -461,7 +463,7 @@ export function SwarmRouteLoading() {
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
       if (!tab || !root?.contains(tab)) return;
-      queueTabRebuild();
+      queueTabRebuild(tab);
     }
     function onTabKeyDown(event: KeyboardEvent) {
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "Enter", " "].includes(event.key)) return;
@@ -469,7 +471,7 @@ export function SwarmRouteLoading() {
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
       if (!tab || !root?.contains(tab)) return;
-      queueTabRebuild();
+      queueTabRebuild(tab);
     }
 
     const startForCurrentRoute = () => {
