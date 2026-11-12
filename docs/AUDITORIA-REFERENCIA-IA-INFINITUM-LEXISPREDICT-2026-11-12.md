@@ -33,7 +33,7 @@ O repositório já contém módulos próprios para:
 - Agentes: `/crm/agentes`, catálogo determinístico/IA, fila de rechecks e pesquisador legislativo.
 - Estúdio de agentes por rota: `/estudio-agentes`.
 - DJEN/DataJud, OAB, scanner, Hermes e veredito.
-- Documentos, modelos, geração de peças e cumprimento de sentença.
+- Documentos, modelos, geração de peças, cumprimento de sentença e ações próprias de OCR/extração documental (incluindo refinamento opt-in).
 - CRM, atividades, funil e financeiro comercial.
 
 Portanto, não criar outra agenda, outra central de notificações, outro scanner ou outro cadastro de processos para reproduzir a referência.
@@ -46,7 +46,7 @@ Portanto, não criar outra agenda, outra central de notificações, outro scanne
 4. Os fluxos jurídicos são distribuídos entre filas, regras e páginas; falta uma biblioteca única de playbooks por evento processual.
 5. A gestão de permissões pode evoluir de papéis amplos para permissões por ação, com verificação obrigatória no servidor.
 6. Formulários externos de entrada documental ainda precisam de um fluxo próprio de segurança, consentimento, expiração e associação ao processo.
-7. Telefonia e transcrição em tempo real dependem de infraestrutura e credenciais próprias; não devem ser simuladas pela interface.
+7. O Hermes já possui transcrição textual de reuniões; telefonia e transcrição de chamadas em tempo real ainda dependem de infraestrutura e credenciais próprias e não devem ser simuladas pela interface.
 
 ## Classificação funcional
 
@@ -144,7 +144,7 @@ Testes adicionados para os cenários de DJEN, audiência, sentença, cumprimento
 - Link público com token aleatório, expiração, revogação e uso limitado.
 - Upload com validação de tipo, tamanho e integridade.
 - Associação ao cliente/processo somente após conferência.
-- OCR e extração com status, erro e revisão humana.
+- Evoluir o OCR/extração já existente com progresso visível, estado, erro, evidência e revisão humana; não duplicar o motor atual.
 - Política de retenção e acesso por empresa.
 
 ### Lote 6 — Permissões granulares e auditoria
