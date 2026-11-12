@@ -40,6 +40,16 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
     expect(effect).toContain('document.addEventListener("pointerdown"');
     expect(effect).toContain('document.addEventListener("keydown"');
     expect(effect).toContain('document.addEventListener("click"');
+    expect(effect).toContain('tab.hasAttribute("data-lexis-settings-tab")');
+    expect(effect).toContain('tab.getAttribute("role") === "tab"');
+  });
+
+  it("animates streamed-in page content and replays cursor guides on rapid tab changes", () => {
+    expect(effect).toContain("new MutationObserver(");
+    expect(effect).toContain("observer.disconnect()");
+    expect(effect).toContain("mutationPasses < 3");
+    expect(effect).toContain("markerGeneration");
+    expect(effect).toContain("id: `${++markerGeneration}-${index}`");
   });
 
   it("is finite and respects lightweight mode and reduced motion", () => {
