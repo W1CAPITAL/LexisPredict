@@ -184,3 +184,44 @@ begin
 end $$;
 revoke all on function public.lexis_ops_submit_intake(text,jsonb) from public,anon,authenticated;
 grant execute on function public.lexis_ops_submit_intake(text,jsonb) to service_role;
+
+
+-- Publish exactly one version of each agent atomically; service-role only.
+create or replace function public.lexis_ops_publish_agent(p_agent_id uuid,p_tenant uuid,p_actor uuid)
+returns void language plpgsql security definer set search_path=public as $$
+declare rec public.lexis_ops_agents%rowtype;
+begin
+ select * into rec from public.lexis_ops_agents
+ where id=p_agent_id and empresa_id=p_tenant and state='rascunho' for update;
+ if not found then raise exception 'AGENT_DRAFT_NOT_FOUND' using errcode='22023'; end if;
+ perform pg_advisory_xact_lock(hashtext(p_tenant::text||':'||rec.slug));
+ update public.lexis_ops_agents set state='desativado',updated_at=now()
+ where empresa_id=p_tenant and slug=rec.slug and state='publicado';
+ update public.lexis_ops_agents set state='publicado',published_by=p_actor,updated_at=now()
+ where id=p_agent_id and empresa_id=p_tenant;
+end $$;
+revoke all on function public.lexis_ops_publish_agent(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.lexis_ops_publish_agent(uuid,uuid,uuid) to service_role;
+
+-- Rate-limit anonymous form submissions by a *hashed* network fingerprint. Never store IP.
+create or replace function public.lexis_ops_intake_slot(p_form uuid,p_fingerprint text)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare rec public.lexis_ops_intake_limits%rowtype;
+begin
+ insert into public.lexis_ops_intake_limits(form_id,fingerprint_hash,window_start,attempts)
+ values(p_form,p_fingerprint,now(),1)
+ on conflict (form_id,fingerprint_hash) do update
+ set attempts=case
+  when public.lexis_ops_intake_limits.window_start < now()-interval '10 minutes' then 1
+  else public.lexis_ops_intake_limits.attempts+1
+ end,
+ window_start=case
+  when public.lexis_ops_intake_limits.window_start < now()-interval '10 minutes' then now()
+  else public.lexis_ops_intake_limits.window_start
+ end;
+ select * into rec from public.lexis_ops_intake_limits
+  where form_id=p_form and fingerprint_hash=p_fingerprint;
+ return rec.attempts<=3;
+end $$;
+revoke all on function public.lexis_ops_intake_slot(uuid,text) from public,anon,authenticated;
+grant execute on function public.lexis_ops_intake_slot(uuid,text) to service_role;
