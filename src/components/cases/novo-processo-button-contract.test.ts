@@ -10,6 +10,7 @@ describe("New process creation from the portfolio and task queue", () => {
   const queue = source("src/components/returns/company-due-queue.tsx");
   const page = source("src/app/processos/page.tsx");
   const command = source("src/components/processos/processos-command-center.tsx");
+  const listColumns = source("src/lib/carteira-select.ts");
 
   it("uses a create-only server action and refreshes after a confirmed insert", () => {
     expect(button).toContain("createOneCaseAction");
@@ -18,6 +19,14 @@ describe("New process creation from the portfolio and task queue", () => {
     expect(action).toContain("createOneCaseAction");
     expect(action).toContain("__create_only");
     expect(action).toContain("Processo já cadastrado");
+    expect(action).toContain("advogado: 'advogado'");
+    expect(action).toContain("escritorio: 'escritorio'");
+    expect(action).toContain("telefone: 'telefone'");
+    expect(action).toContain("processed.observacao");
+    expect(listColumns).toContain('"advogado"');
+    expect(listColumns).toContain('"escritorio"');
+    expect(listColumns).toContain('"telefone"');
+    expect(listColumns).toContain('"observacoes"');
   });
 
   it("adds the create action to the company-wide /tarefas queue", () => {
@@ -27,6 +36,7 @@ describe("New process creation from the portfolio and task queue", () => {
 
   it("adds the create action to the /processos command center", () => {
     expect(page).toContain("onCreateProcess");
+    expect(page).toContain("setSearchRefreshKey((current) => current + 1)");
     expect(command).toContain("NovoProcessoButton");
     expect(command).toContain("onCreateProcess");
   });
