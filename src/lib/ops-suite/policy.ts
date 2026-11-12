@@ -40,6 +40,12 @@ export function normalizeOpsCnj(raw:string):string{
  return digits;
 }
 
+export function opsCnjVariants(raw:string):string[]{
+ const digits=normalizeOpsCnj(raw);
+ const formatted=digits.slice(0,7)+'-'+digits.slice(7,9)+'.'+digits.slice(9,13)+'.'+digits.slice(13,14)+'.'+digits.slice(14,16)+'.'+digits.slice(16);
+ return [digits,formatted];
+}
+
 const AGENT_TOOLS=['read_case','suggest_tasks','draft_message','lookup_official'] as const;
 export type OpsAgentDraft={name:string;instructions:string;tools:string[];maxCalls:number;humanReview:boolean};
 export function validateOpsAgentDraft(input:OpsAgentDraft):OpsAgentDraft{
