@@ -5,12 +5,13 @@ import { createPortal } from "react-dom";
 import { SwarmLoadingIndicator } from "@/components/ui/swarm-loading-indicator";
 
 const SWARM_ROUTE_LOADING_MS = 560;
+const TAB_SELECTOR = '[role="tab"], [data-lexis-settings-tab]';
 const TAB_NAVIGATION_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
 
 /**
  * Loading visual shared by every route template and every in-page tab.
- * The overlay is portaled to body so transformed route wrappers cannot trap
- * its fixed positioning. It never snapshots, hides or mutates page content.
+ * Covers Radix tabs and the custom settings navigation. The overlay is portaled
+ * to body so transformed route wrappers cannot trap its fixed positioning.
  */
 export function SwarmRouteLoading() {
   const [visible, setVisible] = useState(true);
@@ -32,35 +33,55 @@ export function SwarmRouteLoading() {
     };
 
     const findTab = (target: EventTarget | null) =>
-      target instanceof Element ? target.closest<HTMLElement>('[role="tab"]') : null;
+      target instanceof Element ? target.closest<HTMLElement>(TAB_SELECTOR) : null;
+
+    const isSelected = (tab: HTMLElement) =>
+      tab.getAttribute("aria-selected") === "true" ||
+      tab.dataset.state === "active" ||
+      tab.getAttribute("aria-current") === "page";
 
     const handleTabPointerDown = (event: PointerEvent) => {
       const tab = findTab(event.target);
       if (!tab || tab.getAttribute("aria-disabled") === "true") return;
 
-      // Pointerdown runs before Radix handles mousedown and updates aria-selected.
-      const alreadySelected =
-        tab.getAttribute("aria-selected") === "true" || tab.dataset.state === "active";
-
-      if (!alreadySelected) showForTabChange();
+      // Pointerdown runs before Radix handles mousedown and updates its state.
+      if (!isSelected(tab)) showForTabChange();
     };
 
     const handleTabKeyDown = (event: KeyboardEvent) => {
-      if (!TAB_NAVIGATION_KEYS.has(event.key)) return;
-
       const tab = findTab(event.target);
       if (!tab || tab.getAttribute("aria-disabled") === "true") return;
 
-      showForTabChange();
+      const isRadixTab = tab.getAttribute("role") === "tab";
+      const isSettingsTab = tab.hasAttribute("data-lexis-settings-tab");
+      const radixNavigation = isRadixTab && TAB_NAVIGATION_KEYS.has(event.key);
+      const settingsActivation =
+        isSettingsTab &&
+        (event.key === "Enter" || event.key === " ") &&
+        !isSelected(tab);
+
+      if (radixNavigation || settingsActivation) showForTabChange();
+    };
+
+    const handleTabClick = (event: MouseEvent) => {
+      // Assistive technology may activate a tab with a detail=0 synthetic click.
+      if (event.detail === 0) {
+        const tab = findTab(event.target);
+        if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
+
+        showForTabChange();
+      }
     };
 
     scheduleHide();
     document.addEventListener("pointerdown", handleTabPointerDown, true);
     document.addEventListener("keydown", handleTabKeyDown, true);
+    document.addEventListener("click", handleTabClick, true);
 
     return () => {
       document.removeEventListener("pointerdown", handleTabPointerDown, true);
       document.removeEventListener("keydown", handleTabKeyDown, true);
+      document.removeEventListener("click", handleTabClick, true);
       if (hideTimer !== undefined) window.clearTimeout(hideTimer);
     };
   }, []);
