@@ -3,6 +3,8 @@
 import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
+  DOM_REBUILD_DURATION_MS,
+  DOM_REBUILD_MAX_ELEMENTS,
   planDomRebuild,
   type DomRebuildSource,
   type DomRebuildTask,
@@ -46,10 +48,10 @@ function isOnScreen(rect: DOMRect, width: number, height: number) {
     rect.right > 0 && rect.bottom > 0 && rect.left < width && rect.top < height;
 }
 function hasVisibleSurface(style: CSSStyleDeclaration) {
-  const hasBackground = style.backgroundColor !== "transparent" &&
-    style.backgroundColor !== "rgba(0, 0, 0, 0)" &&
-    !style.backgroundColor.endsWith("/ 0)") &&
-    style.backgroundImage !== "none";
+  const color = style.backgroundColor.trim();
+  const rgba = color.match(/^rgba\\([^,]+,\\s*[^,]+,\\s*[^,]+,\\s*([\\d.]+)\\)$/i);
+  const transparent = color === "transparent" || Boolean(rgba && Number(rgba[1]) === 0);
+  const hasBackground = !transparent || style.backgroundImage !== "none";
   const hasBorder = [
     style.borderTopWidth, style.borderRightWidth,
     style.borderBottomWidth, style.borderLeftWidth,
@@ -77,7 +79,7 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
   let visited = 0;
 
   for (const candidate of Array.from(candidates)) {
-    if (visited++ >= 1800 || result.length >= 160) break;
+    if (visited++ >= 1800 || result.length >= DOM_REBUILD_MAX_ELEMENTS) break;
     if (!(candidate instanceof HTMLElement) && !(candidate instanceof SVGElement)) continue;
     const element = candidate as HTMLElement | SVGElement;
     if (OMIT_TAGS.has(element.tagName) || MEDIA_TAGS.has(element.tagName) && element.tagName === "VIDEO" && !(element as HTMLVideoElement).poster) continue;
@@ -172,7 +174,7 @@ function createRebuildStage(onSkip: () => void, agents: number) {
     cursor.style.cssText =
       "position:fixed;left:0;top:0;display:flex;align-items:flex-start;gap:4px;" +
       "pointer-events:none;opacity:0;will-change:transform;" +
-      "transition:transform 260ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
+      "transition:transform 210ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
     const pointer = document.createElement("span");
     pointer.style.cssText =
       "display:block;width:0;height:0;border-top:0 solid transparent;" +
@@ -206,7 +208,7 @@ function revealOriginalElement(node: RebuildElement): Animation | null {
     : { clipPath: node.originalClipPath, opacity: node.originalOpacity };
   try {
     return node.element.animate([from, to], {
-      duration: 280,
+      duration: DOM_REBUILD_DURATION_MS,
       easing: "cubic-bezier(.18,.72,.22,1)",
       fill: "both",
     });
@@ -320,14 +322,6 @@ function startDomRebuild(root: Element): () => void {
   return cleanup;
 }
 
-function activeTabKey(root: Element) {
-  const active = root.querySelector<HTMLElement>(
-    '[role="tab"][aria-selected="true"],[data-lexis-settings-tab][data-state="active"],[data-lexis-tab][aria-selected="true"]'
-  );
-  if (!active) return "";
-  return active.id || active.getAttribute("aria-controls") ||
-    active.getAttribute("data-value") || (active.textContent || "").trim();
-}
 function activeTabPanel(root: Element): Element {
   const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
   return panels.find((panel) => {
