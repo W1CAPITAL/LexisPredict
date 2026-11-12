@@ -150,7 +150,7 @@ export default function Hermes3DLexisPage() {
                 <span className="text-xs font-bold uppercase tracking-[.12em] text-[#e9dbe2]">Miniempresa Hermes · oito setores</span>
                 <span className="rounded-full border border-[#b48a9c]/40 px-2 py-0.5 text-[10px] text-[#d4bac4]">Rondas ilustrativas · tarefas auditadas no log</span>
               </div>
-              <div data-lexis-rebuild-tablist className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/25 p-1" role="group" aria-label="Modo de visualização">
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/25 p-1" role="group" aria-label="Modo de visualização">
                 <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-controls="hermes-view-panel" aria-pressed={view === "3d"} onClick={() => setView("3d")}><Boxes size={15} /> 3D</button>
                 <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-controls="hermes-view-panel" aria-pressed={view === "2d"} onClick={() => setView("2d")}><Grid2X2 size={15} /> 2D</button>
                 <button type="button" className="h3d-toggle" aria-pressed={replayMeeting} disabled={!canReplay} onClick={()=>{setMeetingTurn(0);setReplayMeeting(x=>!x)}} title="Reconstituição visual de uma reunião já registrada; não cria nova reunião com IA">Reproduzir reunião</button>
