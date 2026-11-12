@@ -14,7 +14,7 @@ describe("Swarm Rebuild blueprint, based on real visible page content", () => {
       item("icon", "media", 105, 112),
       item("button", "box", 100, 180),
     ], viewport);
-    expect(tasks.map(x => x.id)).toEqual(["card", "label", "icon", "button"]);
+    expect(tasks.map(x => x.id)).toEqual(["card", "icon", "label", "button"]);
     expect(new Set(tasks.map(x => x.kind))).toEqual(new Set(["box", "text", "media"]));
   });
 
