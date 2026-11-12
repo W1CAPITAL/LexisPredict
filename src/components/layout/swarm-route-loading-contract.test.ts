@@ -19,8 +19,9 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   });
 
   it("does no DOM capture, listener registration or layout work until the user opts in", () => {
-    const gate = effect.indexOf("if (!preferences.enabled)");
-    const domLookup = effect.indexOf("document.querySelector(ROOT_SELECTOR)");
+    const start = effect.indexOf("const startForCurrentRoute");
+    const gate = effect.indexOf("if (!preferences.enabled) return;", start);
+    const domLookup = effect.indexOf("document.querySelector(ROOT_SELECTOR)", start);
     expect(effect).toContain("loadSwarmRebuildPreferences");
     expect(gate).toBeGreaterThanOrEqual(0);
     expect(domLookup).toBeGreaterThan(gate);
@@ -61,9 +62,9 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   });
 
   it("bounds the effect for weak computers", () => {
-    expect(plan).toContain("DOM_REBUILD_MAX_ELEMENTS = 96");
-    expect(plan).toContain("DOM_REBUILD_AGENTS = 8");
-    expect(plan).toContain("DOM_REBUILD_DURATION_MS = 140");
+    expect(plan).toContain("DOM_REBUILD_MAX_ELEMENTS = 48");
+    expect(plan).toContain("DOM_REBUILD_AGENTS = 4");
+    expect(plan).toContain("DOM_REBUILD_DURATION_MS = getSwarmRebuildProfile(1).durationMs");
     expect(effect).toContain("prefers-reduced-motion");
     expect(effect).toContain("will-change:transform");
   });
@@ -72,8 +73,10 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(effect).toContain('[role="tab"]');
     expect(effect).toContain("[data-lexis-settings-tab]");
     expect(effect).toContain("[data-lexis-dashboard-tablist]");
+    expect(effect).toContain("[data-lexis-rebuild-tab]");
     expect(effect).toContain("addEventListener(\"click\"");
     expect(effect).toContain("addEventListener(\"keydown\"");
+    expect(tabs).toContain("data-lexis-rebuild-tab");
     expect(effect).toContain("ArrowLeft");
     expect(effect).toContain("activeTabPanel");
   });
