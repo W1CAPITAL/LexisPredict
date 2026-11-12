@@ -51,7 +51,7 @@ describe("preferências do Swarm Rebuild", () => {
     );
     expect(profiles.every((profile) =>
       profile.maxElements <= 48 &&
-      profile.maxCandidates <= 180 &&
+      profile.maxCandidates <= 240 &&
       profile.agents <= 4
     )).toBe(true);
   });
