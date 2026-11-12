@@ -57,7 +57,7 @@ describe("workflow jurídico orientado por evidências", () => {
     });
 
     expect(result.signals).toContain("busca_apreensao");
-    expect(result.steps[0]?.priority).toBe("critical");
+    expect(result.steps[0]?.priority).toBe("high");
     expect(result.warnings.join(" ")).toMatch(/validação humana|documento oficial/i);
   });
 
@@ -84,6 +84,25 @@ describe("workflow jurídico orientado por evidências", () => {
     expect(result.signals).toContain("retorno_operacional");
     expect(result.steps.some((step) => /retorno operacional/i.test(step.title))).toBe(true);
     expect(result.warnings.join(" ")).toMatch(/não é prazo processual/i);
+  });
+
+  it("uses critical priority only for a high-confidence search-and-seizure signal", () => {
+    const result = buildLegalWorkflow({
+      ...baseCase,
+      indicio_busca_apreensao: true,
+      busca_apreensao_confianca: "alta",
+    });
+
+    expect(result.steps[0]?.priority).toBe("critical");
+  });
+
+  it("does not mistake the generic proximoPrazo field for a client return", () => {
+    const result = buildLegalWorkflow({
+      ...baseCase,
+      proximoPrazo: "2026-11-10",
+    }, new Date("2026-11-12T12:00:00-03:00"));
+
+    expect(result.signals).not.toContain("retorno_operacional");
   });
 
   it("provides a verification step when the case has no usable operational signal", () => {
