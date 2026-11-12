@@ -395,7 +395,8 @@ function activeTabPanel(root: Element): Element {
   const selectedTab = root.querySelector<HTMLElement>(
     '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
     '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"],' +
-    '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"]'
+    '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"],' +
+    '[data-lexis-rebuild-tab][aria-pressed="true"],[data-lexis-rebuild-tab][aria-selected="true"]'
   );
   const controlledId = selectedTab?.getAttribute("aria-controls");
   if (controlledId) {
