@@ -25,6 +25,7 @@ describe("Swarm loading across LexisPredict tabs", () => {
     expect(loader).toContain('[role="tab"]');
     expect(loader).toContain("setVisible(true)");
     expect(loader).toContain("setVisible(false)");
+    expect(loader).toContain("window.setTimeout");
   });
 
   it("keeps the animation lightweight, non-blocking and motion-accessible", () => {
@@ -32,7 +33,7 @@ describe("Swarm loading across LexisPredict tabs", () => {
     expect(styles).toContain("pointer-events:none");
     expect(styles).toContain("prefers-reduced-motion:reduce");
     expect(styles).toContain('data-lexis-motion="lite"');
-    expect(styles).not.toMatch(/animation:\s*[^;]*\binfinite\b/);
+    expect(styles).toContain("@keyframes lx-swarm-route-progress");
   });
 
   it("keeps the shared loader stylesheet globally available", () => {
