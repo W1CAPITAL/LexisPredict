@@ -2,7 +2,7 @@
 
 import {randomBytes,createHash} from 'node:crypto';
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
-import {canUseOpsCapability,normalizeOpsCnj,normalizeOpsPhone,eligibleForRecording,type IntakeField,type OpsCapability} from '@/lib/ops-suite/policy';
+import {canUseOpsCapability,normalizeOpsCnj,opsCnjVariants,normalizeOpsPhone,eligibleForRecording,type IntakeField,type OpsCapability} from '@/lib/ops-suite/policy';
 
 async function permitted(cap:OpsCapability){
  const ctx=await getUserContext();
@@ -101,7 +101,7 @@ export async function createOpsCallAction(input:{
  const cnj=input.cnj?normalizeOpsCnj(input.cnj):null;
  if(cnj){
   const {data,error}=await a.db.from('processos').select('id').eq('empresa_id',a.company)
-   .eq('protocolo_ref',cnj).maybeSingle();
+   .in('protocolo_ref',opsCnjVariants(cnj)).limit(1).maybeSingle();
   if(error||!data)throw new Error('Processo não localizado na empresa.');
  }
  if(!['entrada','saida'].includes(input.direction)||!['nao_atendida','realizada','falhou'].includes(input.status))
@@ -152,8 +152,8 @@ export async function checkOpsIntegrationAction(provider:IntegrationName){
    details=data?'Estado informado pelo dispositivo: '+String(data.state||'indisponível')+
     '. Último contato: '+String(data.last_seen||'não registrado'):'Nenhum dispositivo local vinculado.';
   }else if(provider==='google_calendar'){
-   const {data,error}=await a.db.from('google_calendar_connections').select('user_id,updated_at')
-    .eq('empresa_id',a.company).eq('user_id',a.user).limit(1);
+   const {data,error}=await a.db.from('google_calendar_connections').select('auth_user_id,updated_at')
+    .eq('empresa_id',a.company).eq('auth_user_id',a.user).limit(1);
    if(error)throw error;
    state=data?.length?'configurado':'nao_configurado';
    details=data?.length?'Conexão registrada para usuário. Tokens e acesso externo não foram testados.':'Conexão não registrada para o usuário.';
