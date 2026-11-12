@@ -33,6 +33,8 @@ const TAB_SELECTOR = '[role="tab"], [data-lexis-settings-tab]';
 const VISUAL_SELECTOR =
   'h1,h2,h3,header,section,article,[role="tabpanel"],[class*="rounded-"],[class*="shadow-"],.lexis-metric,[data-lexis-dashboard-tablist]';
 const TAB_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+const MAX_DOM_SCAN_NODES = 600;
+const MAX_REBUILD_CANDIDATES = 120;
 const AGENTS = [
   ["#0D99FF", "Ada"],
   ["#A259FF", "Grace"],
@@ -94,11 +96,20 @@ export function SwarmRouteLoading() {
 
       // Bounded semantic query. No full DOM walk, screenshot capture or background polling.
       const candidates: VisualTarget[] = [];
-      for (const element of Array.from(scope.querySelectorAll<HTMLElement>(VISUAL_SELECTOR)).slice(0, 180)) {
-        if (element.closest("[data-lexis-swarm-stage]")) continue;
-        const bounds = element.getBoundingClientRect();
+      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT);
+      let visitedNodes = 0;
+      while (
+        visitedNodes < MAX_DOM_SCAN_NODES &&
+        candidates.length < MAX_REBUILD_CANDIDATES &&
+        walker.nextNode()
+      ) {
+        visitedNodes += 1;
+        const node = walker.currentNode;
+        if (!(node instanceof HTMLElement) || !node.matches(VISUAL_SELECTOR)) continue;
+        if (node.closest("[data-lexis-swarm-stage]")) continue;
+        const bounds = node.getBoundingClientRect();
         candidates.push({
-          element,
+          element: node,
           rect: {
             top: bounds.top,
             left: bounds.left,
@@ -211,11 +222,12 @@ export function SwarmRouteLoading() {
         "tab";
       const tabKey = `${routeKey}::${tabName}`;
       if (seenRebuildTabs.has(tabKey)) return;
-      seenRebuildTabs.add(tabKey);
 
       if (tabTimer !== undefined) window.clearTimeout(tabTimer);
-      // React/Radix has committed the selected tab by the next frame.
+      // Mark only after the selected tab is committed and its rebuild begins.
+      // A rapid switch must not consume an animation that was cancelled.
       tabTimer = window.setTimeout(() => {
+        seenRebuildTabs.add(tabKey);
         alreadyBuilt = new WeakSet<HTMLElement>();
         rebuild(true);
       }, 64);
