@@ -37,7 +37,7 @@ describe("native DOM rebuild schedule", () => {
   it("caps the rebuild at 48 real elements and four agents", () => {
     const items = Array.from({ length: 96 }, (_, i) =>
       source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
-    const tasks = planDomRebuild(items, { width: 1280, height: 800 });
+    const tasks = planDomRebuild(items, { width: 1280, height: 800 }, getSwarmRebuildProfile(5));
     expect(DOM_REBUILD_MAX_ELEMENTS).toBe(48);
     expect(DOM_REBUILD_AGENTS).toBe(4);
     expect(tasks).toHaveLength(48);
