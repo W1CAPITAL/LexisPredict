@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState, type CSSProperties } from "react";
+import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { MousePointer2 } from "lucide-react";
 import { MAX_REBUILD_TARGETS, planSwarmTargets } from "@/lib/swarm-rebuild-plan";
@@ -11,6 +12,8 @@ type RebuildMarker = {
   y: number;
   width: number;
   height: number;
+  travelX: number;
+  travelY: number;
   delay: number;
   color: string;
   name: string;
@@ -20,6 +23,10 @@ type VisualTarget = {
   element: HTMLElement;
   rect: { top: number; left: number; width: number; height: number };
 };
+
+// Module state survives client-side navigation but resets on a hard refresh.
+const seenRebuildRoutes = new Set<string>();
+const seenRebuildTabs = new Set<string>();
 
 const ROOT_SELECTOR = "[data-lexis-rebuild-root]";
 const TAB_SELECTOR = '[role="tab"], [data-lexis-settings-tab]';
@@ -35,25 +42,34 @@ const AGENTS = [
   ["#FFC700", "Tim"],
 ] as const;
 
-/** Animates real viewport DOM nodes; never copies page content into an overlay. */
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+/** Reconstructs visible, real page elements in place; no fake loading card or page screenshot. */
 export function SwarmRouteLoading() {
+  const pathname = usePathname();
   const [markers, setMarkers] = useState<RebuildMarker[]>([]);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
-    const root = document.querySelector<HTMLElement>(ROOT_SELECTOR);
+    const root =
+      document.querySelector<HTMLElement>(ROOT_SELECTOR) ||
+      document.querySelector<HTMLElement>("main") ||
+      document.body;
     if (!root) return;
 
     setPortalRoot(document.body);
+    const routeKey = pathname || window.location.pathname;
+    const runRouteRebuild = !seenRebuildRoutes.has(routeKey);
+    if (runRouteRebuild) seenRebuildRoutes.add(routeKey);
+
     const liveAnimations = new Set<Animation>();
     let hideTimer: number | undefined;
     let tabTimer: number | undefined;
     let lateTimer: number | undefined;
+    let mutationTimer: number | undefined;
     let alreadyBuilt = new WeakSet<HTMLElement>();
     let markerGeneration = 0;
-
-    const reduceMotion = () =>
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const stopActive = () => {
       for (const animation of liveAnimations) animation.cancel();
@@ -63,7 +79,7 @@ export function SwarmRouteLoading() {
     };
 
     const rebuild = (tabChange: boolean, onlyNew = false) => {
-      if (reduceMotion() || !("animate" in HTMLElement.prototype)) {
+      if (!("animate" in HTMLElement.prototype)) {
         stopActive();
         setMarkers([]);
         return;
@@ -76,10 +92,10 @@ export function SwarmRouteLoading() {
         ? root.querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]') || root
         : root;
 
-      // Bounded, semantic query; never scan every DOM node or build a page snapshot.
+      // Bounded semantic query. No full DOM walk, screenshot capture or background polling.
       const candidates: VisualTarget[] = [];
-      for (const element of Array.from(scope.querySelectorAll<HTMLElement>(VISUAL_SELECTOR)).slice(0, 120)) {
-        if (element.closest('[data-lexis-swarm-stage]')) continue;
+      for (const element of Array.from(scope.querySelectorAll<HTMLElement>(VISUAL_SELECTOR)).slice(0, 180)) {
+        if (element.closest("[data-lexis-swarm-stage]")) continue;
         const bounds = element.getBoundingClientRect();
         candidates.push({
           element,
@@ -100,31 +116,41 @@ export function SwarmRouteLoading() {
         targets.push(candidate);
         alreadyBuilt.add(candidate.element);
       }
-      if (!targets.length) return;
+      if (!targets.length) {
+        setMarkers([]);
+        return;
+      }
 
       if (!onlyNew) stopActive();
       else if (hideTimer !== undefined) window.clearTimeout(hideTimer);
 
-      // Reduced workload on weak notebooks, mobile devices and lite mode.
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const lightweight =
         viewport.width <= 640 ||
         (navigator.hardwareConcurrency || 4) <= 4 ||
         document.documentElement.getAttribute("data-lexis-motion") === "lite";
-      const shown = targets.slice(0, lightweight ? 6 : MAX_REBUILD_TARGETS);
-      const staggerMs = lightweight ? 65 : 74;
-      const durationMs = lightweight ? 260 : 380;
+
+      // Even low-end devices get a visible wipe; only the number of targets is reduced.
+      const shown = targets.slice(0, lightweight ? 8 : MAX_REBUILD_TARGETS);
+      const staggerMs = prefersReducedMotion ? 0 : lightweight ? 78 : 84;
+      const durationMs = prefersReducedMotion ? 180 : lightweight ? 620 : 760;
 
       shown.forEach(({ element, rect }, index) => {
-        const useMask = !lightweight && rect.width * rect.height <= 180_000;
+        const computed = window.getComputedStyle(element);
+        const area = rect.width * rect.height;
+        const useMask =
+          !prefersReducedMotion &&
+          computed.clipPath === "none" &&
+          area <= (lightweight ? 140_000 : 260_000);
+
         const frames: Keyframe[] = useMask
           ? [
-              { opacity: 0, clipPath: "inset(0 100% 0 0)", transform: "translate3d(0,5px,0)" },
-              { opacity: 1, clipPath: "inset(0 0 0 0)", transform: "translate3d(0,0,0)" },
+              { opacity: 0.18, clipPath: "inset(0 100% 0 0)" },
+              { opacity: 1, clipPath: "inset(0 0 0 0)" },
             ]
-          : [
-              { opacity: 0, transform: "translate3d(0,6px,0)" },
-              { opacity: 1, transform: "translate3d(0,0,0)" },
-            ];
+          : prefersReducedMotion
+            ? [{ opacity: 0.72 }, { opacity: 1 }]
+            : [{ opacity: 0.24 }, { opacity: 1 }];
 
         const animation = element.animate(frames, {
           duration: durationMs,
@@ -139,26 +165,32 @@ export function SwarmRouteLoading() {
         }, { once: true });
       });
 
-      const sampleEvery = Math.max(1, Math.ceil(shown.length / (lightweight ? 3 : 6)));
-      const visualMarkers = shown
-        .filter((_, i) => i % sampleEvery === 0)
-        .slice(0, lightweight ? 3 : 6)
-        .map(({ rect }, index) => {
-          const [color, name] = AGENTS[index % AGENTS.length];
-          return {
-            id: `${++markerGeneration}-${index}`,
-            x: Math.max(0, Math.min(viewport.width - 30, rect.left)),
-            y: Math.max(0, Math.min(viewport.height - 35, rect.top)),
-            width: Math.max(20, Math.min(rect.width, viewport.width - Math.max(0, rect.left))),
-            height: Math.max(16, Math.min(rect.height, viewport.height - Math.max(0, rect.top))),
-            delay: index * (staggerMs * sampleEvery),
-            color,
-            name,
-          };
-        });
+      const sampleEvery = Math.max(1, Math.ceil(shown.length / 6));
+      const visualMarkers = prefersReducedMotion
+        ? []
+        : shown
+            .filter((_, index) => index % sampleEvery === 0)
+            .slice(0, 6)
+            .map(({ rect }, index) => {
+              const [color, name] = AGENTS[index % AGENTS.length];
+              const width = Math.max(20, Math.min(rect.width, viewport.width - Math.max(0, rect.left)));
+              const height = Math.max(16, Math.min(rect.height, viewport.height - Math.max(0, rect.top)));
+              return {
+                id: `${++markerGeneration}-${index}`,
+                x: clamp(rect.left - 8, 0, Math.max(0, viewport.width - 28)),
+                y: clamp(rect.top + Math.min(12, rect.height * 0.15), 0, Math.max(0, viewport.height - 32)),
+                width,
+                height,
+                travelX: clamp(width * 0.72, 32, 220),
+                travelY: clamp(height * 0.38, 14, 100),
+                delay: index * (staggerMs * sampleEvery),
+                color,
+                name,
+              };
+            });
 
       setMarkers(visualMarkers);
-      const total = shown.length * staggerMs + durationMs + 120;
+      const total = shown.length * staggerMs + durationMs + 160;
       hideTimer = window.setTimeout(() => setMarkers([]), total);
     };
 
@@ -170,19 +202,34 @@ export function SwarmRouteLoading() {
       tab.dataset.state === "active" ||
       tab.getAttribute("aria-current") === "page";
 
-    const scheduleTabRebuild = () => {
+    const scheduleTabRebuild = (tab: HTMLElement) => {
+      const tabName =
+        tab.id ||
+        tab.getAttribute("aria-controls") ||
+        tab.getAttribute("data-lexis-settings-tab") ||
+        tab.textContent?.replace(/\s+/g, " ").trim() ||
+        "tab";
+      const tabKey = `${routeKey}::${tabName}`;
+      if (seenRebuildTabs.has(tabKey)) return;
+      seenRebuildTabs.add(tabKey);
+
       if (tabTimer !== undefined) window.clearTimeout(tabTimer);
-      // React/Radix has committed the new tab content by the next frame.
+      // React/Radix has committed the selected tab by the next frame.
       tabTimer = window.setTimeout(() => {
         alreadyBuilt = new WeakSet<HTMLElement>();
         rebuild(true);
-      }, 48);
+      }, 64);
     };
 
     const handlePointer = (event: PointerEvent) => {
       const tab = findTab(event.target);
-      if (tab && tab.getAttribute("role") === "tab" && tab.getAttribute("aria-disabled") !== "true" && !isSelected(tab)) {
-        scheduleTabRebuild();
+      if (
+        tab &&
+        tab.getAttribute("aria-disabled") !== "true" &&
+        tab.getAttribute("role") === "tab" &&
+        !isSelected(tab)
+      ) {
+        scheduleTabRebuild(tab);
       }
     };
 
@@ -190,18 +237,19 @@ export function SwarmRouteLoading() {
       const tab = findTab(event.target);
       if (!tab || tab.getAttribute("aria-disabled") === "true") return;
       const radixNavigation = tab.getAttribute("role") === "tab" && TAB_KEYS.has(event.key);
-      const settingsActivation = tab.hasAttribute("data-lexis-settings-tab") &&
-        (event.key === "Enter" || event.key === " ") && !isSelected(tab);
-      if (radixNavigation || settingsActivation) scheduleTabRebuild();
+      const settingsActivation =
+        tab.hasAttribute("data-lexis-settings-tab") &&
+        (event.key === "Enter" || event.key === " ") &&
+        !isSelected(tab);
+      if (radixNavigation || settingsActivation) scheduleTabRebuild(tab);
     };
 
     const handleClick = (event: MouseEvent) => {
       const tab = findTab(event.target);
       if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
-      // Custom settings buttons update React state on click, not pointerdown.
-      // Synthetic clicks from assistive technology also need a route rebuild.
+      // Custom settings buttons and assistive-technology clicks update on click.
       if (tab.hasAttribute("data-lexis-settings-tab") || event.detail === 0) {
-        scheduleTabRebuild();
+        scheduleTabRebuild(tab);
       }
     };
 
@@ -209,46 +257,53 @@ export function SwarmRouteLoading() {
     document.addEventListener("keydown", handleKey, true);
     document.addEventListener("click", handleClick, true);
 
-    // First paint rebuild, then a bounded late pass for asynchronous sections.
-    rebuild(false);
-    lateTimer = window.setTimeout(() => rebuild(false, true), 340);
+    if (runRouteRebuild) {
+      rebuild(false);
+      lateTimer = window.setTimeout(() => rebuild(false, true), 340);
 
-    // Server Components may stream the real page well after a loading fallback.
-    // At most three debounced passes, for 12 seconds; never poll or scan endlessly.
-    let mutationPasses = 0;
-    let mutationTimer: number | undefined;
-    const observer = new MutationObserver((records) => {
-      if (mutationPasses >= 3 || !records.some((record) => record.addedNodes.length > 0)) return;
-      if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
-      mutationTimer = window.setTimeout(() => {
-        if (mutationPasses < 3) {
-          mutationPasses += 1;
-          rebuild(false, true);
-        }
-        if (mutationPasses >= 3) observer.disconnect();
-      }, 180);
-    });
-    observer.observe(root, { childList: true, subtree: true });
-    const stopObserverTimer = window.setTimeout(() => observer.disconnect(), 12_000);
+      // Server Components may stream the actual page after the first client paint.
+      let mutationPasses = 0;
+      const observer = new MutationObserver((records) => {
+        if (mutationPasses >= 3 || !records.some((record) => record.addedNodes.length > 0)) return;
+        if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
+        mutationTimer = window.setTimeout(() => {
+          if (mutationPasses < 3) {
+            mutationPasses += 1;
+            rebuild(false, true);
+          }
+          if (mutationPasses >= 3) observer.disconnect();
+        }, 180);
+      });
+      observer.observe(root, { childList: true, subtree: true });
+      const stopObserverTimer = window.setTimeout(() => observer.disconnect(), 12_000);
+
+      return () => {
+        document.removeEventListener("pointerdown", handlePointer, true);
+        document.removeEventListener("keydown", handleKey, true);
+        document.removeEventListener("click", handleClick, true);
+        if (tabTimer !== undefined) window.clearTimeout(tabTimer);
+        if (lateTimer !== undefined) window.clearTimeout(lateTimer);
+        if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
+        window.clearTimeout(stopObserverTimer);
+        observer.disconnect();
+        stopActive();
+      };
+    }
 
     return () => {
       document.removeEventListener("pointerdown", handlePointer, true);
       document.removeEventListener("keydown", handleKey, true);
       document.removeEventListener("click", handleClick, true);
       if (tabTimer !== undefined) window.clearTimeout(tabTimer);
-      if (lateTimer !== undefined) window.clearTimeout(lateTimer);
-      if (mutationTimer !== undefined) window.clearTimeout(mutationTimer);
-      window.clearTimeout(stopObserverTimer);
-      observer.disconnect();
       stopActive();
     };
-  }, []);
+  }, [pathname]);
 
   if (!portalRoot || markers.length === 0) return null;
 
   return createPortal(
     <div data-lexis-swarm-stage className="lx-swarm-stage" aria-hidden="true">
-      {markers.map(({ id, x, y, width, height, delay, color, name }) => (
+      {markers.map(({ id, x, y, width, height, travelX, travelY, delay, color, name }) => (
         <div key={id}>
           <span
             data-lexis-swarm-guide
@@ -266,11 +321,15 @@ export function SwarmRouteLoading() {
             data-lexis-swarm-cursor
             className="lx-swarm-cursor"
             style={{
-              left: x + Math.min(width * 0.6, 100),
-              top: y + Math.min(height * 0.45, 40),
+              left: x,
+              top: y,
               animationDelay: `${delay}ms`,
               color,
-            }}
+              "--lx-swarm-travel-x": `${travelX}px`,
+              "--lx-swarm-travel-y": `${travelY}px`,
+              "--lx-swarm-mid-x": `${travelX * 0.46}px`,
+              "--lx-swarm-mid-y": `${travelY * 0.46}px`,
+            } as CSSProperties}
           >
             <MousePointer2 aria-hidden="true" size={18} fill="currentColor" strokeWidth={1.5} />
             <small style={{ backgroundColor: color }}>{name}</small>
