@@ -124,6 +124,7 @@ export default function PluginsPage() {
             {categories.map((item) => (
               <button
                 key={item}
+                data-lexis-rebuild-tab
                 onClick={() => setCategory(item)}
                 className={"rounded-xl px-3 py-2 text-xs font-bold transition " + (
                   category === item
