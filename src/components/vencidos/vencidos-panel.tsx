@@ -59,7 +59,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    {([{id:"retorno",label:"Retornos vencidos",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
       {id:"todos",label:"Marcados vencidos no CRM",hint:`${counts.ativosMarcados} ativos · ${bloqueados} encerrados manualmente (sem cobrança)`,value:counts.todos,icon:AlertTriangle},
       {id:"revisar",label:"Cadastros para revisar",hint:"Status não combina com as datas ou com encerramento",value:counts.revisar,icon:ShieldAlert},
-      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
+      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} data-lexis-rebuild-tab onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
     className={"rounded-2xl border p-4 text-left shadow-sm transition "+(tab===x.id?"border-rose-400 bg-rose-500/10":"border-border bg-card hover:border-rose-300")}>
      <x.icon className="h-5 w-5 text-rose-600"/><p className="mt-3 text-2xl font-black tabular-nums">{format(x.value)}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{x.label}</p><p className="mt-2 text-[11px] leading-snug text-muted-foreground">{x.hint}</p>
     </button>)}
