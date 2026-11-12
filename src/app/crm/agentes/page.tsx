@@ -159,7 +159,7 @@ export default function CrmAgentesPage() {
               </option>
             ))}
           </select>
-          <Input placeholder="CNJ (opcional)" value={protocolo} onChange={(e) => setProtocolo(e.target.value)} />
+          <Input placeholder={agentId === "workflow-juridico" ? "CNJ completo (20 dígitos)" : "CNJ (opcional)"} value={protocolo} onChange={(e) => setProtocolo(e.target.value)} />
           <Textarea
             placeholder="Pedido ao agente (ex.: priorize quem está há mais tempo sem retorno)"
             value={prompt}
