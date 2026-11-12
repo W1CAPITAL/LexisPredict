@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   planSwarmStoryboard,
@@ -351,6 +351,8 @@ function playCapturedBlueprint(
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   finishedCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   const background = resolvePageBackground();
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, innerWidth, innerHeight);
   const finished = new Set<string>();
   const totalMs = Math.max(...tasks.map(t => t.startMs + t.durationMs)) + 600;
   const startTime = performance.now();
@@ -405,13 +407,24 @@ function playCapturedBlueprint(
 
 export function SwarmRouteLoading() {
   const pathname = usePathname();
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const path = pathname || window.location.pathname;
     let cleanup: (() => void) | undefined;
     let timer = 0;
     let dead = false;
     let tries = 0;
+    // Cover the page before the first browser paint, like the original
+    // extension: no already-visible UI is suddenly made to "rebuild".
+    let captureVeil: HTMLDivElement | null = null;
+    if (!seenRebuildRoutes.has(path)) {
+      captureVeil = document.createElement("div");
+      captureVeil.dataset.swarmCaptureVeil = "true";
+      captureVeil.style.cssText =
+        "position:fixed;inset:0;z-index:2147483644;pointer-events:none;background:" +
+        resolvePageBackground();
+      document.body.appendChild(captureVeil);
+    }
 
     function run(key: string, seen: Set<string>) {
       if (dead || seen.has(key)) return;
@@ -428,6 +441,10 @@ export function SwarmRouteLoading() {
       cleanup = playCapturedBlueprint(blueprint, () => {
         cleanup = undefined;
       });
+      if (captureVeil) {
+        captureVeil.remove();
+        captureVeil = null;
+      }
     }
 
     function schedule(key: string, seen: Set<string>, delay = 220) {
@@ -462,6 +479,7 @@ export function SwarmRouteLoading() {
       document.removeEventListener("pointerdown", onTab, true);
       document.removeEventListener("keydown", onKey, true);
       if (cleanup) cleanup();
+      if (captureVeil) captureVeil.remove();
     };
   }, [pathname]);
   return null;
