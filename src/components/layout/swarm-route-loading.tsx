@@ -429,14 +429,24 @@ export function SwarmRouteLoading() {
     function run(key: string, seen: Set<string>) {
       if (dead || seen.has(key)) return;
       if (cleanup) cleanup();
-      const blueprint = captureBlueprint();
+      let blueprint: BlueprintNode[];
+      try {
+        blueprint = captureBlueprint();
+      } catch {
+        // A failed snapshot must never leave a blank screen or block LexisPredict.
+        if (captureVeil) { captureVeil.remove(); captureVeil = null; }
+        return;
+      }
       // Don't consume a route while its server-rendered data is still arriving.
       if (blueprint.length < 12 && tries < 6) {
         tries += 1;
         timer = window.setTimeout(() => run(key, seen), 260);
         return;
       }
-      if (!blueprint.length) return;
+      if (!blueprint.length) {
+        if (captureVeil) { captureVeil.remove(); captureVeil = null; }
+        return;
+      }
       seen.add(key);
       cleanup = playCapturedBlueprint(blueprint, () => {
         cleanup = undefined;
