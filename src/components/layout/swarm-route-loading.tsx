@@ -96,10 +96,19 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
   const rootRect = root.getBoundingClientRect();
   const result: RebuildElement[] = [];
   const surfaceAncestors = new WeakSet<Element>();
+  const textAncestors = new WeakSet<Element>();
   const hasSurfaceAncestor = (element: Element) => {
     let parent = element.parentElement;
     while (parent && parent !== root) {
       if (surfaceAncestors.has(parent)) return true;
+      parent = parent.parentElement;
+    }
+    return false;
+  };
+  const hasTextAncestor = (element: Element) => {
+    let parent = element.parentElement;
+    while (parent && parent !== root) {
+      if (textAncestors.has(parent)) return true;
       parent = parent.parentElement;
     }
     return false;
@@ -131,10 +140,14 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
     const semantic = element.matches(
       'button,a,input,select,textarea,[role="tab"],[role="tabpanel"],[role="button"],[data-lexis-tab]'
     );
+    const groupsChildren = surface || element.matches(
+      'button,a,input,select,textarea,[role="tab"],[role="button"],[data-lexis-tab]'
+    );
 
-    // A card's descendants remain part of that card's original rendering.
-    // Keep a nested surface only when it is a separate visible control/card.
+    // A card/control or text block is one visual object. Its nested spans and
+    // labels are not scheduled a second time, avoiding duplicate glyphs.
     if (hasSurfaceAncestor(element) && !surface) continue;
+    if (text && hasTextAncestor(element)) continue;
     if (!media && !surface && !text && !semantic) continue;
 
     const kind = media ? "media" : surface || semantic && !text ? "container" : "text";
@@ -153,7 +166,8 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
       originalOpacity: Number(style.opacity) || 1,
       originalFilter: style.filter || "none",
     });
-    if (surface) surfaceAncestors.add(element);
+    if (groupsChildren) surfaceAncestors.add(element);
+    if (text) textAncestors.add(element);
   }
   return result;
 }
