@@ -454,6 +454,10 @@ export function SwarmRouteLoading() {
     let root: Element | null = null;
     let routeObserver: MutationObserver | null = null;
     let preferences = loadSwarmRebuildPreferences();
+    document.documentElement.setAttribute(
+      "data-lexis-swarm-rebuild",
+      preferences.enabled ? "enabled" : "disabled",
+    );
     let tabListenersAttached = false;
 
     const detachTabListeners = () => {
@@ -550,6 +554,10 @@ export function SwarmRouteLoading() {
       preferences = detail
         ? normalizeSwarmRebuildPreferences(detail)
         : loadSwarmRebuildPreferences();
+      document.documentElement.setAttribute(
+        "data-lexis-swarm-rebuild",
+        preferences.enabled ? "enabled" : "disabled",
+      );
       if (!preferences.enabled) {
         stopRebuild();
         return;
