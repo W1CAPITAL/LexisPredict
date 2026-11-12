@@ -35,7 +35,7 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(effect).not.toContain('querySelectorAll("*")');
     expect(effect).toContain("surfaceAncestors");
     expect(effect).toContain("hasSurfaceAncestor");
-    expect(effect).toContain("MAX_CAPTURED");
+    expect(effect).toContain("DOM_REBUILD_MAX_ELEMENTS");
   });
 
   it("bounds the effect for weak computers", () => {
