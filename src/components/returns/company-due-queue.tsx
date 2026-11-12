@@ -7,6 +7,7 @@ import {Sidebar} from '@/components/layout/sidebar';
 import {HermesReturnReviewButton} from '@/components/hermes/hermes-return-review-button';
 import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
+import {NovoProcessoButton} from '@/components/cases/novo-processo-button';
 import type {LegalCase} from '@/lib/case-logic';
 import {listCompanyDueReturns} from '@/lib/company-return-queue';
 import {loadAllDuePages} from '@/lib/today-due-consistency';
