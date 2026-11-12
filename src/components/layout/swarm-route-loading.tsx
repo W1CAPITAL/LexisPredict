@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SwarmLoadingIndicator } from "@/components/ui/swarm-loading-indicator";
 
 const SWARM_ROUTE_LOADING_MS = 560;
+const TAB_NAVIGATION_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
 
 /**
  * Loading visual shared by every route template and every in-page tab.
- * It is intentionally visual-only: no DOM snapshot, page hiding, canvas,
- * extension APIs, network calls or interference with the content being loaded.
+ * The overlay is portaled to body so transformed route wrappers cannot trap
+ * its fixed positioning. It never snapshots, hides or mutates page content.
  */
 export function SwarmRouteLoading() {
   const [visible, setVisible] = useState(true);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    setPortalRoot(document.body);
+
     let hideTimer: number | undefined;
 
     const scheduleHide = () => {
@@ -21,35 +26,48 @@ export function SwarmRouteLoading() {
       hideTimer = window.setTimeout(() => setVisible(false), SWARM_ROUTE_LOADING_MS);
     };
 
-    const handleTabClick = (event: MouseEvent) => {
-      const tab =
-        event.target instanceof Element
-          ? event.target.closest<HTMLElement>('[role="tab"]')
-          : null;
-
-      if (!tab || tab.getAttribute("aria-disabled") === "true") return;
-
-      const alreadySelected =
-        tab.getAttribute("aria-selected") === "true" || tab.dataset.state === "active";
-
-      if (alreadySelected) return;
-
+    const showForTabChange = () => {
       setVisible(true);
       scheduleHide();
     };
 
+    const findTab = (target: EventTarget | null) =>
+      target instanceof Element ? target.closest<HTMLElement>('[role="tab"]') : null;
+
+    const handleTabPointerDown = (event: PointerEvent) => {
+      const tab = findTab(event.target);
+      if (!tab || tab.getAttribute("aria-disabled") === "true") return;
+
+      // Pointerdown runs before Radix handles mousedown and updates aria-selected.
+      const alreadySelected =
+        tab.getAttribute("aria-selected") === "true" || tab.dataset.state === "active";
+
+      if (!alreadySelected) showForTabChange();
+    };
+
+    const handleTabKeyDown = (event: KeyboardEvent) => {
+      if (!TAB_NAVIGATION_KEYS.has(event.key)) return;
+
+      const tab = findTab(event.target);
+      if (!tab || tab.getAttribute("aria-disabled") === "true") return;
+
+      showForTabChange();
+    };
+
     scheduleHide();
-    document.addEventListener("click", handleTabClick, true);
+    document.addEventListener("pointerdown", handleTabPointerDown, true);
+    document.addEventListener("keydown", handleTabKeyDown, true);
 
     return () => {
-      document.removeEventListener("click", handleTabClick, true);
+      document.removeEventListener("pointerdown", handleTabPointerDown, true);
+      document.removeEventListener("keydown", handleTabKeyDown, true);
       if (hideTimer !== undefined) window.clearTimeout(hideTimer);
     };
   }, []);
 
-  if (!visible) return null;
+  if (!visible || !portalRoot) return null;
 
-  return (
+  return createPortal(
     <div
       className="lx-swarm-route-loading"
       data-lexis-route-loading
@@ -100,6 +118,7 @@ export function SwarmRouteLoading() {
           <span />
         </div>
       </div>
-    </div>
+    </div>,
+    portalRoot,
   );
 }
