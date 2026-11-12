@@ -122,7 +122,7 @@ export function SwarmRebuildSettingsPanel() {
         <div className="space-y-1">
           <p className="text-sm font-semibold">Proteção de desempenho</p>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            O modo desligado encerra a rotina antes de consultar o DOM. Quando ligado, distribui a leitura por até 180–240 candidatos e anima de 32 a 48 elementos, com no máximo quatro agentes. A sidebar permanece fora da reconstrução, e nenhum dado de processo é alterado.
+            O modo desligado encerra a rotina antes de consultar o DOM. Quando ligado, distribui a leitura por até 120–180 candidatos e anima de 32 a 48 elementos, com no máximo quatro agentes. A sidebar permanece fora da reconstrução, e nenhum dado de processo é alterado.
           </p>
         </div>
       </div>
