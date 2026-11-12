@@ -60,6 +60,7 @@ import { openDjenPublicacaoAction } from "@/app/actions/open-djen-action";
 import { generateDossieProcessoPDFAction } from "@/app/actions/dossie-processo-actions";
 import { consultarOabAction, type OabResult } from "@/app/actions/oab-actions";
 import { Button } from "@/components/ui/button";
+import { NovoProcessoButton } from "@/components/cases/novo-processo-button";
 import { useToast } from "@/hooks/use-toast";
 import { processOperationalCoverage, processSourceGapCount, processSourceMatrix, recommendedProcessActions } from "@/lib/processos-command-intelligence";
 import { gerarTarefasJuridicas } from "@/lib/automacao-tarefas";
@@ -90,6 +91,7 @@ type Props = {
   sortOps: boolean;
   onSortOpsChange: (value: boolean) => void;
   onRefresh: () => void | Promise<void>;
+  onCreateProcess?: () => void | Promise<void>;
   onLoadMore?: () => void | Promise<void>;
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -738,6 +740,12 @@ export function ProcessosCommandCenter(props: Props) {
             <p className="mt-1 text-[10px] text-slate-600 dark:text-slate-400">Centro de análise processual · DataJud + DJEN + carteira + atendimento</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {props.onCreateProcess ? (
+              <NovoProcessoButton
+                onCreated={props.onCreateProcess}
+                className="h-8 rounded-lg px-3 text-[10px] tracking-wide"
+              />
+            ) : null}
             {props.canScan && props.onScan ? (
               <Button onClick={props.onScan} size="sm" className="h-8 bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90">
                 <RefreshCcw size={13} className="mr-1.5" />{props.scannerLabel || "Atualizar DataJud"}
