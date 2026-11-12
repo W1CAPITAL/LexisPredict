@@ -72,6 +72,7 @@ export function SwarmRouteLoading() {
     let tabTimer: number | undefined;
     let lateTimer: number | undefined;
     let mutationTimer: number | undefined;
+    let hideAt = 0;
     let alreadyBuilt = new WeakSet<HTMLElement>();
     let markerGeneration = 0;
 
@@ -80,6 +81,7 @@ export function SwarmRouteLoading() {
       liveAnimations.clear();
       if (hideTimer !== undefined) window.clearTimeout(hideTimer);
       hideTimer = undefined;
+      hideAt = 0;
     };
 
     const rebuild = (tabChange: boolean, onlyNew = false) => {
@@ -130,12 +132,13 @@ export function SwarmRouteLoading() {
         alreadyBuilt.add(candidate.element);
       }
       if (!targets.length) {
-        setMarkers([]);
+        // The bounded late pass often finds no additional nodes. Do not remove
+        // cursors that are still drawing the first batch of real page elements.
+        if (!onlyNew) setMarkers([]);
         return;
       }
 
       if (!onlyNew) stopActive();
-      else if (hideTimer !== undefined) window.clearTimeout(hideTimer);
 
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const lightweight =
@@ -202,9 +205,17 @@ export function SwarmRouteLoading() {
               };
             });
 
-      setMarkers(visualMarkers);
+      setMarkers((previous) =>
+        onlyNew ? [...previous, ...visualMarkers].slice(-12) : visualMarkers
+      );
       const total = shown.length * staggerMs + durationMs + 160;
-      hideTimer = window.setTimeout(() => setMarkers([]), total);
+      hideAt = Math.max(hideAt, Date.now() + total);
+      if (hideTimer !== undefined) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        setMarkers([]);
+        hideTimer = undefined;
+        hideAt = 0;
+      }, Math.max(0, hideAt - Date.now()));
     };
 
     const findTab = (target: EventTarget | null) =>
