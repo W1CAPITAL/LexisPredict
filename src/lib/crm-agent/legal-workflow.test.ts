@@ -34,6 +34,16 @@ describe("workflow jurídico orientado por evidências", () => {
     expect(result.steps.some((step) => /audiência/i.test(step.title))).toBe(true);
   });
 
+  it("does not recommend hearing preparation for a past hearing", () => {
+    const result = buildLegalWorkflow({
+      ...baseCase,
+      tem_audiencia: true,
+      audiencia_data: "2026-11-10",
+    }, new Date("2026-11-12T12:00:00-03:00"));
+
+    expect(result.signals).not.toContain("audiencia");
+  });
+
   it("separates judgment review from enforcement follow-up", () => {
     const result = buildLegalWorkflow({
       ...baseCase,
