@@ -398,8 +398,18 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
   return cleanup;
 }
 
+function controlledPanelForTab(root: Element, tab?: HTMLElement): Element | null {
+  const ids = tab?.getAttribute("aria-controls")?.split(/\s+/).filter(Boolean) ?? [];
+  for (const id of ids) {
+    const panel = document.getElementById(id);
+    if (panel && root.contains(panel)) return panel;
+  }
+  return null;
+}
+
 function activeTabPanel(root: Element, preferredTab?: HTMLElement): Element {
-  const selectedTab = preferredTab && root.contains(preferredTab)
+  const preferredPanel = controlledPanelForTab(root, preferredTab);
+  const selectedTab = preferredTab && (root.contains(preferredTab) || preferredPanel)
     ? preferredTab
     : root.querySelector<HTMLElement>(
       '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
@@ -408,11 +418,8 @@ function activeTabPanel(root: Element, preferredTab?: HTMLElement): Element {
       '[data-lexis-rebuild-tab][aria-pressed="true"],[data-lexis-rebuild-tab][aria-selected="true"]'
     );
 
-  const controlledIds = selectedTab?.getAttribute("aria-controls")?.split(/\\s+/).filter(Boolean) ?? [];
-  for (const controlledId of controlledIds) {
-    const controlledPanel = document.getElementById(controlledId);
-    if (controlledPanel && root.contains(controlledPanel)) return controlledPanel;
-  }
+  const controlledPanel = controlledPanelForTab(root, selectedTab);
+  if (controlledPanel) return controlledPanel;
 
   const href = selectedTab?.getAttribute("href");
   if (href?.startsWith("#")) {
@@ -503,7 +510,7 @@ export function SwarmRouteLoading() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root?.contains(tab)) return;
+      if (!tab || !root || (!root.contains(tab) && !controlledPanelForTab(root, tab))) return;
       queueTabRebuild(tab);
     }
     function onTabKeyDown(event: KeyboardEvent) {
@@ -511,7 +518,7 @@ export function SwarmRouteLoading() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root?.contains(tab)) return;
+      if (!tab || !root || (!root.contains(tab) && !controlledPanelForTab(root, tab))) return;
       queueTabRebuild(tab, true);
     }
 
