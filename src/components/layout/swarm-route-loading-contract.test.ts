@@ -39,6 +39,16 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(panel).toContain("Muito lenta");
     expect(panel).toContain("Muito rápida");
     expect(tabs).toContain("data-lexis-rebuild-tab");
+    for (const path of [
+      "src/components/dashboard/office-stats.tsx",
+      "src/components/vencidos/vencidos-panel.tsx",
+      "src/app/agenda/page.tsx",
+      "src/app/hermes-3d/page.tsx",
+      "src/app/plugins/page.tsx",
+      "src/app/busca-apreensao/page.tsx",
+    ]) {
+      expect(source(path), path).toContain("data-lexis-rebuild-tab");
+    }
   });
 
   it("animates the original DOM elements without cloning, replacing or redrawing the page", () => {
