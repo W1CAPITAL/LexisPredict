@@ -18,6 +18,7 @@ import {
  */
 type BlueprintNode = SwarmSource & {
   fill?: string;
+  gradient?: string;
   border?: string;
   borderWidth?: number;
   radius?: number;
@@ -138,6 +139,8 @@ function captureBlueprint(): BlueprintNode[] {
     }
 
     const bg = style.backgroundColor;
+    const gradient = style.backgroundImage;
+    const hasGradient = gradient.startsWith("linear-gradient(");
     const borderWidth = Math.max(
       parseFloat(style.borderTopWidth) || 0,
       parseFloat(style.borderRightWidth) || 0,
@@ -148,10 +151,11 @@ function captureBlueprint(): BlueprintNode[] {
     const hasFill = opaqueColor(bg);
     const hasBorder = borderWidth > 0 && opaqueColor(borderColor) &&
       style.borderTopStyle !== "none";
-    if ((hasFill || hasBorder) && rect.width > 10 && rect.height > 8) {
+    if ((hasFill || hasBorder || hasGradient) && rect.width > 10 && rect.height > 8) {
       result.push({
         id: "dom-box-" + (++id), kind: "box",
         ...measureRect(rect), fill: hasFill ? bg : undefined,
+        gradient: hasGradient ? gradient : undefined,
         border: hasBorder ? borderColor : undefined,
         borderWidth: borderWidth,
         radius: Math.max(0, parseFloat(style.borderTopLeftRadius) || 0),
@@ -204,15 +208,33 @@ function paintText(ctx: CanvasRenderingContext2D, task: BlueprintNode, progress:
     ctx.fillText(value, x, task.y + index * lineHeight, task.width);
   });
 }
+function gradientBrush(ctx: CanvasRenderingContext2D, task: BlueprintNode): CanvasGradient | string {
+  const colors = (task.gradient || "").match(/rgba?\([^)]*\)|#[a-fA-F0-9]{3,8}/g) || [];
+  if (colors.length < 2) return task.fill || "transparent";
+  const value = task.gradient || "";
+  const horizontal = /to right|90deg|270deg/.test(value);
+  const reverse = /to top|to left|270deg|180deg/.test(value);
+  const dx = horizontal ? task.width : task.width * 0.25;
+  const dy = horizontal ? 0 : task.height;
+  const g = ctx.createLinearGradient(
+    task.x + (reverse ? dx : 0), task.y + (reverse ? dy : 0),
+    task.x + (reverse ? 0 : dx), task.y + (reverse ? 0 : dy)
+  );
+  for (let i = 0; i < Math.min(6, colors.length); i++) {
+    g.addColorStop(i / (Math.min(6, colors.length) - 1), colors[i]);
+  }
+  return g;
+}
+
 function paintItem(ctx: CanvasRenderingContext2D, task: BlueprintNode, progress: number) {
   const p = Math.max(0, Math.min(1, progress));
   ctx.save();
   if (task.kind === "box") {
     roundedPath(ctx, task);
-    if (task.fill) {
+    if (task.fill || task.gradient) {
       ctx.save();
       ctx.clip();
-      ctx.fillStyle = task.fill;
+      ctx.fillStyle = task.gradient ? gradientBrush(ctx, task) : (task.fill || "transparent");
       ctx.fillRect(task.x, task.y, task.width * p, task.height);
       ctx.restore();
     }
