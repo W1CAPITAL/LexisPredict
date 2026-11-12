@@ -1018,7 +1018,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
           </div>
           <div className="flex items-center gap-2">
             <Link href="/vencidos" className="inline-flex h-10 items-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-xs font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-200">Central de vencidos</Link>
-            <Button type="button" variant={filaFiltro==="vencido"?"default":"outline"} size="sm" onClick={()=>setFilaFiltro(filaFiltro==="vencido"?"all":"vencido")} className="h-10 rounded-xl">Ver vencidos nesta fila</Button>
+            <Button type="button" data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" aria-pressed={filaFiltro==="vencido"} variant={filaFiltro==="vencido"?"default":"outline"} size="sm" onClick={()=>setFilaFiltro(filaFiltro==="vencido"?"all":"vencido")} className="h-10 rounded-xl">Ver vencidos nesta fila</Button>
             <Button variant="outline" size="sm" onClick={() => void loadData(true)} disabled={loading} className="h-10 rounded-xl border-[#dce5f1] bg-white px-4 text-[#23466f]">
               <RefreshCcw size={15} className={cn("mr-2", loading && "animate-spin")} /> Recarregar carteira
             </Button>
@@ -1095,34 +1095,34 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
 {filaFiltro==='hoje' && <span role={todayDueError?'alert':'status'} className="text-[11px] text-muted-foreground">
                 {todayDueError||(todayDueLoading?'Consultando todos os retornos para hoje…':`${todayDueSummary.clientCount} cliente(s) com retorno pendente hoje`)}
               </span>}
-              <Button type="button" size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
+              <Button type="button" data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" aria-pressed={filaFiltro === "hoje"} size="sm" variant={filaFiltro === "hoje" ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setFilaFiltro((v) => v === "hoje" ? "all" : "hoje")}>
                 É hoje
               </Button>
-              <Button type="button" size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
+              <Button type="button" data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" aria-pressed={soMeusHoje} size="sm" variant={soMeusHoje ? "default" : "outline"} className="h-9 text-[10px] font-black uppercase" onClick={() => setSoMeusHoje((v) => !v)}>
                 Meus hoje
               </Button>
               <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
                    <SelectTrigger className="h-12 w-full md:w-[260px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
                    <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
-                      <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
-                      <SelectItem value="vencido" className="font-black uppercase text-[10px]">Vencidos</SelectItem>
-                      <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
-                      <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
-                      <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
-                      <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
-                      <SelectItem value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
-                      <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
-                      <SelectItem value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
-                      <SelectItem value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
-                      <SelectItem value="replica" className="font-black uppercase text-[10px]">Réplica pendente</SelectItem>
-                      <SelectItem value="silencio" className="font-black uppercase text-[10px]">Silêncio ≥45d</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="vencido" className="font-black uppercase text-[10px]">Vencidos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="replica" className="font-black uppercase text-[10px]">Réplica pendente</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="silencio" className="font-black uppercase text-[10px]">Silêncio ≥45d</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
           </div>
 
           {/* Sub-abas da fila — fácil achar Blacklist e Em tratamento */}
-          <div className="flex flex-wrap gap-2">
+          <div data-lexis-rebuild-tablist className="flex flex-wrap gap-2">
             {([
               { id: 'all', label: 'Fila prioritária' },
               { id: 'vencido', label: 'Vencidos' },
@@ -1137,6 +1137,9 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
               <button
                 key={tab.id}
                 type="button"
+                data-lexis-rebuild-tab
+                aria-controls="tarefas-fila-panel"
+                aria-pressed={filaFiltro === tab.id}
                 onClick={() => setFilaFiltro(tab.id as any)}
                 className={cn(
                   "h-9 px-4 rounded-full text-[10px] font-black uppercase tracking-wider border transition-colors",
@@ -1154,7 +1157,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
             ))}
           </div>
 
-          <div className="space-y-4">
+          <div id="tarefas-fila-panel" data-lexis-rebuild-panel className="space-y-4">
             <div className="flex items-center gap-3">
               <Target size={18} className="text-primary" />
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">

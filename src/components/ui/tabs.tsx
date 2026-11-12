@@ -49,6 +49,7 @@ const TabsContent = React.forwardRef<
       className
     )}
     {...props}
+    data-lexis-rebuild-panel
   />
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName

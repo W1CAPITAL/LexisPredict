@@ -291,6 +291,8 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
               key={id}
               type="button"
               data-lexis-rebuild-tab
+              aria-controls="office-stats-tab-panel"
+              aria-pressed={tab === id}
               onClick={() => setTab(id)}
               className={cn(
                 "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition",
@@ -303,7 +305,7 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div id="office-stats-tab-panel" data-lexis-rebuild-panel className="overflow-x-auto">
         {tab === "escritorio" && (
           <MetricsTable rows={offices} nameHeader="Escritório" showVencidos showSub={false} />
         )}

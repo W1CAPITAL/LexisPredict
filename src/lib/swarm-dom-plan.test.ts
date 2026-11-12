@@ -3,7 +3,9 @@ import {
   DOM_REBUILD_AGENTS,
   DOM_REBUILD_DURATION_MS,
   DOM_REBUILD_MAX_ELEMENTS,
+  DOM_REBUILD_MIN_ELEMENTS,
   planDomRebuild,
+  sampleDomCandidates,
 } from "./swarm-dom-plan";
 import { getSwarmRebuildProfile } from "./swarm-rebuild-preferences";
 
@@ -35,22 +37,41 @@ describe("native DOM rebuild schedule", () => {
   it("caps the rebuild at 48 real elements and four agents", () => {
     const items = Array.from({ length: 96 }, (_, i) =>
       source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
-    const tasks = planDomRebuild(items, { width: 1280, height: 800 });
+    const tasks = planDomRebuild(items, { width: 1280, height: 800 }, getSwarmRebuildProfile(5));
     expect(DOM_REBUILD_MAX_ELEMENTS).toBe(48);
     expect(DOM_REBUILD_AGENTS).toBe(4);
     expect(tasks).toHaveLength(48);
     expect(new Set(tasks.map((task) => task.agent)).size).toBe(4);
   });
 
-  it("keeps the slowest profile visible for more than eight seconds", () => {
+  it("keeps the slowest profile visibly gradual for at least thirteen seconds", () => {
     const profile = getSwarmRebuildProfile(1);
     const items = Array.from({ length: 48 }, (_, i) =>
       source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
     const tasks = planDomRebuild(items, { width: 1280, height: 800 }, profile);
-    expect(DOM_REBUILD_DURATION_MS).toBe(820);
-    expect(tasks.every((task) => task.durationMs === 820)).toBe(true);
+    expect(DOM_REBUILD_DURATION_MS).toBe(1500);
+    expect(tasks).toHaveLength(32);
+    expect(tasks.every((task) => task.durationMs === 1500)).toBe(true);
     const total = Math.max(...tasks.map((task) => task.startMs + task.durationMs));
-    expect(total).toBeGreaterThanOrEqual(10_000);
+    expect(total).toBeGreaterThanOrEqual(13_000);
+  });
+
+  it("keeps a one-element tab panel eligible for reconstruction", () => {
+    expect(DOM_REBUILD_MIN_ELEMENTS).toBe(1);
+    const tasks = planDomRebuild([source("single-tab-item", 20, 20)], {
+      width: 1280,
+      height: 800,
+    });
+    expect(tasks.map((task) => task.id)).toEqual(["single-tab-item"]);
+  });
+
+  it("samples candidates across the full DOM instead of ignoring later panels", () => {
+    const candidates = Array.from({ length: 1000 }, (_, index) => index);
+    const sampled = sampleDomCandidates(candidates, 10);
+    expect(sampled).toHaveLength(10);
+    expect(sampled[0]).toBe(0);
+    expect(sampled.at(-1)).toBe(999);
+    expect(new Set(sampled).size).toBe(10);
   });
 
   it("reduces duration monotonically as the selected speed increases", () => {

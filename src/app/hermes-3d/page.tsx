@@ -151,13 +151,14 @@ export default function Hermes3DLexisPage() {
                 <span className="rounded-full border border-[#b48a9c]/40 px-2 py-0.5 text-[10px] text-[#d4bac4]">Rondas ilustrativas · tarefas auditadas no log</span>
               </div>
               <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/25 p-1" role="group" aria-label="Modo de visualização">
-                <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-pressed={view === "3d"} onClick={() => setView("3d")}><Boxes size={15} /> 3D</button>
-                <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-pressed={view === "2d"} onClick={() => setView("2d")}><Grid2X2 size={15} /> 2D</button>
+                <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-controls="hermes-view-panel" aria-pressed={view === "3d"} onClick={() => setView("3d")}><Boxes size={15} /> 3D</button>
+                <button type="button" className="h3d-toggle" data-lexis-rebuild-tab aria-controls="hermes-view-panel" aria-pressed={view === "2d"} onClick={() => setView("2d")}><Grid2X2 size={15} /> 2D</button>
                 <button type="button" className="h3d-toggle" aria-pressed={replayMeeting} disabled={!canReplay} onClick={()=>{setMeetingTurn(0);setReplayMeeting(x=>!x)}} title="Reconstituição visual de uma reunião já registrada; não cria nova reunião com IA">Reproduzir reunião</button>
                 <button type="button" className="h3d-toggle" aria-pressed={lowPower} onClick={()=>setLowPower(x=>!x)} aria-label="Modo econômico">Eco {lowPower?'ligado':'desligado'}</button>
               </div>
             </div>
 
+            <div id="hermes-view-panel" data-lexis-rebuild-panel>
             {view === "3d" ? (
               <div className="h3d-viewport" aria-label="Escritório 3D interativo do LexisPredict">
                 <div className="h3d-glow h3d-glow-left" aria-hidden="true" />
@@ -234,6 +235,7 @@ export default function Hermes3DLexisPage() {
                 ))}
               </div>
             )}
+            </div>
 
             <div className="h3d-controls flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-5">
               <span className="flex items-center gap-2 text-xs text-[#c8b9c2]"><Info size={15} /> Mapa baseado nos playbooks existentes</span>

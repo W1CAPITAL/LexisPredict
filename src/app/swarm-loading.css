@@ -102,3 +102,11 @@
  .lx-swarm-cursor small{font-size:8px;padding:2px 3px;}
 }
 @media print{.lx-swarm-stage{display:none!important;}}
+
+/* Decorative loader cursors are static unless the user opts in to Swarm. */
+html:not([data-lexis-swarm-rebuild="enabled"]) .lx-mini-swarm-actor{
+ animation:none!important;
+}
+html:not([data-lexis-swarm-rebuild="enabled"]) .lx-mini-swarm-a{transform:translate3d(10px,4px,0);}
+html:not([data-lexis-swarm-rebuild="enabled"]) .lx-mini-swarm-b{transform:translate3d(36px,9px,0);}
+html:not([data-lexis-swarm-rebuild="enabled"]) .lx-mini-swarm-c{transform:translate3d(24px,14px,0);}

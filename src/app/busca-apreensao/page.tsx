@@ -471,6 +471,8 @@ export default function BuscaApreensaoPage() {
                   key={t}
                   type="button"
                   data-lexis-rebuild-tab
+                  aria-controls="busca-apreensao-results"
+                  aria-pressed={filtroTipo === t}
                   onClick={() => setFiltroTipo(t)}
                   className={cn(
                     "text-[8px] font-black uppercase px-2 py-1 rounded-lg border",
@@ -497,6 +499,9 @@ export default function BuscaApreensaoPage() {
               <button
                 key={k}
                 type="button"
+                data-lexis-rebuild-tab
+                aria-controls="busca-apreensao-results"
+                aria-pressed={filtroGeo === k}
                 onClick={() => setFiltroGeo(k)}
                 className={cn(
                   "text-[8px] font-black uppercase px-2 py-1 rounded-lg border",
@@ -516,7 +521,7 @@ export default function BuscaApreensaoPage() {
           </p>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div id="busca-apreensao-results" data-lexis-rebuild-panel className="flex-1 overflow-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-5 gap-4">
           <div className="lg:col-span-3 space-y-3">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Alertas sessão ({hitsFiltrados.length}/{hits.length})

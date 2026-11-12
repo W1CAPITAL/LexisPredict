@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   DOM_REBUILD_MAX_ELEMENTS,
+  DOM_REBUILD_MIN_ELEMENTS,
   planDomRebuild,
+  sampleDomCandidates,
   type DomRebuildSource,
 } from "@/lib/swarm-dom-plan";
 import {
@@ -32,6 +34,8 @@ const TAB_SELECTOR = [
   "[data-lexis-dashboard-tablist] button",
   "[data-lexis-tab]",
   "[data-lexis-rebuild-tab]",
+  "[data-lexis-rebuild-tablist] button",
+  'button[aria-pressed][aria-controls]',
   ".tabs-trigger",
   "[data-tab-trigger]",
 ].join(",");
@@ -121,10 +125,12 @@ function captureDomBlueprint(root: Element, profile: ReturnType<typeof getSwarmR
     return false;
   };
 
-  // querySelectorAll returns DOM order; do not sort or inspect more than the
-  // selected profile allows. This keeps layout reads bounded on weak PCs.
-  const candidates = Array.from(root.querySelectorAll(CANDIDATE_SELECTOR))
-    .slice(0, profile.maxCandidates);
+  // Query once, then spread a bounded sample over the whole route. This keeps
+  // later sections/tabs eligible without measuring every candidate's layout.
+  const candidates = sampleDomCandidates(
+    Array.from(root.querySelectorAll(CANDIDATE_SELECTOR)),
+    profile.maxCandidates,
+  );
 
   for (const candidate of candidates) {
     if (result.length >= Math.min(DOM_REBUILD_MAX_ELEMENTS, profile.maxElements)) break;
@@ -199,7 +205,7 @@ function createRebuildStage(onSkip: () => void, agents: number, durationMs: numb
   stage.dataset.swarmRebuildStage = "true";
   stage.setAttribute("aria-label", "Reconstrução visual da página");
   stage.style.cssText =
-    "position:fixed;inset:0;z-index:2147483647;pointer-events:none;isolation:isolate;";
+    "position:fixed;inset:0;z-index:2147483647;pointer-events:none;isolation:isolate;contain:layout paint style;";
 
   const label = document.createElement("span");
   label.setAttribute("aria-live", "polite");
@@ -233,7 +239,7 @@ function createRebuildStage(onSkip: () => void, agents: number, durationMs: numb
     cursor.style.cssText =
       "position:fixed;left:0;top:0;display:flex;align-items:flex-start;gap:4px;" +
       "pointer-events:none;opacity:0;will-change:transform,opacity;" +
-      "transition:transform " + Math.min(320, Math.round(durationMs * 0.38)) + "ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
+      "transition:transform " + Math.min(900, Math.round(durationMs * 0.55)) + "ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
     const pointer = document.createElement("span");
     pointer.style.cssText =
       "display:block;width:0;height:0;border-top:0 solid transparent;" +
@@ -279,7 +285,7 @@ function revealOriginalElement(node: RebuildElement, durationMs: number): Animat
 function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
   const profile = getSwarmRebuildProfile(speed);
   const captured = captureDomBlueprint(root, profile);
-  if (captured.length < 4) return () => {};
+  if (captured.length < DOM_REBUILD_MIN_ELEMENTS) return () => {};
   const tasks = planDomRebuild(captured, {
     width: window.innerWidth,
     height: window.innerHeight,
@@ -317,7 +323,6 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
     stage = overlay.stage;
     label = overlay.label;
     cursors = overlay.cursors;
-    captured.forEach(hideForRebuild);
   } catch {
     captured.forEach(restoreOriginalVisibility);
     stage?.remove();
@@ -349,6 +354,10 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
         return;
       }
 
+      // Hide only the item that is about to be reconstructed. The old version
+      // hid every sampled node in one synchronous burst, causing a blank flash
+      // and a large style/paint spike before the first agent even moved.
+      hideForRebuild(task);
       const agent = cursors[task.agent];
       if (agent) {
         agent.outline.style.left = rect.left + "px";
@@ -391,33 +400,49 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
   return cleanup;
 }
 
+function controlledPanelForTab(root: Element, tab?: HTMLElement | null): Element | null {
+  const ids = tab?.getAttribute("aria-controls")?.split(/\s+/).filter(Boolean) ?? [];
+  for (const id of ids) {
+    const panel = document.getElementById(id);
+    if (panel && root.contains(panel)) return panel;
+  }
+  return null;
+}
+
 function activeTabPanel(root: Element, preferredTab?: HTMLElement): Element {
-  const selectedTab = preferredTab && root.contains(preferredTab)
+  const preferredPanel = controlledPanelForTab(root, preferredTab);
+  const selectedTab = preferredTab && (root.contains(preferredTab) || preferredPanel)
     ? preferredTab
     : root.querySelector<HTMLElement>(
-    '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
-    '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"],' +
-    '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"],' +
-    '[data-lexis-rebuild-tab][aria-pressed="true"],[data-lexis-rebuild-tab][aria-selected="true"]'
-  );
-  const controlledId = selectedTab?.getAttribute("aria-controls");
-  if (controlledId) {
-    const controlledPanel = document.getElementById(controlledId);
-    if (controlledPanel && root.contains(controlledPanel)) return controlledPanel;
-  }
+      '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
+      '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"],' +
+      '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"],' +
+      '[data-lexis-rebuild-tab][aria-pressed="true"],[data-lexis-rebuild-tab][aria-selected="true"]'
+    );
+
+  const controlledPanel = controlledPanelForTab(root, selectedTab);
+  if (controlledPanel) return controlledPanel;
+
   const href = selectedTab?.getAttribute("href");
   if (href?.startsWith("#")) {
     const target = document.getElementById(href.slice(1));
     if (target && root.contains(target)) return target;
   }
-  const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
-  return panels.find((panel) => {
-    if (panel.hidden) return false;
+
+  const isVisiblePanel = (panel: HTMLElement) => {
+    if (panel.hidden || panel.closest('[hidden],[aria-hidden="true"]')) return false;
     const style = getComputedStyle(panel);
     const rect = panel.getBoundingClientRect();
     return style.display !== "none" && style.visibility === "visible" &&
       rect.width > 0 && rect.height > 0;
-  }) || root;
+  };
+
+  const markedPanels = Array.from(root.querySelectorAll<HTMLElement>("[data-lexis-rebuild-panel]"));
+  const activeMarkedPanel = markedPanels.find(isVisiblePanel);
+  if (activeMarkedPanel) return activeMarkedPanel;
+
+  const panels = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+  return panels.find(isVisiblePanel) || root;
 }
 
 export function SwarmRouteLoading() {
@@ -425,10 +450,18 @@ export function SwarmRouteLoading() {
   useEffect(() => {
     let cleanup = () => {};
     let routeTimer = 0;
+    let routeMaxTimer = 0;
     let tabTimer = 0;
+    let tabMaxTimer = 0;
     let disposed = false;
     let root: Element | null = null;
+    let routeObserver: MutationObserver | null = null;
+    let tabObserver: MutationObserver | null = null;
     let preferences = loadSwarmRebuildPreferences();
+    document.documentElement.setAttribute(
+      "data-lexis-swarm-rebuild",
+      preferences.enabled ? "enabled" : "disabled",
+    );
     let tabListenersAttached = false;
 
     const detachTabListeners = () => {
@@ -437,28 +470,76 @@ export function SwarmRouteLoading() {
       document.removeEventListener("keydown", onTabKeyDown, true);
       tabListenersAttached = false;
     };
-    const stopRebuild = () => {
+    const stopRouteWait = () => {
       window.clearTimeout(routeTimer);
-      window.clearTimeout(tabTimer);
+      window.clearTimeout(routeMaxTimer);
       routeTimer = 0;
+      routeMaxTimer = 0;
+      routeObserver?.disconnect();
+      routeObserver = null;
+    };
+    const stopTabWait = () => {
+      window.clearTimeout(tabTimer);
+      window.clearTimeout(tabMaxTimer);
       tabTimer = 0;
+      tabMaxTimer = 0;
+      tabObserver?.disconnect();
+      tabObserver = null;
+    };
+    const stopRebuild = () => {
+      stopRouteWait();
+      stopTabWait();
       cleanup();
       cleanup = () => {};
       detachTabListeners();
       root = null;
     };
+    const runRouteRebuild = () => {
+      if (disposed || !preferences.enabled || !root) return;
+      stopRouteWait();
+      cleanup();
+      cleanup = startDomRebuild(root, preferences.speed);
+    };
+    const scheduleRouteRebuild = () => {
+      window.clearTimeout(routeTimer);
+      routeTimer = window.setTimeout(runRouteRebuild, 320);
+    };
 
     const queueTabRebuild = (tab: HTMLElement, useFocusedTab = false) => {
       if (!preferences.enabled || !root) return;
-      window.clearTimeout(tabTimer);
+      stopRouteWait();
+      stopTabWait();
       tabTimer = window.setTimeout(() => {
+        tabTimer = 0;
         if (disposed || !preferences.enabled || !root) return;
-        cleanup();
         const focused = useFocusedTab && document.activeElement instanceof HTMLElement
           ? document.activeElement.closest<HTMLElement>(TAB_SELECTOR)
           : null;
-        const preferredTab = focused && root.contains(focused) ? focused : tab;
-        cleanup = startDomRebuild(activeTabPanel(root, preferredTab), preferences.speed);
+        const preferredTab = focused && (root.contains(focused) || controlledPanelForTab(root, focused))
+          ? focused
+          : tab;
+        const panel = activeTabPanel(root, preferredTab);
+
+        const runTabRebuild = () => {
+          if (disposed || !preferences.enabled || !root) return;
+          stopTabWait();
+          cleanup();
+          cleanup = startDomRebuild(panel, preferences.speed);
+        };
+        const scheduleTabRebuild = () => {
+          window.clearTimeout(tabTimer);
+          tabTimer = window.setTimeout(runTabRebuild, 320);
+        };
+
+        // Some tabs fetch their content after the selection. Wait for a short
+        // quiet window on that panel, but never keep an observer longer than
+        // 1.8 seconds. This observer exists only after an enabled user action.
+        if (typeof MutationObserver !== "undefined") {
+          tabObserver = new MutationObserver(scheduleTabRebuild);
+          tabObserver.observe(panel, { childList: true, subtree: true, characterData: true });
+        }
+        tabTimer = window.setTimeout(runTabRebuild, 360);
+        tabMaxTimer = window.setTimeout(runTabRebuild, 2500);
       }, 180);
     };
 
@@ -466,7 +547,7 @@ export function SwarmRouteLoading() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root?.contains(tab)) return;
+      if (!tab || !root || (!root.contains(tab) && !controlledPanelForTab(root, tab))) return;
       queueTabRebuild(tab);
     }
     function onTabKeyDown(event: KeyboardEvent) {
@@ -474,13 +555,13 @@ export function SwarmRouteLoading() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root?.contains(tab)) return;
+      if (!tab || !root || (!root.contains(tab) && !controlledPanelForTab(root, tab))) return;
       queueTabRebuild(tab, true);
     }
 
     const startForCurrentRoute = () => {
-      // Critical idle path: when disabled, do not even query the DOM, inspect
-      // styles, register document listeners or schedule a route timer.
+      // Critical idle path: when disabled, do not query the DOM, inspect
+      // styles, create observers, register tab listeners or schedule timers.
       if (!preferences.enabled) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       root = document.querySelector(ROOT_SELECTOR);
@@ -488,12 +569,16 @@ export function SwarmRouteLoading() {
       document.addEventListener("click", onTabClick, true);
       document.addEventListener("keydown", onTabKeyDown, true);
       tabListenersAttached = true;
-      routeTimer = window.setTimeout(() => {
-        if (!disposed && preferences.enabled && root) {
-          cleanup();
-          cleanup = startDomRebuild(root, preferences.speed);
-        }
-      }, 120);
+
+      // Next.js can mount a route fallback and stream the actual page later.
+      // Observe only this route root, only while enabled, and disconnect after
+      // a short quiet window or a hard deadline.
+      if (typeof MutationObserver !== "undefined") {
+        routeObserver = new MutationObserver(scheduleRouteRebuild);
+        routeObserver.observe(root, { childList: true, subtree: true, characterData: true });
+      }
+      routeTimer = window.setTimeout(runRouteRebuild, 600);
+      routeMaxTimer = window.setTimeout(runRouteRebuild, 5000);
     };
 
     const onPreferencesChanged = (event: Event) => {
@@ -502,6 +587,10 @@ export function SwarmRouteLoading() {
       preferences = detail
         ? normalizeSwarmRebuildPreferences(detail)
         : loadSwarmRebuildPreferences();
+      document.documentElement.setAttribute(
+        "data-lexis-swarm-rebuild",
+        preferences.enabled ? "enabled" : "disabled",
+      );
       if (!preferences.enabled) {
         stopRebuild();
         return;

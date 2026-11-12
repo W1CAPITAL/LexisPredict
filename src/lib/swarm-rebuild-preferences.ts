@@ -21,11 +21,11 @@ export const DEFAULT_SWARM_REBUILD_PREFERENCES: SwarmRebuildPreferences = {
 };
 
 const PROFILES: Record<SwarmRebuildSpeed, SwarmRebuildProfile> = {
-  1: { label: "Muito lenta", durationMs: 820, waveIntervalMs: 860, maxElements: 48, maxCandidates: 180, agents: 4 },
-  2: { label: "Lenta", durationMs: 650, waveIntervalMs: 690, maxElements: 48, maxCandidates: 180, agents: 4 },
-  3: { label: "Normal", durationMs: 470, waveIntervalMs: 510, maxElements: 48, maxCandidates: 180, agents: 4 },
-  4: { label: "Rápida", durationMs: 320, waveIntervalMs: 350, maxElements: 48, maxCandidates: 180, agents: 4 },
-  5: { label: "Muito rápida", durationMs: 210, waveIntervalMs: 240, maxElements: 48, maxCandidates: 180, agents: 4 },
+  1: { label: "Muito lenta", durationMs: 1500, waveIntervalMs: 1650, maxElements: 32, maxCandidates: 180, agents: 4 },
+  2: { label: "Lenta", durationMs: 1100, waveIntervalMs: 1200, maxElements: 36, maxCandidates: 180, agents: 4 },
+  3: { label: "Normal", durationMs: 780, waveIntervalMs: 850, maxElements: 40, maxCandidates: 160, agents: 4 },
+  4: { label: "Rápida", durationMs: 520, waveIntervalMs: 580, maxElements: 44, maxCandidates: 140, agents: 4 },
+  5: { label: "Muito rápida", durationMs: 320, waveIntervalMs: 360, maxElements: 48, maxCandidates: 120, agents: 4 },
 };
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;

@@ -119,12 +119,14 @@ export default function PluginsPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#dce6f2] bg-white p-3 shadow-sm">
+        <section data-lexis-rebuild-tablist className="rounded-2xl border border-[#dce6f2] bg-white p-3 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
             {categories.map((item) => (
               <button
                 key={item}
                 data-lexis-rebuild-tab
+                aria-controls="plugins-category-results"
+                aria-pressed={category === item}
                 onClick={() => setCategory(item)}
                 className={"rounded-xl px-3 py-2 text-xs font-bold transition " + (
                   category === item
@@ -187,7 +189,7 @@ export default function PluginsPage() {
           ) : null}
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section id="plugins-category-results" data-lexis-rebuild-panel className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((item) => {
             const Icon = categoryIcon[item.manifest.category] || Puzzle;
             return (
