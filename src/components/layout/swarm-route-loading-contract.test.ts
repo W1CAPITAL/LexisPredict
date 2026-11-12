@@ -21,11 +21,20 @@ describe("Swarm loading across LexisPredict tabs", () => {
     expect(loader).toContain('role="status"');
     expect(loader).toContain('aria-busy="true"');
     expect(loader).toContain("<SwarmLoadingIndicator");
-    expect(loader).toContain('document.addEventListener("click"');
+    expect(loader).toContain('document.addEventListener("pointerdown"');
+    expect(loader).toContain('document.addEventListener("keydown"');
     expect(loader).toContain('[role="tab"]');
+    expect(loader).toContain("ArrowRight");
+    expect(loader).toContain("Home");
     expect(loader).toContain("setVisible(true)");
     expect(loader).toContain("setVisible(false)");
     expect(loader).toContain("window.setTimeout");
+  });
+
+  it("portals the fixed overlay to the document body outside transformed route wrappers", () => {
+    expect(loader).toContain("createPortal(");
+    expect(loader).toContain("portalRoot");
+    expect(loader).toContain("document.body");
   });
 
   it("keeps the animation lightweight, non-blocking and motion-accessible", () => {
