@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {canUseOpsCapability,normalizeOpsPhone,normalizeOpsCnj,opsCnjVariants,validateOpsAgentDraft,validateIntakeAnswers,eligibleForRecording} from './policy';
+import {canUseOpsCapability,normalizeOpsPhone,normalizeOpsCnj,opsCnjVariants,validateOpsAgentDraft,validateIntakeAnswers,eligibleForRecording,type IntakeField} from './policy';
 
 describe('Lexis integrated operations policy',()=>{
  it('allows operational workflow but refuses administrative permissions for operators',()=>{
@@ -30,7 +30,7 @@ describe('Lexis integrated operations policy',()=>{
   expect(validateOpsAgentDraft({name:'Revisor',instructions:'Organize o histórico',tools:['read_case'],maxCalls:3,humanReview:true}).name).toBe('Revisor');
  });
  it('validates a public form against configured fields and rejects unknown keys',()=>{
-  const fields=[{key:'nome',label:'Nome',type:'text',required:true},{key:'email',label:'E-mail',type:'email',required:true}];
+  const fields:IntakeField[]=[{key:'nome',label:'Nome',type:'text',required:true},{key:'email',label:'E-mail',type:'email',required:true}];
   expect(validateIntakeAnswers(fields,{nome:' Ana ',email:'a@example.com'})).toEqual({nome:'Ana',email:'a@example.com'});
   expect(()=>validateIntakeAnswers(fields,{nome:'',email:'a@example.com'})).toThrow();
   expect(()=>validateIntakeAnswers(fields,{nome:'Ana',email:'a@example.com',admin:true})).toThrow();
