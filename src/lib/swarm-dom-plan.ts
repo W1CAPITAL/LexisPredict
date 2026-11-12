@@ -21,8 +21,8 @@ export type DomRebuildTask<T extends DomRebuildSource> = T & {
 
 export const DOM_REBUILD_MAX_ELEMENTS = 160;
 export const DOM_REBUILD_AGENTS = 16;
-export const DOM_REBUILD_DURATION_MS = 280;
-const WAVE_INTERVAL_MS = 250;
+export const DOM_REBUILD_DURATION_MS = 220;
+const WAVE_INTERVAL_MS = 240;
 
 export function planDomRebuild<T extends DomRebuildSource>(
   sources: readonly T[],
