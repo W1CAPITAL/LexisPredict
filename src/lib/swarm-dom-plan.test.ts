@@ -31,13 +31,15 @@ describe("native DOM rebuild schedule", () => {
     expect(tasks[1]).toMatchObject({ x: 10, y: 10, width: 120, height: 40 });
   });
 
-  it("uses parallel agents and completes a full visible page in a short bounded interval", () => {
+  it("uses eight lightweight agents and finishes 96 real elements in under two seconds", () => {
     const items = Array.from({ length: DOM_REBUILD_MAX_ELEMENTS }, (_, i) =>
       source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
     const tasks = planDomRebuild(items, { width: 1280, height: 800 });
+    expect(DOM_REBUILD_MAX_ELEMENTS).toBe(96);
+    expect(DOM_REBUILD_AGENTS).toBe(8);
     expect(new Set(tasks.map((task) => task.agent)).size).toBe(DOM_REBUILD_AGENTS);
     expect(tasks.every((task) => task.durationMs === DOM_REBUILD_DURATION_MS)).toBe(true);
     const total = Math.max(...tasks.map((task) => task.startMs + task.durationMs));
-    expect(total).toBeLessThanOrEqual(2800);
+    expect(total).toBeLessThanOrEqual(1900);
   });
 });

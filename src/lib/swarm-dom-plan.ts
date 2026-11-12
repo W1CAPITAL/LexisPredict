@@ -19,10 +19,10 @@ export type DomRebuildTask<T extends DomRebuildSource> = T & {
   durationMs: number;
 };
 
-export const DOM_REBUILD_MAX_ELEMENTS = 160;
-export const DOM_REBUILD_AGENTS = 16;
-export const DOM_REBUILD_DURATION_MS = 220;
-const WAVE_INTERVAL_MS = 240;
+export const DOM_REBUILD_MAX_ELEMENTS = 96;
+export const DOM_REBUILD_AGENTS = 8;
+export const DOM_REBUILD_DURATION_MS = 140;
+const WAVE_INTERVAL_MS = 150;
 
 export function planDomRebuild<T extends DomRebuildSource>(
   sources: readonly T[],
@@ -40,14 +40,19 @@ export function planDomRebuild<T extends DomRebuildSource>(
     unique.set(source.id, source);
   }
 
+  // Keep the natural reading order while ensuring parent surfaces precede
+  // nested controls and text. Each worker receives one element per wave.
   const ordered = Array.from(unique.values()).sort((a, b) =>
     a.y - b.y || a.depth - b.depth || a.x - b.x
   );
-  const agentCount = Math.min(DOM_REBUILD_AGENTS, Math.max(4, Math.ceil(ordered.length / 6)));
+  const agentCount = Math.min(
+    DOM_REBUILD_AGENTS,
+    Math.max(4, Math.ceil(ordered.length / 12)),
+  );
   return ordered.map((source, index) => ({
     ...source,
     agent: index % agentCount,
-    startMs: Math.floor(index / agentCount) * WAVE_INTERVAL_MS + (index % agentCount) * 12,
+    startMs: Math.floor(index / agentCount) * WAVE_INTERVAL_MS + (index % agentCount) * 8,
     durationMs: DOM_REBUILD_DURATION_MS,
   }));
 }

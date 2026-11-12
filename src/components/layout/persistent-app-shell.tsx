@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { SwarmRouteLoading } from "@/components/layout/swarm-route-loading";
 import { PersistentSidebarContext } from "@/components/layout/persistent-sidebar-context";
 
 const STANDALONE_PREFIXES = [
@@ -39,7 +40,8 @@ export function PersistentAppShell({ children }: { children: ReactNode }) {
     <PersistentSidebarContext.Provider value={true}>
       <div data-lexis-app-shell className="flex min-h-dvh w-full bg-background text-foreground">
         <Sidebar persistentRoot />
-        <div data-lexis-route-content className="relative min-w-0 flex-1">
+        <div data-lexis-route-content data-lexis-rebuild-root className="relative min-w-0 flex-1">
+          <SwarmRouteLoading />
           {children}
         </div>
       </div>
