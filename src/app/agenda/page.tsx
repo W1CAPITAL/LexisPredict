@@ -376,6 +376,7 @@ export default function AgendaPage() {
                       <Link href="/audiencias"><Gavel className="h-3.5 w-3.5 mr-1"/> Audiências</Link>
                     </Button>
                     <Button
+                      data-lexis-rebuild-tab
                       variant={view === "week" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("week")}
