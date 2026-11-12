@@ -1102,20 +1102,20 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                 Meus hoje
               </Button>
               <Select value={filaFiltro} onValueChange={(v: any) => setFilaFiltro(v)}>
-                   <SelectTrigger data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" className="h-12 w-full md:w-[260px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
+                   <SelectTrigger className="h-12 w-full md:w-[260px] bg-muted border-none rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-sm"><SelectValue placeholder="FILTRO DA FILA" /></SelectTrigger>
                    <SelectContent className="bg-popover text-popover-foreground border rounded-xl">
-                      <SelectItem value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
-                      <SelectItem value="vencido" className="font-black uppercase text-[10px]">Vencidos</SelectItem>
-                      <SelectItem value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
-                      <SelectItem value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
-                      <SelectItem value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
-                      <SelectItem value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
-                      <SelectItem value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
-                      <SelectItem value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
-                      <SelectItem value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
-                      <SelectItem value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
-                      <SelectItem value="replica" className="font-black uppercase text-[10px]">Réplica pendente</SelectItem>
-                      <SelectItem value="silencio" className="font-black uppercase text-[10px]">Silêncio ≥45d</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="all" className="font-black uppercase text-[10px]">Toda a fila</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="vencido" className="font-black uppercase text-[10px]">Vencidos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="novidade" className="font-black uppercase text-[10px]">Novidade identificada</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="tratamento" className="font-black uppercase text-[10px]">Crítico em tratamento</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="blacklist" className="font-black uppercase text-[10px]">Blacklist / problemáticos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="problematicos" className="font-black uppercase text-[10px]">Casos problemáticos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="tranquilos" className="font-black uppercase text-[10px]">Casos tranquilos</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="audiencia" className="font-black uppercase text-[10px]">Audiência pendente</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="ba" className="font-black uppercase text-[10px]">Busca e apreensão</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="parados" className="font-black uppercase text-[10px]">Parados tribunal (≥60d)</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="replica" className="font-black uppercase text-[10px]">Réplica pendente</SelectItem>
+                      <SelectItem data-lexis-rebuild-tab aria-controls="tarefas-fila-panel" value="silencio" className="font-black uppercase text-[10px]">Silêncio ≥45d</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
