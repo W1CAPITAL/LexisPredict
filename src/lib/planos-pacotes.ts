@@ -59,6 +59,7 @@ const PREFIX: Record<PacoteId, string[]> = {
   ],
   operacional: [
     "/whatsapp",
+    "/operacoes-integradas",
     "/processos-parados",
     "/veredito",
     "/busca-apreensao",
