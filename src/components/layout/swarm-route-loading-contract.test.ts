@@ -19,14 +19,16 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(effect).toContain('[data-lexis-rebuild-root]');
   });
 
-  it("does no DOM capture, listener registration or layout work until the user opts in", () => {
+  it("does no DOM capture, document tab listeners or layout work until the user opts in", () => {
     const start = effect.indexOf("const startForCurrentRoute");
     const gate = effect.indexOf("if (!preferences.enabled) return;", start);
     const domLookup = effect.indexOf("document.querySelector(ROOT_SELECTOR)", start);
     expect(effect).toContain("loadSwarmRebuildPreferences");
     expect(gate).toBeGreaterThanOrEqual(0);
     expect(domLookup).toBeGreaterThan(gate);
-    expect(effect).toContain("lexis-swarm-rebuild-preferences-changed");
+    expect(effect).toContain("SWARM_REBUILD_PREFERENCES_EVENT");
+    const tabListener = effect.indexOf("document.addEventListener(\"click\"", start);
+    expect(tabListener).toBeGreaterThan(gate);
   });
 
   it("exposes the rebuild setting and speed control in Settings", () => {
