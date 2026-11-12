@@ -113,7 +113,7 @@ export function SwarmRebuildSettingsPanel() {
           ))}
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          A velocidade escolhida vale para a próxima troca de página ou aba. A opção mais lenta mantém cada elemento visível por cerca de 820 ms e distribui o trabalho em quatro agentes, para dar tempo de acompanhar o movimento.
+          A velocidade escolhida vale para a próxima troca de página ou aba. Na opção Muito lenta, cada elemento leva até 1,5 segundo e a sequência pode durar cerca de 13 segundos em páginas com muitos alvos.
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export function SwarmRebuildSettingsPanel() {
         <div className="space-y-1">
           <p className="text-sm font-semibold">Proteção de desempenho</p>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            O modo desligado encerra a rotina antes de consultar o DOM. Quando ligado, limita a leitura a 180 candidatos e a animação a 48 elementos por página, com no máximo quatro agentes. A sidebar permanece fora da reconstrução, e nenhum dado de processo é alterado.
+            O modo desligado encerra a rotina antes de consultar o DOM. Quando ligado, distribui a leitura por até 180–240 candidatos e anima de 32 a 48 elementos, com no máximo quatro agentes. A sidebar permanece fora da reconstrução, e nenhum dado de processo é alterado.
           </p>
         </div>
       </div>
