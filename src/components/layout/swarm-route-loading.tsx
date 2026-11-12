@@ -1,12 +1,19 @@
 "use client";
 
-import { useLayoutEffect } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   DOM_REBUILD_MAX_ELEMENTS,
   planDomRebuild,
   type DomRebuildSource,
 } from "@/lib/swarm-dom-plan";
+import {
+  getSwarmRebuildProfile,
+  loadSwarmRebuildPreferences,
+  normalizeSwarmRebuildPreferences,
+  SWARM_REBUILD_PREFERENCES_EVENT,
+  type SwarmRebuildSpeed,
+} from "@/lib/swarm-rebuild-preferences";
 
 type RebuildElement = DomRebuildSource & {
   element: HTMLElement | SVGElement;
@@ -24,6 +31,7 @@ const TAB_SELECTOR = [
   "[data-lexis-settings-tab]",
   "[data-lexis-dashboard-tablist] button",
   "[data-lexis-tab]",
+  "[data-lexis-rebuild-tab]",
   ".tabs-trigger",
   "[data-tab-trigger]",
 ].join(",");
@@ -42,7 +50,6 @@ const TEXT_TAGS = new Set([
   "H1", "H2", "H3", "H4", "H5", "P", "SPAN", "STRONG", "EM",
   "LABEL", "SMALL", "LI", "DT", "DD", "TH", "TD", "A", "BUTTON",
 ]);
-const MAX_CANDIDATES = 500;
 const WORKERS = [
   ["Ada", "#0D99FF"], ["Linus", "#0ACF83"], ["Grace", "#A259FF"],
   ["Alan", "#F24E1E"], ["Margaret", "#E8467C"], ["Ken", "#FFC700"],
@@ -91,7 +98,7 @@ function isCompactSurface(rect: DOMRect, rootRect: DOMRect) {
  * This prevents the nested clipping and overlapping labels seen in the old
  * build while retaining independent headings, controls and standalone text.
  */
-function captureDomBlueprint(root: Element): RebuildElement[] {
+function captureDomBlueprint(root: Element, profile: ReturnType<typeof getSwarmRebuildProfile>): RebuildElement[] {
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   const rootRect = root.getBoundingClientRect();
   const result: RebuildElement[] = [];
@@ -114,12 +121,13 @@ function captureDomBlueprint(root: Element): RebuildElement[] {
     return false;
   };
 
+  // querySelectorAll returns DOM order; do not sort or inspect more than the
+  // selected profile allows. This keeps layout reads bounded on weak PCs.
   const candidates = Array.from(root.querySelectorAll(CANDIDATE_SELECTOR))
-    .slice(0, MAX_CANDIDATES)
-    .sort((a, b) => elementDepth(a, root) - elementDepth(b, root));
+    .slice(0, profile.maxCandidates);
 
   for (const candidate of candidates) {
-    if (result.length >= DOM_REBUILD_MAX_ELEMENTS) break;
+    if (result.length >= Math.min(DOM_REBUILD_MAX_ELEMENTS, profile.maxElements)) break;
     if (!(candidate instanceof HTMLElement) && !(candidate instanceof SVGElement)) continue;
     const element = candidate as HTMLElement | SVGElement;
     if (OMIT_TAGS.has(element.tagName)) continue;
@@ -186,7 +194,7 @@ function hideForRebuild(node: RebuildElement) {
   node.element.style.setProperty("visibility", "hidden", "important");
 }
 
-function createRebuildStage(onSkip: () => void, agents: number) {
+function createRebuildStage(onSkip: () => void, agents: number, durationMs: number, speedLabel: string) {
   const stage = document.createElement("div");
   stage.dataset.swarmRebuildStage = "true";
   stage.setAttribute("aria-label", "Reconstrução visual da página");
@@ -199,7 +207,7 @@ function createRebuildStage(onSkip: () => void, agents: number) {
     "position:absolute;left:50%;bottom:18px;transform:translateX(-50%);" +
     "padding:8px 11px;border-radius:9px;background:#202125;color:#fff;" +
     "font:600 11px system-ui;white-space:nowrap;box-shadow:0 3px 16px #0003;";
-  label.textContent = "Swarm Rebuild · preparando";
+  label.textContent = "Swarm Rebuild · preparando · " + speedLabel.toLowerCase();
   stage.appendChild(label);
 
   const skip = document.createElement("button");
@@ -225,7 +233,7 @@ function createRebuildStage(onSkip: () => void, agents: number) {
     cursor.style.cssText =
       "position:fixed;left:0;top:0;display:flex;align-items:flex-start;gap:4px;" +
       "pointer-events:none;opacity:0;will-change:transform,opacity;" +
-      "transition:transform 125ms cubic-bezier(.2,.7,.2,1),opacity 60ms linear;";
+      "transition:transform " + Math.min(320, Math.round(durationMs * 0.38)) + "ms cubic-bezier(.2,.7,.2,1),opacity 90ms linear;";
     const pointer = document.createElement("span");
     pointer.style.cssText =
       "display:block;width:0;height:0;border-top:0 solid transparent;" +
@@ -244,7 +252,7 @@ function createRebuildStage(onSkip: () => void, agents: number) {
   return { stage, label, cursors };
 }
 
-function revealOriginalElement(node: RebuildElement): Animation | null {
+function revealOriginalElement(node: RebuildElement, durationMs: number): Animation | null {
   restoreOriginalVisibility(node);
   if (typeof node.element.animate !== "function") return null;
   const inline = node.element instanceof HTMLElement &&
@@ -259,7 +267,7 @@ function revealOriginalElement(node: RebuildElement): Animation | null {
     : { clipPath: node.originalClipPath, opacity: node.originalOpacity };
   try {
     return node.element.animate([from, to], {
-      duration: 140,
+      duration: durationMs,
       easing: "cubic-bezier(.2,.7,.25,1)",
       fill: "both",
     });
@@ -268,13 +276,14 @@ function revealOriginalElement(node: RebuildElement): Animation | null {
   }
 }
 
-function startDomRebuild(root: Element): () => void {
-  const captured = captureDomBlueprint(root);
+function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
+  const profile = getSwarmRebuildProfile(speed);
+  const captured = captureDomBlueprint(root, profile);
   if (captured.length < 4) return () => {};
   const tasks = planDomRebuild(captured, {
     width: window.innerWidth,
     height: window.innerHeight,
-  });
+  }, profile);
   if (!tasks.length) return () => {};
 
   let closed = false;
@@ -304,7 +313,7 @@ function startDomRebuild(root: Element): () => void {
   // not yet been hidden. Restore immediately if any inline write fails.
   let overlay: ReturnType<typeof createRebuildStage>;
   try {
-    overlay = createRebuildStage(cleanup, agentCount);
+    overlay = createRebuildStage(cleanup, agentCount, profile.durationMs, profile.label);
     stage = overlay.stage;
     label = overlay.label;
     cursors = overlay.cursors;
@@ -352,7 +361,7 @@ function startDomRebuild(root: Element): () => void {
           "translate3d(" + rect.left + "px," + (rect.top + Math.min(10, rect.height / 3)) + "px,0)";
       }
 
-      const animation = revealOriginalElement(task);
+      const animation = revealOriginalElement(task, task.durationMs);
       if (!animation) {
         if (agent) {
           agent.outline.style.opacity = "0";
@@ -385,7 +394,8 @@ function startDomRebuild(root: Element): () => void {
 function activeTabPanel(root: Element): Element {
   const selectedTab = root.querySelector<HTMLElement>(
     '[role="tab"][aria-selected="true"],[role="tab"][data-state="active"],' +
-    '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"]'
+    '[data-lexis-settings-tab][aria-current="page"],[data-lexis-tab][data-state="active"],' +
+    '[data-lexis-rebuild-tab][aria-current="page"],[data-lexis-rebuild-tab][data-state="active"]'
   );
   const controlledId = selectedTab?.getAttribute("aria-controls");
   if (controlledId) {
@@ -409,56 +419,97 @@ function activeTabPanel(root: Element): Element {
 
 export function SwarmRouteLoading() {
   const pathname = usePathname();
-  useLayoutEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const root = document.querySelector(ROOT_SELECTOR);
-    if (!root) return;
-
+  useEffect(() => {
     let cleanup = () => {};
     let routeTimer = 0;
     let tabTimer = 0;
     let disposed = false;
+    let root: Element | null = null;
+    let preferences = loadSwarmRebuildPreferences();
+    let tabListenersAttached = false;
 
-    // Wait one short frame for the route's committed layout. The capture is
-    // restricted to a selector list and stops after 900 candidates / 96 nodes.
-    routeTimer = window.setTimeout(() => {
-      if (!disposed) cleanup = startDomRebuild(root);
-    }, 48);
-
-    const queueTabRebuild = () => {
+    const detachTabListeners = () => {
+      if (!tabListenersAttached) return;
+      document.removeEventListener("click", onTabClick, true);
+      document.removeEventListener("keydown", onTabKeyDown, true);
+      tabListenersAttached = false;
+    };
+    const stopRebuild = () => {
+      window.clearTimeout(routeTimer);
       window.clearTimeout(tabTimer);
-      tabTimer = window.setTimeout(() => {
-        if (disposed) return;
-        cleanup();
-        cleanup = startDomRebuild(activeTabPanel(root));
-      }, 110);
+      routeTimer = 0;
+      tabTimer = 0;
+      cleanup();
+      cleanup = () => {};
+      detachTabListeners();
+      root = null;
     };
 
-    const onTabClick = (event: MouseEvent) => {
+    const queueTabRebuild = () => {
+      if (!preferences.enabled || !root) return;
+      window.clearTimeout(tabTimer);
+      tabTimer = window.setTimeout(() => {
+        if (disposed || !preferences.enabled || !root) return;
+        cleanup();
+        cleanup = startDomRebuild(activeTabPanel(root), preferences.speed);
+      }, 180);
+    };
+
+    function onTabClick(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root.contains(tab)) return;
+      if (!tab || !root?.contains(tab)) return;
       queueTabRebuild();
-    };
-    const onTabKeyDown = (event: KeyboardEvent) => {
+    }
+    function onTabKeyDown(event: KeyboardEvent) {
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "Enter", " "].includes(event.key)) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
-      if (!tab || !root.contains(tab)) return;
+      if (!tab || !root?.contains(tab)) return;
       queueTabRebuild();
+    }
+
+    const startForCurrentRoute = () => {
+      // Critical idle path: when disabled, do not even query the DOM, inspect
+      // styles, register document listeners or schedule a route timer.
+      if (!preferences.enabled) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      root = document.querySelector(ROOT_SELECTOR);
+      if (!root) return;
+      document.addEventListener("click", onTabClick, true);
+      document.addEventListener("keydown", onTabKeyDown, true);
+      tabListenersAttached = true;
+      routeTimer = window.setTimeout(() => {
+        if (!disposed && preferences.enabled && root) {
+          cleanup();
+          cleanup = startDomRebuild(root, preferences.speed);
+        }
+      }, 120);
     };
 
-    document.addEventListener("click", onTabClick, true);
-    document.addEventListener("keydown", onTabKeyDown, true);
+    const onPreferencesChanged = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      const wasEnabled = preferences.enabled;
+      preferences = detail
+        ? normalizeSwarmRebuildPreferences(detail)
+        : loadSwarmRebuildPreferences();
+      if (!preferences.enabled) {
+        stopRebuild();
+        return;
+      }
+      // A speed change takes effect on the next route/tab transition. It does
+      // not interrupt the animation while a slider is being adjusted.
+      if (!wasEnabled) startForCurrentRoute();
+    };
+
+    startForCurrentRoute();
+    window.addEventListener(SWARM_REBUILD_PREFERENCES_EVENT, onPreferencesChanged);
     return () => {
       disposed = true;
-      window.clearTimeout(routeTimer);
-      window.clearTimeout(tabTimer);
-      document.removeEventListener("click", onTabClick, true);
-      document.removeEventListener("keydown", onTabKeyDown, true);
-      cleanup();
+      stopRebuild();
+      window.removeEventListener(SWARM_REBUILD_PREFERENCES_EVENT, onPreferencesChanged);
     };
   }, [pathname]);
   return null;
