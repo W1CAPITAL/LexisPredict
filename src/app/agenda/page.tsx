@@ -392,6 +392,7 @@ export default function AgendaPage() {
                       Dia
                     </Button>
                     <Button
+                      data-lexis-rebuild-tab
                       variant={view === "agenda" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("agenda")}
