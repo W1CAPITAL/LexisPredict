@@ -22,7 +22,7 @@ type RebuildTask = DomRebuildTask<RebuildElement>;
 
 const ROOT_SELECTOR = "[data-lexis-rebuild-root]";
 const TAB_SELECTOR =
-  '[role="tab"],[data-lexis-settings-tab],[data-lexis-dashboard-tablist] button,[data-lexis-tab]';
+  '[role="tab"],[aria-controls][data-state],[data-lexis-settings-tab],[data-lexis-dashboard-tablist] button,[data-lexis-tab]';
 const OMIT_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "IFRAME", "LINK", "META"]);
 const MEDIA_TAGS = new Set(["IMG", "SVG", "CANVAS", "VIDEO"]);
 const TEXT_TAGS = new Set([
@@ -49,7 +49,7 @@ function isOnScreen(rect: DOMRect, width: number, height: number) {
 }
 function hasVisibleSurface(style: CSSStyleDeclaration) {
   const color = style.backgroundColor.trim();
-  const rgba = color.match(/^rgba\\([^,]+,\\s*[^,]+,\\s*[^,]+,\\s*([\\d.]+)\\)$/i);
+  const rgba = color.match(/^rgba\([^,]+,\s*[^,]+,\s*[^,]+,\s*([\d.]+)\)$/i);
   const transparent = color === "transparent" || Boolean(rgba && Number(rgba[1]) === 0);
   const hasBackground = !transparent || style.backgroundImage !== "none";
   const hasBorder = [
