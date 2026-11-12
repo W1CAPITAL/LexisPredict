@@ -1049,14 +1049,15 @@ export function ProcessosCommandCenter(props: Props) {
                 </div>
               </div>
 
-              <div data-lexis-processos-inspector-tabs className="grid grid-cols-6 rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0a1729] p-1">
+              <div data-lexis-processos-inspector-tabs data-lexis-rebuild-tablist className="grid grid-cols-6 rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-[#0a1729] p-1">
                 {([
                   ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
-                  <button key={value} data-lexis-rebuild-tab onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-primary text-primary-foreground":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
+                  <button key={value} data-lexis-rebuild-tab aria-controls="processos-inspector-tab-panel" aria-pressed={tab===value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-primary text-primary-foreground":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
                 ))}
               </div>
 
+              <div id="processos-inspector-tab-panel" data-lexis-rebuild-panel className="space-y-2">
               {tab === "overview" ? (
                 <div className="space-y-2">
                   <Panel title="Resumo operacional">
@@ -1366,6 +1367,7 @@ export function ProcessosCommandCenter(props: Props) {
                   <Button asChild variant="outline" className="w-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-[11px] text-slate-700 dark:text-slate-300"><Link href={`/report?processo=${encodeURIComponent(selected.protocolo)}`}><BarChart3 size={12} className="mr-1"/>Gerar relatório</Link></Button>
                 </div>
               ) : null}
+              </div>
 
               <Panel title="Tempo sem andamento">
                 <div className="space-y-2">
