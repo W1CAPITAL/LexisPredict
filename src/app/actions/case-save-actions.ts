@@ -176,7 +176,7 @@ async function persistToDatabase(
     }
   }
   // O formulário usa "observacao" no objeto da carteira; a coluna SQL é plural.
-  const observationValue = processed.observacoes ?? processed.observacao;
+  const observationValue = processed.observacoes || processed.observacao;
   if (observationValue !== undefined && PROCESSOS_WRITE_COLS.has('observacoes')) {
     payload.observacoes = observationValue;
   }
