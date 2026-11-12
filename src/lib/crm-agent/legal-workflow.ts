@@ -78,8 +78,9 @@ function makeStep(
   };
 }
 
-function safeSummary(value: unknown, max = 420): string {
-  return text(value).replace(/\s+/g, " ").slice(0, max);
+function safeSummary(value: unknown, fallback = "", max = 420): string {
+  const summary = text(value).replace(/\s+/g, " ").slice(0, max);
+  return summary || fallback;
 }
 
 /**
