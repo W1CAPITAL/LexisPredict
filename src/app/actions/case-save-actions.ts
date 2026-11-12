@@ -111,6 +111,9 @@ async function persistToDatabase(
     status_interno: 'situacao',
     created_by: 'created_by',
     atendido_por: 'atendido_por',
+    advogado: 'advogado',
+    escritorio: 'escritorio',
+    telefone: 'telefone',
     ultimo_retorno: 'ultimo_retorno',
     proximo_retorno: 'proximo_retorno',
     observacoes: 'observacoes',
@@ -171,6 +174,11 @@ async function persistToDatabase(
     if (processed[sourceKey] !== undefined && PROCESSOS_WRITE_COLS.has(dbKey)) {
       payload[dbKey] = processed[sourceKey];
     }
+  }
+  // O formulário usa "observacao" no objeto da carteira; a coluna SQL é plural.
+  const observationValue = processed.observacoes ?? processed.observacao;
+  if (observationValue !== undefined && PROCESSOS_WRITE_COLS.has('observacoes')) {
+    payload.observacoes = observationValue;
   }
 
   // ainda não tiver essa coluna.
