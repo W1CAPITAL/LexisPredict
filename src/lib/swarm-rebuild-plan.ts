@@ -22,7 +22,7 @@ export function planSwarmTargets<T extends SwarmCandidate>(
       if (rect.top >= viewport.height - 12 || rect.top + rect.height <= 35) return false;
       if (rect.left >= viewport.width - 12 || rect.left + rect.width <= 12) return false;
       // Never animate the full-page wrapper: it makes the entire screen blink.
-      if (rect.width > viewport.width * 0.92 && rect.height > viewport.height * 0.7) return false;
+      if (rect.width > viewport.width * 0.7 && rect.height > viewport.height * 0.7) return false;
       return true;
     })
     .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)
