@@ -102,3 +102,8 @@
  .lx-swarm-cursor small{font-size:8px;padding:2px 3px;}
 }
 @media print{.lx-swarm-stage{display:none!important;}}
+
+/* Decorative loader cursors are static unless the user opts in to Swarm. */
+html:not([data-lexis-swarm-rebuild="enabled"]) .lx-mini-swarm-actor{
+ animation:none!important;
+}
