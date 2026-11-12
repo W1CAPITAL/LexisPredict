@@ -206,11 +206,12 @@ function createRebuildStage(onSkip: () => void, agents: number) {
     outline.style.cssText =
       "position:fixed;left:0;top:0;width:0;height:0;box-sizing:border-box;" +
       "border:1px dashed " + color + ";border-radius:4px;opacity:0;" +
-      "pointer-events:none;will-change:opacity;";
+      "pointer-events:none;will-change:opacity;transition:opacity 60ms linear;";
     const cursor = document.createElement("div");
     cursor.style.cssText =
       "position:fixed;left:0;top:0;display:flex;align-items:flex-start;gap:4px;" +
-      "pointer-events:none;opacity:0;will-change:transform,opacity;";
+      "pointer-events:none;opacity:0;will-change:transform,opacity;" +
+      "transition:transform 125ms cubic-bezier(.2,.7,.2,1),opacity 60ms linear;";
     const pointer = document.createElement("span");
     pointer.style.cssText =
       "display:block;width:0;height:0;border-top:0 solid transparent;" +
@@ -285,11 +286,21 @@ function startDomRebuild(root: Element): () => void {
     stage = null;
   };
 
-  captured.forEach(hideForRebuild);
-  const overlay = createRebuildStage(cleanup, agentCount);
-  stage = overlay.stage;
-  label = overlay.label;
-  cursors = overlay.cursors;
+  // Create the controls first; if stage creation fails, the real page has
+  // not yet been hidden. Restore immediately if any inline write fails.
+  let overlay: ReturnType<typeof createRebuildStage>;
+  try {
+    overlay = createRebuildStage(cleanup, agentCount);
+    stage = overlay.stage;
+    label = overlay.label;
+    cursors = overlay.cursors;
+    captured.forEach(hideForRebuild);
+  } catch {
+    captured.forEach(restoreOriginalVisibility);
+    stage?.remove();
+    stage = null;
+    return () => {};
+  }
 
   const finishOne = () => {
     if (closed) return;
