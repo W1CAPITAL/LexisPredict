@@ -384,6 +384,7 @@ export default function AgendaPage() {
                       Semana
                     </Button>
                     <Button
+                      data-lexis-rebuild-tab
                       variant={view === "day" ? "default" : "outline"}
                       size="sm"
                       onClick={() => setView("day")}
