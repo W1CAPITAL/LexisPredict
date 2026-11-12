@@ -134,7 +134,10 @@ export function SwarmRouteLoading() {
       if (!targets.length) {
         // The bounded late pass often finds no additional nodes. Do not remove
         // cursors that are still drawing the first batch of real page elements.
-        if (!onlyNew) setMarkers([]);
+        if (!onlyNew) {
+          stopActive();
+          setMarkers([]);
+        }
         return;
       }
 
