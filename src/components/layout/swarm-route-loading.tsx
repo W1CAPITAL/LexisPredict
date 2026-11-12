@@ -450,9 +450,11 @@ export function SwarmRouteLoading() {
     let routeTimer = 0;
     let routeMaxTimer = 0;
     let tabTimer = 0;
+    let tabMaxTimer = 0;
     let disposed = false;
     let root: Element | null = null;
     let routeObserver: MutationObserver | null = null;
+    let tabObserver: MutationObserver | null = null;
     let preferences = loadSwarmRebuildPreferences();
     document.documentElement.setAttribute(
       "data-lexis-swarm-rebuild",
@@ -474,10 +476,17 @@ export function SwarmRouteLoading() {
       routeObserver?.disconnect();
       routeObserver = null;
     };
+    const stopTabWait = () => {
+      window.clearTimeout(tabTimer);
+      window.clearTimeout(tabMaxTimer);
+      tabTimer = 0;
+      tabMaxTimer = 0;
+      tabObserver?.disconnect();
+      tabObserver = null;
+    };
     const stopRebuild = () => {
       stopRouteWait();
-      window.clearTimeout(tabTimer);
-      tabTimer = 0;
+      stopTabWait();
       cleanup();
       cleanup = () => {};
       detachTabListeners();
@@ -497,17 +506,39 @@ export function SwarmRouteLoading() {
     const queueTabRebuild = (tab: HTMLElement, useFocusedTab = false) => {
       if (!preferences.enabled || !root) return;
       stopRouteWait();
-      window.clearTimeout(tabTimer);
+      stopTabWait();
       tabTimer = window.setTimeout(() => {
         tabTimer = 0;
         if (disposed || !preferences.enabled || !root) return;
-        cleanup();
         const focused = useFocusedTab && document.activeElement instanceof HTMLElement
           ? document.activeElement.closest<HTMLElement>(TAB_SELECTOR)
           : null;
-        const preferredTab = focused && root.contains(focused) ? focused : tab;
-        cleanup = startDomRebuild(activeTabPanel(root, preferredTab), preferences.speed);
-      }, 240);
+        const preferredTab = focused && (root.contains(focused) || controlledPanelForTab(root, focused))
+          ? focused
+          : tab;
+        const panel = activeTabPanel(root, preferredTab);
+
+        const runTabRebuild = () => {
+          if (disposed || !preferences.enabled || !root) return;
+          stopTabWait();
+          cleanup();
+          cleanup = startDomRebuild(panel, preferences.speed);
+        };
+        const scheduleTabRebuild = () => {
+          window.clearTimeout(tabTimer);
+          tabTimer = window.setTimeout(runTabRebuild, 320);
+        };
+
+        // Some tabs fetch their content after the selection. Wait for a short
+        // quiet window on that panel, but never keep an observer longer than
+        // 1.8 seconds. This observer exists only after an enabled user action.
+        if (typeof MutationObserver !== "undefined") {
+          tabObserver = new MutationObserver(scheduleTabRebuild);
+          tabObserver.observe(panel, { childList: true, subtree: true, characterData: true });
+        }
+        tabTimer = window.setTimeout(runTabRebuild, 360);
+        tabMaxTimer = window.setTimeout(runTabRebuild, 1800);
+      }, 180);
     };
 
     function onTabClick(event: MouseEvent) {
@@ -545,7 +576,7 @@ export function SwarmRouteLoading() {
         routeObserver.observe(root, { childList: true, subtree: true, characterData: true });
       }
       routeTimer = window.setTimeout(runRouteRebuild, 420);
-      routeMaxTimer = window.setTimeout(runRouteRebuild, 2200);
+      routeMaxTimer = window.setTimeout(runRouteRebuild, 4000);
     };
 
     const onPreferencesChanged = (event: Event) => {
