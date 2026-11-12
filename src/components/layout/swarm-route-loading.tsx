@@ -448,13 +448,17 @@ export function SwarmRouteLoading() {
       root = null;
     };
 
-    const queueTabRebuild = (tab: HTMLElement) => {
+    const queueTabRebuild = (tab: HTMLElement, useFocusedTab = false) => {
       if (!preferences.enabled || !root) return;
       window.clearTimeout(tabTimer);
       tabTimer = window.setTimeout(() => {
         if (disposed || !preferences.enabled || !root) return;
         cleanup();
-        cleanup = startDomRebuild(activeTabPanel(root, tab), preferences.speed);
+        const focused = useFocusedTab && document.activeElement instanceof HTMLElement
+          ? document.activeElement.closest<HTMLElement>(TAB_SELECTOR)
+          : null;
+        const preferredTab = focused && root.contains(focused) ? focused : tab;
+        cleanup = startDomRebuild(activeTabPanel(root, preferredTab), preferences.speed);
       }, 180);
     };
 
@@ -471,7 +475,7 @@ export function SwarmRouteLoading() {
       if (!(target instanceof Element)) return;
       const tab = target.closest<HTMLElement>(TAB_SELECTOR);
       if (!tab || !root?.contains(tab)) return;
-      queueTabRebuild(tab);
+      queueTabRebuild(tab, true);
     }
 
     const startForCurrentRoute = () => {
