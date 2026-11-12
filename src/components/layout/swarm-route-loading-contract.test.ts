@@ -8,6 +8,7 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   const shell = source("src/components/layout/persistent-app-shell.tsx");
   const effect = source("src/components/layout/swarm-route-loading.tsx");
   const plan = source("src/lib/swarm-dom-plan.ts");
+  const tabs = source("src/components/ui/tabs.tsx");
 
   it("mounts inside route content only; persistent sidebar remains outside the rebuild", () => {
     expect(shell).toContain("<SwarmRouteLoading />");
@@ -31,7 +32,6 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   it("exposes the rebuild setting and speed control in Settings", () => {
     const settings = source("src/app/settings/page.tsx");
     const panel = source("src/components/settings/swarm-rebuild-settings-panel.tsx");
-    const tabs = source("src/components/ui/tabs.tsx");
     expect(settings).toContain("SwarmRebuildSettingsPanel");
     expect(settings).toContain('id: "Swarm"');
     expect(panel).toContain("Muito lenta");
