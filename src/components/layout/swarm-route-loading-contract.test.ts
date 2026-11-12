@@ -8,6 +8,7 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   const shell = source("src/components/layout/persistent-app-shell.tsx");
   const effect = source("src/components/layout/swarm-route-loading.tsx");
   const plan = source("src/lib/swarm-dom-plan.ts");
+  const tabs = source("src/components/ui/tabs.tsx");
 
   it("mounts inside route content only; persistent sidebar remains outside the rebuild", () => {
     expect(shell).toContain("<SwarmRouteLoading />");
@@ -16,6 +17,39 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(shell).toContain("<Sidebar persistentRoot />");
     expect(template).not.toContain("<SwarmRouteLoading />");
     expect(effect).toContain('[data-lexis-rebuild-root]');
+  });
+
+  it("does no DOM capture, document tab listeners or layout work until the user opts in", () => {
+    const start = effect.indexOf("const startForCurrentRoute");
+    const gate = effect.indexOf("if (!preferences.enabled) return;", start);
+    const domLookup = effect.indexOf("document.querySelector(ROOT_SELECTOR)", start);
+    expect(effect).toContain("loadSwarmRebuildPreferences");
+    expect(gate).toBeGreaterThanOrEqual(0);
+    expect(domLookup).toBeGreaterThan(gate);
+    expect(effect).toContain("SWARM_REBUILD_PREFERENCES_EVENT");
+    const tabListener = effect.indexOf("document.addEventListener(\"click\"", start);
+    expect(tabListener).toBeGreaterThan(gate);
+  });
+
+  it("exposes the rebuild setting and speed control in Settings", () => {
+    const settings = source("src/app/settings/page.tsx");
+    const panel = source("src/components/settings/swarm-rebuild-settings-panel.tsx");
+    expect(settings).toContain("SwarmRebuildSettingsPanel");
+    expect(settings).toContain('id: "Swarm"');
+    expect(panel).toContain("Muito lenta");
+    expect(panel).toContain("Muito rápida");
+    expect(tabs).toContain("data-lexis-rebuild-tab");
+    for (const path of [
+      "src/components/dashboard/office-stats.tsx",
+      "src/components/processos/processos-command-center.tsx",
+      "src/components/vencidos/vencidos-panel.tsx",
+      "src/app/agenda/page.tsx",
+      "src/app/hermes-3d/page.tsx",
+      "src/app/plugins/page.tsx",
+      "src/app/busca-apreensao/page.tsx",
+    ]) {
+      expect(source(path), path).toContain("data-lexis-rebuild-tab");
+    }
   });
 
   it("animates the original DOM elements without cloning, replacing or redrawing the page", () => {
@@ -41,9 +75,9 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
   });
 
   it("bounds the effect for weak computers", () => {
-    expect(plan).toContain("DOM_REBUILD_MAX_ELEMENTS = 96");
-    expect(plan).toContain("DOM_REBUILD_AGENTS = 8");
-    expect(plan).toContain("DOM_REBUILD_DURATION_MS = 140");
+    expect(plan).toContain("DOM_REBUILD_MAX_ELEMENTS = 48");
+    expect(plan).toContain("DOM_REBUILD_AGENTS = 4");
+    expect(plan).toContain("DOM_REBUILD_DURATION_MS = getSwarmRebuildProfile(1).durationMs");
     expect(effect).toContain("prefers-reduced-motion");
     expect(effect).toContain("will-change:transform");
   });
@@ -52,8 +86,10 @@ describe("Swarm Rebuild – native, isolated and lightweight", () => {
     expect(effect).toContain('[role="tab"]');
     expect(effect).toContain("[data-lexis-settings-tab]");
     expect(effect).toContain("[data-lexis-dashboard-tablist]");
+    expect(effect).toContain("[data-lexis-rebuild-tab]");
     expect(effect).toContain("addEventListener(\"click\"");
     expect(effect).toContain("addEventListener(\"keydown\"");
+    expect(tabs).toContain("data-lexis-rebuild-tab");
     expect(effect).toContain("ArrowLeft");
     expect(effect).toContain("activeTabPanel");
   });

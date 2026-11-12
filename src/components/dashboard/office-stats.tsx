@@ -290,6 +290,7 @@ export function OfficeStats({ cases, className }: OfficeStatsProps) {
             <button
               key={id}
               type="button"
+              data-lexis-rebuild-tab
               onClick={() => setTab(id)}
               className={cn(
                 "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition",

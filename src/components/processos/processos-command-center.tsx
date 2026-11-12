@@ -1053,7 +1053,7 @@ export function ProcessosCommandCenter(props: Props) {
                 {([
                   ["overview","Visão"],["movements","Mov."],["deadlines","Prazos"],["parties","Partes"],["documents","Docs"],["ai","IA"]
                 ] as [DetailTab,string][]).map(([value,label])=>(
-                  <button key={value} onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-primary text-primary-foreground":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
+                  <button key={value} data-lexis-rebuild-tab onClick={()=>setTab(value)} className={cn("rounded-lg px-1 py-2 text-[10px] font-bold", tab===value?"bg-primary text-primary-foreground":"text-slate-500 hover:text-slate-800 dark:text-slate-200")}>{label}</button>
                 ))}
               </div>
 

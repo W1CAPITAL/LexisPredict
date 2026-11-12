@@ -5,6 +5,7 @@ import {
   DOM_REBUILD_MAX_ELEMENTS,
   planDomRebuild,
 } from "./swarm-dom-plan";
+import { getSwarmRebuildProfile } from "./swarm-rebuild-preferences";
 
 const source = (id: string, x: number, y: number, depth = 1) => ({
   id, x, y, depth, width: 120, height: 40, kind: "text" as const,
@@ -21,25 +22,40 @@ describe("native DOM rebuild schedule", () => {
     expect(tasks.map((task) => task.id)).toEqual(["heading"]);
   });
 
-  it("preserves measured geometry and puts parent layers before their text", () => {
+  it("preserves measured geometry and keeps parent layers before their text", () => {
     const tasks = planDomRebuild([
-      source("child", 20, 22, 3),
-      source("card", 10, 10, 2),
       source("shell", 0, 0, 1),
+      source("card", 10, 10, 2),
+      source("child", 20, 22, 3),
     ], { width: 1280, height: 800 });
     expect(tasks.map((task) => task.id)).toEqual(["shell", "card", "child"]);
     expect(tasks[1]).toMatchObject({ x: 10, y: 10, width: 120, height: 40 });
   });
 
-  it("uses eight lightweight agents and finishes 96 real elements in under two seconds", () => {
-    const items = Array.from({ length: DOM_REBUILD_MAX_ELEMENTS }, (_, i) =>
+  it("caps the rebuild at 48 real elements and four agents", () => {
+    const items = Array.from({ length: 96 }, (_, i) =>
       source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
     const tasks = planDomRebuild(items, { width: 1280, height: 800 });
-    expect(DOM_REBUILD_MAX_ELEMENTS).toBe(96);
-    expect(DOM_REBUILD_AGENTS).toBe(8);
-    expect(new Set(tasks.map((task) => task.agent)).size).toBe(DOM_REBUILD_AGENTS);
-    expect(tasks.every((task) => task.durationMs === DOM_REBUILD_DURATION_MS)).toBe(true);
+    expect(DOM_REBUILD_MAX_ELEMENTS).toBe(48);
+    expect(DOM_REBUILD_AGENTS).toBe(4);
+    expect(tasks).toHaveLength(48);
+    expect(new Set(tasks.map((task) => task.agent)).size).toBe(4);
+  });
+
+  it("keeps the slowest profile visible for more than eight seconds", () => {
+    const profile = getSwarmRebuildProfile(1);
+    const items = Array.from({ length: 48 }, (_, i) =>
+      source(String(i), (i % 8) * 150, Math.floor(i / 8) * 35));
+    const tasks = planDomRebuild(items, { width: 1280, height: 800 }, profile);
+    expect(DOM_REBUILD_DURATION_MS).toBe(820);
+    expect(tasks.every((task) => task.durationMs === 820)).toBe(true);
     const total = Math.max(...tasks.map((task) => task.startMs + task.durationMs));
-    expect(total).toBeLessThanOrEqual(1900);
+    expect(total).toBeGreaterThanOrEqual(10_000);
+  });
+
+  it("reduces duration monotonically as the selected speed increases", () => {
+    const durations = [1, 2, 3, 4, 5].map((speed) =>
+      getSwarmRebuildProfile(speed as 1 | 2 | 3 | 4 | 5).durationMs);
+    expect(durations).toEqual([...durations].sort((a, b) => b - a));
   });
 });

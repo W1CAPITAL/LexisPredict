@@ -470,6 +470,7 @@ export default function BuscaApreensaoPage() {
                 <button
                   key={t}
                   type="button"
+                  data-lexis-rebuild-tab
                   onClick={() => setFiltroTipo(t)}
                   className={cn(
                     "text-[8px] font-black uppercase px-2 py-1 rounded-lg border",
