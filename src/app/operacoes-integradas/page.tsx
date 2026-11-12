@@ -3,6 +3,7 @@
 import React,{useCallback,useEffect,useState} from "react";
 import Link from "next/link";
 import {Sidebar} from "@/components/layout/sidebar";
+import {useAuth} from "@/components/auth/auth-provider";
 import {listAssignableUsersAction,type AssignableUser} from "@/app/actions/team-list-actions";
 import {
  listOpsWorkflowsAction,createOpsWorkflowAction,updateOpsWorkflowAction,
@@ -45,6 +46,8 @@ const defaultFields:IntakeField[]=[
 ];
 
 export default function OperacoesIntegradasPage(){
+ const {profile}=useAuth();
+ const selfId=String((profile as any)?.auth_user_id||"");
  const [tab,setTab]=useState<Tab>("workflow");
  const [rows,setRows]=useState<any[]>([]);
  const [users,setUsers]=useState<AssignableUser[]>([]);
@@ -162,7 +165,7 @@ export default function OperacoesIntegradasPage(){
    <div className="flex flex-wrap justify-between gap-2"><strong>{r.display_name||r.phone}</strong><span className="text-xs">{r.state}</span></div>
    <p className="text-xs text-muted-foreground">{r.phone} · {r.cnj||"sem CNJ"} · {r.assigned_auth_id?userLabel(r.assigned_auth_id):"não atribuído"}</p>
    <div className="flex flex-wrap gap-2">
-    {closeBtn("Assumir atendimento",()=>saveOpsInboxAction({phone:r.phone,cnj:r.cnj||undefined,displayName:r.display_name,state:"em_atendimento",assignedAuthId:users.find(u=>u.auth_user_id===grantUser)?.auth_user_id||assigned||null}))}
+    {closeBtn("Assumir atendimento",()=>saveOpsInboxAction({phone:r.phone,cnj:r.cnj||undefined,displayName:r.display_name,state:"em_atendimento",assignedAuthId:selfId||null}))}
     {closeBtn("Aguardar",()=>saveOpsInboxAction({phone:r.phone,cnj:r.cnj||undefined,displayName:r.display_name,state:"aguardando",assignedAuthId:r.assigned_auth_id}))}
     {closeBtn("Encerrar",()=>saveOpsInboxAction({phone:r.phone,cnj:r.cnj||undefined,displayName:r.display_name,state:"encerrado",assignedAuthId:r.assigned_auth_id}))}
     <button className={ghost} onClick={()=>void listOpsInboxNotesAction(r.id).then(data=>setPreview(data.map((x:any)=>x.created_at+" · "+x.event+": "+(x.details?.note||"")).join("\n"))).catch(e=>setError(e.message))}>Notas internas</button>
