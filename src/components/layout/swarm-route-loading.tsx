@@ -65,12 +65,12 @@ export function SwarmRouteLoading() {
 
     const handleTabClick = (event: MouseEvent) => {
       // Assistive technology may activate a tab with a detail=0 synthetic click.
-      if (event.detail !== 0) return;
+      if (event.detail === 0) {
+        const tab = findTab(event.target);
+        if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
 
-      const tab = findTab(event.target);
-      if (!tab || tab.getAttribute("aria-disabled") === "true" || isSelected(tab)) return;
-
-      showForTabChange();
+        showForTabChange();
+      }
     };
 
     scheduleHide();
