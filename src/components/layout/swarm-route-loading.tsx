@@ -314,7 +314,7 @@ function playCapturedBlueprint(
   const tasks = planSwarmStoryboard(blueprint, { width: innerWidth, height: innerHeight });
   if (tasks.length === 0) { onFinish(); return () => {}; }
   const { stage, canvas, label } = installStage(cleanup);
-  const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
+  const pixelRatio = innerWidth * innerHeight > 1_800_000 ? 1 : Math.min(1.25, window.devicePixelRatio || 1);
   canvas.width = Math.ceil(innerWidth * pixelRatio);
   canvas.height = Math.ceil(innerHeight * pixelRatio);
   const ctx = canvas.getContext("2d", { alpha: false });
@@ -346,6 +346,10 @@ function playCapturedBlueprint(
       if (elapsed < item.startMs) continue;
       const p = Math.min(1, (elapsed - item.startMs) / item.durationMs);
       if (p >= 1) {
+        // Data/SVG images can decode a few frames after capturing the DOM.
+        // Never mark an icon as finished while it still has no pixels.
+        if (item.kind === "media" && item.image instanceof HTMLImageElement &&
+            !item.image.complete) continue;
         if (!finished.has(item.id)) {
           paintItem(finishedCtx, item, 1);
           finished.add(item.id);
