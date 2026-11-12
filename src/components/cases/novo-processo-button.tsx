@@ -49,7 +49,7 @@ export function NovoProcessoButton({ className, onCreated }: Props) {
     if (!protocolo) {
       toast({
         title: "CNJ inválido",
-        description: "Informe os 20 dígitos do número do processo.",
+        description: "Informe os 20 dígitos e confira os dígitos verificadores do CNJ.",
         variant: "destructive",
       });
       return;
