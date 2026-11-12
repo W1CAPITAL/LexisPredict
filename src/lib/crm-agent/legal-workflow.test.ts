@@ -106,6 +106,15 @@ describe("workflow jurídico orientado por evidências", () => {
     expect(result.steps[0]?.priority).toBe("critical");
   });
 
+  it("evaluates operational returns in Sao Paulo time rather than server UTC", () => {
+    const result = buildLegalWorkflow({
+      ...baseCase,
+      proximo_retorno: "2026-11-13",
+    }, new Date("2026-11-13T01:00:00.000Z"));
+
+    expect(result.signals).not.toContain("retorno_operacional");
+  });
+
   it("does not mistake the generic proximoPrazo field for a client return", () => {
     const result = buildLegalWorkflow({
       ...baseCase,
