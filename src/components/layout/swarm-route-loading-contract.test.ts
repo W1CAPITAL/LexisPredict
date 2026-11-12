@@ -68,7 +68,7 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
   it("makes the rebuild visibly travel across real elements even on low-end devices", () => {
     expect(effect).toContain("lightweight ? 620 : 760");
     expect(effect).toContain("lightweight ? 8 : MAX_REBUILD_TARGETS");
-    expect(effect).toContain("Math.ceil(shown.length / 6)");
+    expect(effect).toContain("Math.floor(shown.length / 6)");
     expect(effect).toContain("travelX");
     expect(effect).toContain("travelY");
     expect(css).toContain("z-index:2147483600");
