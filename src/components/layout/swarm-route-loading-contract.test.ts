@@ -16,7 +16,9 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
   });
 
   it("animates DOM content rather than a fake loading card", () => {
-    expect(effect).toContain("querySelectorAll");
+    expect(effect).toContain("createTreeWalker");
+    expect(effect).toContain("MAX_DOM_SCAN_NODES");
+    expect(effect).not.toContain("scope.querySelectorAll");
     expect(effect).toContain("element.animate(");
     expect(effect).toContain("clipPath");
     expect(effect).toContain("getBoundingClientRect");
@@ -56,6 +58,7 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
     expect(effect).toContain("usePathname");
     expect(effect).toContain("seenRebuildRoutes");
     expect(effect).toContain("seenRebuildTabs");
+    expect(effect).toContain("seenRebuildTabs.add(tabKey)");
     expect(effect).toContain("pathname");
   });
 
