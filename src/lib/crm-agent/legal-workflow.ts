@@ -105,7 +105,7 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
   ].join(" ");
   const isClosed = truthy(c.datajud_encerrado_tribunal) || /encerrad|arquivad|extint|baixad/i.test(statusText);
   const today = localDate(now);
-  const nextReturn = normalizeDate(c.proximo_retorno || c.proximoRetorno || c.proximoPrazo);
+  const nextReturn = normalizeDate(c.proximo_retorno || c.proximoRetorno);
   const returnIsDue = Boolean(nextReturn && nextReturn <= today);
 
   const signals: string[] = [];
@@ -117,11 +117,12 @@ export function buildLegalWorkflow(caseData: object, now = new Date()): LegalWor
     signals.push("busca_apreensao");
     const confidence = text(c.busca_apreensao_confianca, "não informada").toLowerCase();
     const reason = safeSummary(c.busca_apreensao_motivo, "Flag de busca e apreensão registrada no cadastro.");
+    const priority: LegalWorkflowPriority = confidence === "alta" ? "critical" : "high";
     steps.push(makeStep(
       "validar_busca_apreensao",
       "Priorizar a validação de busca e apreensão",
       "Conferir decisão, mandado, situação atual e movimentação diretamente na fonte oficial. O sinal automatizado não comprova, sozinho, a existência de ordem vigente.",
-      "critical",
+      priority,
       "advogado",
       reason
     ));
