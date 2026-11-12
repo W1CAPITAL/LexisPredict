@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   DOM_REBUILD_MAX_ELEMENTS,
+  DOM_REBUILD_MIN_ELEMENTS,
   planDomRebuild,
+  sampleDomCandidates,
   type DomRebuildSource,
 } from "@/lib/swarm-dom-plan";
 import {
@@ -398,7 +400,7 @@ function startDomRebuild(root: Element, speed: SwarmRebuildSpeed): () => void {
   return cleanup;
 }
 
-function controlledPanelForTab(root: Element, tab?: HTMLElement): Element | null {
+function controlledPanelForTab(root: Element, tab?: HTMLElement | null): Element | null {
   const ids = tab?.getAttribute("aria-controls")?.split(/\s+/).filter(Boolean) ?? [];
   for (const id of ids) {
     const panel = document.getElementById(id);
