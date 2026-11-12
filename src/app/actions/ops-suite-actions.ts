@@ -2,6 +2,7 @@
 
 import {getUserContext,getSupabaseAdmin} from '@/lib/server-db';
 import {buildLegalWorkflow,formatLegalWorkflowReport} from '@/lib/crm-agent/legal-workflow';
+import {toPersistedWorkflowSteps} from '@/lib/ops-suite/workflow-bridge';
 import {
  OPS_CAPABILITIES,canUseOpsCapability,normalizeOpsCnj,opsCnjVariants,normalizeOpsPhone,
  validateOpsAgentDraft,type OpsCapability,type OpsAgentDraft
@@ -104,6 +105,50 @@ export async function updateOpsWorkflowAction(input:{
  await recordAudit(a.db,a.ctx,'workflow',id,'status_changed',{from:current.status,to:input.status});
  return {ok:true};
 }
+export async function importSuggestedOpsWorkflowAction(cnjInput:string){
+ const a=await access('workflow.write');
+ const cnj=normalizeOpsCnj(cnjInput);
+ const process=await assureCompanyCase(a.db,a.empresaId,cnj);
+ const evidence=await caseEvidence(a,cnj);
+ const items=toPersistedWorkflowSteps(evidence.plan,cnj,a.empresaId,a.actor,Number(process.id));
+ const {data,error}=await a.db.from('lexis_ops_workflows')
+ .upsert(items,{onConflict:'empresa_id,cnj,step_key',ignoreDuplicates:true}).select('id');
+ if(error)throw new Error(error.message);
+ await recordAudit(a.db,a.ctx,'workflow',cnj,'suggested_steps_imported',{inserted:data?.length||0,proposed:items.length});
+ return {ok:true,created:data?.length||0,existing:items.length-(data?.length||0),warnings:evidence.plan.warnings};
+}
+export async function syncOpsInboxFromWhatsAppAction(){
+ const a=await access('inbox.assign');
+ const {data:messages,error}=await a.db.from('whatsapp_messages')
+ .select('contact_number,phone,contact_name,timestamp,created_at')
+ .eq('empresa_id',a.empresaId).order('created_at',{ascending:false}).limit(500);
+ if(error)throw new Error('Não foi possível ler os metadados WhatsApp desta empresa.');
+ const contacts=new Map<string,{phone:string;display_name:string;last_activity_at:string}>();
+ for(const row of messages||[]){
+  const raw=String(row.contact_number||row.phone||'');
+  if(!raw||/@g\.us/i.test(raw))continue;
+  try{
+   const phone=normalizeOpsPhone(raw);
+   if(contacts.has(phone))continue;
+   contacts.set(phone,{
+    phone,display_name:cleanText(row.contact_name,120),
+    last_activity_at:row.timestamp||row.created_at||new Date().toISOString()
+   });
+  }catch{/* Ignora JIDs e contatos sem telefone brasileiro válido. */}
+ }
+ if(!contacts.size)return {ok:true,created:0,seen:0};
+ const batch=[...contacts.values()].slice(0,200).map(row=>({
+  ...row,empresa_id:a.empresaId,state:'nao_atribuido',
+  assigned_auth_id:null,created_by:a.actor
+ }));
+ const {data,error:saveError}=await a.db.from('lexis_ops_inbox')
+  .upsert(batch,{onConflict:'empresa_id,phone',ignoreDuplicates:true})
+  .select('id');
+ if(saveError)throw new Error(saveError.message);
+ await recordAudit(a.db,a.ctx,'inbox','batch','metadata_synced',{seen:contacts.size,created:data?.length||0});
+ return {ok:true,created:data?.length||0,seen:contacts.size};
+}
+
 export async function listOpsInboxAction(){
  const a=await access('inbox.read');
  const {data,error}=await a.db.from('lexis_ops_inbox').select('id,phone,cnj,display_name,state,assigned_auth_id,last_activity_at')
