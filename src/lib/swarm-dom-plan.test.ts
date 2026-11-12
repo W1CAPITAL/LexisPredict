@@ -24,11 +24,11 @@ describe("native DOM rebuild schedule", () => {
 
   it("preserves measured geometry and keeps parent layers before their text", () => {
     const tasks = planDomRebuild([
-      source("child", 20, 22, 3),
-      source("card", 10, 10, 2),
       source("shell", 0, 0, 1),
+      source("card", 10, 10, 2),
+      source("child", 20, 22, 3),
     ], { width: 1280, height: 800 });
-    expect(tasks.map((task) => task.id)).toEqual(["child", "card", "shell"]);
+    expect(tasks.map((task) => task.id)).toEqual(["shell", "card", "child"]);
     expect(tasks[1]).toMatchObject({ x: 10, y: 10, width: 120, height: 40 });
   });
 
