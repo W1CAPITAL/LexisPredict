@@ -77,7 +77,12 @@ export function CompanyDueQueue(){
        </p></div>
       <div className="flex flex-wrap items-center gap-2">
        <NovoProcessoButton
-        onCreated={()=>{setToday(todayBrazil());refresh();}}
+        onCreated={()=>{
+         setToday(todayBrazil());
+         refresh();
+         try { localStorage.setItem("lexis_carteira_invalidation_v1", String(Date.now())); } catch {}
+         window.dispatchEvent(new Event("lexis-carteira-updated"));
+        }}
         className="h-10 border border-white/35 bg-white/12 text-white shadow-none hover:bg-white/20"
        />
        <Button className="gap-2 bg-white text-[#4f2541] hover:bg-[#f3e6ed]" disabled={busy}
