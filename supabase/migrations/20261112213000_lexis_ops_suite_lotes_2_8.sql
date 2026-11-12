@@ -225,3 +225,10 @@ begin
 end $$;
 revoke all on function public.lexis_ops_intake_slot(uuid,text) from public,anon,authenticated;
 grant execute on function public.lexis_ops_intake_slot(uuid,text) to service_role;
+
+
+-- Private attachment bucket: no public object-listing or download policies are granted.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+ values('lexis-intake-private','lexis-intake-private',false,4194304,
+ array['application/pdf','image/png','image/jpeg'])
+ on conflict(id) do nothing;
