@@ -33,6 +33,7 @@ const TabsTrigger = React.forwardRef<
       className
     )}
     {...props}
+    data-lexis-rebuild-tab
   />
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
