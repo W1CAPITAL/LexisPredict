@@ -52,6 +52,24 @@ describe("Swarm Rebuild – reconstruct real LexisPredict content without lag", 
     expect(effect).toContain("id: `${++markerGeneration}-${index}`");
   });
 
+  it("replays only on the first visit to each route and tab until a hard refresh", () => {
+    expect(effect).toContain("usePathname");
+    expect(effect).toContain("seenRebuildRoutes");
+    expect(effect).toContain("seenRebuildTabs");
+    expect(effect).toContain("pathname");
+  });
+
+  it("makes the rebuild visibly travel across real elements even on low-end devices", () => {
+    expect(effect).toContain("lightweight ? 620 : 760");
+    expect(effect).toContain("lightweight ? 8 : MAX_REBUILD_TARGETS");
+    expect(effect).toContain("Math.ceil(shown.length / 6)");
+    expect(effect).toContain("travelX");
+    expect(effect).toContain("travelY");
+    expect(css).toContain("z-index:2147483600");
+    expect(css).toContain("--lx-swarm-travel-x");
+    expect(css).toContain("--lx-swarm-travel-y");
+  });
+
   it("is finite and respects lightweight mode and reduced motion", () => {
     expect(effect).toContain("prefers-reduced-motion: reduce");
     expect(effect).toContain('data-lexis-motion');
