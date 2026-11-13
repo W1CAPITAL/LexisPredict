@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
-  Bell,
   BookOpen,
   Bot,
   Briefcase,
@@ -17,7 +16,18 @@ import {
   Crown,
   FileText,
   FolderOpen,
-  Gavel,
+  CalendarCheck,
+  ClipboardCheck,
+  ClockAlert,
+  IdCard,
+  BrainCircuit,
+  Network,
+  FolderKanban,
+  ScanSearch,
+  SearchCheck,
+  Scale,
+  Workflow,
+  Handshake,
   LayoutDashboard,
   ListTodo,
   LogOut,
@@ -45,6 +55,7 @@ import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import {loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {matchesAppRouteSearch} from '@/lib/app-route-search';
+import { selectPrimaryNavigationItems } from "@/lib/primary-navigation";
 
 type NavItem = {
   label: string;
@@ -65,34 +76,34 @@ const core: NavItem[] = [
   { label: "Vencidos", href: "/vencidos", icon: ShieldAlert },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { label: "Dossiês", href: "/dossies", icon: BookOpen },
-  { label: "Consulta OAB", href: "/consulta-oab", icon: Gavel },
-  { label: "Superagente", href: "/chat", icon: Bot },
-  { label: "Hermes · Escritório 3D", href: "/hermes-3d", icon: Bot, admin: true },
-  { label: "Projetos", href: "/projetos", icon: FolderOpen, admin: true },
+  { label: "Consulta OAB", href: "/consulta-oab", icon: IdCard },
+  { label: "Superagente", href: "/chat", icon: BrainCircuit },
+  { label: "Hermes · Escritório 3D", href: "/hermes-3d", icon: Network, admin: true },
+  { label: "Projetos", href: "/projetos", icon: FolderKanban, admin: true },
   { label: "Agenda", href: "/agenda", icon: CalendarDays },
-  { label: "Audiências", href: "/audiencias", icon: Gavel },
+  { label: "Audiências", href: "/audiencias", icon: CalendarCheck },
   { label: "Relatórios", href: "/report", icon: BarChart3 },
-  { label: "Análises internas", href: "/analises-internas", icon: FileText },
+  { label: "Análises internas", href: "/analises-internas", icon: ScanSearch },
   { label: "Minhas atividades", href: "/minhas-atividades", icon: ListTodo },
-  { label: "CRM", href: "/crm", icon: Users },
+  { label: "CRM", href: "/crm", icon: Handshake },
   { label: "Integrações", href: "/integracoes", icon: Zap },
   { label: "Configurações", href: "/settings", icon: Settings },
 ];
 
 const extras: NavItem[] = [
-  { label: "Processos parados", href: "/processos-parados", icon: ShieldAlert },
-  { label: "Cumprimentos procedentes", href: "/cumprimentos-procedentes", icon: Gavel },
-  { label: "Busca e apreensão", href: "/busca-apreensao", icon: Gavel },
+  { label: "Processos parados", href: "/processos-parados", icon: ClockAlert },
+  { label: "Cumprimentos procedentes", href: "/cumprimentos-procedentes", icon: ClipboardCheck },
+  { label: "Busca e apreensão", href: "/busca-apreensao", icon: SearchCheck },
   { label: "Gerador de processos", href: "/gerador-processos", icon: Search },
   { label: "Peças e documentos", href: "/documents", icon: FileText },
-  { label: "Veredito", href: "/veredito", icon: Gavel },
+  { label: "Veredito", href: "/veredito", icon: Scale },
   { label: "Finanças", href: "/financas", icon: Wallet },
   { label: "Cálculos", href: "/calculos", icon: Calculator },
   { label: "Importar carteira", href: "/import", icon: Upload },
   { label: "Equipe", href: "/team", icon: Users, supervisor: true },
   { label: "Supervisão", href: "/supervisao", icon: ShieldCheck, supervisor: true },
   { label: "Auditoria", href: "/auditoria", icon: ShieldCheck, supervisor: true },
-  { label: "Estúdio de Agentes", href: "/estudio-agentes", icon: Bot, supervisor: true },
+  { label: "Estúdio de Agentes", href: "/estudio-agentes", icon: Workflow, supervisor: true },
   { label: "Administração", href: "/superadmin", icon: Crown, superadmin: true },
 ];
 
@@ -182,11 +193,8 @@ export function SidebarVertical() {
   );
 
   const primaryItems = useMemo(
-    () =>
-      ["/", "/tarefas", "/hermes-3d", "/projetos", "/vencidos", "/cases", "/processos", "/minhas-atividades", "/analises-internas", "/fases-provas", "/audiencias", "/report", "/supervisao", "/whatsapp", "/dossies", "/chat", "/consulta-oab", "/integracoes"]
-        .map((href) => [...mainItems,...extraItems].find((item) => item.href === href))
-        .filter(Boolean) as Array<(typeof mainItems)[number]>,
-    [mainItems,extraItems],
+    () => selectPrimaryNavigationItems([...mainItems, ...extraItems]),
+    [mainItems, extraItems],
   );
 
   useEffect(()=>{
@@ -452,7 +460,7 @@ export function SidebarVertical() {
           </span>
           <span data-lexis-nav-label className="min-w-0 flex-1 overflow-hidden">
             <span className="block truncate text-[15px] font-black tracking-tight">LexisPredict</span>
-            <span className="block truncate text-[9px] font-semibold uppercase tracking-[.1em] text-white/55">W1 Capital</span>
+            <span className="block truncate text-[11px] font-semibold uppercase tracking-[.1em] text-white/55">W1 Capital</span>
           </span>
           <ChevronRight data-lexis-rail-chevron className="h-4 w-4 shrink-0 text-white/55" />
         </button>
@@ -478,7 +486,7 @@ export function SidebarVertical() {
                 title={railCollapsed ? item.label : undefined}
                 data-lexis-nav-item
                 className={cn(
-                  "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold transition",
+                  "group flex h-11 items-center gap-3 rounded-lg px-3.5 text-[14px] font-semibold transition",
                   isActive
                     ? "bg-[#62213A] text-white shadow-[inset_0_0_0_1px_rgba(201,189,197,.38),0_6px_18px_rgba(0,0,0,.12)]"
                     : "text-[#EDE9ED] hover:bg-white/[.07] hover:text-white",
@@ -503,7 +511,7 @@ export function SidebarVertical() {
             </span>
             <span data-lexis-nav-label className="min-w-0 flex-1">
               <span className="block truncate">Atualizar tribunal</span>
-              <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[.12em] text-[#D2C3CA]">
+              <span className="mt-0.5 block truncate text-[11px] font-semibold uppercase tracking-[.12em] text-[#D2C3CA]">
                 DataJud + DJEN
               </span>
             </span>
@@ -518,11 +526,11 @@ export function SidebarVertical() {
             data-lexis-nav-central
             title={railCollapsed ? "Central de ferramentas" : undefined}
             aria-label="Central de ferramentas"
-            className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[12px] font-semibold text-[#C9BDC5] hover:bg-white/[.06] hover:text-white"
+            className="flex h-10 w-full items-center gap-3 rounded-lg px-3.5 text-[13px] font-semibold text-[#C9BDC5] hover:bg-white/[.06] hover:text-white"
           >
             <Menu className="h-4 w-4 shrink-0" />
-            <span data-lexis-nav-label>Central</span>
-            <span data-lexis-nav-label className="ml-auto text-[9px] font-bold uppercase tracking-[.08em] text-[#C9BDC5]">tudo aqui</span>
+            <span data-lexis-nav-label>Central de ferramentas</span>
+            <span data-lexis-nav-label className="ml-auto text-[11px] font-bold uppercase tracking-[.08em] text-[#C9BDC5]">todos os módulos</span>
           </button>
         </div>
       </nav>
@@ -535,7 +543,7 @@ export function SidebarVertical() {
             para resultados reais.
           </p>
         </div>
-        <div className="mt-4 flex items-center justify-between px-1 text-[10px] text-[#AFA1A9]">
+        <div className="mt-4 flex items-center justify-between px-1 text-[11px] text-[#AFA1A9]">
           <span data-lexis-nav-label>v1.2.0</span>
           <button
             onClick={() => void signOut()}
@@ -596,8 +604,8 @@ export function SidebarVertical() {
           <span className="lexis-brand-symbol block h-7 w-7 rounded-md" role="img" aria-label="LexisPredict" />
         </button>
         <div data-lexis-mobile-heading className="ml-2 min-w-0 flex-1">
-          <p className="truncate text-[13px] font-black tracking-tight">Olá, {firstName}</p>
-          <p className="truncate text-[9px] font-semibold uppercase tracking-[.14em] text-[#D2C3CA]">{mobileSection}</p>
+          <p className="truncate text-[14px] font-black tracking-tight">Olá, {firstName}</p>
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[.14em] text-[#D2C3CA]">{mobileSection}</p>
         </div>
         <button
           type="button"
@@ -606,7 +614,7 @@ export function SidebarVertical() {
           aria-label="Abrir configurações"
           className="relative mr-1 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/10 bg-white/[.06] text-[#EDE9ED]"
         >
-          <Bell className="h-[17px] w-[17px]" />
+          <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -649,7 +657,7 @@ export function SidebarVertical() {
               onPointerDown={() => prefetchRoute(item.href)}
               onClick={() => navigateMobile(item.href)}
               className={cn(
-                "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#EDE9ED]",
+                "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-bold active:bg-[#EDE9ED]",
                 isCurrentMobile ? "text-[#6D1734]" : "text-[#60555C]"
               )}
             >
@@ -665,7 +673,7 @@ export function SidebarVertical() {
           data-mobile-nav-scanner
           onClick={handleOpenScanner}
           aria-label="Atualizar processos no tribunal"
-          className="pointer-events-auto relative -mt-5 flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 text-[9px] font-black text-[#6D1734]"
+          className="pointer-events-auto relative -mt-5 flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 text-[11px] font-black text-[#6D1734]"
         >
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[linear-gradient(135deg,#6D1734,#A95B75)] text-white shadow-[0_10px_26px_rgba(138,46,80,.32)] active:scale-95">
             <Zap className="h-5 w-5" />
@@ -682,7 +690,7 @@ export function SidebarVertical() {
           onPointerDown={() => prefetchRoute("/whatsapp")}
           onClick={() => navigateMobile("/whatsapp")}
           className={cn(
-            "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold active:bg-[#EDE9ED]",
+            "pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-bold active:bg-[#EDE9ED]",
             active("/whatsapp") ? "text-[#6D1734]" : "text-[#60555C]"
           )}
         >
@@ -697,7 +705,7 @@ export function SidebarVertical() {
           aria-expanded={toolsOpen}
           aria-controls="lexis-mobile-menu"
           onClick={openToolsMenu}
-          className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-[#60555C] active:bg-[#EDE9ED]"
+          className="pointer-events-auto flex min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-bold text-[#60555C] active:bg-[#EDE9ED]"
         >
           <Menu className="h-5 w-5" />
           <span>Menu</span>
@@ -733,7 +741,7 @@ export function SidebarVertical() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-black">Dossiês por IA</span>
-                <span className="mt-0.5 block text-[10px] font-semibold leading-snug text-[#60555C]">
+                <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-[#60555C]">
                   PDF, Excel, processo, mensagens ou contexto em um único chat.
                 </span>
               </span>
@@ -752,7 +760,7 @@ export function SidebarVertical() {
           <div data-lexis-mobile-drawer-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {query.trim() ? (
               <div className="space-y-1">
-                <p data-lexis-mobile-menu-label className="px-2 pb-2 text-[10px] font-black uppercase tracking-[.12em] text-[#60555C]">
+                <p data-lexis-mobile-menu-label className="px-2 pb-2 text-[11px] font-black uppercase tracking-[.12em] text-[#60555C]">
                   Resultados
                 </p>
                 {mobileMenuItems.length ? (
@@ -803,7 +811,7 @@ export function SidebarVertical() {
                           <span className="block text-sm font-black text-[#21151A]">{group.label}</span>
                           <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#60555C]">{group.description}</span>
                         </span>
-                        <span className="rounded-full bg-[#EDE9ED] px-2 py-1 text-[10px] font-black text-[#60555C]">
+                        <span className="rounded-full bg-[#EDE9ED] px-2 py-1 text-[11px] font-black text-[#60555C]">
                           {group.items.length}
                         </span>
                         <ChevronRight className="h-4 w-4 text-[#60555C] transition-transform group-open:rotate-90" />
@@ -824,7 +832,7 @@ export function SidebarVertical() {
                               <Icon className="h-4 w-4 shrink-0 text-[#6D1734]" />
                               <span className="min-w-0">
                                 <span className="block text-[13px] font-bold text-[#453039]">{item.label}</span>
-                                <span className="block text-[10px] leading-snug text-[#60555C]">{item.description}</span>
+                                <span className="block text-[11px] leading-snug text-[#60555C]">{item.description}</span>
                               </span>
                             </button>
                           );
