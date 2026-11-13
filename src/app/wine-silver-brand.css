@@ -185,8 +185,13 @@ html [data-lexis-dashboard-home] .lx-reference-metric {
 html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="active"] {
   --lx-metric-bg: hsl(var(--accent));
 }
+/* Vencidos exigem ação: destaque sem usar texto vermelho de baixo contraste. */
 html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="overdue"] {
-  --lx-metric-bg: hsl(var(--muted));
+  --lx-metric-bg: hsl(var(--destructive) / .12);
+  --lx-metric-fg: hsl(var(--foreground));
+  --lx-metric-sub: hsl(var(--muted-foreground));
+  --lx-metric-icon: hsl(var(--destructive) / .14);
+  border-color: hsl(var(--destructive) / .38) !important;
 }
 html [data-lexis-dashboard-home] .lx-reference-metric[data-kind="today"] {
   --lx-metric-bg: hsl(var(--primary));
@@ -200,7 +205,7 @@ html [data-lexis-dashboard-home] .lx-reference-metric :is(.lx-reference-metric-l
 }
 html [data-lexis-dashboard-home] .lx-reference-metric .lx-reference-metric-detail {
   color: var(--lx-metric-sub) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   opacity: 1 !important;
 }
 html [data-lexis-dashboard-home] [data-lexis-dashboard-tablist] [role="tab"][data-state="active"] {
@@ -247,7 +252,7 @@ html [data-lexis-processos-kpi]:nth-child(5) :is(p,svg,span) {
   color: hsl(var(--primary-foreground)) !important;
 }
 html [data-lexis-processos-kpi] p:last-child {
-  font-size: 11px !important;
+  font-size: 12px !important;
   opacity: 1 !important;
 }
 html [data-lexis-processos-kpi]:nth-child(2) {background: hsl(var(--accent)) !important;}
@@ -304,6 +309,67 @@ html [data-lexis-sidebar] :is(a,button):focus-visible {
   }
   html [data-lexis-mobile-topbar] [data-lexis-mobile-heading] p {
     color: hsl(var(--sidebar-foreground)) !important;
+  }
+  /* Mesmo conjunto de cores para sidebar, dock e gaveta móvel, sem
+     sobrescrever os presets Ocean/Nord/Graphite/Custom. */
+  html [data-lexis-mobile-bottom-nav] {
+    background: hsl(var(--card)) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--card-foreground)) !important;
+  }
+  html [data-lexis-mobile-bottom-nav] [data-mobile-nav-action]:not([data-mobile-nav-active="true"]) {
+    color: hsl(var(--card-foreground)) !important;
+  }
+  html [data-lexis-mobile-bottom-nav] [data-mobile-nav-scanner] > span:first-child {
+    border-color: hsl(var(--card)) !important;
+    color: #fff !important;
+  }
+  html [data-lexis-mobile-drawer] {
+    background: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-drawer-header] {
+    border-color: hsl(var(--border)) !important;
+  }
+  html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-title],[data-lexis-mobile-menu-group-title]) {
+    color: hsl(var(--popover-foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-description],[data-lexis-mobile-menu-group-description]) {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] {
+    background: hsl(var(--muted)) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] input {
+    color: hsl(var(--foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group] {
+    background: hsl(var(--popover)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-body] {
+    background: hsl(var(--muted)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-count] {
+    background: hsl(var(--muted)) !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-summary] > span:first-child {
+    background: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) :is(span,svg) {
+    color: hsl(var(--popover-foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) [data-lexis-mobile-entry-description] {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry][aria-current="page"] :is(span,svg) {
+    color: hsl(var(--primary-foreground)) !important;
   }
   html [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] {
     background: hsl(var(--primary)) !important;
