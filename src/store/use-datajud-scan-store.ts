@@ -604,7 +604,7 @@ export const useDataJudScanStore = create<DataJudScanState>((set, get) => ({
       try {
         res = await scanInteractiveCase(c.protocolo, {
           mode,
-          // DJEN tenta primeiro pelo navegador do operador; DataJud continua server-side.
+          // DJEN e DataJud tentam o navegador primeiro; DataJud usa o servidor se CORS/rede impedir.
           // Uma tentativa oficial limitada evita repetir uma auditoria inteira por 60+ segundos.
           fast: scope === 'cumprimento' ? false : true,
           cloudBudget: true,
