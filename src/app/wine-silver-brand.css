@@ -324,53 +324,6 @@ html [data-lexis-sidebar] :is(a,button):focus-visible {
     border-color: hsl(var(--card)) !important;
     color: #fff !important;
   }
-  html [data-lexis-mobile-drawer] {
-    background: hsl(var(--popover)) !important;
-    color: hsl(var(--popover-foreground)) !important;
-    border-color: hsl(var(--border)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-drawer-header] {
-    border-color: hsl(var(--border)) !important;
-  }
-  html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-title],[data-lexis-mobile-menu-group-title]) {
-    color: hsl(var(--popover-foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-description],[data-lexis-mobile-menu-group-description]) {
-    color: hsl(var(--muted-foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] {
-    background: hsl(var(--muted)) !important;
-    border-color: hsl(var(--border)) !important;
-    color: hsl(var(--foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] input {
-    color: hsl(var(--foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group] {
-    background: hsl(var(--popover)) !important;
-    border-color: hsl(var(--border)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-body] {
-    background: hsl(var(--muted)) !important;
-    border-color: hsl(var(--border)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-count] {
-    background: hsl(var(--muted)) !important;
-    color: hsl(var(--muted-foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-summary] > span:first-child {
-    background: hsl(var(--muted)) !important;
-    color: hsl(var(--foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) :is(span,svg) {
-    color: hsl(var(--popover-foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) [data-lexis-mobile-entry-description] {
-    color: hsl(var(--muted-foreground)) !important;
-  }
-  html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry][aria-current="page"] :is(span,svg) {
-    color: hsl(var(--primary-foreground)) !important;
-  }
   html [data-lexis-mobile-bottom-nav] [data-mobile-nav-active="true"] {
     background: hsl(var(--primary)) !important;
     color: hsl(var(--primary-foreground)) !important;
@@ -383,6 +336,55 @@ html [data-lexis-sidebar] :is(a,button):focus-visible {
     color: hsl(var(--primary-foreground)) !important;
     border-left: 3px solid hsl(var(--ring)) !important;
   }
+}
+
+/* A Central é usada também no desktop: todas as paletas precisam de contraste. */
+html [data-lexis-mobile-drawer] {
+  background: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-drawer-header] {
+  border-color: hsl(var(--border)) !important;
+}
+html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-title],[data-lexis-mobile-menu-group-title]) {
+  color: hsl(var(--popover-foreground)) !important;
+}
+html [data-lexis-mobile-drawer] :is([data-lexis-mobile-menu-description],[data-lexis-mobile-menu-group-description]) {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] {
+  background: hsl(var(--muted)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-search] input {
+  color: hsl(var(--foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group] {
+  background: hsl(var(--popover)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-body] {
+  background: hsl(var(--muted)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-group-count] {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-summary] > span:first-child {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) :is(span,svg) {
+  color: hsl(var(--popover-foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry]:not([aria-current="page"]) [data-lexis-mobile-entry-description] {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html [data-lexis-mobile-drawer] [data-lexis-mobile-menu-entry][aria-current="page"] :is(span,svg) {
+  color: hsl(var(--primary-foreground)) !important;
 }
 
 /* Impressão judicial não deve herdar superfícies escuras. */
