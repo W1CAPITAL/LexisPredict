@@ -16,8 +16,8 @@ const DATAJUD_ORIGIN = "https://api-publica.datajud.cnj.jus.br";
 const CORS_BACKOFF_MS = 10 * 60_000;
 const RATE_LIMIT_BACKOFF_MS = 60_000;
 const MAX_MOVEMENTS = 120;
-let browserBackoffUntil = 0;
-let browserBackoffReason: "browser_cooldown" | "rate_limited" = "browser_cooldown";
+let corsBackoffUntil = 0;
+const rateLimitedUntilByTribunal = new Map<string, number>();
 
 export type BrowserDataJudFailure =
   | "invalid_cnj" | "unknown_jurisdiction" | "browser_unavailable"
@@ -64,14 +64,13 @@ export async function fetchDataJudDirectBrowser(
   const alias = plan?.alias || "";
   if (!/^[a-z0-9]{3,8}$/.test(alias)) return invalid("unknown_jurisdiction", "Tribunal não mapeado para a API pública do CNJ.");
 
-  if (Date.now() < browserBackoffUntil) {
-    return invalid(
-      browserBackoffReason,
-      browserBackoffReason === "rate_limited"
-        ? "DataJud pediu uma pausa. Nenhuma nova requisição direta foi feita."
-        : "Consulta direta suspensa nesta sessão após falha de acesso entre sites; usar servidor.",
-      browserBackoffReason === "rate_limited" ? 429 : undefined,
-    );
+  if (Date.now() < corsBackoffUntil) {
+    return invalid("browser_cooldown",
+      "Consulta direta suspensa nesta sessão após falha de acesso entre sites; usar servidor.");
+  }
+  if (Date.now() < (rateLimitedUntilByTribunal.get(alias) || 0)) {
+    return invalid("rate_limited",
+      "DataJud pediu uma pausa para este tribunal. Nenhuma nova requisição direta foi feita.", 429);
   }
 
   const controller = new AbortController();
@@ -100,8 +99,7 @@ export async function fetchDataJudDirectBrowser(
     });
 
     if (response.status === 429) {
-      browserBackoffUntil = Date.now() + rateLimitPause(response);
-      browserBackoffReason = "rate_limited";
+      rateLimitedUntilByTribunal.set(alias, Date.now() + rateLimitPause(response));
       return invalid("rate_limited", "API pública DataJud limitou consultas (HTTP 429).", 429);
     }
     if (response.status === 401 || response.status === 403) {
@@ -152,8 +150,7 @@ export async function fetchDataJudDirectBrowser(
     // TypeError no fetch cross-origin significa normalmente rede ou CORS;
     // não é possível distingui-los com segurança por JavaScript.
     if (error instanceof TypeError) {
-      browserBackoffUntil = Date.now() + CORS_BACKOFF_MS;
-      browserBackoffReason = "browser_cooldown";
+      corsBackoffUntil = Date.now() + CORS_BACKOFF_MS;
       return invalid("network_error", "Navegador não conseguiu acessar o DataJud (rede ou CORS).");
     }
     return invalid("network_error", "Falha de rede na leitura direta do DataJud.");
