@@ -69,6 +69,21 @@ describe('DataJud diretamente no navegador do usuário', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('limite 429 de um tribunal não impede consulta de outro tribunal', async () => {
+    const other = '1002670-83.2025.8.26.0271';
+    const otherDigits = other.replace(/\D/g, '');
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(apiResponse({}, 429))
+      .mockResolvedValueOnce(apiResponse({
+        hits: { hits: [{ _source: { numeroProcesso: otherDigits, movimentos: [] } }] },
+      }));
+    vi.stubGlobal('fetch', fetcher);
+    const { fetchDataJudDirectBrowser } = await import('@/lib/datajud-browser-client');
+    expect(await fetchDataJudDirectBrowser(cnj)).toMatchObject({ ok: false, reason: 'rate_limited' });
+    expect(await fetchDataJudDirectBrowser(other)).toMatchObject({ ok: true, found: true });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('não repete requisição imediata quando a API retorna limite HTTP 429', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(apiResponse({}, 429)));
     const { fetchDataJudDirectBrowser } = await import('@/lib/datajud-browser-client');
