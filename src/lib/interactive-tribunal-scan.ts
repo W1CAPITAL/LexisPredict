@@ -5,6 +5,7 @@ import {
   scanSingleCaseAction,
 } from "@/app/actions/case-actions";
 import { djenBuscaProcesso, type DjenClientResult } from "@/lib/djen-client";
+import { fetchDataJudDirectBrowser } from "@/lib/datajud-browser-client";
 
 export type InteractiveScanMode = "datajud" | "djen" | "both";
 
@@ -38,8 +39,10 @@ function mergeCasePatch(...patches: Array<Record<string, any> | null | undefined
 
 /**
  * Scanner interativo:
- * - DataJud: servidor
+ * - DataJud: navegador primeiro quando CORS é permitido; servidor como fallback
  * - DJEN: navegador primeiro (IP do usuário), servidor como fallback
+ * - HTTP 429 não provoca novo ataque à mesma fonte via servidor
+ * - leitura DataJud no navegador é exibida, mas não salva como prova auditada
  * - zero resultados válidos NÃO é considerado offline
  */
 export async function scanInteractiveCase(
@@ -56,27 +59,40 @@ export async function scanInteractiveCase(
   const wantsDataJud = mode === "datajud" || mode === "both";
   const wantsDjen = mode === "djen" || mode === "both";
 
-  const datajudPromise: Promise<any | null> = wantsDataJud
-    ? scanSingleCaseAction(protocolo, {
+  // Ambas as consultas públicas são iniciadas no navegador do operador.
+  // Se a API DataJud não liberar CORS/preflight, o servidor autentica e
+  // consulta pelo caminho habitual, sem expor chaves privadas ao cliente.
+  const [datajudBrowser, djenClient] = await Promise.all([
+    wantsDataJud
+      ? fetchDataJudDirectBrowser(protocolo, { fast: options.fast === true })
+      : Promise.resolve(null),
+    wantsDjen
+      ? djenBuscaProcesso({
+          protocolo,
+          dataInicio: options.dataInicioDjen,
+          fast: options.fast === true,
+        })
+      : Promise.resolve(null),
+  ]);
+
+  let datajudResult: any = null;
+  if (wantsDataJud && !datajudBrowser?.ok && datajudBrowser?.reason !== "rate_limited") {
+    try {
+      datajudResult = await scanSingleCaseAction(protocolo, {
         mode: "datajud",
         fast: options.fast === true,
         cloudBudget: options.cloudBudget === true,
-         useClaudeAi: options.useClaudeAi === true,
-      })
-    : Promise.resolve(null);
-
-  const djenPromise: Promise<DjenClientResult | null> = wantsDjen
-    ? djenBuscaProcesso({
-        protocolo,
-        dataInicio: options.dataInicioDjen,
-         fast: options.fast === true,
-      })
-    : Promise.resolve(null);
-
-  const [datajudResult, djenClient] = await Promise.all([
-    datajudPromise,
-    djenPromise,
-  ]);
+        useClaudeAi: options.useClaudeAi === true,
+      });
+    } catch {
+      datajudResult = {
+        offline: true,
+        error: "Consulta DataJud pelo servidor não pôde ser concluída.",
+        sourceStatus: { datajud: { requested: true, ok: false } },
+        movimentos: [],
+      };
+    }
+  }
 
   let djenPersisted: any = null;
   let djenFallback: any = null;
@@ -95,10 +111,12 @@ export async function scanInteractiveCase(
     });
   }
 
-  const datajudOk =
-    !wantsDataJud ||
-    (datajudResult?.sourceStatus?.datajud?.ok === true &&
+  const datajudBrowserOk = !!(wantsDataJud && datajudBrowser?.ok && datajudBrowser.found);
+  const datajudServerOk =
+    !!(wantsDataJud && !datajudBrowserOk &&
+      datajudResult?.sourceStatus?.datajud?.ok === true &&
       datajudResult?.offline !== true);
+  const datajudOk = !wantsDataJud || datajudBrowserOk || datajudServerOk;
 
   const djenBrowserOk =
     !!(wantsDjen && djenClient?.ok && djenPersisted?.success === true);
@@ -113,9 +131,9 @@ export async function scanInteractiveCase(
 
   const djenOk = !wantsDjen || djenBrowserOk || djenServerOk;
 
-  const movimentos = Array.isArray(datajudResult?.movimentos)
-    ? datajudResult.movimentos
-    : [];
+  const movimentos = datajudBrowserOk
+    ? Array.isArray(datajudBrowser?.movimentos) ? datajudBrowser.movimentos : []
+    : Array.isArray(datajudResult?.movimentos) ? datajudResult.movimentos : [];
 
   const comunicacoes = djenBrowserOk
     ? Array.isArray(djenPersisted?.comunicacoes)
@@ -141,11 +159,10 @@ export async function scanInteractiveCase(
 
   const datajudError =
     wantsDataJud && !datajudOk
-      ? String(
-          datajudResult?.error ||
-            datajudResult?.message ||
-            "DataJud indisponível nesta tentativa."
-        )
+      ? [
+          datajudBrowser?.error,
+          datajudResult?.error || datajudResult?.message,
+        ].filter(Boolean).map(String).join(" · ") || "DataJud indisponível nesta tentativa."
       : null;
 
   const djenError =
@@ -164,8 +181,8 @@ export async function scanInteractiveCase(
     statusParts.push(
       datajudOk
         ? movimentos.length
-          ? `DataJud: ${movimentos.length} movimento(s)`
-          : "DataJud: consulta concluída, sem movimento novo"
+          ? `DataJud: ${movimentos.length} movimento(s)${datajudBrowserOk ? " (navegador; não salvo)" : ""}`
+          : `DataJud: consulta concluída, sem movimento novo${datajudBrowserOk ? " (navegador; não salvo)" : ""}`
         : "DataJud: indisponível"
     );
   }
@@ -197,7 +214,7 @@ export async function scanInteractiveCase(
       datajud: {
         requested: wantsDataJud,
         ok: datajudOk,
-        via: wantsDataJud ? "server" : undefined,
+        via: datajudBrowserOk ? "browser" : datajudServerOk ? "server" : undefined,
         error: datajudError,
         empty: wantsDataJud && datajudOk && movimentos.length === 0,
       },
