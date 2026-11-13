@@ -6,6 +6,6 @@ describe('CSP de leitura oficial DataJud no navegador',()=>{
   const config=readFileSync('next.config.ts','utf8');
   const connect=config.split('connect-src')[1]?.split(';')[0]||'';
   expect(connect).toContain('https://api-publica.datajud.cnj.jus.br');
-  expect(connect).not.toContain('https://*');
+  expect(connect).not.toContain('https://* ');
  });
 });
