@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTenantBrand } from "@/lib/tenant-brand";
 import Link from "next/link";
-import { enableGuestMode } from "@/lib/guest-mode";
+import { disableGuestMode, enableGuestMode } from "@/lib/guest-mode";
 import { safetyLoginAction } from "@/app/actions/safety-mode-actions";
 import { isQuotaOrBillingError } from "@/lib/hybrid/safety-mode";
 
@@ -136,6 +136,8 @@ export default function LoginPage() {
         return;
       }
 
+      // Uma sessão real jamais deve conservar o cookie de convidado.
+      disableGuestMode();
       // O endpoint já criou a sessão SSR e gravou os cookies que o middleware lê.
       window.location.replace(String(payload.destination || "/"));
       return;
