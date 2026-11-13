@@ -21,6 +21,7 @@ import './report-visual-system.css';
 import './video-fluid-navigation.css';
 import './wine-silver-brand.css';
 import './swarm-loading.css';
+import './w1-unified-wine.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { ViewerModeBanner } from '@/components/layout/viewer-mode-banner';
@@ -50,8 +51,6 @@ export const viewport: Viewport = {
   themeColor: [{ media: '(prefers-color-scheme: light)', color: '#F4F3F5' }, { media: '(prefers-color-scheme: dark)', color: '#141015' }],
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export const metadata: Metadata = {

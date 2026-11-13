@@ -85,7 +85,7 @@ export function CommercialTopbar() {
       data-lexis-commercial-topbar
       className="fixed right-0 top-0 z-30 hidden h-16 items-center border-b border-border bg-card/95 px-5 backdrop-blur-xl md:flex"
     >
-      <form onSubmit={submit} className="relative w-[min(34vw,560px)] min-w-[300px]">
+      <form onSubmit={submit} data-lexis-global-search className="relative min-w-0 flex-1 max-w-[560px]">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
@@ -95,12 +95,12 @@ export function CommercialTopbar() {
         />
       </form>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div data-lexis-topbar-actions className="ml-auto flex min-w-0 items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex h-10 min-w-[240px] items-center gap-3 rounded-xl border border-input bg-white px-4 text-left shadow-[0_2px_8px_rgba(16,36,71,.03)] transition hover:border-input hover:bg-muted"
+              data-lexis-company-switch className="flex h-10 min-w-0 w-[min(20vw,240px)] items-center gap-3 rounded-xl border border-input bg-card px-3 text-left transition hover:bg-muted"
               title="Empresa atual"
               aria-label="Abrir seletor de empresa"
             >
@@ -131,7 +131,7 @@ export function CommercialTopbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex h-10 items-center gap-2 rounded-xl border border-input bg-muted px-4 text-foreground">
+        <div data-lexis-plan-chip className="flex h-10 items-center gap-2 rounded-xl border border-input bg-muted px-3 text-foreground">
           <Crown className="h-4 w-4" />
           <div className="leading-none">
             <p className="text-xs font-black">Plano {PLAN_LABEL[plan]}</p>
@@ -147,13 +147,13 @@ export function CommercialTopbar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex min-w-[170px] items-center gap-3 rounded-xl px-2 py-1 text-left transition hover:bg-muted"
+              data-lexis-profile-trigger className="flex min-w-0 max-w-[200px] items-center gap-2 rounded-xl px-2 py-1 text-left transition hover:bg-muted"
               aria-label="Abrir menu do perfil"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-black text-primary-foreground">
                 {cosmeticAvatar?<img src={cosmeticAvatar} alt="Foto do perfil" className="h-full w-full rounded-full object-cover"/>:initials || "LP"}
               </div>
-              <div className="min-w-0 flex-1">
+              <div data-lexis-profile-details className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black text-foreground">{cosmeticName || profile?.nome || "Usuário"}</p>
                 <p className="truncate text-[11px] font-medium text-muted-foreground">{cosmeticRole || profile?.cargo || "Equipe jurídica"}</p>
               </div>

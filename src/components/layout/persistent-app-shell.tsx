@@ -38,7 +38,7 @@ export function PersistentAppShell({ children }: { children: ReactNode }) {
 
   return (
     <PersistentSidebarContext.Provider value={true}>
-      <div data-lexis-app-shell className="flex min-h-dvh w-full bg-background text-foreground">
+      <div data-lexis-app-shell data-lexis-design="wine-operations" className="flex min-h-dvh w-full min-w-0 bg-background text-foreground">
         <Sidebar persistentRoot />
         <div data-lexis-route-content data-lexis-rebuild-root className="relative min-w-0 flex-1">
           <SwarmRouteLoading />

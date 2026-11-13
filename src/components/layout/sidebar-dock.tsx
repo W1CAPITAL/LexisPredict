@@ -24,23 +24,20 @@ import {loadExperiencePrefs} from '@/lib/experience-prefs';
 import {matchesAppRouteSearch} from '@/lib/app-route-search';
 
 const primary = [
-  ["Painel", "/", LayoutDashboard],
-  ["Tarefas", "/tarefas", ListTodo],
+  ["Início", "/", LayoutDashboard],
+  ["Hoje", "/tarefas", ListTodo],
   ["Vencidos", "/vencidos", ShieldAlert],
-  ["Fila empresarial", "/cases", Briefcase],
-  ["Empresa", "/processos", FolderOpen],
-  ["Atividades", "/minhas-atividades", ListTodo],
-  ["Réplica e Provas", "/fases-provas", FileText],
-  ["WhatsApp", "/whatsapp", MessageCircle],
-  ["Agenda", "/agenda", CalendarDays],
-  ["Audiências", "/audiencias", Gavel],
-  ["Dossiê", "/report", BarChart3],
-  ["CRM", "/crm", Kanban],
-  ["Integrações", "/integracoes", Zap],
-  ["Config", "/settings", Settings],
+  ["Meus Processos", "/cases", Briefcase],
+  ["Processos da Empresa", "/processos", FolderOpen],
+  ["Atendimentos", "/whatsapp", MessageCircle],
 ] as const;
 
 const more = [
+  ["Agenda", "/agenda", CalendarDays],
+  ["Audiências", "/audiencias", Gavel],
+  ["CRM", "/crm", Kanban],
+  ["Configurações", "/settings", Settings],
+  ["Dossiês", "/dossies", FileText],
   ["Minhas atividades", "/minhas-atividades", ListTodo],
   ["Análises internas", "/analises-internas", FileText],
   ["Réplica e provas", "/fases-provas", FileText],

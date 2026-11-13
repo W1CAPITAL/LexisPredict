@@ -119,7 +119,7 @@ export function SidebarVertical() {
   const [navOpened,setNavOpened]=useState(true);
   // Starts compact on every visit. Expanded state is temporary by design:
   // hover, click or keyboard focus reveals the full desktop navigation.
-  const [railCollapsed, setRailCollapsed] = useState(true);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
 
   const expandRail = () => {
@@ -130,11 +130,12 @@ export function SidebarVertical() {
     // Capture outside pointer events even when other components stop propagation.
     // Do not intercept clicks or prevent real navigation, editing or dialogs.
     const collapseOnOutsidePointer = (event: PointerEvent) => {
+      if (navBehavior === 'fixed') return;
       if (sidebarRef.current?.contains(event.target as Node)) return;
       setRailCollapsed(true);
     };
     const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setRailCollapsed(true);
+      if (navBehavior !== "fixed" && event.key === "Escape") setRailCollapsed(true);
     };
     document.addEventListener("pointerdown", collapseOnOutsidePointer, true);
     document.addEventListener("keydown", collapseOnEscape);
@@ -142,7 +143,7 @@ export function SidebarVertical() {
       document.removeEventListener("pointerdown", collapseOnOutsidePointer, true);
       document.removeEventListener("keydown", collapseOnEscape);
     };
-  }, []);
+  }, [navBehavior]);
   const [query, setQuery] = useState("");
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const routePrefetchAt = useRef(new Map<string, number>());
@@ -202,6 +203,7 @@ export function SidebarVertical() {
       const behavior=loadExperiencePrefs().sidebarBehavior;
       setNavBehavior(behavior);
       setNavOpened(behavior==='fixed');
+      setRailCollapsed(behavior !== 'fixed');
     };
     refresh();
     window.addEventListener('lexis-experience-updated',refresh);
@@ -452,7 +454,7 @@ export function SidebarVertical() {
           aria-label={railCollapsed ? "Expandir menu lateral" : "Menu lateral expandido"}
           aria-controls="lexis-desktop-navigation"
           aria-expanded={!railCollapsed}
-          title={railCollapsed ? "Expandir menu" : "Clique fora do menu para recolher"}
+          title={railCollapsed ? "Expandir menu" : navBehavior === "fixed" ? "Menu principal" : "Clique fora do menu para recolher"}
           className="group flex w-full min-w-0 items-center gap-2 rounded-xl p-1 text-left text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.08]">

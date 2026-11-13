@@ -1,0 +1,222 @@
+/*
+ * LexisPredict W1 — interface vinho unificada.
+ * Escopo: shell autenticado; sem alterações nas regras operacionais,
+ * status de origem, permissões, documentos impressos ou formulários.
+ */
+[data-lexis-app-shell][data-lexis-design="wine-operations"] {
+  --background: 345 18% 97%;
+  --foreground: 334 26% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 334 26% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 334 26% 13%;
+  --primary: 338 66% 28%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 340 15% 94%;
+  --secondary-foreground: 334 26% 13%;
+  --muted: 340 13% 94%;
+  --muted-foreground: 334 10% 35%;
+  --accent: 340 25% 92%;
+  --accent-foreground: 338 66% 28%;
+  --border: 337 14% 85%;
+  --input: 337 14% 80%;
+  --ring: 338 66% 28%;
+  --sidebar-background: 336 78% 12%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-primary: 338 66% 28%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 336 44% 23%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 334 30% 26%;
+  --sidebar-ring: 343 53% 78%;
+  --lx-ops-outline: #e9dfe3;
+  --lx-ops-shadow: 0 2px 8px rgb(48 10 27 / .035), 0 12px 30px rgb(48 10 27 / .035);
+  --lx-ops-surface: #fff;
+  --lx-ops-canvas: #faf8f9;
+  --lx-ops-text: #281b22;
+  --lx-ops-wine: #751b3a;
+  --lx-ops-radius: 14px;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--lx-ops-canvas) !important;
+  color: var(--lx-ops-text);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html.dark [data-lexis-app-shell][data-lexis-design="wine-operations"] {
+  --background: 335 18% 8%;
+  --foreground: 340 20% 95%;
+  --card: 336 20% 13%;
+  --card-foreground: 340 20% 95%;
+  --popover: 336 20% 13%;
+  --popover-foreground: 340 20% 95%;
+  --primary: 340 56% 51%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 336 21% 20%;
+  --secondary-foreground: 340 20% 95%;
+  --muted: 336 21% 20%;
+  --muted-foreground: 338 14% 75%;
+  --accent: 336 24% 24%;
+  --accent-foreground: 340 20% 95%;
+  --border: 337 17% 34%;
+  --input: 337 17% 38%;
+  --ring: 340 56% 64%;
+  --lx-ops-outline: #523644;
+  --lx-ops-shadow: 0 8px 22px rgb(0 0 0 / .19);
+  --lx-ops-surface: #281922;
+  --lx-ops-canvas: #170e14;
+  --lx-ops-text: #f7f1f5;
+  --lx-ops-wine: #bf557c;
+  background: var(--lx-ops-canvas) !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-route-content] {
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] :is(main,[role="main"]) {
+  min-width: 0;
+  max-width: 100%;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(h1) {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -.03em;
+  line-height: 1.18;
+  text-wrap: balance;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(h2,h3) {
+  line-height: 1.28;
+  text-wrap: pretty;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(.premium-card,.lexis-metric,[data-slot="card"],[data-admin-card]) {
+  border-radius: var(--lx-ops-radius) !important;
+  border-color: var(--lx-ops-outline) !important;
+  box-shadow: var(--lx-ops-shadow) !important;
+  background-color: hsl(var(--card)) !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(.lexis-metric-value,table) {
+  font-variant-numeric: tabular-nums;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where([role="tablist"]) {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(table thead th) {
+  font-weight: 650;
+  line-height: 1.5;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(table tbody td) {
+  line-height: 1.5;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea,[role="combobox"]) {
+  min-width: 0;
+  max-width: 100%;
+  accent-color: hsl(var(--primary));
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(input,select,textarea,button,a,[role="button"]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(.overflow-x-auto,.lexis-table-wrap,[data-table-scroll]) {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(.recharts-responsive-container,.recharts-wrapper) {
+  min-width: 0;
+  max-width: 100%;
+}
+/* Uma identidade para ambos os modos de navegação. */
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-sidebar] [data-lexis-sidebar-body] {
+  background: linear-gradient(180deg,#480f27,#310a1b 80%,#270814) !important;
+  color: #fff !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-nav-item] {
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-nav-item][aria-current="page"] {
+  background: #7b2344 !important;
+  border-color: #b76c87 !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 #e5b0c4 !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-nav-cta] {
+  background: #5e1735 !important;
+  box-shadow: none !important;
+  border-color: #a15b77 !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-desktop-dock] {
+  background: #3d0e23 !important;
+  border-color: #71354d !important;
+  box-shadow: 0 8px 26px rgb(27 5 17 / .16) !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-desktop-dock] a[aria-current="page"] {
+  background: #7b2344 !important;
+  box-shadow: none !important;
+}
+/* Busca e ações do header ajustam tamanho sem esmagar o conteúdo. */
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-commercial-topbar] {
+  min-width: 0;
+  gap: 12px;
+  background: hsl(var(--card) / .97) !important;
+  border-color: var(--lx-ops-outline) !important;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-global-search] {
+  min-width: 0;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 560px;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-topbar-actions] {
+  min-width: 0;
+  flex: 0 0 auto;
+}
+html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-company-switch] {
+  min-width: 0;
+  max-width: 240px;
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-commercial-topbar] { padding-inline: 12px; }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] :is([data-lexis-company-switch],[data-lexis-plan-chip],[data-lexis-profile-details]) { display: none !important; }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-global-search] { max-width: none; }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-profile-trigger] { padding-inline: 4px; min-width: 0; }
+}
+@media (min-width: 1200px) and (max-width: 1559px) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-company-switch] { max-width: 180px; }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-plan-chip] { display: none !important; }
+}
+@media (max-width: 767px) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-route-content] { padding-bottom: calc(80px + env(safe-area-inset-bottom,0px)); }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-mobile-bottom-nav] {
+    padding-bottom: env(safe-area-inset-bottom,0px);
+    height: calc(76px + env(safe-area-inset-bottom,0px));
+    background: hsl(var(--card)) !important;
+    border-color: var(--lx-ops-outline) !important;
+  }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(h1) { font-size: clamp(24px,6vw,32px); }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(.overflow-x-auto,.lexis-table-wrap,[data-table-scroll]) { overflow-x: auto; }
+}
+@media (max-width: 359px) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] [data-lexis-mobile-topbar] { padding-inline: 8px; }
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main :where(h1) { font-size: 23px; }
+}
+@media (min-width: 1920px) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] main {
+    width: 100%;
+    max-width: 2200px;
+    margin-inline: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] :where(a,button,input,textarea,[role="tab"]) {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+@media print {
+  html body [data-lexis-app-shell][data-lexis-design="wine-operations"] {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
