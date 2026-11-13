@@ -339,12 +339,12 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Texto nunca herda transparente / branco em card claro */
+/* Respeita a cor muted calculada pelo tema (inclusive presets personalizados).
+   Impede que o cinza fixo da folha global anule a paleta escolhida. */
 .light .text-muted-foreground,
-:root:not(.dark) .text-muted-foreground {
-  color: hsl(215 19% 35%) !important;
-}
+:root:not(.dark) .text-muted-foreground,
 .dark .text-muted-foreground {
-  color: hsl(215 16% 72%) !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 /* Evita branco em branco em badges/títulos de seção */
