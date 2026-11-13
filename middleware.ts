@@ -6,6 +6,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { hrefLiberado, normalizePlanId, pacotesDoPlano } from '@/lib/planos-pacotes'
 import { operatorRouteAllowed, resolveRole } from '@/lib/roles'
+import { guestAccessDecision } from '@/lib/guest-access-policy'
 
 const ROLE_WEIGHT: Record<string, number> = {
   Superadmin: 100,
@@ -96,20 +97,33 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = path === '/login' || path === '/signup'
   const isTenantSetupPage = path === '/setup-empresa'
   const isFirstRunPage = path === '/primeiro-acesso'
-  const isStaticFile = /\.[a-z0-9]+$/i.test(path)
+  const isStaticFile = !isApi && /\.[a-z0-9]+$/i.test(path)
   const isPublicApi = starts(path, PUBLIC_API) || MACHINE_AUTH_API.has(path)
   const isPublic = isAuthPage || path.startsWith('/termos') || path === '/modo-seguranca' || isPublicApi || isStaticFile
   const isGuest = request.cookies.get('lexis_guest')?.value === '1'
 
+  // Cookie de demonstração não concede sessão, acesso a APIs nem permissão
+  // para Server Actions. O preview é SOMENTE navegação GET em páginas comuns.
   if (isGuest && !isAuthPage) {
-    if (starts(path, MANAGEMENT_ONLY)) {
+    const access = guestAccessDecision(path, request.method, isPublic)
+    if (access === 'blocked-api' || access === 'blocked-write') {
+      const status = access === 'blocked-api' ? 401 : 403
+      return applySecurityHeaders(NextResponse.json(
+        { ok: false, error: 'guest_readonly', message: 'Modo convidado não autoriza esta operação.' },
+        { status, headers: { 'Cache-Control': 'private, no-store' } },
+      ))
+    }
+    if (access === 'blocked-page') {
       const blocked = NextResponse.redirect(new URL('/login', request.url))
       blocked.headers.set('Cache-Control', 'private, no-store')
       return applySecurityHeaders(blocked)
     }
-    response.headers.set('Cache-Control', 'private, no-store')
-    response.headers.set('X-Lexis-Guest', '1')
-    return applySecurityHeaders(response)
+    if (access === 'preview') {
+      response.headers.set('Cache-Control', 'private, no-store')
+      response.headers.set('X-Lexis-Guest', '1')
+      return applySecurityHeaders(response)
+    }
+    // Rotas públicas (e cron com segredo no handler) usam o fluxo normal.
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

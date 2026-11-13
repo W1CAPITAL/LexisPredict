@@ -71,8 +71,7 @@ function mapaDoRepo() {
 }
 
 export async function rodarCiclo({ semTestes = false } = {}) {
-  const sinais = await coletarSinais();
-  if (semTestes) sinais.saude.testesOk = true, (sinais.saude.falhasTeste = []);
+  const sinais = await coletarSinais({ semTestes });
 
   const config = ornithConfigFromEnv();
   const user = `${sinalParaTexto(sinais)}

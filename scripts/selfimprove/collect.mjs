@@ -24,7 +24,7 @@ async function sh(cmd, args, opts = {}) {
     });
     return { ok: true, saida: String(stdout || "") };
   } catch (e) {
-    return { ok: false, saida: `${e.stdout || ""}${e.stderr || ""}`, erro: String(e.message || e) };
+    return { ok: false, saida: `${e.stdout || ""}${e.stderr || ""}`, erro: String(e.message || e), naoExecutado: e.code === "ENOENT" };
   }
 }
 
@@ -144,16 +144,33 @@ function versaoApp() {
   }
 }
 
-export async function coletarSinais() {
+/**
+ * Preserva o resultado efetivamente obtido. Ignorar testes NÃO os aprova.
+ * "not_run" indica que o executor nem pôde iniciar; "failed" indica falha real.
+ */
+export function classificarTestes(testes, executar = true) {
+  if (!executar) return { testesStatus: "skipped", testesOk: null, falhasTeste: [] };
+  if (!testes || testes.naoExecutado) {
+    return { testesStatus: "not_run", testesOk: null, falhasTeste: [] };
+  }
+  const falhasTeste = [...String(testes.saida || "").matchAll(/(FAIL|✗|×)\s+(.+)$/gm)]
+    .map((m) => m[2].trim())
+    .slice(0, 20);
+  return {
+    testesStatus: testes.ok ? "passed" : "failed",
+    testesOk: Boolean(testes.ok),
+    falhasTeste,
+  };
+}
+
+export async function coletarSinais({ semTestes = false } = {}) {
   const [typecheck, testes] = await Promise.all([
     sh("npm", ["run", "typecheck", "--silent"]),
-    sh("npx", ["vitest", "run", "--reporter=basic"], { timeoutMs: 240_000 }),
+    semTestes ? Promise.resolve(null) : sh("npx", ["vitest", "run", "--reporter=basic"], { timeoutMs: 240_000 }),
   ]);
 
   const errosTsc = (typecheck.saida.match(/error TS\d+: .*/g) || []).slice(0, 30);
-  const falhasTeste = [...testes.saida.matchAll(/(FAIL|✗|×)\s+(.+)$/gm)]
-    .map((m) => m[2].trim())
-    .slice(0, 20);
+  const estadoTestes = classificarTestes(testes, !semTestes);
 
   return {
     origem: "local-cli",
@@ -163,8 +180,7 @@ export async function coletarSinais() {
     saude: {
       typecheckOk: typecheck.ok,
       errosTsc,
-      testesOk: testes.ok,
-      falhasTeste,
+      ...estadoTestes,
     },
     todos: coletarTodos("src"),
     inbox: lerInbox(),
@@ -175,10 +191,15 @@ export async function coletarSinais() {
 export function sinalParaTexto(s) {
   const linhas = [];
   linhas.push(`# Sinais do LexisPredict — ciclo ${s.ciclo} (app v${s.versaoApp})`);
+  const estado = s.saude.testesStatus ?? (s.saude.testesOk ? "passed" : "failed");
+  const resumoTestes = {
+    passed: "OK",
+    failed: `FALHOU (${s.saude.falhasTeste.length} falhas)`,
+    skipped: "NÃO EXECUTADOS (ignorados por opção)",
+    not_run: "NÃO EXECUTADOS (executor indisponível)",
+  }[estado] ?? "NÃO CONFIRMADOS";
   linhas.push(
-    `Typecheck: ${s.saude.typecheckOk ? "OK" : `FALHOU (${s.saude.errosTsc.length} erros)`} · Testes: ${
-      s.saude.testesOk ? "OK" : `FALHOU (${s.saude.falhasTeste.length} falhas)`
-    } · Código: ${s.tamanho.arquivos} arquivos / ${s.tamanho.linhas} linhas em src/`
+    `Typecheck: ${s.saude.typecheckOk ? "OK" : `FALHOU (${s.saude.errosTsc.length} erros)`} · Testes: ${resumoTestes} · Código: ${s.tamanho.arquivos} arquivos / ${s.tamanho.linhas} linhas em src/`
   );
   if (s.saude.errosTsc.length) {
     linhas.push("\n## Erros de TypeScript");

@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/lib/selfimprove-lib.test.ts"],
+    include: ["src/lib/selfimprove-lib.test.ts", "src/lib/selfimprove-collect.test.ts"],
     globals: false,
   },
   css: { postcss: false },

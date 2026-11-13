@@ -37,7 +37,7 @@ interface Report {
   analise: Analise | null;
   temPatch: boolean;
   sinais: {
-    saude: { typecheckOk: boolean; errosTsc: string[]; testesOk: boolean; falhasTeste: string[] };
+    saude: { typecheckOk: boolean; errosTsc: string[]; testesOk: boolean | null; testesStatus?: "passed" | "failed" | "skipped" | "not_run"; falhasTeste: string[] };
     todos: Array<{ tipo: string; arquivo: string; linha: number; texto: string }>;
     inbox: Array<{ appVersion: string; eventos: Array<{ tipo: string; rota: string; mensagem: string; count: number }> }>;
     tamanho: { arquivos: number; linhas: number };
@@ -104,6 +104,13 @@ export default function AutoaprimoramentoPage() {
       .catch(() => undefined);
   }, []);
 
+  const testesStatus = report?.sinais.saude.testesStatus ??
+    (report?.sinais.saude.testesOk ? "passed" : "failed");
+  const testesLabel = testesStatus === "passed" ? "OK"
+    : testesStatus === "skipped" ? "Ignorados"
+    : testesStatus === "not_run" ? "Não executados"
+    : `${report?.sinais.saude.falhasTeste.length ?? 0} falha(s)`;
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -166,9 +173,13 @@ export default function AutoaprimoramentoPage() {
               </div>
               <div className="rounded-xl border border-border/60 p-3">
                 <div className="text-xs text-muted-foreground">Testes</div>
-                <div className={"text-sm font-bold flex items-center gap-1 " + (report.sinais.saude.testesOk ? "text-green-500" : "text-red-500")}>
-                  {report.sinais.saude.testesOk ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                  {report.sinais.saude.testesOk ? "OK" : `${report.sinais.saude.falhasTeste.length} falha(s)`}
+                <div className={"text-sm font-bold flex items-center gap-1 " +
+                  (testesStatus === "passed" ? "text-green-500"
+                  : testesStatus === "failed" ? "text-red-500" : "text-muted-foreground")}>
+                  {testesStatus === "passed" ? <CheckCircle2 className="w-4 h-4" />
+                    : testesStatus === "failed" ? <AlertTriangle className="w-4 h-4" />
+                    : <Terminal className="w-4 h-4" />}
+                  {testesLabel}
                 </div>
               </div>
             </section>
