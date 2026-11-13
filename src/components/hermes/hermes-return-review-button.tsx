@@ -84,7 +84,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
    */
   async function checkDataJudOnly(){
     if(datajudBusy)return;
-    const digits=protocolo.replace(/\\D/g,'');
+    const digits=protocolo.replace(/\D/g,'');
     const checkedAt=new Date().toISOString();
     if(digits.length!==20){
       setDatajudOnly({ok:false,error:'Número CNJ não localizado no cadastro.',checkedAt,via:null,movimentos:[]});
