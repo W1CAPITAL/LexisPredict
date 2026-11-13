@@ -741,7 +741,7 @@ export function SidebarVertical() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-black">Dossiês por IA</span>
-                <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-[#60555C]">
+                <span className="mt-0.5 block text-[12px] font-semibold leading-snug text-[#60555C]">
                   PDF, Excel, processo, mensagens ou contexto em um único chat.
                 </span>
               </span>
@@ -781,7 +781,7 @@ export function SidebarVertical() {
                         </span>
                         <span className="min-w-0">
                           <span className="block font-bold">{item.label}</span>
-                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#60555C]">{item.description}</span>
+                          <span data-lexis-mobile-entry-description className="mt-0.5 block text-[12px] font-medium leading-snug text-[#60555C]">{item.description}</span>
                         </span>
                       </button>
                     );
@@ -808,10 +808,10 @@ export function SidebarVertical() {
                           <GroupIcon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-black text-[#21151A]">{group.label}</span>
-                          <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[#60555C]">{group.description}</span>
+                          <span data-lexis-mobile-menu-group-title className="block text-sm font-black text-[#21151A]">{group.label}</span>
+                          <span data-lexis-mobile-menu-group-description className="mt-0.5 block text-[12px] font-medium leading-snug text-[#60555C]">{group.description}</span>
                         </span>
-                        <span className="rounded-full bg-[#EDE9ED] px-2 py-1 text-[11px] font-black text-[#60555C]">
+                        <span data-lexis-mobile-menu-group-count className="rounded-full bg-[#EDE9ED] px-2 py-1 text-[11px] font-black text-[#60555C]">
                           {group.items.length}
                         </span>
                         <ChevronRight className="h-4 w-4 text-[#60555C] transition-transform group-open:rotate-90" />
@@ -831,8 +831,8 @@ export function SidebarVertical() {
                             >
                               <Icon className="h-4 w-4 shrink-0 text-[#6D1734]" />
                               <span className="min-w-0">
-                                <span className="block text-[13px] font-bold text-[#453039]">{item.label}</span>
-                                <span className="block text-[11px] leading-snug text-[#60555C]">{item.description}</span>
+                                <span className="block text-[14px] font-bold text-[#453039]">{item.label}</span>
+                                <span data-lexis-mobile-entry-description className="block text-[12px] leading-snug text-[#60555C]">{item.description}</span>
                               </span>
                             </button>
                           );
