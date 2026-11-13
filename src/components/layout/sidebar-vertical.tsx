@@ -530,7 +530,7 @@ export function SidebarVertical() {
           >
             <Menu className="h-4 w-4 shrink-0" />
             <span data-lexis-nav-label>Central de ferramentas</span>
-            <span data-lexis-nav-label className="ml-auto text-[11px] font-bold uppercase tracking-[.08em] text-[#C9BDC5]">todos os módulos</span>
+            
           </button>
         </div>
       </nav>
