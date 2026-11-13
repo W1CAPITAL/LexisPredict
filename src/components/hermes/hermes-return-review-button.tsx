@@ -4,6 +4,7 @@ import React from "react";
 import { Bot, ClipboardCopy, Loader2, RefreshCw, FileSearch } from "lucide-react";
 import { getHermesReturnReviewAction } from "@/app/actions/hermes-return-actions";
 import {djenBuscaProcesso,type DjenItemRaw} from "@/lib/djen-client";
+import {fetchDataJudDirectBrowser} from "@/lib/datajud-browser-client";
 import {resolveOfficialCourtPortal,getHermesNationalSourcePlan,OFFICIAL_DJEN_PUBLIC_PORTAL,OFFICIAL_JUSBR_PORTAL} from "@/lib/hermes-official-fallbacks";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -31,6 +32,11 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   const [registered, setRegistered] = React.useState<{ next: string | null; last: string | null; status?:string }>({ next: null, last: null });
   const [copied, setCopied] = React.useState(false);
   const [protocolo, setProtocolo] = React.useState("");
+  const [datajudBusy,setDatajudBusy] = React.useState(false);
+  const [datajudOnly,setDatajudOnly] = React.useState<{
+    ok:boolean; error:string|null; checkedAt:string;
+    via:'browser'|'server'|null; movimentos:any[];
+  }|null>(null);
   const [djenBusy,setDjenBusy] = React.useState(false);
   const [djenOnly,setDjenOnly] = React.useState<{
     ok:boolean; error:string|null; checkedAt:string; items:DjenItemRaw[]; count:number;
@@ -70,6 +76,53 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
     });
     const data=await response.json().catch(()=>({ok:false,error:'Resposta inválida do serviço de consulta.'}));
     if(!response.ok||!data.ok)throw Error(data.error||'Falha ao consultar as fontes oficiais.');
+  }
+
+  /** DataJud independente: primeiro pelo navegador do operador; servidor
+   * somente se CORS/rede/chave impedirem acesso. HTTP 429 não é repetido.
+   * Não registra retorno, nem grava movimentos enviados pelo navegador.
+   */
+  async function checkDataJudOnly(){
+    if(datajudBusy)return;
+    const digits=protocolo.replace(/\D/g,'');
+    const checkedAt=new Date().toISOString();
+    if(digits.length!==20){
+      setDatajudOnly({ok:false,error:'Número CNJ não localizado no cadastro.',checkedAt,via:null,movimentos:[]});
+      return;
+    }
+    setDatajudBusy(true);setDatajudOnly(null);
+    try{
+      const direct=await fetchDataJudDirectBrowser(digits,{fast:true});
+      if(direct.ok&&direct.found){
+        setDatajudOnly({ok:true,error:null,checkedAt,via:'browser',movimentos:direct.movimentos});
+        return;
+      }
+      if(direct.reason==='rate_limited'){
+        setDatajudOnly({ok:false,error:direct.error||'Fonte em pausa por excesso de chamadas.',checkedAt,via:null,movimentos:[]});
+        return;
+      }
+      const response=await fetch('/api/datajud-search',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify({mode:'cnj',query:digits}),
+      });
+      const body=await response.json().catch(()=>null);
+      const data=body?.data;
+      if(!response.ok||body?.success!==true||data?.error!==false||data?.found!==true){
+        const explanation=String(body?.error||data?.message||'Consulta pelo servidor também não confirmada.');
+        setDatajudOnly({
+          ok:false,error:[direct.error,explanation].filter(Boolean).join(' · '),
+          checkedAt,via:null,movimentos:[],
+        });
+        return;
+      }
+      setDatajudOnly({
+        ok:true,error:null,checkedAt,via:'server',
+        movimentos:Array.isArray(data.movimentos)?data.movimentos.slice(0,120):[],
+      });
+    }catch{
+      setDatajudOnly({ok:false,error:'Consulta DataJud indisponível neste momento.',checkedAt,via:null,movimentos:[]});
+    }finally{setDatajudBusy(false);}
   }
 
   /** Consulta isolada e explícita: canal oficial DJEN pelo navegador.
@@ -125,7 +178,7 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
   React.useEffect(() => { if (open) void load(true); }, [open, load]);
 
   async function refresh() {
-    setBusy(true); setError("");setDjenOnly(null);
+    setBusy(true); setError("");setDjenOnly(null);setDatajudOnly(null);
     try {
       await queryOfficialBrazil(processId);
       await load(false);
@@ -182,6 +235,12 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 {djenBusy?<Loader2 size={15} className="animate-spin"/>:<FileSearch size={15}/>}
                 Consultar somente DJEN
               </Button>
+              <Button type="button" size="sm" variant="outline" disabled={busy||datajudBusy||!protocolo}
+                className="h-9 gap-2 border-[#9c5776]/40 text-[#7e2d4f] dark:text-[#e5bfd0]"
+                onClick={()=>void checkDataJudOnly()}>
+                {datajudBusy?<Loader2 size={15} className="animate-spin"/>:<FileSearch size={15}/>}
+                Consultar somente DataJud
+              </Button>
               <a href={OFFICIAL_DJEN_PUBLIC_PORTAL} target="_blank" rel="noopener noreferrer"
                 className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-bold text-foreground hover:bg-muted">
                 Portal oficial do DJEN
@@ -227,6 +286,17 @@ export function HermesReturnReviewButton({ processId, compact = false }: { proce
                 {scmppResult.message} {scmppResult.httpStatus!==null?'HTTP '+scmppResult.httpStatus+'. ':''}
                 <span className="block font-medium">Nenhuma movimentação é confirmada por este teste.</span>
               </p>}
+            </section>}
+            {datajudOnly&&<section aria-label="Consulta DataJud independente" className="space-y-2 rounded-xl border border-[#945878]/30 bg-card p-3">
+              <p className="font-semibold">DataJud independente · {fmt(datajudOnly.checkedAt)}</p>
+              <p className="text-xs text-muted-foreground">Consulta pelo navegador, sem alterar a revisão salva. O DataJud contém metadados do índice nacional, que podem estar defasados em relação ao tribunal. Consulta direta não substitui a conferência dos autos.</p>
+              {datajudOnly.ok
+                ?<p className="text-xs text-foreground">Consulta oficial concluída ({datajudOnly.via==='browser'?'navegador':'servidor'}): {datajudOnly.movimentos.length} movimento(s) retornado(s) pelo índice deste CNJ. Resultado avulso, não gravado na revisão Hermes.</p>
+                :<p role="status" className="text-xs text-amber-700 dark:text-amber-300">{datajudOnly.error} Nenhuma movimentação foi confirmada nesta tentativa.</p>}
+              {datajudOnly.movimentos.slice(0,12).map((item,index)=><div key={index} className="rounded-lg border border-border bg-background p-3 text-xs">
+                <p className="font-semibold">DataJud · {fmt(item?.dataHora||item?.data||item?.dataMovimento)}</p>
+                <p className="mt-1 whitespace-pre-wrap leading-5">{String(item?.nome||item?.descricao||('Movimento TPU '+String(item?.codigo||''))).slice(0,550)}</p>
+              </div>)}
             </section>}
             {djenOnly&&<section aria-label="Consulta DJEN independente" className="space-y-2 rounded-xl border border-[#945878]/30 bg-card p-3">
               <p className="font-semibold">DJEN independente · {fmt(djenOnly.checkedAt)}</p>

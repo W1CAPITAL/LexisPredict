@@ -35,6 +35,7 @@ import {
   Square,
 } from "lucide-react";
 import { fetchRepoCases, scanSingleCaseAction } from "@/app/actions/case-actions";
+import { scanInteractiveCase } from "@/lib/interactive-tribunal-scan";
 import { u8ToBlob } from "@/lib/u8-to-blob";
 import {
   loadParadosScanCkpt,
@@ -319,7 +320,7 @@ export default function ProcessosParadosPage() {
   const scanOne = async (protocolo: string) => {
     setScanning(protocolo);
     try {
-      const res: any = await scanSingleCaseAction(protocolo, { mode: "both", fast: false } as any);
+      const res: any = await scanInteractiveCase(protocolo, { mode: "both", fast: false });
       if (res?.case) {
         applyScanPatch(protocolo, res.case);
         toast({ title: "Auditoria atualizada", description: protocolo });

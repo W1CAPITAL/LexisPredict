@@ -63,8 +63,8 @@ import { WaDailyReturnPanel } from "@/components/whatsapp/wa-daily-return-panel"
 import {
   registrarAtendimentoAction,
   registrarAtendimentoCompletoAction,
-  scanSingleCaseAction,
 } from "@/app/actions/case-actions";
+import { scanInteractiveCase } from "@/lib/interactive-tribunal-scan";
 import {
   sendWhatsAppAction,
   fetchWhatsAppHistoryAction,
@@ -814,7 +814,7 @@ function WhatsAppTerminalInner() {
       // Mesma lógica da aba Processos → "Sugerir resposta"
       // DataJud + DJEN, fast: false (não aborta cedo)
       if (opts?.scan) {
-        const res: any = await scanSingleCaseAction(target.protocolo, {
+        const res: any = await scanInteractiveCase(target.protocolo, {
           mode: "both",
           fast: opts.fast === true,
         } as any);
