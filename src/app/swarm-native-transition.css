@@ -1,0 +1,9 @@
+.lx-swarm-native-transition{
+ position:fixed;inset:0;z-index:9999;width:100vw;height:100vh;
+ pointer-events:none;opacity:0;transition:opacity .22s ease;
+ contain:strict;mix-blend-mode:screen;
+}
+.lx-swarm-native-transition[data-active="true"]{opacity:1;}
+@media(prefers-reduced-motion:reduce),(update:slow),(prefers-reduced-data:reduce){
+ .lx-swarm-native-transition{display:none!important;animation:none!important;}
+}

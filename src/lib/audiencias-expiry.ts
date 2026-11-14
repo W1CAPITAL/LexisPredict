@@ -1,17 +1,30 @@
-/** Expiração conservadora de eventos judiciais pelo relógio de Brasília. */
+/** Expiração conservadora por data local do próprio tribunal. */
 export type AudienciaExpiryInput={
  data?:string|null;data_evento?:string|null;
  dataFim?:string|null;data_fim?:string|null;
  horaFim?:string|null;hora_fim?:string|null;
+ fuso?:string|null;
 };
-const TZ='America/Sao_Paulo';
-function localDay(now:Date):string{
- const parts=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+const TZ_BY_UF:Record<string,string>={
+ SP:'America/Sao_Paulo',BRASILIA:'America/Sao_Paulo',DF:'America/Sao_Paulo',
+ MT:'America/Cuiaba',MS:'America/Campo_Grande',AM:'America/Manaus',
+ AC:'America/Rio_Branco',RO:'America/Porto_Velho',RR:'America/Boa_Vista',
+ PA:'America/Belem',AP:'America/Belem',TO:'America/Araguaina',
+ MA:'America/Fortaleza',PI:'America/Fortaleza',CE:'America/Fortaleza',
+ RN:'America/Fortaleza',PB:'America/Fortaleza',PE:'America/Recife',
+ AL:'America/Maceio',SE:'America/Maceio',BA:'America/Bahia',
+ MG:'America/Sao_Paulo',ES:'America/Sao_Paulo',RJ:'America/Sao_Paulo',
+ PR:'America/Sao_Paulo',SC:'America/Sao_Paulo',RS:'America/Sao_Paulo',
+ GO:'America/Sao_Paulo'
+};
+function timezoneFor(event:AudienciaExpiryInput):string{
+ const raw=String(event.fuso||'').trim().toUpperCase();
+ return TZ_BY_UF[raw]||'America/Sao_Paulo';
+}
+function localDay(now:Date,timeZone:string):string{
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
  const value=(type:string)=>parts.find(part=>part.type===type)?.value||'';
  return value('year')+'-'+value('month')+'-'+value('day');
-}
-function localClock(now:Date):string{
- return new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now);
 }
 function validDay(value:unknown):string|null{
  const raw=String(value??'').trim();
@@ -19,26 +32,15 @@ function validDay(value:unknown):string|null{
  const date=new Date(raw+'T12:00:00Z');
  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===raw?raw:null;
 }
-function validClock(value:unknown):string|null{
- const match=/^(\d{1,2}):([0-5]\d)$/.exec(String(value??'').trim());
- if(!match)return null;
- const hour=Number(match[1]);
- if(hour>23)return null;
- return String(hour).padStart(2,'0')+':'+match[2];
-}
 /**
- * Expira quando a data final (ou, sem intervalo, a data do evento) já passou.
- * No próprio dia, só apaga quando existe hora final confirmada e ela passou.
- * Uma sessão iniciada ontem e terminando amanhã permanece na agenda.
+ * Só expira quando o último dia oficial do evento já passou no fuso do tribunal.
+ * Não usa hora_fim para exclusão: extratores antigos podem ter associado a hora
+ * de início ao fim. Eventos do próprio dia ficam preservados até o dia seguinte.
  */
 export function isAudienciaExpirada(event:AudienciaExpiryInput,now=new Date()):boolean{
  const endDay=validDay(event.dataFim)??validDay(event.data_fim)??validDay(event.data)??validDay(event.data_evento);
  if(!endDay)return false;
- const today=localDay(now);
- if(endDay<today)return true;
- if(endDay>today)return false;
- const endTime=validClock(event.horaFim??event.hora_fim);
- return Boolean(endTime&&endTime<=localClock(now));
+ return endDay<localDay(now,timezoneFor(event));
 }
 export function filtrarAudienciasVigentes<T extends AudienciaExpiryInput>(events:readonly T[],now=new Date()):T[]{
  return events.filter(event=>!isAudienciaExpirada(event,now));
