@@ -32,6 +32,7 @@ const primary = [
   ["Atividades", "/minhas-atividades", ListTodo],
   ["Réplica e Provas", "/fases-provas", FileText],
   ["WhatsApp", "/whatsapp", MessageCircle],
+  ["Operações integradas", "/operacoes-integradas", Kanban],
   ["Agenda", "/agenda", CalendarDays],
   ["Audiências", "/audiencias", Gavel],
   ["Dossiê", "/report", BarChart3],
