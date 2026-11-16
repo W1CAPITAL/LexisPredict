@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {readFileSync} from 'node:fs';
-const read=p=>readFileSync(new URL('../../'+p,import.meta.url),'utf8');
+const read=p=>readFileSync(new URL('../../../'+p,import.meta.url),'utf8');
 describe('LexisPredict multi-company OAuth isolation',()=>{
  it('has restrictive RLS on all protected tables for external OAuth writes',()=>{
   const sql=read('supabase/migrations/20261116160000_killa_oauth_readonly_guard.sql');
