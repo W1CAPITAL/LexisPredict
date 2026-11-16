@@ -1,3 +1,13 @@
+## 11. Interoperabilidade MCP, IA e proteção de organizações
+
+A autorização para utilizar **LexisPredict** pelo contrato não permite distribuir seu código, replicar dados de clientes ou estender credenciais a agentes externos. ChatGPT, Grok, Claude, OpenCode, FreeBuff e outros clientes MCP deverão usar **OAuth por usuário**, políticas de empresa, permissões e autenticação forte. A capacidade técnica de executar ferramentas não concede autorização para outra carteira ou conta.
+
+O acesso de uma IA não transfere propriedade intelectual, direito sobre a marca, base de dados, arquitetura de aplicação ou credenciais. O envio de mensagens requer validação independente e a comprovação de aceite do provedor; gerar rascunhos não equivale a atendimento concluído. O titular e o operador devem observar a **LGPD**, os contratos e as normas aplicáveis.
+
+Esta licença proprietária é **independente** da licença do INFINITUM. Distribuições anteriores de partes deste último sob MIT preservam as permissões então concedidas: esta cláusula não as revoga. Dependências de terceiros conservam suas licenças.
+
+---
+
 <p align="center">
   <img src="docs/assets/lexis-mark.svg" width="72" height="72" alt="LexisPredict" />
 </p>
@@ -37,6 +47,7 @@
 | 8 | [Rescisão](#8-rescisão) |
 | 9 | [Contato](#9-contato--licenciamento-e-parcerias) |
 | 10 | [Lei aplicável](#10-lei-aplicável) |
+| 11 | [MCP, IA e proteção organizacional](#11-interoperabilidade-mcp-ia-e-proteção-de-organizações) |
 
 ---
 
