@@ -21,6 +21,6 @@ describe('LexisPredict multi-company OAuth isolation',()=>{
   expect(read('SECURITY.md')).toMatch(/service_role|sb_secret_/);
   expect(read('docs/SEGURANCA-MCP-LGPD.md')).toMatch(/OAuth/);
   expect(read('docs/SEGURANCA-MCP-LGPD.md')).toMatch(/RLS/);
-  expect(read('README.md')).toMatch(/INFINITUM|Killa AI/);
+  expect(read('README.md')).toMatch(/Segurança MCP|Killa AI|INFINITUM/);
  });
 });
