@@ -6,7 +6,7 @@
 
 **Processos, evidências, atendimento, relatórios e agentes — uma plataforma para transformar trabalho jurídico em operações rastreáveis.**
 
-**Segurança MCP/LLMs:** integração externa somente por OAuth e autorização de empresa/usuário, barreiras RLS para escrita, MFA e registro de atendimentos confirmados. [Guia MCP e LGPD](docs/SEGURANCA-MCP-LGPD.md) · [Política de segurança](SECURITY.md) · [Licença proprietária](LICENSE.md).
+**Segurança MCP/LLMs:** integração externa somente por OAuth e autorização de empresa/usuário, barreiras RLS para escrita, MFA e registro de atendimentos confirmados. [Guia MCP e LGPD](docs/SEGURANCA-MCP-LGPD.md) · [Política de segurança](SECURITY.md) · [Licença proprietária e termos MCP](LICENSE.md).
 
 <p>
   <a href="https://lexispredict.vercel.app"><img alt="Abrir LexisPredict" src="https://img.shields.io/badge/ABRIR_PLATAFORMA-LEXISPREDICT-7250F1?style=for-the-badge&labelColor=10162A" /></a>
