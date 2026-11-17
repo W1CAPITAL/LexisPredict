@@ -23,6 +23,7 @@ const SUPERADMIN_ONLY = ['/security', '/superadmin', '/ops']
 const PUBLIC_API = [
   '/api/auth/login',
   '/api/health',
+  '/api/desktop/health',
   '/api/version',
   '/api/commercial/health',
   '/api/integration/sheetspredict',
