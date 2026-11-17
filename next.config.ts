@@ -6,6 +6,8 @@ import path from "path";
  * engines.node 24.x no package.json (Vercel)
  */
 const nextConfig: NextConfig = {
+  // Central-de-Apps: o servidor Windows roda no loopback, independentemente da Vercel.
+  output: process.env.LEXIS_DESKTOP_STANDALONE === '1' ? 'standalone' : undefined,
   compress: true,
   productionBrowserSourceMaps: false,
   reactStrictMode: true,
