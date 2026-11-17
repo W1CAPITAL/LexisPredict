@@ -32,6 +32,23 @@ describe('Fila empresarial de retornos',()=>{
   const result=listCompanyDueReturns([base(7,{created_by:'colaborador-diferente'})],today);
   expect(result.map(x=>x.process.id)).toEqual(['7']);
  });
+ it('não recoloca atendimento concluído na data do próximo retorno',()=>{
+  const result=listCompanyDueReturns([
+   base(12,{ultimoRetorno:today,proximoPrazo:today}),
+   base(13,{ultimoRetorno:'2026-11-12',proximoPrazo:today}),
+   base(14,{ultimoRetorno:'2026-11-10',proximoPrazo:today}),
+  ],today);
+  expect(result.map(x=>x.process.id)).toEqual(['14']);
+ });
+ it('exclui processos sem número CNJ da fila jurídica',()=>{
+  const result=listCompanyDueReturns([
+   base(15,{protocolo:''}),
+   base(16,{protocolo:'sem processo'}),
+   base(17,{protocolo:'00000000000000000000'}),
+   base(18),
+  ],today);
+  expect(result.map(x=>x.process.id)).toEqual(['18']);
+ });
  it('mantém somente processos ativos com data de retorno válida até hoje',()=>{
   const result=listCompanyDueReturns([
    base(8,{status_interno:'ENCERRADO'}),
