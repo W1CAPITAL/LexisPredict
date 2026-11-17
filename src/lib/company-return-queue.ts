@@ -33,12 +33,15 @@ export function listCompanyDueReturns<T extends LegalCase>(
  const result:CompanyReturnQueueItem<T>[]=[];
  for(const process of processes){
   if(!process||isCasoEncerrado(process))continue;
+  // KPI jurídico e fila de retornos exigem número processual CNJ preenchido.
+  const cnj=String(process.protocolo||'').replace(/\D/g,'');
+  if(cnj.length!==20||/^0{20}$/.test(cnj))continue;
   // As colunas do banco chegam por ultimoRetorno / proximoPrazo no adaptador de carteira.
   const last=validDay(process.ultimoRetorno);
   const next=validDay(process.proximoPrazo);
   // A data do próximo retorno é o critério operacional. Não impor intervalo
   // mínimo arbitrário de 20 dias: isso ocultava retornos válidos da empresa.
-  if(!next||next>today||(last&&dayDifference(next,last)<0))continue;
+  if(!next||next>today||(last&&last>=next))continue;
   const id=String(process.db_id||process.id||process.protocolo||'').trim();
   if(!id||seen.has(id))continue;
   seen.add(id);
