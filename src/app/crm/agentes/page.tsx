@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { CrmShell } from "@/components/crm/crm-shell";
+import OpenCodeDevicePanel from "@/components/ai/opencode-device-panel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,7 @@ export default function CrmAgentesPage() {
       title="Agentes CRM"
       subtitle="CompAI-style: skills, fila, e-mail, CNPJ — e o botão Agentes em todo o app"
     >
+      <OpenCodeDevicePanel/>
       <Link href="/estudio-agentes" className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-500/10 to-sky-500/10 p-4 text-foreground hover:border-violet-500/50">
         <span className="flex items-start gap-3"><Workflow className="mt-1 h-5 w-5 shrink-0 text-violet-500"/><span><strong className="block text-base">Estúdio de Agentes por aba</strong>
         <span className="mt-1 block text-xs leading-5 text-muted-foreground">Missões, skills, regras de evidência e análise segura de APIs: sem iniciar modelos pesados.</span></span></span>
