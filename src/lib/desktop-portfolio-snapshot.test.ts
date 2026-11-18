@@ -3,7 +3,7 @@ import {readAuthorizedDesktopSnapshot} from './desktop-portfolio-snapshot';
 
 const tenant='22222222-2222-4222-8222-222222222222';
 const owner='11111111-1111-4111-8111-111111111111';
-const makeDb=(data:unknown,error:unknown=null)=>({rpc:vi.fn(async()=>({data,error}))});
+const makeDb=(data:unknown,error:{code?:string;message?:string}|null=null)=>({rpc:vi.fn(async()=>({data,error}))});
 
 describe('Resumo da carteira sob a sessão do Supabase',()=>{
  it('retorna indicadores exatos do mesmo tenant e mantém mérito e retorno',async()=>{
