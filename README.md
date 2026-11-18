@@ -36,6 +36,17 @@
 
 ---
 
+<!-- W1_DISTRIBUICAO_INICIO -->
+## Distribuição e acesso
+
+A edição Windows do LexisPredict é distribuída pela [Central de Aplicativos W1](https://github.com/W1CAPITAL/Central-de-Apps). O instalador disponível na prévia verificada é o [LexisPredict para Windows x64](https://github.com/W1CAPITAL/Central-de-Apps/releases/download/preview-v0.1.48/LexisPredict-Setup-0.1.48-x64.exe).
+
+[Releases disponíveis](https://github.com/W1CAPITAL/Central-de-Apps/releases) · [Catálogo do ecossistema](https://github.com/W1CAPITAL/Central-de-Apps/blob/main/docs/ECOSSISTEMA-W1.md) · [Central de Aplicativos W1 — Windows x64, prévia v0.1.48](https://github.com/W1CAPITAL/Central-de-Apps/releases/download/preview-v0.1.48/W1-Central-de-Apps-Setup-0.1.48-x64.exe)
+
+**Nota de distribuição:** os arquivos indicados são pré-releases de teste. Consulte as assinaturas, os hashes e a publicação mais recente antes da instalação; versões de teste não entram automaticamente no canal de atualização assinada.
+<!-- W1_DISTRIBUICAO_FIM -->
+
+
 ## ✨ Conheça a plataforma
 
 | 🏛️ **Carteira processual** | 🧠 **Inteligência com evidências** | 💬 **Atendimento multicanal** |
