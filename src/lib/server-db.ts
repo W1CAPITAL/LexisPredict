@@ -14,6 +14,7 @@ import { normalizePlanId } from './planos-pacotes';
 import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
 import { resolveProcessoCliente } from './processo-cliente';
 import { createdByOwnerIds } from './carteira-owner-ids';
+import {createAuthorizedDatabaseClient} from './authorized-database-client';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -29,11 +30,20 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
-export async function getSupabaseAdmin() {
+// Fábrica concreta preserva a inferência dos tipos dinâmicos de tabelas de
+// Supabase usada pelos módulos existentes, também no fallback SSR.
+const makeDatabaseClient=(url:string,key:string)=>createSupabaseClient(url,key);
+export async function getSupabaseAdmin(): Promise<ReturnType<typeof makeDatabaseClient>> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Configuração de Admin ausente.");
-  return createSupabaseClient(url, key);
+  if (!url) throw new Error("Configuração do Supabase ausente.");
+  // O EXE não recebe service role: utiliza a sessão SSR autenticada, sujeita a RLS.
+  // A chave administrativa continua restrita aos servidores onde existir.
+  return createAuthorizedDatabaseClient<ReturnType<typeof makeDatabaseClient>>({
+    adminKey:key,
+    makeAdmin:async () => makeDatabaseClient(url,key!),
+    makeRequest:async () => (await createRequestClient()) as ReturnType<typeof makeDatabaseClient> | null,
+  });
 }
 
 const resolveUserContext = cache(async () => {
