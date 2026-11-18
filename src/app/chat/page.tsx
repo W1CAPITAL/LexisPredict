@@ -34,6 +34,7 @@ import {
   extractPdfTextForChatAction,
 } from "@/app/chatbot-separado/actions";
 import { MotorSelector } from "@/components/ai/motor-selector";
+import OpenCodeDevicePanel from "@/components/ai/opencode-device-panel";
 import {
   loadPreferredMotor,
   MotorId,
@@ -317,6 +318,7 @@ export default function AssistentePage() {
           </div>
         </header>
 
+        <div className="shrink-0 px-4"><OpenCodeDevicePanel/></div>
         <ScrollArea className="flex-1 px-4 py-6">
           <div className="max-w-3xl mx-auto space-y-4">
             {messages.map((msg, i) => (
