@@ -128,7 +128,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
   const copyAuthCookies = (target: NextResponse) => {
     for (const cookie of response.cookies.getAll()) target.cookies.set(cookie)
