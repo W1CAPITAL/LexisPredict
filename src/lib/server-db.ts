@@ -30,13 +30,13 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
-export async function getSupabaseAdmin(): Promise<ReturnType<typeof createSupabaseClient>> {
+export async function getSupabaseAdmin(): Promise<any> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url) throw new Error("Configuração do Supabase ausente.");
   // O EXE não recebe service role: utiliza a sessão SSR autenticada, sujeita a RLS.
   // A chave administrativa continua restrita aos servidores onde existir.
-  return createAuthorizedDatabaseClient<ReturnType<typeof createSupabaseClient>>({
+  return createAuthorizedDatabaseClient<any>({
     adminKey:key,
     makeAdmin:async () => createSupabaseClient(url,key!),
     makeRequest:createRequestClient,
