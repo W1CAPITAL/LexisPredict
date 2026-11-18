@@ -14,6 +14,7 @@ import { normalizePlanId } from './planos-pacotes';
 import { PROCESSOS_LIST_COLUMNS } from './carteira-select';
 import { resolveProcessoCliente } from './processo-cliente';
 import { createdByOwnerIds } from './carteira-owner-ids';
+import {createAuthorizedDatabaseClient} from './authorized-database-client';
 
 /**
  * REPOSITÓRIO CENTRAL LEXISPREDICT (v310.0 ELITE)
@@ -32,8 +33,14 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 export async function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Configuração de Admin ausente.");
-  return createSupabaseClient(url, key);
+  if (!url) throw new Error("Configuração do Supabase ausente.");
+  // O EXE não recebe service role: utiliza a sessão SSR autenticada, sujeita a RLS.
+  // A chave administrativa continua restrita aos servidores onde existir.
+  return createAuthorizedDatabaseClient({
+    adminKey:key,
+    makeAdmin:async () => createSupabaseClient(url,key!),
+    makeRequest:createRequestClient,
+  });
 }
 
 const resolveUserContext = cache(async () => {
