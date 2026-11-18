@@ -30,16 +30,19 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
   'Visualizador': 20
 };
 
-export async function getSupabaseAdmin(): Promise<any> {
+// Fábrica concreta preserva a inferência dos tipos dinâmicos de tabelas de
+// Supabase usada pelos módulos existentes, também no fallback SSR.
+const makeDatabaseClient=(url:string,key:string)=>createSupabaseClient(url,key);
+export async function getSupabaseAdmin(): Promise<ReturnType<typeof makeDatabaseClient>> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url) throw new Error("Configuração do Supabase ausente.");
   // O EXE não recebe service role: utiliza a sessão SSR autenticada, sujeita a RLS.
   // A chave administrativa continua restrita aos servidores onde existir.
-  return createAuthorizedDatabaseClient<any>({
+  return createAuthorizedDatabaseClient<ReturnType<typeof makeDatabaseClient>>({
     adminKey:key,
-    makeAdmin:async () => createSupabaseClient(url,key!),
-    makeRequest:createRequestClient,
+    makeAdmin:async () => makeDatabaseClient(url,key!),
+    makeRequest:async () => (await createRequestClient()) as ReturnType<typeof makeDatabaseClient> | null,
   });
 }
 
