@@ -10,6 +10,8 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
   const [count, setCount] = useState<number | null>(null);
   const [responsaveis, setResponsaveis] = useState<AtividadeResponsavelKpi[]>([]);
   const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
   const maxCount = Math.max(1, ...responsaveis.map(item => item.registros));
 
   useEffect(() => {
@@ -19,17 +21,41 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
       if (pending) return;
       pending = true;
       try {
-        const result = await getAtividadesRegistradasCountAction();
+        // Funciona no servidor Next do EXE, em 127.0.0.1, sem acionar a Vercel.
+        // Para versões antigas sem essa rota, mantém a Server Action existente.
+        let result: Awaited<ReturnType<typeof getAtividadesRegistradasCountAction>>;
+        let unauthenticated = false;
+        try {
+          const response = await fetch("/api/atividades/kpi", {
+            cache: "no-store", credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          });
+          unauthenticated = response.status === 401;
+          if (!response.ok) throw new Error("Falha da API local: " + response.status);
+          result = await response.json();
+          if (!result?.ok || !Number.isFinite(result.count) || !Array.isArray(result.responsaveis))
+            throw new Error("Resposta de atividades inválida.");
+        } catch {
+          // Uma única alternativa, sem multiplicar consultas em caso de falha.
+          result = await getAtividadesRegistradasCountAction();
+        }
         if (!active) return;
         if (result.ok) {
           setCount(result.count);
           setResponsaveis(result.responsaveis);
           setError(false);
+          setErrorMessage("");
         } else {
           setError(true);
+          setErrorMessage(unauthenticated
+            ? "Sua sessão precisa ser renovada. Entre novamente no LexisPredict."
+            : "Não foi possível consultar as atividades da empresa no momento.");
         }
       } catch {
-        if (active) setError(true);
+        if (active) {
+          setError(true);
+          setErrorMessage("Não foi possível consultar as atividades da empresa no momento.");
+        }
       } finally {
         pending = false;
       }
@@ -51,7 +77,7 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
       window.removeEventListener("lexis-atividade-registrada", onRefresh);
       document.removeEventListener("visibilitychange", onRefresh);
     };
-  }, []);
+  }, [retryKey]);
 
   return (
     <section
@@ -93,7 +119,9 @@ export function AtividadesRegistradasKpi({ className = "" }: { className?: strin
       <Link href="/minhas-atividades" className="mt-3 inline-flex text-[11px] font-semibold text-primary underline underline-offset-2">Abrir meu histórico completo com dados dos processos</Link>
       {error && count === null ? (
         <p className="mt-2 text-[10px] text-amber-600 dark:text-amber-400">
-          Contagem temporariamente indisponível.
+          {errorMessage || "Contagem temporariamente indisponível."}
+          <button type="button" className="ml-2 font-bold underline underline-offset-2"
+            onClick={() => setRetryKey(value => value + 1)}>Tentar novamente</button>
         </p>
       ) : null}
     </section>
