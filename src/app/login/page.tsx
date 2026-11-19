@@ -151,7 +151,7 @@ export default function LoginPage() {
       <div className="min-h-screen bg-background p-6">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-xl flex-col items-center justify-center text-center">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border bg-card shadow-xl">
-            <span role="img" aria-label="Logotipo LexisPredict" className="lexis-brand-symbol block h-[58px] w-[58px]" />
+            <img alt="Logotipo LexisPredict" className="lexis-brand-symbol block h-[58px] w-[58px]" src="/brand/lexis-symbol.png" />
           </div>
           <h1 className="mt-6 text-2xl font-black tracking-tight">Sessão identificada</h1>
           <p className="mt-2 max-w-md text-sm text-slate-500">
@@ -209,7 +209,7 @@ export default function LoginPage() {
           <div className="relative">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/10 backdrop-blur">
-                <span role="img" aria-label="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" />
+                <img alt="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" src="/brand/lexis-symbol.png" />
               </div>
               <div>
                 <p className="font-black tracking-tight !text-white">{brand.name || "LexisPredict"}</p>
@@ -255,7 +255,7 @@ export default function LoginPage() {
             <div className="mb-8 lg:hidden">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border bg-card shadow-sm">
-                  <span role="img" aria-label="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" />
+                  <img alt="Emblema LexisPredict" className="lexis-brand-symbol block h-9 w-9" src="/brand/lexis-symbol.png" />
                 </div>
                 <div>
                   <p className="font-black">{brand.name || "LexisPredict"}</p>

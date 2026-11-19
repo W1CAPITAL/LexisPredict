@@ -628,7 +628,7 @@ body:has([data-lexis-commercial-sidebar]) [role="dialog"] .bg-\[\#061d35\] * {
 
 /* W1 Capital visual family — optimized official logo atlas. Logo only:
    application colors and business/tenant features remain unchanged. */
-.lexis-brand-symbol,.lexis-brand-lockup,.w1-brand-symbol {
+.lexis-brand-lockup,.w1-brand-symbol {
   display:inline-block;
   flex:none;
   aspect-ratio:1 / 1;
@@ -638,6 +638,6 @@ body:has([data-lexis-commercial-sidebar]) [role="dialog"] .bg-\[\#061d35\] * {
   background-color:#310012;
   border-radius:11px;
 }
-.lexis-brand-symbol{background-position:100% 0}
+.lexis-brand-symbol{object-fit:contain;flex:none}
 .lexis-brand-lockup{background-position:100% 100%}
 .w1-brand-symbol{background-position:0 0}
