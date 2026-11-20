@@ -223,6 +223,7 @@ const OPERATOR_ALLOWED_ROOTS = [
   '/agendas',
   '/audiencias',
   '/whatsapp',
+  '/operacoes-integradas',
   '/dossies',
   '/documents',
   '/processos-parados',
