@@ -182,6 +182,7 @@ function WhatsAppTerminalInner() {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [histDiag, setHistDiag] = useState<string>("");
   const [sending, setSending] = useState(false);
+  const sendRequestRef = useRef<{id:string;to:string;body:string}|null>(null);
   const [messageTransport, setMessageTransport] = useState<"browser" | "wa_auto">("browser");
   const [evolutionOk, setEvolutionOk] = useState<boolean | null>(null);
   const [bridgeProvider, setBridgeProvider] = useState<"manual" | "local" | null>(null);
@@ -1123,22 +1124,30 @@ function WhatsAppTerminalInner() {
       return;
     }
     setSending(true);
+    const outboundBody=draft.trim();
+    const pendingRequest=sendRequestRef.current;
+    const requestId=pendingRequest?.to===to&&pendingRequest.body===outboundBody
+      ?pendingRequest.id
+      :crypto.randomUUID();
+    sendRequestRef.current={id:requestId,to,body:outboundBody};
     try {
       const res = await Promise.race([
-        sendWhatsAppAction(to, draft.trim()),
-        new Promise<{ success: false; message: string }>((resolve) =>
+        sendWhatsAppAction(to, outboundBody,requestId),
+        new Promise<{ success: false; message: string; retryUsesSameRequest: true }>((resolve) =>
           setTimeout(
             () =>
               resolve({
                 success: false,
+                retryUsesSameRequest:true,
                 message:
-                  "Tempo esgotado. Confira o histórico no CRM antes de tentar novamente para evitar duplicidade.",
+                  "Tempo esgotado. Tentar novamente reutilizará a mesma solicitação e não criará outro item na fila.",
               }),
             90000
           )
         ),
       ]);
       if (res?.success && (res as any).queued) {
+        sendRequestRef.current=null;
         toast({title:'Mensagem na fila do CRM',description:'O dispositivo local está processando o envio; isso ainda não é confirmação de entrega.'});
         setDraft("");
         if (selected) void loadHistory(selected);
@@ -1146,6 +1155,7 @@ function WhatsAppTerminalInner() {
         return;
       }
       if (res?.success) {
+        sendRequestRef.current=null;
         setEvolutionOk(true);
         if ((res as any).provider === "evolution") {
           setBridgeProvider((res as any).provider);
@@ -1178,6 +1188,7 @@ function WhatsAppTerminalInner() {
           toast({ title: "Enviado e gravado no histórico" });
         }
       } else {
+        if(!(res as any).retryUsesSameRequest)sendRequestRef.current=null;
         setEvolutionOk(false);
         toast({
           title: "WhatsApp automático indisponível",

@@ -11,7 +11,7 @@ import {enqueueLocalMessage,bridgeStatus,actor,listLocalChats,localChat} from '@
 import { getWhatsAppHistory } from '@/lib/server-db';
 import { suggestScripts } from '@/lib/script-processual/suggest';
 
-export async function sendWhatsAppAction(to: string, message: string) {
+export async function sendWhatsAppAction(to: string, message: string, requestId?: string) {
   const { getUserContext } = await import('@/lib/server-db');
   const ctx = await getUserContext();
   if (!ctx.auth_id || !ctx.empresa_id || ctx.isViewer) {
@@ -26,10 +26,11 @@ export async function sendWhatsAppAction(to: string, message: string) {
   }
   if (!text || text.length > 8000) return { success: false, message: 'Mensagem inválida (1 a 8.000 caracteres).' };
   try{
-    const result=await enqueueLocalMessage(recipient,text);
+    const result=await enqueueLocalMessage(recipient,text,requestId);
     return {success:true as const,queued:true as const,provider:'local' as const,
       message:'Mensagem adicionada à fila do dispositivo conectado. Aguarde o envio.',
-      jobId:result.jobId,deliveryConfirmed:false as const,persisted:false as const};
+      jobId:result.jobId,idempotent:result.idempotent,
+      deliveryConfirmed:false as const,persisted:false as const};
   }catch(e:any){
     return {success:false as const,provider:'local' as const,
       message:e?.message||'Dispositivo local indisponível. Nada foi enviado.'};
