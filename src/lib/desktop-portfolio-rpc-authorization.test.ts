@@ -2,9 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(
-  'supabase/migrations/20261121220000_restrict_desktop_snapshot_company_scope.sql',
+  'supabase/migrations/20261122001500_restore_desktop_company_snapshot_scope.sql',
   'utf8',
 );
+const processosPage = readFileSync('src/app/processos/page.tsx', 'utf8');
+const indicadoresRoute = readFileSync('src/app/api/carteira/indicadores/route.ts', 'utf8');
 
 describe('desktop portfolio RPC authorization', () => {
   it('requires an authenticated user bound to a company', () => {
@@ -14,11 +16,12 @@ describe('desktop portfolio RPC authorization', () => {
     expect(migration).toContain('u.empresa_id is not null');
   });
 
-  it('reserves the company-wide null owner scope for supervisors and superadmins', () => {
-    expect(migration).toContain("v_cargo in ('supervisor', 'supervisao', 'superadmin', 'super admin')");
-    expect(migration).toContain("v_role in ('supervisor', 'supervisao', 'superadmin', 'super admin')");
-    expect(migration).toContain('if p_owner is null and not v_company_wide then');
-    expect(migration).toContain("raise exception 'Escopo empresarial exige Supervisor ou Superadmin'");
+  it('keeps /processos company indicators available to every authenticated company member', () => {
+    expect(processosPage).toContain('/api/carteira/indicadores?scope=empresa');
+    expect(indicadoresRoute).toContain('requested === "empresa"');
+    expect(indicadoresRoute).toContain('allCompany?null:String(ctx.auth_id)');
+    expect(migration).not.toContain('if p_owner is null');
+    expect(migration).not.toContain('Escopo empresarial exige Supervisor ou Superadmin');
   });
 
   it('does not let a caller select another user and keeps the tenant derived from JWT', () => {
@@ -27,7 +30,7 @@ describe('desktop portfolio RPC authorization', () => {
     expect(migration).not.toContain('p_empresa');
   });
 
-  it('keeps the privileged RPC off the anonymous surface', () => {
+  it('keeps the tenant-scoped RPC off the anonymous surface', () => {
     expect(migration).toContain('set search_path = pg_catalog, public, pg_temp');
     expect(migration).toContain('revoke all on function public.lexis_desktop_portfolio_snapshot(uuid) from public');
     expect(migration).toContain('revoke all on function public.lexis_desktop_portfolio_snapshot(uuid) from anon');
