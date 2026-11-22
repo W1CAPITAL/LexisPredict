@@ -1,5 +1,5 @@
 import 'server-only';
-import {createHash,randomBytes} from 'node:crypto';
+import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {getSupabaseAdmin,getUserContext} from '@/lib/server-db';
 import {resolveWaAutoPermissions} from '@/lib/wa-auto-permissions';
 import {contactOptedOut} from '@/lib/wa-contact-privacy';
@@ -59,7 +59,7 @@ export async function provisionBridge(){
   if(error)throw new Error('Não foi possível provisionar a conexão: '+error.message);
   return {token,baseUrl:'https://lexispredict.vercel.app'};
 }
-export async function enqueueLocalMessage(phone:string,message:string){
+export async function enqueueLocalMessage(phone:string,message:string,requestId?:string){
   const ctx=await actor(),n=normalizedPhone(phone),body=String(message||'').trim();
   if(!n)throw new Error('Número inválido: informe DDD e telefone brasileiro.');
   if(!body||body.length>4000)throw new Error('Mensagem deve ter entre 1 e 4.000 caracteres.');
@@ -68,11 +68,25 @@ export async function enqueueLocalMessage(phone:string,message:string){
   const db=await getSupabaseAdmin();
   if(await contactOptedOut(ctx.empresa_id,n))
     throw new Error('O contato solicitou SAIR; envio bloqueado.');
+  const suppliedRequestId=String(requestId||'').trim().toLowerCase();
+  if(suppliedRequestId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(suppliedRequestId))
+    throw new Error('Identificador de envio inválido. Atualize a página e tente novamente.');
+  const clientRequestId=suppliedRequestId||randomUUID();
   const {data,error}=await db.from('wa_local_jobs').insert({
     empresa_id:ctx.empresa_id,created_by:ctx.auth_id,to_phone:n,body,status:'pending',
+    client_request_id:clientRequestId,
   }).select('id').single();
-  if(error||!data)throw new Error('Não foi possível registrar o envio na fila.');
-  return {jobId:String(data.id),phone:n};
+  if(!error&&data)return {jobId:String(data.id),phone:n,idempotent:false};
+  if(error?.code==='23505'){
+    const {data:prior,error:priorError}=await db.from('wa_local_jobs')
+      .select('id,to_phone,body').eq('empresa_id',ctx.empresa_id)
+      .eq('created_by',ctx.auth_id).eq('client_request_id',clientRequestId).maybeSingle();
+    if(priorError||!prior)throw new Error('Não foi possível reconciliar o envio já registrado.');
+    if(prior.to_phone!==n||prior.body!==body)
+      throw new Error('Identificador de envio reutilizado com conteúdo diferente. Revise antes de tentar novamente.');
+    return {jobId:String(prior.id),phone:n,idempotent:true};
+  }
+  throw new Error('Não foi possível registrar o envio na fila.');
 }
 export async function listLocalChats(opts?:{onlyGroups?:boolean;limit?:number}){
   const ctx=await actor();
