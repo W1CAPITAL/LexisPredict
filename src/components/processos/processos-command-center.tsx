@@ -73,7 +73,7 @@ import {resolveOfficialCourtPortal} from "@/lib/hermes-official-fallbacks";
 
 type Props = {
   items: LegalCase[];
-  totalCount: number;
+  totalCount: number | null;
   ativosCount: number;
   encerradosCount:number;
   vencidosCount: number;
@@ -771,7 +771,7 @@ export function ProcessosCommandCenter(props: Props) {
         </div>
 
         <div data-lexis-processos-kpis className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
-          <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.indicadoresLoading ? "…" : props.totalCount || loaded} hint={loaded < props.totalCount ? `${loaded} carregados nesta visão` : "carteira carregada"} />
+          <KpiCard icon={<FileSearch size={15}/>} label="Processos" value={props.totalCount ?? "…"} hint={`${loaded} carregados nesta visão`} />
           <KpiCard icon={<Activity size={15}/>} label="Ativos" value={props.indicadoresLoading ? "…" : props.ativosCount} hint="carteira inteira" />
           <KpiCard icon={<ShieldCheck size={15}/>} label="Encerrados" value={props.indicadoresLoading ? "…" : props.encerradosCount} hint="estado atual no Supabase" />
           <KpiCard icon={<AlertTriangle size={15}/>} label="Retornos vencidos" value={props.indicadoresLoading ? "…" : props.vencidosCount} hint="Próximo contato atrasado · não indica prazo judicial perdido" kind="red" />
@@ -952,7 +952,7 @@ export function ProcessosCommandCenter(props: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] px-3 py-2">
-            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados · {dateActive?(activeDateMatches?.totalCount??"…"):(props.totalCount||loaded)} {dateActive?"no intervalo":"na empresa"}</p>
+            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados{dateActive ? ` · ${activeDateMatches?.totalCount ?? "…"} no intervalo` : props.totalCount !== null ? ` · ${props.totalCount} na empresa` : ""}</p>
             <div className="flex items-center gap-1">
               <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronLeft size={12}/></button>
               <span className="px-2 text-[10px] text-slate-600 dark:text-slate-400">{page} / {pageCount}</span>

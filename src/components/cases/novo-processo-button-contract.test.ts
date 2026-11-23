@@ -45,4 +45,12 @@ describe("New process creation from the portfolio and task queue", () => {
     expect(button).not.toContain("syncRepoCases");
     expect(button).not.toContain("setCases(next)");
   });
+
+  it("keeps the process list and post-create refresh independent of the KPI request", () => {
+    const listClient = source("src/lib/carteira-fetch-client.ts");
+    expect(listClient).toContain("summary: '0'");
+    expect(page).toContain("await fetchCarteiraPageClient");
+    expect(page).not.toContain("fetchFastCarteiraCached");
+    expect(page).toContain('fetch("/api/carteira/indicadores?scope=empresa"');
+  });
 });

@@ -23,7 +23,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resolveRole, canOperateCompanyCases } from "@/lib/roles";
 import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
-import { fetchFastCarteiraCached, invalidateFastCarteiraCache, peekFastCarteiraCache } from '@/lib/fast-carteira-client';
+import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
+import { fetchCarteiraPageClient } from '@/lib/carteira-fetch-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import {reconcileCompanyPage} from "@/lib/processos-page-reconcile";
@@ -171,7 +172,7 @@ export default function ProcessosEmpresaPage() {
   const casesRef=useRef<LegalCase[]>([]);
   useEffect(()=>{casesRef.current=cases;},[cases]);
   const [topAtendentesSrv, setTopAtendentesSrv] = useState<{ userId: string; userNome: string; dia: number; semana: number; mes: number }[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [ativosCount, setAtivosCount] = useState<number|null>(null);
   const [encerradosCount,setEncerradosCount] = useState<number|null>(null);
   const [vencidosCount, setVencidosCount] = useState<number|null>(null);
@@ -232,45 +233,34 @@ export default function ProcessosEmpresaPage() {
     const seq=++listRequestSeq.current;
     setCarteiraError('');
     const previous = peekCarteiraCache(empresaId, 'empresa', authUserId, 'processos-empresa');
-    const first = peekFastCarteiraCache('empresa', 60, 0, empresaId, authUserId);
     if (!force && previous?.cases?.length) {
       setCases(previous.cases as LegalCase[]);
       setListOffset(previous.cases.length);
       setLoading(false);
-    } else if (!force && first?.data) {
-      setCases(first.data.cases);
-      setListOffset(first.data.cases.length);
-      setLoading(false);
     } else if(!force || !casesRef.current.length) {
       setLoading(true);
     }
-    if (!force && first?.data) {
-      setTotalCount(first.data.totalCount);
-      setHasServerMore((previous?.cases?.length || first.data.cases.length) < first.data.totalCount);
-    }
-    // Voltar para a rota nao pode disparar a mesma consulta se o snapshot ainda e recente.
-    if (!force && first?.data && first.ageMs < 5 * 60_000 && previous?.cases?.length) return;
     try {
-      const res = await fetchFastCarteiraCached('empresa', 60, 0, empresaId, authUserId, force);
+      const pageSize = 60;
+      const rows = await fetchCarteiraPageClient({
+        empresaId, userId: authUserId, scope: 'empresa', limit: pageSize, offset: 0, force,
+      });
       if(seq!==listRequestSeq.current)return; // resposta antiga não pode repor lista obsoleta
       // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
       // revalidada fica antes das demais, inclusive apos mudar de aba.
       const merged=reconcileCompanyPage(
-        res.cases,casesRef.current,(previous?.cases||[]) as LegalCase[],force
+        rows,casesRef.current,(previous?.cases||[]) as LegalCase[],force || rows.length < pageSize
       );
       casesRef.current=merged;
       setCases(merged);
       setListOffset(merged.length);
       writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
-      setTotalCount(res.totalCount);
-      // Totais de ativos/vencidos vêm exclusivamente de /api/carteira/indicadores,
-      // nunca de resposta paginada ou cache em sessão.
-      setHasServerMore(merged.length < res.totalCount);
+      setHasServerMore(rows.length === pageSize);
       if (!force) setOnlyAtivosList(false);
     } catch (error) {
       if(seq!==listRequestSeq.current)return;
       setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
-      if (!previous?.cases?.length && !first?.data) {
+      if (!previous?.cases?.length && !casesRef.current.length) {
         toast({
           title: 'Erro ao carregar carteira da empresa',
           description: error instanceof Error ? error.message : 'O servidor não respondeu.',
@@ -290,15 +280,15 @@ export default function ProcessosEmpresaPage() {
         method:"GET",cache:"no-store",credentials:"same-origin",
         headers:{Accept:"application/json"},
       });
-      if(!response.ok)throw new Error("Não foi possível atualizar os totais da carteira");
       const json=await response.json();
-      if(!json?.ok||!json?.indicadores)throw new Error(json?.error||"Resumo indisponível");
+      if(!response.ok||!json?.ok||!json?.indicadores)
+        throw new Error(json?.error||"Não foi possível atualizar os totais da carteira.");
       // Um pedido antigo nunca substitui o resumo mais novo.
       if(sequence!==indicadoresRequestSeq.current)return;
-      setTotalCount(Number(json.indicadores.total)||0);
-      setAtivosCount(Number(json.indicadores.ativos)||0);
-      setEncerradosCount(Number(json.indicadores.encerrados)||0);
-      setVencidosCount(Number(json.indicadores.vencidos)||0);
+      setTotalCount(json.indicadores.total);
+      setAtivosCount(json.indicadores.ativos);
+      setEncerradosCount(json.indicadores.encerrados);
+      setVencidosCount(json.indicadores.vencidos);
       setIndicadoresAtualizadosEm(String(json.consultadoEm||new Date().toISOString()));
       setIndicadoresErro("");
     }catch(error){
@@ -578,7 +568,7 @@ export default function ProcessosEmpresaPage() {
       casesRef.current=next;
       setCases(next);
       setListOffset(next.length);
-      setTotalCount(n=>Math.max(0,n-1));
+      setTotalCount(n=>n===null?null:Math.max(0,n-1));
       invalidateFastCarteiraCache();
       invalidateCarteiraCache();
       window.dispatchEvent(new Event('lexis-carteira-updated'));
@@ -765,12 +755,13 @@ export default function ProcessosEmpresaPage() {
     const currentRequestSeq=listRequestSeq.current;
     setLoadingMore(true);
     try {
-      const res = await fetchFastCarteiraCached('empresa', 100, listOffset, empresaId, authUserId);
+      const pageSize = 100;
+      const batch = await fetchCarteiraPageClient({
+        empresaId, userId: authUserId, scope: 'empresa', limit: pageSize, offset: listOffset,
+      });
       // Uma exclusão ou reatribuição pode ter invalidado este lote enquanto
       // ele estava em trânsito. Nunca anexar resposta antiga ao snapshot novo.
       if(currentRequestSeq!==listRequestSeq.current)return;
-      const batch = res.cases;
-      setTotalCount(res.totalCount);
       setCases((prev) => {
         const seen = new Set(prev.map((c) => String(c.id || c.protocolo)));
         const merged = [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
@@ -779,7 +770,7 @@ export default function ProcessosEmpresaPage() {
       });
       setListOffset(listOffset + batch.length);
       setVisibleCount((v) => v + batch.length);
-      setHasServerMore(res.hasMore);
+      setHasServerMore(batch.length === pageSize);
     } catch (error) {
       toast({ title: 'Falha ao carregar mais processos',
         description: error instanceof Error ? error.message : 'Tente novamente',
@@ -793,7 +784,7 @@ export default function ProcessosEmpresaPage() {
   const showMore = async (extra: number) => {
     const nextVis = Math.min(visibleCount + extra, filtered.length + extra);
     setVisibleCount(nextVis);
-    if (cases.length < (totalCount || 99999) && hasServerMore) {
+    if (hasServerMore) {
       await loadMoreFromServer();
     }
   };
@@ -825,12 +816,12 @@ export default function ProcessosEmpresaPage() {
         {/* Scanner UI is lazy-mounted globally only on user request. */}
 
         <div data-lexis-processos-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          {totalCount > 0 && (
+          {indicadoresErro && <p role="status" className="px-5 pt-2 text-xs text-destructive">{indicadoresErro}</p>}
+          {totalCount !== null && (
             <p data-lexis-processos-scope className="px-5 pt-2 text-[11px] text-muted-foreground" role="status">
               Carteira de toda a empresa: <strong>{totalCount.toLocaleString('pt-BR')}</strong> processos de todos os responsáveis ·
               {' '}{cases.length.toLocaleString('pt-BR')} carregados nesta aba. A busca consulta também os demais registros.
               {indicadoresAtualizadosEm?<span className="ml-2">· Indicadores consultados em {new Date(indicadoresAtualizadosEm).toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>:null}
-              {indicadoresErro?<span className="ml-2 text-red-600">· {indicadoresErro}</span>:null}
               {atendidosSemanaSrv!==null ? <> · <strong>{atendidosSemanaSrv}</strong> processos com atendimento humano registrado na semana (todos os responsáveis)</> : null}
             </p>
           )}
@@ -851,7 +842,7 @@ export default function ProcessosEmpresaPage() {
           </details>
           <ProcessosCommandCenter
             items={filtered}
-            totalCount={totalCount || cases.length}
+            totalCount={totalCount}
             ativosCount={ativosCount ?? 0}
             encerradosCount={encerradosCount ?? 0}
             vencidosCount={vencidosCount ?? 0}
@@ -888,14 +879,14 @@ export default function ProcessosEmpresaPage() {
                   ? "Scanner local em execução"
                   : "Atualizar DataJud"
             }
-            onCreateProcess={() => {
+            onCreateProcess={async () => {
               // The server-side search hook has its own result cache; refresh it
               // separately from the paginated portfolio after a new insert.
               setSearchRefreshKey((current) => current + 1);
-              void load(true).then(() => {
-                try { localStorage.setItem("lexis_carteira_invalidation_v1", String(Date.now())); } catch {}
-                window.dispatchEvent(new Event("lexis-carteira-updated"));
-              });
+              invalidateFastCarteiraCache();
+              invalidateCarteiraCache();
+              window.dispatchEvent(new Event("lexis-carteira-updated"));
+              await load(true);
             }}
             canManageItem={canManageItem}
             initialProcesso={directProcess}

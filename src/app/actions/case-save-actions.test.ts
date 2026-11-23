@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   patches: [] as any[],
   conditions: [] as Array<[string, unknown]>,
   writeError: false,
+  insertResult: { data: { id: 'created-1' }, error: null } as any,
   conflict: false,
   audit: vi.fn(),
   mirror: vi.fn(),
@@ -24,14 +25,16 @@ vi.mock('@/lib/server-db', () => ({
   logAuditoriaSistema: state.audit,
   getSupabaseAdmin: async () => ({ from: () => {
     let updating = false;
+    let inserting = false;
     const query: any = {
       select: () => query,
       eq: (key: string, value: unknown) => { state.conditions.push([key, value]); return query; },
       order: () => query,
       limit: () => query,
       update: (patch: any) => { updating = true; state.patches.push(patch); return query; },
+      insert: (patch: any) => { inserting = true; state.patches.push(patch); return query; },
       maybeSingle: () => query,
-      then: (resolve: any, reject: any) => Promise.resolve(updating
+      then: (resolve: any, reject: any) => Promise.resolve(inserting ? state.insertResult : updating
         ? { data: state.conflict ? null : { id: 'row-1' }, error: state.writeError ? { message: 'write failed' } : null }
         : { data: state.row ? [state.row] : [], error: null }).then(resolve, reject),
     };
@@ -39,17 +42,44 @@ vi.mock('@/lib/server-db', () => ({
   } }),
 }));
 vi.mock('@/lib/hybrid/sheets-server', () => ({ sheetsServerPost: vi.fn(), sheetsWebhookConfigured: () => true, mirrorAtendimento: state.mirror }));
-import { registrarAtendimentoCompletoAction } from './case-save-actions';
+import { createOneCaseAction, registrarAtendimentoCompletoAction } from './case-save-actions';
+import type { LegalCase } from '@/lib/case-logic';
 
 beforeEach(() => {
   state.row = { id: 'row-1', protocolo_ref: '1000000-12.2026.8.26.0100', empresa_id: 'empresa-1', created_by: 'operador-2', cliente: 'Cliente', updated_at: '2026-09-01T12:00:00Z', proximo_retorno: '2026-09-15', dados: { situacao: 'EM ANDAMENTO' } };
   state.patches = []; state.conditions = []; state.conflict = false; state.writeError = false;
+  state.insertResult = { data: { id: 'created-1' }, error: null };
   state.context.isViewer = false;
   state.context.cargo = 'Supervisor';
   state.context.isSupervisor = true;
   state.context.isSuperAdmin = false;
   state.audit.mockReset(); state.mirror.mockReset();
   state.mirror.mockResolvedValue({ attempted: true, ok: false, reason: 'Planilha indisponível' });
+});
+
+describe('Criação de processo', () => {
+  const input = { protocolo: '1005530-76.2024.8.26.0082', cliente: 'Cliente sintético' } as LegalCase;
+
+  beforeEach(() => { state.row = null; });
+
+  it('devolve a identidade persistida e usa o vínculo autenticado', async () => {
+    const result = await createOneCaseAction({ ...input, id: 'tmp-local' });
+    expect(result).toMatchObject({ success: true, case: { id: 'created-1', db_id: 'created-1' } });
+    expect(state.patches[0]).toMatchObject({ empresa_id: 'empresa-1', created_by: 'supervisor-1' });
+  });
+
+  it('não confirma criação nem registra auditoria quando o banco não retorna a linha', async () => {
+    state.insertResult = { data: null, error: null };
+    expect(await createOneCaseAction(input)).toMatchObject({ success: false });
+    expect(state.audit).not.toHaveBeenCalled();
+  });
+
+  it('trata cadastro concorrente da mesma empresa como duplicidade', async () => {
+    state.insertResult = { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "processos_protocolo_ref_empresa_unique"' } };
+    expect(await createOneCaseAction(input)).toMatchObject({ success: false, message: 'Processo já cadastrado na carteira.' });
+    expect(state.audit).not.toHaveBeenCalled();
+    expect(state.patches).toHaveLength(1);
+  });
 });
 
 describe('Gravação do atendimento', () => {
