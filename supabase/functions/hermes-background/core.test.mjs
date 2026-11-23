@@ -45,4 +45,8 @@ test('mescla provas sem perder historico salvo em falha de rede', () => {
   const merged=mergeEvents(old,[],[],100);
   assert.deepEqual(merged,old);
   assert.equal(mergeEvents(old,old,[],100).length,1);
+  const legacy=[{at:'2026-11-02',text:'Intimação anterior',source:'DJEN',url:null}];
+  assert.deepEqual(mergeEvents(legacy,[],[],100),legacy);
+  const again=mergeEvents(legacy,[],legacy,100);
+  assert.equal(again.length,1);
 });
