@@ -59,8 +59,8 @@ async function refreshPublicDataJudKey():Promise<string|null>{
     });
     if(!response.ok)return null;
     const html=(await response.text()).slice(0,300000);
-    const match=html.match(/Authorization:\\s*APIKey\\s+([A-Za-z0-9_+=/-]{30,})/i)||
-      html.match(/APIKey\\s+([A-Za-z0-9_+=/-]{30,})/i);
+    const match=html.match(/Authorization:\s*APIKey\s+([A-Za-z0-9_+=/-]{30,})/i)||
+      html.match(/APIKey\s+([A-Za-z0-9_+=/-]{30,})/i);
     return match?.[1]||null;
   }catch{return null}
 }
