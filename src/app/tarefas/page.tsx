@@ -189,7 +189,6 @@ function TarefasPageLegacy() {
   const [somenteMeta, setSomenteMeta] = useState(false);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
-  const [backlogVisible,setBacklogVisible] = useState(24);
   
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
@@ -955,6 +954,12 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
     rootSelector:"[data-lexis-tarefas-scroll]",
     resetKey:[filaFiltro,searchDebounced,officeFilter,lawyerFilter,sortPrazo,somenteMeta,soMeusHoje,contatadosHoje.join(",")].join("|"),
   });
+  const {visibleCount:backlogVisible,sentinelRef:backlogSentinelRef,showAll:showAllBacklog}=useAutoLoadMore(taskData.backlog.length,{
+    initialCount:48,
+    step:48,
+    rootSelector:"[data-lexis-tarefas-scroll]",
+    resetKey:[filaFiltro,searchDebounced,officeFilter,lawyerFilter,sortPrazo,somenteMeta].join("|"),
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1237,12 +1242,29 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
             )}
           </div>
 
-          {!somenteMeta && taskData.backlog.length > 0 && (
+          {somenteMeta && taskData.backlog.length > 0 && (
             <div className="space-y-4 pt-10 border-t border-border/30">
-               <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">{showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>} Ver Backlog ({taskData.backlog.length})</Button>
-               {showBacklog && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {taskData.backlog.slice(0,backlogVisible).map((group) => <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendanceForGroup(group)} onEdit={()=>setEditingTask(group.cases.find(c=>c.protocolo===group.protocoloReferencia)||group.cases[0]||null)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />)}</div>}
-               {showBacklog&&taskData.backlog.length>backlogVisible?<Button type="button" variant="outline" onClick={()=>setBacklogVisible(v=>v+24)}>Mostrar mais 24 do backlog ({taskData.backlog.length-backlogVisible} restantes)</Button>:null}
+              <Button variant="ghost" onClick={() => setShowBacklog(!showBacklog)} className="h-10 px-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground rounded-xl">
+                {showBacklog ? <ChevronUp size={16} className="mr-2"/> : <ChevronDown size={16} className="mr-2"/>}
+                Ver backlog ({taskData.backlog.length})
+              </Button>
+              {showBacklog && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {taskData.backlog.slice(0,backlogVisible).map((group) => (
+                      <TaskCard key={group.cliente} group={group} onMarkContacted={() => openAttendanceForGroup(group)} onEdit={()=>setEditingTask(group.cases.find(c=>c.protocolo===group.protocoloReferencia)||group.cases[0]||null)} onScan={handleSingleScan} onSuggest={() => handleSuggestClick(group.protocoloReferencia, group.cliente, group.cases[0]?.ultimoRetorno || null)} />
+                    ))}
+                  </div>
+                  {backlogVisible<taskData.backlog.length && (
+                    <div ref={backlogSentinelRef} role="status" className="flex flex-col items-center gap-2 py-4 text-center">
+                      <span className="text-[10px] text-muted-foreground">Os próximos itens do backlog aparecem automaticamente ao rolar.</span>
+                      <Button type="button" variant="outline" className="rounded-full h-10 px-6 text-[10px] font-black uppercase tracking-wider" onClick={showAllBacklog}>
+                        Mostrar todo o backlog ({taskData.backlog.length})
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
