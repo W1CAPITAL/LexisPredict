@@ -2,7 +2,8 @@ import { describe,expect,it,vi } from 'vitest';
 import {readDesktopHistorico,readDesktopRelatorio,readDesktopSupervisao} from './desktop-analytics-snapshot';
 
 const tenant='d37fd4bb-1c71-4dca-b97e-292355918d39';
-const rpc=(data:unknown,error:unknown=null)=>vi.fn(async()=>({data,error}));
+const rpc=(data:unknown,error:{message?:string;code?:string}|null=null)=>
+ vi.fn(async (_name:string,_args:Record<string,unknown>)=>({data,error}));
 
 describe('KPIs do LexisPredict desktop sem chave administrativa',()=>{
  it('usa RPC que deriva empresa do JWT, sem aceitar empresa do cliente',async()=>{
@@ -22,7 +23,7 @@ describe('KPIs do LexisPredict desktop sem chave administrativa',()=>{
  it('relatório restrito recebe owner e evita RPCs diretas bloqueadas',async()=>{
   const mock=rpc({empresa_id:tenant,portfolio:{total:2734},historico:{dias:[]},merito:{},retorno:{}});
   const data=await readDesktopRelatorio({rpc:mock},tenant,'mes',null);
-  expect(data.portfolio.total).toBe(2734);
+  expect((data.portfolio as Record<string,unknown>).total).toBe(2734);
   expect(mock).toHaveBeenCalledWith('lexis_desktop_relatorio_snapshot',{p_periodo:'mes',p_owner:null});
  });
  it('supervisão recusa snapshot de tenant errado e dados indisponíveis',async()=>{
@@ -34,7 +35,7 @@ describe('KPIs do LexisPredict desktop sem chave administrativa',()=>{
  it('supervisão autorizada recupera carteira e produtividade em uma RPC',async()=>{
   const mock=rpc({empresa_id:tenant,carteira:{total:2734},atividade:{timeline:[]},status:{}});
   const data=await readDesktopSupervisao({rpc:mock},tenant,'esta_semana');
-  expect(data.carteira.total).toBe(2734);
+  expect((data.carteira as Record<string,unknown>).total).toBe(2734);
   expect(mock).toHaveBeenCalledWith('lexis_desktop_supervisao_snapshot',{p_periodo:'esta_semana'});
  });
 });
