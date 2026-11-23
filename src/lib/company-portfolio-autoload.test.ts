@@ -51,4 +51,19 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   expect(query).toContain(".order('id', { ascending: false })");
   expect(query).toContain(".range(offset, offset + limit - 1)");
  });
+ it('as telas operacionais não escondem a carteira atrás de páginas manuais',()=>{
+  const processos=readFileSync(new URL('../components/processos/processos-command-center.tsx',import.meta.url),'utf8');
+  const tarefas=readFileSync(new URL('../app/tarefas/page.tsx',import.meta.url),'utf8');
+  const vencidos=readFileSync(new URL('../components/vencidos/vencidos-panel.tsx',import.meta.url),'utf8');
+  const supervisao=readFileSync(new URL('../app/supervisao/page.tsx',import.meta.url),'utf8');
+  expect(processos).toContain('useAutoLoadMore');
+  expect(processos).not.toContain('const PAGE = props.query.trim().length >= 2 ? 200 : 10;');
+  expect(tarefas).toContain('return <TarefasPageLegacy/>;');
+  expect(tarefas).toContain('somenteMeta ? dailyMeta : pending.length');
+  expect(tarefas).toContain('useAutoLoadMore');
+  expect(vencidos).toContain('useAutoLoadMore');
+  expect(supervisao).toContain('useAutoLoadMore');
+  expect(supervisao).not.toContain('Ver mais processos (');
+ });
+
 });
