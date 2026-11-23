@@ -55,7 +55,7 @@ import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import { useDataJudScanStore } from "@/store/use-datajud-scan-store";
 import {loadExperiencePrefs,type ExperiencePreferences} from '@/lib/experience-prefs';
 import {matchesAppRouteSearch} from '@/lib/app-route-search';
-import { selectPrimaryNavigationItems } from "@/lib/primary-navigation";
+import { getPrimaryNavigationLabel, selectPrimaryNavigationItems } from "@/lib/primary-navigation";
 
 type NavItem = {
   label: string;
@@ -493,7 +493,7 @@ export function SidebarVertical() {
                 )}
               >
                 <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-[#F5F2F4]" : "text-[#C9BDC5] group-hover:text-white")} />
-                <span data-lexis-nav-label className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span data-lexis-nav-label className="min-w-0 flex-1 truncate">{getPrimaryNavigationLabel(item.href, item.label)}</span>
               </Link>
             );
           })}
@@ -503,10 +503,10 @@ export function SidebarVertical() {
             onClick={handleOpenScanner}
             data-lexis-nav-cta
             title={railCollapsed ? "Atualizar tribunal" : undefined}
-            className="group mt-2 flex h-12 w-full items-center gap-3 rounded-xl border border-[#C9BDC5]/35 bg-[linear-gradient(135deg,rgba(138,46,80,.28),rgba(201,189,197,.11))] px-3.5 text-left text-[13px] font-bold text-white shadow-[inset_0_0_0_1px_rgba(201,189,197,.13),0_8px_20px_rgba(0,0,0,.10)] transition hover:border-[#EDE9ED]/60 hover:bg-[linear-gradient(135deg,rgba(138,46,80,.38),rgba(201,189,197,.18))]"
+            className="group mt-2 flex h-10 w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[.04] px-3.5 text-left text-[12px] font-semibold text-[#EDE9ED] transition hover:bg-white/[.08]"
             aria-label="Abrir Scanner DataJud e DJEN"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#997183]/40 bg-[#250D18] text-[#E7DDE3] shadow-[0_0_18px_rgba(138,46,80,.24)]">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[.08] text-[#EDE9ED]">
               <Zap className="h-4 w-4" />
             </span>
             <span data-lexis-nav-label className="min-w-0 flex-1">
@@ -536,13 +536,6 @@ export function SidebarVertical() {
       </nav>
 
       <div className="shrink-0 px-4 pb-4">
-        <div data-lexis-nav-footer-message className="rounded-xl border border-white/10 bg-white/[.06] p-4">
-          <p className="text-[12px] font-semibold leading-relaxed text-white">
-            Inteligência jurídica
-            <br />
-            para resultados reais.
-          </p>
-        </div>
         <div className="mt-4 flex items-center justify-between px-1 text-[11px] text-[#AFA1A9]">
           <span data-lexis-nav-label>v1.2.0</span>
           <button
@@ -729,23 +722,6 @@ export function SidebarVertical() {
               <BookOpen className="h-4 w-4" />
               Aprender o app em 3 minutos
             </button>
-            <button
-              type="button"
-              onPointerDown={() => prefetchRoute("/dossies")}
-              onClick={() => navigateMobile("/dossies")}
-              data-lexis-mobile-menu-feature
-              className="mt-2 flex min-h-14 w-full touch-manipulation items-center gap-3 rounded-xl border border-[#C9BDC5] bg-[linear-gradient(135deg,#EDE9ED,#f8fbff)] px-3 py-2 text-left text-[#6D1734] shadow-sm"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#6D1734] text-white">
-                <BookOpen className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-black">Dossiês por IA</span>
-                <span className="mt-0.5 block text-[12px] font-semibold leading-snug text-[#60555C]">
-                  PDF, Excel, processo, mensagens ou contexto em um único chat.
-                </span>
-              </span>
-            </button>
             <label data-lexis-mobile-menu-search className="mt-3 flex h-11 items-center gap-2 rounded-xl border border-[#C5BAC1] bg-[#F4F3F5] px-3">
               <Search className="h-4 w-4 text-[#60555C]" />
               <input
@@ -799,7 +775,7 @@ export function SidebarVertical() {
                   return (
                     <details
                       key={group.id}
-                      open={index === 0}
+                      open={false}
                       data-lexis-mobile-menu-group
                       className="group overflow-hidden rounded-2xl border border-[#C5BAC1] bg-white"
                     >
