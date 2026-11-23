@@ -24,7 +24,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { resolveRole, canOperateCompanyCases } from "@/lib/roles";
 import { registrarAuditoriaEventAction, registrarAtendimentoAction, registrarAtendimentoCompletoAction } from "@/app/actions/case-actions";
 import { invalidateFastCarteiraCache } from '@/lib/fast-carteira-client';
-import { fetchCarteiraPageClient } from '@/lib/carteira-fetch-client';
+import { fetchCarteiraAllClient } from '@/lib/carteira-fetch-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import {reconcileCompanyPage} from "@/lib/processos-page-reconcile";
@@ -223,10 +223,8 @@ export default function ProcessosEmpresaPage() {
     filaLista: "normal" as FilaLista,
   });
   const [visibleCount, setVisibleCount] = useState(24);
-  const [listOffset, setListOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [onlyAtivosList, setOnlyAtivosList] = useState(false);
-  const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
   const listRequestSeq=useRef(0);
   const lastCarteiraSyncAt=useRef(0);
@@ -234,46 +232,71 @@ export default function ProcessosEmpresaPage() {
 
   const load = async (force = false) => {
     if (!empresaId || !authUserId) return;
-    const seq=++listRequestSeq.current;
+    const seq = ++listRequestSeq.current;
+    const active = () => seq === listRequestSeq.current;
     setCarteiraError('');
     const previous = peekCarteiraCache(empresaId, 'empresa', authUserId, 'processos-empresa');
     if (!force && previous?.cases?.length) {
       setCases(previous.cases as LegalCase[]);
-      setListOffset(previous.cases.length);
+      casesRef.current = previous.cases as LegalCase[];
       setLoading(false);
-    } else if(!force || !casesRef.current.length) {
+    } else if (force || !casesRef.current.length) {
       setLoading(true);
     }
+    // Primeiro lote libera a tela; depois, a carteira inteira é carregada
+    // automaticamente em pacotes leves, sem clique e sem JSON "dados".
+    setLoadingMore(true);
     try {
-      const pageSize = FIRST_PROCESSES_PAGE_LIMIT;
-      const rows = await fetchCarteiraPageClient({
-        empresaId, userId: authUserId, scope: 'empresa', limit: pageSize, offset: 0, force,
+      const all = await fetchCarteiraAllClient({
+        empresaId, userId: authUserId, scope:'empresa',
+        firstPageSize: FIRST_PROCESSES_PAGE_LIMIT,
+        pageSize: 200, maxRows: 10000, force,
+        shouldContinue: active,
+        onPage: (partial, page) => {
+          if(!active()) return;
+          // Evita recalcular todos os KPIs/renderizar milhares de itens a cada
+          // pacote. Somente primeira página e blocos de ~600 registros.
+          if(page !== 0 && page % 3 !== 0) return;
+          const shown = !force && page === 0 && previous?.cases?.length
+            ? reconcileCompanyPage(partial, casesRef.current,
+                previous.cases as LegalCase[], false)
+            : partial;
+          casesRef.current = shown;
+          setCases(shown);
+          lastCarteiraSyncAt.current = Date.now();
+          writeCarteiraCache(shown, empresaId, 'empresa', authUserId,'processos-empresa',false);
+          setLoading(false);
+        },
+        onError: error => {
+          if(active())setCarteiraError(error instanceof Error
+            ? 'Carteira parcialmente carregada: '+error.message
+            : 'Carteira parcialmente carregada: falha na consulta.');
+        },
       });
-      if(seq!==listRequestSeq.current)return; // resposta antiga não pode repor lista obsoleta
-      // Preservar paginas ja carregadas sem duplicar CNJs. A primeira pagina
-      // revalidada fica antes das demais, inclusive apos mudar de aba.
-      const merged=reconcileCompanyPage(
-        rows,casesRef.current,(previous?.cases||[]) as LegalCase[],force || rows.length < pageSize
-      );
-      casesRef.current=merged;
-      lastCarteiraSyncAt.current=Date.now();
-      setCases(merged);
-      setListOffset(merged.length);
-      writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
-      setHasServerMore(rows.length === pageSize);
-      if (!force) setOnlyAtivosList(false);
-    } catch (error) {
-      if(seq!==listRequestSeq.current)return;
-      setCarteiraError(error instanceof Error ? error.message : 'O servidor não respondeu.');
+      if (!active()) return;
+      const incomplete = (all as LegalCase[] & {__incomplete?:boolean}).__incomplete === true;
+      casesRef.current = all;
+      setCases(all);
+      lastCarteiraSyncAt.current = Date.now();
+      // Nunca marcar uma carteira parcial como completa no cache.
+      writeCarteiraCache(all,empresaId,'empresa',authUserId,'processos-empresa',!incomplete);
+      if(incomplete) setCarteiraError('A consulta foi interrompida. Os processos já encontrados continuam disponíveis; use Atualizar para tentar novamente.');
+      else setCarteiraError('');
+    } catch(error) {
+      if(!active())return;
+      setCarteiraError(error instanceof Error?error.message:'O servidor não respondeu.');
       if (!previous?.cases?.length && !casesRef.current.length) {
         toast({
           title: 'Erro ao carregar carteira da empresa',
-          description: error instanceof Error ? error.message : 'O servidor não respondeu.',
-          variant: 'destructive',
+          description: error instanceof Error?error.message:'O servidor não respondeu.',
+          variant:'destructive'
         });
       }
     } finally {
-      if(seq===listRequestSeq.current)setLoading(false);
+      if(active()){
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -573,7 +596,6 @@ export default function ProcessosEmpresaPage() {
       const next=casesRef.current.filter(x=>String(x.id)!==String(c.id)&&String(x.protocolo)!==String(c.protocolo));
       casesRef.current=next;
       setCases(next);
-      setListOffset(next.length);
       setTotalCount(n=>n===null?null:Math.max(0,n-1));
       invalidateFastCarteiraCache();
       invalidateCarteiraCache();
@@ -756,43 +778,10 @@ export default function ProcessosEmpresaPage() {
   const remaining = filtered.length - visibleCount;
 
   
-  const loadMoreFromServer = async () => {
-    if (loadingMore || !hasServerMore) return;
-    const currentRequestSeq=listRequestSeq.current;
-    setLoadingMore(true);
-    try {
-      const pageSize = 100;
-      const batch = await fetchCarteiraPageClient({
-        empresaId, userId: authUserId, scope: 'empresa', limit: pageSize, offset: listOffset,
-      });
-      // Uma exclusão ou reatribuição pode ter invalidado este lote enquanto
-      // ele estava em trânsito. Nunca anexar resposta antiga ao snapshot novo.
-      if(currentRequestSeq!==listRequestSeq.current)return;
-      setCases((prev) => {
-        const seen = new Set(prev.map((c) => String(c.id || c.protocolo)));
-        const merged = [...prev, ...batch.filter((c) => !seen.has(String(c.id || c.protocolo)))];
-        writeCarteiraCache(merged, empresaId, 'empresa', authUserId, 'processos-empresa');
-        return merged;
-      });
-      setListOffset(listOffset + batch.length);
-      setVisibleCount((v) => v + batch.length);
-      setHasServerMore(batch.length === pageSize);
-    } catch (error) {
-      toast({ title: 'Falha ao carregar mais processos',
-        description: error instanceof Error ? error.message : 'Tente novamente',
-        variant: 'destructive' });
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  /** Ver mais: sempre tenta servidor se ainda há carteira além do carregado */
-  const showMore = async (extra: number) => {
-    const nextVis = Math.min(visibleCount + extra, filtered.length + extra);
-    setVisibleCount(nextVis);
-    if (hasServerMore) {
-      await loadMoreFromServer();
-    }
+  // Botões de visualização só controlam o número de linhas exibidas.
+  // Os demais registros da empresa já estão chegando automaticamente.
+  const showMore = (extra: number) => {
+    setVisibleCount(v => Math.min(v + extra, filtered.length));
   };
   const showAll = () => setVisibleCount(filtered.length);
   const showLess = () => setVisibleCount(PAGE_SIZE);
@@ -870,9 +859,8 @@ export default function ProcessosEmpresaPage() {
               try{localStorage.setItem("lexis_carteira_invalidation_v1",String(Date.now()));}catch{}
               window.dispatchEvent(new Event("lexis-carteira-updated"));
             })}
-            hasMore={hasServerMore && !hasSearch}
+            hasMore={false}
             loadingMore={loadingMore}
-            onLoadMore={loadMoreFromServer}
             canScan={canRodarEmpresa}
             onScan={canRodarEmpresa ? () => {
               window.dispatchEvent(new Event('lexis-need-scanner'));
