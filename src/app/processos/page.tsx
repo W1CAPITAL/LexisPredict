@@ -28,6 +28,7 @@ import { fetchCarteiraPageClient } from '@/lib/carteira-fetch-client';
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { peekCarteiraCache, writeCarteiraCache, invalidateCarteiraCache } from "@/lib/session-carteira-cache";
 import {reconcileCompanyPage} from "@/lib/processos-page-reconcile";
+import { FIRST_PROCESSES_PAGE_LIMIT, shouldRefreshCompanyProcesses } from "@/lib/processos-refresh-policy";
 import { saveOneCaseAction, deleteOneCaseAction } from "@/app/actions/case-save-actions";
 import { ReassignOwnerControl } from "@/components/cases/reassign-owner-control";
 import { countAtendidosNestaSemana, labelSemanaAtual, getTopAtendentes, hojeBrasilYmd, isAtendidoHoje, isAtendidoNestaSemana } from '@/lib/atendimento-semana';
@@ -179,8 +180,10 @@ export default function ProcessosEmpresaPage() {
   const [indicadoresAtualizadosEm,setIndicadoresAtualizadosEm]=useState<string>("");
   const [indicadoresErro,setIndicadoresErro]=useState<string>("");
   const indicadoresRequestSeq=useRef(0);
+  const lastIndicadoresSyncAt=useRef(0);
   const [atendidosSemanaSrv, setAtendidosSemanaSrv] = useState<number|null>(null);
   const [historicoEquipeSrv,setHistoricoEquipeSrv]=useState<AtendimentosHistorico|null>(null);
+  const [teamDetailsOpen,setTeamDetailsOpen]=useState(false);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<{ auth_user_id: string; nome: string; avatar_url?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,6 +229,7 @@ export default function ProcessosEmpresaPage() {
   const [hasServerMore, setHasServerMore] = useState(true);
   const PAGE_SIZE = 24;
   const listRequestSeq=useRef(0);
+  const lastCarteiraSyncAt=useRef(0);
   const pendingCrossTabRefresh=useRef(false);
 
   const load = async (force = false) => {
@@ -241,7 +245,7 @@ export default function ProcessosEmpresaPage() {
       setLoading(true);
     }
     try {
-      const pageSize = 60;
+      const pageSize = FIRST_PROCESSES_PAGE_LIMIT;
       const rows = await fetchCarteiraPageClient({
         empresaId, userId: authUserId, scope: 'empresa', limit: pageSize, offset: 0, force,
       });
@@ -252,6 +256,7 @@ export default function ProcessosEmpresaPage() {
         rows,casesRef.current,(previous?.cases||[]) as LegalCase[],force || rows.length < pageSize
       );
       casesRef.current=merged;
+      lastCarteiraSyncAt.current=Date.now();
       setCases(merged);
       setListOffset(merged.length);
       writeCarteiraCache(merged,empresaId,'empresa',authUserId,'processos-empresa');
@@ -289,6 +294,7 @@ export default function ProcessosEmpresaPage() {
       setAtivosCount(json.indicadores.ativos);
       setEncerradosCount(json.indicadores.encerrados);
       setVencidosCount(json.indicadores.vencidos);
+      lastIndicadoresSyncAt.current=Date.now();
       setIndicadoresAtualizadosEm(String(json.consultadoEm||new Date().toISOString()));
       setIndicadoresErro("");
     }catch(error){
@@ -302,10 +308,10 @@ export default function ProcessosEmpresaPage() {
     if(!empresaId||!authUserId)return;
     void refreshIndicadores();
     const changed=()=>{void refreshIndicadores();};
-    const focused=()=>{if(!document.hidden)void refreshIndicadores();};
+    const focused=()=>{if(!document.hidden&&Date.now()-lastIndicadoresSyncAt.current>=120_000)void refreshIndicadores();};
     window.addEventListener("lexis-carteira-updated",changed);
     window.addEventListener("focus",focused);
-    const interval=window.setInterval(()=>{if(!document.hidden)void refreshIndicadores();},20_000);
+    const interval=window.setInterval(()=>{if(!document.hidden)void refreshIndicadores();},120_000);
     return()=>{
       indicadoresRequestSeq.current++;
       window.removeEventListener("lexis-carteira-updated",changed);
@@ -373,7 +379,7 @@ export default function ProcessosEmpresaPage() {
     };
     const refresh=()=>{
       if(pendingCrossTabRefresh.current) schedule();
-      else if(!blocked())void load(true);
+      else if(!blocked()&&shouldRefreshCompanyProcesses(lastCarteiraSyncAt.current))void load(true);
     };
     const onVisible=()=>{if(!document.hidden&&pendingCrossTabRefresh.current)schedule();};
     const onFocus=()=>refresh();
@@ -392,7 +398,7 @@ export default function ProcessosEmpresaPage() {
   },[empresaId,authUserId,editOpen,attendingOpen,saving,attendanceSaving]);
 
   useEffect(()=>{
-    if(!empresaId||!authUserId)return;
+    if(!empresaId||!authUserId||!teamDetailsOpen)return;
     let active=true;
     const atualizar=()=>{
       void import("@/app/actions/atendimentos-historico-actions").then(m=>m.getAtendimentosHistoricoAction("esta_semana"))
@@ -408,9 +414,9 @@ export default function ProcessosEmpresaPage() {
     atualizar();
     window.addEventListener("lexis-carteira-updated",atualizar);
     window.addEventListener("focus",atualizar);
-    const interval=window.setInterval(()=>{if(!document.hidden)atualizar();},60_000);
+    const interval=window.setInterval(()=>{if(!document.hidden)atualizar();},180_000);
     return()=>{active=false;window.removeEventListener("lexis-carteira-updated",atualizar);window.removeEventListener("focus",atualizar);window.clearInterval(interval);};
-  },[empresaId,authUserId]);
+  },[empresaId,authUserId,teamDetailsOpen]);
 
   // Em outros perfis o contexto pode chegar apos a montagem do componente.
   useEffect(() => {
@@ -833,12 +839,12 @@ export default function ProcessosEmpresaPage() {
           {/* These operational details are different measures from the portfolio
               overview; keep both, but do not force the user to scroll through a
               second KPI wall before reaching the process table. */}
-          <details data-lexis-processos-team className="mx-3 mb-3 sm:mx-5">
+          <details data-lexis-processos-team className="mx-3 mb-3 sm:mx-5" onToggle={event=>setTeamDetailsOpen(event.currentTarget.open)}>
             <summary className="cursor-pointer select-none">Atendimento e atividades da equipe <span>Indicadores detalhados</span></summary>
-            <div data-lexis-processos-team-content>
+            {teamDetailsOpen && <div data-lexis-processos-team-content>
               <AtendimentosEquipeDiarios historico={historicoEquipeSrv} variant="today" />
               <AtividadesRegistradasKpi />
-            </div>
+            </div>}
           </details>
           <ProcessosCommandCenter
             items={filtered}
