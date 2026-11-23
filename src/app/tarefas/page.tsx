@@ -958,7 +958,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
     initialCount:48,
     step:48,
     rootSelector:"[data-lexis-tarefas-scroll]",
-    resetKey:[filaFiltro,searchDebounced,officeFilter,lawyerFilter,sortPrazo,somenteMeta].join("|"),
+    resetKey:[filaFiltro,searchDebounced,officeFilter,lawyerFilter,sortPrazo,somenteMeta,showBacklog].join("|"),
   });
 
   useEffect(() => {
