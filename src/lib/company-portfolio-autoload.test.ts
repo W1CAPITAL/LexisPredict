@@ -50,6 +50,10 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   expect(query).toContain(".order('created_at', { ascending: false })");
   expect(query).toContain(".order('id', { ascending: false })");
   expect(query).toContain(".range(offset, offset + limit - 1)");
+  const allStart=src.indexOf('const fetchPages = async');
+  const allEnd=src.indexOf('return allData;',allStart);
+  const allQuery=src.slice(allStart,allEnd);
+  expect(allQuery).toContain('.order("id", { ascending: false })');
  });
  it('as telas operacionais não escondem a carteira atrás de páginas manuais',()=>{
   const processos=readFileSync(new URL('../components/processos/processos-command-center.tsx',import.meta.url),'utf8');
