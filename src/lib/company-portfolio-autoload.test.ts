@@ -46,6 +46,9 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   const src=readFileSync(new URL('server-db.ts',import.meta.url),'utf8');
   const start=src.indexOf('export async function getStoredCasesPageForEmpresa(');
   const end=src.indexOf('export async function listKnowledgeDocs',start);
-  expect(src.slice(start,end)).toMatch(/\.order\('created_at',[^\n]*\)\s*\.order\('id',[^\n]*\)\s*\.range\(/);
+  const query=src.slice(start,end);
+  expect(query).toContain(".order('created_at', { ascending: false })");
+  expect(query).toContain(".order('id', { ascending: false })");
+  expect(query).toContain(".range(offset, offset + limit - 1)");
  });
 });
