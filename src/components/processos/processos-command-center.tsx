@@ -408,8 +408,8 @@ export function ProcessosCommandCenter(props: Props) {
   const [focusPreset,setFocusPreset]=React.useState<FocusPreset>("all");
   const [oabResult,setOabResult]=React.useState<OabResult|null>(null);
   const [advancedFiltersOpen,setAdvancedFiltersOpen]=React.useState(false);
-  const [metricsOpen,setMetricsOpen]=React.useState(false);
-  const [insightsOpen,setInsightsOpen]=React.useState(false);
+  const [metricsOpen,setMetricsOpen]=React.useState(true);
+  const [insightsOpen,setInsightsOpen]=React.useState(true);
 
   const tribunais = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [sourceItems]);
   const classes = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [sourceItems]);
