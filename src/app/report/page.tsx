@@ -30,6 +30,10 @@ type EncerramentosResumo={
  testesAdministrativos:number;testesSemReversao:number;testesRevertidos:number;
  porUsuario:Array<{userId:string;nome:string;processos:number;eventos:number;permanecemEncerrados:number}>;
 };
+type DesktopAtividadesRegistradas={
+ total:number;
+ porResponsavel:Array<{userId:string;registros:number;processos:number;contatosMarcados:number;semReferencia:number}>;
+};
 type TrabalhoInternoResumo={
  registros:number;processosDistintos:number;comContatoConfirmado:number;testes:number;testesRevertidos:number;
  porCategoria:Array<{categoria:string;registros:number;processos:number}>;
@@ -54,6 +58,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  // autenticada que resolve tenant/escopo no banco, sem ampliar privilégios.
  const desktopReport=!process.env.SUPABASE_SERVICE_ROLE_KEY
   ?await readDesktopRelatorio(db,empresaId,periodo,owner):null;
+ const desktopAtividades=desktopReport?.atividadesRegistradas as DesktopAtividadesRegistradas|undefined;
  if(desktopReport&&canViewTeam&&(!desktopReport.equipe||!desktopReport.trabalho||!desktopReport.encerramentos))
   throw new Error('Relatório de equipe incompleto. A sessão precisa de Supervisor ou Superadmin.');
  const fromDesktop=(value:unknown)=>Promise.resolve({data:value,error:null});
@@ -69,8 +74,10 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   desktopReport?fromDesktop(desktopReport.trabalho):db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   desktopReport?fromDesktop(desktopReport.equipe):db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
   desktopReport?fromDesktop(desktopReport.desfechos):db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
-  getAtividadesRegistradasCount(empresaId,owner),
-  canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null),
+  desktopReport?Promise.resolve(Number(desktopAtividades?.total??0)):getAtividadesRegistradasCount(empresaId,owner),
+  desktopReport
+   ?Promise.resolve(canViewTeam?Object.fromEntries((desktopAtividades?.porResponsavel??[]).map(item=>[item.userId,item])):null)
+   :canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null),
   getReportIdentity()
  ]);
  const hist:AtendimentosHistorico|null=historyResult.status==="fulfilled"?historyResult.value:null;
