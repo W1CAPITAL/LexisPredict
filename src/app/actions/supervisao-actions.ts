@@ -176,7 +176,7 @@ export async function getSupervisaoSnapshotAction(
     desktopSupervisao?fromDesktop(desktopSupervisao.status):db.rpc('lexis_supervisao_status_por_protocolo',{p_empresa:ctx.empresa_id}),
     getHistoricoAtendimentosEmpresa(ctx.empresa_id,periodo),
     desktopSupervisao?Promise.resolve(desktopSupervisao.analises as AnalisesResumo):getResumoAnalisesDaEmpresa(ctx.empresa_id,toYmd(bounds.start),toYmd(bounds.end)),
-    getStoredCasesForEmpresa(ctx.empresa_id,false),
+    getStoredCasesForEmpresa(ctx.empresa_id,false,{companyOperational:true}),
     db.from('usuarios').select('id,auth_user_id,nome').eq('empresa_id',ctx.empresa_id),
     getReportIdentity(),
   ]);
