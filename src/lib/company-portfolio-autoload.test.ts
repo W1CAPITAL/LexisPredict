@@ -63,6 +63,8 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   expect(tarefas).toContain('return <TarefasPageLegacy/>;');
   expect(tarefas).toContain('somenteMeta ? dailyMeta : pending.length');
   expect(tarefas).toContain('useAutoLoadMore');
+  expect(tarefas).toContain('backlogSentinelRef');
+  expect(tarefas).not.toContain('Mostrar mais 24 do backlog');
   expect(vencidos).toContain('useAutoLoadMore');
   expect(supervisao).toContain('useAutoLoadMore');
   expect(supervisao).not.toContain('Ver mais processos (');
