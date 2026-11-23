@@ -37,6 +37,9 @@ export function normalizeDataJud(payload,cnj) {
     date:day(m?.dataHora||m?.data||m?.dataMovimento),
     title:text(m?.nome||m?.movimentoNacional?.nome||m?.descricao||'Movimentação judicial',220),
     description:text(m?.descricao||'',420),
+    at:day(m?.dataHora||m?.data||m?.dataMovimento),
+    text:text(m?.nome||m?.movimentoNacional?.nome||m?.descricao||'Movimentação judicial',350),
+    url:null,
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,40);
   return {found:true,events,latestDay:newest(events)};
 }
@@ -56,14 +59,20 @@ export function normalizeDjen(payload,cnj) {
     date:day(row?.dataDisponibilizacao||row?.data_disponibilizacao||row?.dataPublicacao),
     title:text(row?.tipoComunicacao||row?.tipo||'Publicação judicial',180),
     description:text(row?.texto||row?.conteudo||row?.teor||'',480),
+    at:day(row?.dataDisponibilizacao||row?.data_disponibilizacao||row?.dataPublicacao),
+    text:text(row?.texto||row?.conteudo||row?.teor||'',480),
+    url:null,
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   return {events,latestDay:newest(events)};
 }
 export function mergeEvents(saved=[],datajud=[],djen=[],limit=100){
   const found=new Map();
   for(const e of [...datajud,...djen,...saved]){
-    if(!e||typeof e!=='object'||!e.id||!['DataJud','DJEN'].includes(e.source))continue;
-    if(!found.has(e.id))found.set(e.id,e);
+    if(!e||typeof e!=='object'||!['DataJud','DJEN'].includes(e.source))continue;
+    // Legacy Hermes events use {source,at,text,url}, without id.
+    // Keep those events exactly; never drop court evidence during migration.
+    const key=String(e.id||[e.source,e.date||e.at||'',e.title||e.text||''].join('|'));
+    if(!found.has(key))found.set(key,e);
   }
-  return [...found.values()].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,limit);
+  return [...found.values()].sort((a,b)=>String(b.date||b.at||'').localeCompare(String(a.date||a.at||''))).slice(0,limit);
 }
