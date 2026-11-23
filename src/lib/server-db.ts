@@ -233,6 +233,7 @@ export async function getStoredCasesForEmpresa(empresaId: string, isAdmin = fals
           .select(columns)
           .eq("empresa_id", empresaId)
           .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         if (mode === "mine") {
           if (!ownerIds.length) return null;
