@@ -624,7 +624,7 @@ export function ProcessosCommandCenter(props: Props) {
 
   const tribunalData = React.useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const key = clean(c.tribunal) || "Outros";
       map.set(key, (map.get(key) || 0) + 1);
     }
@@ -633,7 +633,7 @@ export function ProcessosCommandCenter(props: Props) {
 
   const statusData = React.useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const key = clean(c.status) || "Sem status";
       map.set(key, (map.get(key) || 0) + 1);
     }
@@ -648,7 +648,7 @@ export function ProcessosCommandCenter(props: Props) {
       return { key, label: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), movimentacoes: 0, publicacoes: 0 };
     });
     const byKey = new Map(months.map((m) => [m.key, m]));
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const movement = parseDate(c.datajud_ultimo_movimento || c.evento_data);
       const djen = parseDate(c.djen_ultima_data);
       if (movement) {
@@ -670,7 +670,7 @@ export function ProcessosCommandCenter(props: Props) {
       { label: "61–180 dias", min: 61, max: 180, value: 0, tone: "bg-orange-400" },
       { label: "+180 dias", min: 181, max: Infinity, value: 0, tone: "bg-red-500" },
     ];
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const d = caseSilenceDays(c);
       if (d == null) continue;
       const bucket = buckets.find((b) => d >= b.min && d <= b.max);
