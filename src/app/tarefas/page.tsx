@@ -1,5 +1,4 @@
 "use client";
-import {CompanyDueQueue} from '@/components/returns/company-due-queue';
 import { AtendimentoSyncRetry } from '@/components/atendimento-sync-retry';
 import { statusEfetivo } from "@/lib/prazo-status";
 
@@ -23,6 +22,7 @@ import { openDjenPublicacaoAction } from '@/app/actions/open-djen-action';
 
 import React, { useState, useEffect, useMemo, useCallback, startTransition } from 'react';
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useAutoLoadMore } from "@/hooks/use-auto-load-more";
 import { useCompanyProcessSearch } from "@/hooks/use-company-process-search";
 import { Sidebar } from '@/components/layout/sidebar';
 import { 
@@ -162,8 +162,6 @@ function TarefasPageLegacy() {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [editingTask,setEditingTask]=useState<LegalCase|null>(null);
   const [searchRefreshKey,setSearchRefreshKey]=useState(0);
-  const LIST_PAGE_SIZE = 24;
-  const [listVisible, setListVisible] = useState(LIST_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   // Incremental generation prevents stale page responses from updating another
   // tenant/profile or a route the operator already left.
@@ -188,7 +186,7 @@ function TarefasPageLegacy() {
   const [lawyerFilter, setLawyerFilter] = useState('all');
   const [sortPrazo, setSortPrazo] = useState<'mais_vencido' | 'menos_vencido' | 'prazo_asc' | 'ops'>('ops');
   const [dailyMeta, setDailyMeta] = useState(25);
-  const [somenteMeta, setSomenteMeta] = useState(true);
+  const [somenteMeta, setSomenteMeta] = useState(false);
   const [contatadosHoje, setContatadosHoje] = useState<string[]>([]);
   const [showBacklog, setShowBacklog] = useState(false);
   const [backlogVisible,setBacklogVisible] = useState(24);
@@ -268,7 +266,7 @@ function TarefasPageLegacy() {
       const parsed = parseInt(savedMeta);
       if (!isNaN(parsed)) setDailyMeta(parsed);
     }
-    const savedSomente = localStorage.getItem('lexis_tarefas_somente_meta');
+    const savedSomente = localStorage.getItem('lexis_tarefas_somente_meta_v2');
     if (savedSomente === '0') setSomenteMeta(false);
     else if (savedSomente === '1') setSomenteMeta(true);
     const savedContatados = localStorage.getItem(getTodayKey());
@@ -946,9 +944,16 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
     if (remoteSearch.active && filaFiltro!=='hoje') {
       return { focus: sortedAll, backlog: [], completed: [], totalPendingCount: pending.length };
     }
-    const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje ? pending.length : dailyMeta;
+    const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje || !somenteMeta ? pending.length : dailyMeta;
     return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
-  }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje]);
+  }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, somenteMeta]);
+
+  const {visibleCount:listVisible,sentinelRef:listSentinelRef,showAll:showAllTasks}=useAutoLoadMore(taskData.focus.length,{
+    initialCount:48,
+    step:48,
+    rootSelector:"[data-lexis-tarefas-scroll]",
+    resetKey:[filaFiltro,searchDebounced,officeFilter,lawyerFilter,sortPrazo,somenteMeta,soMeusHoje,contatadosHoje.join(",")].join("|"),
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1027,7 +1032,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
+        <div data-lexis-tarefas-scroll className="flex-1 overflow-auto p-4 sm:p-6 md:p-10 max-w-[1400px] mx-auto w-full space-y-10 pb-32">
           <HermesPriorityQueue />
           <section className={ui.metrics}>
             <div className="premium-card p-6 border-l-4 border-l-slate-400"><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pendentes · auto {autoTarefas.length}</p><h3 className="text-3xl font-black text-foreground tabular-nums">{taskData.totalPendingCount}</h3></div>
@@ -1046,7 +1051,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                   onCheckedChange={(v) => {
                     const on = !!v;
                     setSomenteMeta(on);
-                    try { localStorage.setItem('lexis_tarefas_somente_meta', on ? '1' : '0'); } catch { /* */ }
+                    try { localStorage.setItem('lexis_tarefas_somente_meta_v2', on ? '1' : '0'); } catch { /* */ }
                   }}
                 />
                 <span className="text-[10px] font-bold uppercase text-muted-foreground leading-tight">
@@ -1199,7 +1204,7 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
                       setSomenteMeta(false);
                       try {
                         localStorage.removeItem('lexis_tarefas_filters_v1');
-                        localStorage.setItem('lexis_tarefas_somente_meta', '0');
+                        localStorage.setItem('lexis_tarefas_somente_meta_v2', '0');
                       } catch { /* */ }
                     }}
                   >
@@ -1222,14 +1227,10 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
               </div>
             )}
             {taskData.focus.length > listVisible && (
-              <div className="flex flex-col items-center gap-2 py-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full h-10 px-6 text-[10px] font-black uppercase tracking-wider"
-                  onClick={() => setListVisible((n) => Math.min(n + LIST_PAGE_SIZE, taskData.focus.length))}
-                >
-                  Ver mais ({taskData.focus.length - listVisible} restantes)
+              <div ref={listSentinelRef} role="status" className="flex flex-col items-center gap-2 py-4 text-center">
+                <span className="text-[10px] text-muted-foreground">As próximas tarefas aparecem automaticamente ao rolar.</span>
+                <Button type="button" variant="outline" className="rounded-full h-10 px-6 text-[10px] font-black uppercase tracking-wider" onClick={showAllTasks}>
+                  Mostrar todas ({taskData.focus.length})
                 </Button>
               </div>
             )}
@@ -1502,5 +1503,5 @@ function TaskCard({ group, isFocus = false, isKbFocus = false, onMarkContacted, 
 }
 
 
-/** /cases e /tarefas compartilham a mesma fila empresarial de retornos, sem escopo pessoal. */
-export default function TarefasPage(){ return <CompanyDueQueue/>; }
+/** /tarefas mantém o painel operacional completo, com carteira empresarial e fila de tarefas. */
+export default function TarefasPage(){ return <TarefasPageLegacy/>; }
