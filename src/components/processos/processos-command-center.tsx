@@ -9,7 +9,6 @@ import {
   BarChart3,
   BrainCircuit,
   CalendarClock,
-  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Download,
@@ -51,6 +50,7 @@ import {
 
 import type { LegalCase } from "@/lib/case-logic";
 import { cn } from "@/lib/utils";
+import { useAutoLoadMore } from "@/hooks/use-auto-load-more";
 import { computeOpsLinha, compareOps } from "@/lib/ops-linha";
 import { statusEfetivo } from "@/lib/prazo-status";
 import { isCasoEncerrado } from "@/lib/status-encerrado";
@@ -404,14 +404,12 @@ export function ProcessosCommandCenter(props: Props) {
   }
   const [responsavel, setResponsavel] = React.useState("");
   const [novidade, setNovidade] = React.useState("");
-  const [page, setPage] = React.useState(1);
   const [busy, setBusy] = React.useState<"" | "djen" | "dossie" | "oab">("");
   const [focusPreset,setFocusPreset]=React.useState<FocusPreset>("all");
   const [oabResult,setOabResult]=React.useState<OabResult|null>(null);
   const [advancedFiltersOpen,setAdvancedFiltersOpen]=React.useState(false);
-  const [metricsOpen,setMetricsOpen]=React.useState(false);
-  const [insightsOpen,setInsightsOpen]=React.useState(false);
-  const PAGE = props.query.trim().length >= 2 ? 200 : 10;
+  const [metricsOpen,setMetricsOpen]=React.useState(true);
+  const [insightsOpen,setInsightsOpen]=React.useState(true);
 
   const tribunais = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(c.tribunal)).filter(Boolean))].sort(), [sourceItems]);
   const classes = React.useMemo(() => [...new Set(sourceItems.map((c) => clean(pick(c, "classe_acao", "classeProcessual_nome", "classe"))).filter(Boolean))].sort().slice(0, 80), [sourceItems]);
@@ -463,7 +461,6 @@ export function ProcessosCommandCenter(props: Props) {
     return dateActive && props.sortOps ? filteredRows.sort(compareOps) : filteredRows;
   }, [sourceItems, dateActive, props.query, props.statusFilter, props.baOnly, props.silencioOnly, props.sortOps, tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, focusPreset, props.ownerNameByAuth]);
 
-  React.useEffect(() => setPage(1), [tribunal, classe, risco, assunto, municipio, grau, sistema, responsavel, novidade, periodStart, periodEnd, dateField, focusPreset, props.query, props.statusFilter]);
   React.useEffect(() => {
     if (!rows.length) {
       setSelectedId("");
@@ -627,7 +624,7 @@ export function ProcessosCommandCenter(props: Props) {
 
   const tribunalData = React.useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const key = clean(c.tribunal) || "Outros";
       map.set(key, (map.get(key) || 0) + 1);
     }
@@ -636,7 +633,7 @@ export function ProcessosCommandCenter(props: Props) {
 
   const statusData = React.useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const key = clean(c.status) || "Sem status";
       map.set(key, (map.get(key) || 0) + 1);
     }
@@ -651,7 +648,7 @@ export function ProcessosCommandCenter(props: Props) {
       return { key, label: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), movimentacoes: 0, publicacoes: 0 };
     });
     const byKey = new Map(months.map((m) => [m.key, m]));
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const movement = parseDate(c.datajud_ultimo_movimento || c.evento_data);
       const djen = parseDate(c.djen_ultima_data);
       if (movement) {
@@ -673,7 +670,7 @@ export function ProcessosCommandCenter(props: Props) {
       { label: "61–180 dias", min: 61, max: 180, value: 0, tone: "bg-orange-400" },
       { label: "+180 dias", min: 181, max: Infinity, value: 0, tone: "bg-red-500" },
     ];
-    for (const c of props.items) {
+    for (const c of sourceItems) {
       const d = caseSilenceDays(c);
       if (d == null) continue;
       const bucket = buckets.find((b) => d >= b.min && d <= b.max);
@@ -682,8 +679,14 @@ export function ProcessosCommandCenter(props: Props) {
     return buckets;
   }, [sourceItems]);
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE));
-  const pageRows = rows.slice((page - 1) * PAGE, page * PAGE);
+  const listResetKey=[tribunal,classe,risco,assunto,municipio,grau,sistema,responsavel,novidade,periodStart,periodEnd,dateField,focusPreset,props.query,props.statusFilter,props.baOnly,props.silencioOnly,dateActive].join("|");
+  const {visibleCount,sentinelRef:processListSentinelRef,showAll:showAllProcesses}=useAutoLoadMore(rows.length,{
+    initialCount:props.query.trim().length>=2?200:100,
+    step:100,
+    rootSelector:"[data-lexis-processos-scroll]",
+    resetKey:listResetKey,
+  });
+  const visibleRows=rows.slice(0,visibleCount);
   const maxSilence = Math.max(1, ...silenceBuckets.map((b) => b.value));
 
   async function openDjen(c: LegalCase) {
@@ -926,9 +929,9 @@ export function ProcessosCommandCenter(props: Props) {
               <tbody className="text-[11px]">
                 {(dateActive?dateLoading:props.loading) ? (
                   <tr><td colSpan={10} className="py-20 text-center text-slate-500"><Loader2 size={20} className="mx-auto mb-2 animate-spin"/>Carregando carteira…</td></tr>
-                ) : pageRows.length === 0 ? (
+                ) : visibleRows.length === 0 ? (
                   <tr><td colSpan={10} className="py-20 text-center text-slate-500">{props.searching ? "Buscando na empresa…" : "Nenhum processo encontrado."}</td></tr>
-                ) : pageRows.map((c) => {
+                ) : visibleRows.map((c) => {
                   const id = String(c.id || c.protocolo);
                   const selectedRow = id === selectedId;
                   const silence = caseSilenceDays(c);
@@ -954,21 +957,24 @@ export function ProcessosCommandCenter(props: Props) {
             </table>
           </div>
 
+          {visibleCount<rows.length && (
+            <div ref={processListSentinelRef} role="status" className="px-3 py-3 text-center text-[10px] text-slate-500">
+              Os próximos processos aparecem automaticamente ao rolar.
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 dark:border-white/8 bg-white dark:bg-[#071120] px-3 py-2">
-            <p className="text-[10px] text-slate-500">Mostrando {pageRows.length} de {rows.length} processos carregados{dateActive ? ` · ${activeDateMatches?.totalCount ?? "…"} no intervalo` : props.totalCount !== null ? ` · ${props.totalCount} na empresa` : ""}</p>
-            <div className="flex items-center gap-1">
-              <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronLeft size={12}/></button>
-              <span className="px-2 text-[10px] text-slate-600 dark:text-slate-400">{page} / {pageCount}</span>
-              <button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 disabled:opacity-30"><ChevronRight size={12}/></button>
+            <p className="text-[10px] text-slate-500">Mostrando {visibleRows.length} de {rows.length} processos carregados{dateActive ? ` · ${activeDateMatches?.totalCount ?? "…"} no intervalo` : props.totalCount !== null ? ` · ${props.totalCount} na empresa` : ""}</p>
+            <div className="flex items-center gap-2">
+              {visibleCount<rows.length && <button type="button" onClick={showAllProcesses} className="h-7 rounded-md border border-primary/30 bg-primary/10 px-3 text-[10px] font-semibold text-primary">Mostrar todos</button>}
               {dateActive && activeDateMatches?.hasMore && <button type="button"
                 disabled={dateMoreLoading} onClick={()=>void loadMoreDateMatches()}
-                className="ml-2 inline-flex h-7 items-center gap-1 rounded-lg border border-primary bg-primary px-3 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-primary bg-primary px-3 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">
                 {dateMoreLoading?'Carregando…':'Carregar mais resultados do intervalo'}
               </button>}
               {!dateActive && props.hasMore && props.onLoadMore && <button type="button"
                 disabled={props.loadingMore}
                 onClick={() => void props.onLoadMore?.()}
-                className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[11px] font-semibold text-blue-800 dark:text-blue-100 disabled:opacity-40">
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-400/25 bg-blue-500/15 px-3 text-[11px] font-semibold text-blue-800 dark:text-blue-100 disabled:opacity-40">
                 {props.loadingMore ? <Loader2 size={11} className="animate-spin" /> : <Download size={11}/>}
                 {props.loadingMore ? 'Carregando...' : 'Carregar mais processos'}
               </button>}

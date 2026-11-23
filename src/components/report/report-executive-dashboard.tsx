@@ -40,7 +40,7 @@ function MiniStat({title,value,subtitle,Icon}:{title:string;value:number|null;su
 export function ReportExecutiveDashboard(p:Props){
  const [selected,setSelected]=useState("todos");
  const [metric,setMetric]=useState<"carteira"|"atendimentos">("carteira");
- const [expanded,setExpanded]=useState(false);
+ const [expanded,setExpanded]=useState(true);
  const people=useMemo(()=>[...p.equipe].sort((a,b)=>(metric==="carteira"?b.carteira-a.carteira:b.atendimentos-a.atendimentos)),[p.equipe,metric]);
  const visible=selected==="todos"?people:people.filter(x=>x.id===selected);
  const ranked=expanded?visible:visible.slice(0,5);

@@ -83,7 +83,7 @@ function resumoPessoa(x:EquipeMembro){
 export function TeamReport({data,currentUserId}:{data:EquipeRelatorio|null;currentUserId?:string|null}){
  const [selected,setSelected]=useState<string|null>(currentUserId||null);
  const [search,setSearch]=useState("");
- const [scope,setScope]=useState<"todos"|"com-atividade">("com-atividade");
+ const [scope,setScope]=useState<"todos"|"com-atividade">("todos");
  const pessoas=data?.pessoas||[];
  const visible=useMemo(()=>pessoas.filter(x=>x.nome.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")) && (scope==="todos"||(x.atividades.registrosTotal??0)>0)),[pessoas,scope,search]);
  const current=visible.find(x=>x.userId===selected)||visible[0];

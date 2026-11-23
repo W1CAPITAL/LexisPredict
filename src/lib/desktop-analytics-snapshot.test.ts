@@ -21,21 +21,27 @@ describe('KPIs do LexisPredict desktop sem chave administrativa',()=>{
   await expect(readDesktopHistorico({rpc:mock},tenant,'mes')).rejects.toThrow(/permission denied/i);
  });
  it('relatório restrito recebe owner e evita RPCs diretas bloqueadas',async()=>{
-  const mock=rpc({empresa_id:tenant,portfolio:{total:2734},historico:{dias:[]},merito:{},retorno:{}});
+  const mock=rpc({empresa_id:tenant,portfolio:{total:2734},historico:{dias:[]},merito:{},retorno:{},atividadesRegistradas:{total:1527,porResponsavel:[{userId:'user-1',registros:1408,processos:1200,contatosMarcados:1145,semReferencia:2}]}});
   const data=await readDesktopRelatorio({rpc:mock},tenant,'mes',null);
   expect((data.portfolio as Record<string,unknown>).total).toBe(2734);
+  expect((data.atividadesRegistradas as Record<string,unknown>).total).toBe(1527);
   expect(mock).toHaveBeenCalledWith('lexis_desktop_relatorio_snapshot',{p_periodo:'mes',p_owner:null});
  });
+ it('recusa relatório desktop sem resumo de tarefas registradas da empresa',async()=>{
+  const mock=rpc({empresa_id:tenant,portfolio:{total:2734},historico:{dias:[]},merito:{},retorno:{}});
+  await expect(readDesktopRelatorio({rpc:mock},tenant,'mes',null)).rejects.toThrow(/atividadesRegistradas/i);
+ });
  it('supervisão recusa snapshot de tenant errado e dados indisponíveis',async()=>{
-  const wrong=rpc({empresa_id:'other',carteira:{total:2734},atividade:{},status:{}});
+  const wrong=rpc({empresa_id:'other',carteira:{total:2734},atividade:{},status:{},analises:{}});
   await expect(readDesktopSupervisao({rpc:wrong},tenant,'esta_semana')).rejects.toThrow(/organiza/i);
-  const missing=rpc({empresa_id:tenant,carteira:null,atividade:{},status:{}});
+  const missing=rpc({empresa_id:tenant,carteira:null,atividade:{},status:{},analises:{}});
   await expect(readDesktopSupervisao({rpc:missing},tenant,'esta_semana')).rejects.toThrow(/incompleto/i);
  });
  it('supervisão autorizada recupera carteira e produtividade em uma RPC',async()=>{
-  const mock=rpc({empresa_id:tenant,carteira:{total:2734},atividade:{timeline:[]},status:{}});
+  const mock=rpc({empresa_id:tenant,carteira:{total:2734},atividade:{timeline:[]},status:{},analises:{totalRegistros:10,tarefasPorPessoa:[]}});
   const data=await readDesktopSupervisao({rpc:mock},tenant,'esta_semana');
   expect((data.carteira as Record<string,unknown>).total).toBe(2734);
+  expect((data.analises as Record<string,unknown>).totalRegistros).toBe(10);
   expect(mock).toHaveBeenCalledWith('lexis_desktop_supervisao_snapshot',{p_periodo:'esta_semana'});
  });
 });

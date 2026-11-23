@@ -31,9 +31,13 @@ export async function readDesktopHistorico(db:RpcClient,tenant:string,periodo:Pe
  return data.historico as Snapshot;
 }
 export async function readDesktopRelatorio(db:RpcClient,tenant:string,periodo:Periodo='mes',owner:string|null=null){
- return request(db,tenant,'lexis_desktop_relatorio_snapshot',
-  {p_periodo:periodo,p_owner:owner},['portfolio','historico','merito','retorno']);
+ const data=await request(db,tenant,'lexis_desktop_relatorio_snapshot',
+  {p_periodo:periodo,p_owner:owner},['portfolio','historico','merito','retorno','atividadesRegistradas']);
+ const activities=data.atividadesRegistradas as Snapshot;
+ if(typeof activities.total!=='number'||!Number.isFinite(activities.total)||!Array.isArray(activities.porResponsavel))
+  throw new Error('Resumo de atividades registradas incompleto.');
+ return data;
 }
 export async function readDesktopSupervisao(db:RpcClient,tenant:string,periodo:Periodo='esta_semana'){
- return request(db,tenant,'lexis_desktop_supervisao_snapshot',{p_periodo:periodo},['carteira','atividade','status']);
+ return request(db,tenant,'lexis_desktop_supervisao_snapshot',{p_periodo:periodo},['carteira','atividade','status','analises']);
 }

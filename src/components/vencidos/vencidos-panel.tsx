@@ -1,5 +1,6 @@
 "use client";
 import {useMemo,useState} from "react";
+import {useAutoLoadMore} from "@/hooks/use-auto-load-more";
 import Link from "next/link";
 import {AlertTriangle,CalendarClock,CheckCircle2,ChevronRight,Clock3,Filter,Search,ShieldAlert,Users} from "lucide-react";
 import {classificarVencimento,isVencidoAcionavelCRM,isVencidoNoCRM,resumirCentralVencidos} from "@/lib/vencimentos";
@@ -22,7 +23,6 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
  const [owner,setOwner]=useState("todos");
  const [office,setOffice]=useState("todos");
  const [order,setOrder]=useState<"mais_antigo"|"mais_recente"|"nome">("mais_antigo");
- const [visibleCount,setVisibleCount]=useState(40);
  const ownerMap=useMemo(()=>{
   const m=new Map<string,string>();
   owners.forEach(x=>{m.set(x.id,x.nome);if(x.auth_user_id)m.set(x.auth_user_id,x.nome)});
@@ -47,6 +47,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
   const dt=(p:typeof a)=>tab==="prazo"?(p.proximo_prazo||"9999"):(p.proximo_retorno||"9999");
   return order==="mais_antigo"?dt(a).localeCompare(dt(b)):dt(b).localeCompare(dt(a));
  }),[prepared,tab,owner,office,query,order,owners,hoje,ownerMap]);
+ const {visibleCount,sentinelRef,showAll}=useAutoLoadMore(visible.length,{initialCount:40,step:40,resetKey:[tab,query,owner,office,order].join("|")});
  return <div className="space-y-5">
   <div className="rounded-[1.6rem] border border-rose-300/35 bg-gradient-to-br from-rose-50 via-background to-violet-50 p-6 dark:from-rose-950/20 dark:to-violet-950/20">
    <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-rose-700 dark:text-rose-300"><CalendarClock size={15}/> Central de retornos e pendências</p>
@@ -59,7 +60,7 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
    {([{id:"retorno",label:"Retornos vencidos",hint:"Datas de contato vencidas: confira o histórico antes de agir",value:counts.retorno,icon:CalendarClock},
       {id:"todos",label:"Marcados vencidos no CRM",hint:`${counts.ativosMarcados} ativos · ${bloqueados} encerrados manualmente (sem cobrança)`,value:counts.todos,icon:AlertTriangle},
       {id:"revisar",label:"Cadastros para revisar",hint:"Status não combina com as datas ou com encerramento",value:counts.revisar,icon:ShieldAlert},
-      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} data-lexis-rebuild-tab aria-controls="vencidos-tab-panel" onClick={()=>{setTab(x.id);setVisibleCount(40)}} aria-pressed={tab===x.id}
+      {id:"prazo",label:"Datas antigas no cadastro",hint:"Campo legado: não é prazo judicial comprovado",value:counts.prazo,icon:Clock3}] as const).map(x=><button type="button" key={x.id} data-lexis-rebuild-tab aria-controls="vencidos-tab-panel" onClick={()=>setTab(x.id)} aria-pressed={tab===x.id}
     className={"rounded-2xl border p-4 text-left shadow-sm transition "+(tab===x.id?"border-rose-400 bg-rose-500/10":"border-border bg-card hover:border-rose-300")}>
      <x.icon className="h-5 w-5 text-rose-600"/><p className="mt-3 text-2xl font-black tabular-nums">{format(x.value)}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{x.label}</p><p className="mt-2 text-[11px] leading-snug text-muted-foreground">{x.hint}</p>
     </button>)}
@@ -72,10 +73,10 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
     "Datas antigas = valor histórico de um campo legado diferente de próximo retorno. Não indica, sozinho, atraso de contato nem perda de prazo judicial."}
   </div>
   <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-4">
-   <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input type="search" value={query} onChange={e=>{setQuery(e.target.value);setVisibleCount(40)}} placeholder="Buscar cliente, CNJ ou advogado" aria-label="Pesquisar vencidos" className="h-10 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm"/></div>
-   <label className="flex items-center gap-2 text-xs"><Users className="h-4 w-4 text-muted-foreground"/><span className="sr-only">Responsável</span><select value={owner} onChange={e=>{setOwner(e.target.value);setVisibleCount(40)}} className="h-10 max-w-[205px] rounded-xl border border-input bg-background px-3 text-xs"><option value="todos">Todos responsáveis</option>{owners.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select></label>
-   <label className="flex items-center gap-2 text-xs"><Filter className="h-4 w-4 text-muted-foreground"/><span className="sr-only">Escritório</span><select value={office} onChange={e=>{setOffice(e.target.value);setVisibleCount(40)}} className="h-10 max-w-[190px] rounded-xl border border-input bg-background px-3 text-xs"><option value="todos">Todos escritórios</option>{offices.map(o=><option key={o} value={o}>{o}</option>)}</select></label>
-   <select aria-label="Ordenar vencidos" value={order} onChange={e=>{setOrder(e.target.value as typeof order);setVisibleCount(40)}} className="h-10 rounded-xl border border-input bg-background px-3 text-xs"><option value="mais_antigo">Mais atrasado primeiro</option><option value="mais_recente">Menos atrasado primeiro</option><option value="nome">Cliente A–Z</option></select>
+   <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar cliente, CNJ ou advogado" aria-label="Pesquisar vencidos" className="h-10 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm"/></div>
+   <label className="flex items-center gap-2 text-xs"><Users className="h-4 w-4 text-muted-foreground"/><span className="sr-only">Responsável</span><select value={owner} onChange={e=>setOwner(e.target.value)} className="h-10 max-w-[205px] rounded-xl border border-input bg-background px-3 text-xs"><option value="todos">Todos responsáveis</option>{owners.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select></label>
+   <label className="flex items-center gap-2 text-xs"><Filter className="h-4 w-4 text-muted-foreground"/><span className="sr-only">Escritório</span><select value={office} onChange={e=>setOffice(e.target.value)} className="h-10 max-w-[190px] rounded-xl border border-input bg-background px-3 text-xs"><option value="todos">Todos escritórios</option>{offices.map(o=><option key={o} value={o}>{o}</option>)}</select></label>
+   <select aria-label="Ordenar vencidos" value={order} onChange={e=>setOrder(e.target.value as typeof order)} className="h-10 rounded-xl border border-input bg-background px-3 text-xs"><option value="mais_antigo">Mais atrasado primeiro</option><option value="mais_recente">Menos atrasado primeiro</option><option value="nome">Cliente A–Z</option></select>
   </div>
   {limitReached?<p role="alert" className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 text-xs">A consulta alcançou o limite de registros. A lista pode estar incompleta; refine os filtros ou recarregue.</p>:null}
   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -105,7 +106,10 @@ export function VencidosPanel({data,owners,hoje,limitReached}:{data:VencidoRow[]
     </div>
    </article>)}
   </div>:<div className="rounded-2xl border border-border bg-card p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600"/><p className="mt-3 font-semibold">Nenhum registro nesta categoria</p><p className="mt-1 text-sm text-muted-foreground">Experimente outro responsável ou remova a busca.</p></div>}
-  {visible.length>visibleCount?<button type="button" onClick={()=>setVisibleCount(x=>x+40)} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:bg-muted">Mostrar mais 40 processos ({format(visible.length-visibleCount)} restantes)</button>:null}
+  {visible.length>visibleCount?<div ref={sentinelRef} role="status" className="flex flex-col items-center gap-2 py-3 text-center text-xs text-muted-foreground">
+   <span>Os próximos processos aparecem automaticamente ao rolar.</span>
+   <button type="button" onClick={showAll} className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-bold text-primary">Mostrar todos ({format(visible.length)})</button>
+  </div>:null}
   </div>
  </div>;
 }

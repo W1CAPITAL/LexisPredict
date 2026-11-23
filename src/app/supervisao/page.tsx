@@ -37,6 +37,7 @@ import { Users,
   ShieldCheck, Plus } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
+import { useAutoLoadMore } from "@/hooks/use-auto-load-more";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileDown, Printer, FileSearch } from "lucide-react";
@@ -68,6 +69,38 @@ function KpiCard({ icon, label, value, hint, tone = "default" }: {
   );
 }
 
+function SupervisaoUserProcessTable({processes,userKey}:{processes:any[];userKey:string}){
+ const {visibleCount,sentinelRef,showAll}=useAutoLoadMore(processes.length,{initialCount:50,step:50,resetKey:userKey});
+ return <div className="px-3 pb-4 overflow-x-auto">
+  <table className="w-full text-left min-w-[640px]">
+   <thead>
+    <tr className="text-[8px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/30">
+     <th className="px-3 py-2">Cliente</th>
+     <th className="px-3 py-2">Protocolo</th>
+     <th className="px-3 py-2">Status</th>
+     <th className="px-3 py-2">Último retorno</th>
+     <th className="px-3 py-2">Tribunal</th>
+    </tr>
+   </thead>
+   <tbody className="divide-y divide-border/15">
+    {processes.slice(0,visibleCount).map((p:any)=>(
+     <tr key={p.id||p.protocolo} className="text-[10px] hover:bg-secondary/10">
+      <td className="px-3 py-2 font-bold uppercase max-w-[180px] truncate">{p.cliente}</td>
+      <td className="px-3 py-2 font-mono text-[9px]">{p.protocolo}</td>
+      <td className="px-3 py-2"><span className="text-[8px] font-black uppercase tracking-wide">{p.status}</span></td>
+      <td className="px-3 py-2 tabular-nums">{p.ultimoRetorno}</td>
+      <td className="px-3 py-2 truncate max-w-[100px]">{p.tribunal}</td>
+     </tr>
+    ))}
+   </tbody>
+  </table>
+  {visibleCount<processes.length&&<div ref={sentinelRef} role="status" className="flex flex-col items-center gap-2 py-3 text-center">
+   <span className="text-[10px] text-muted-foreground">Mostrando {visibleCount} de {processes.length}. Os demais aparecem automaticamente ao rolar.</span>
+   <button type="button" onClick={showAll} className="rounded-lg border border-primary/30 px-3 py-2 text-[9px] font-black uppercase text-primary hover:bg-primary/5">Mostrar todos</button>
+  </div>}
+ </div>;
+}
+
 export default function SupervisaoPage() {
   const { profile, loading: authLoading } = useAuth();
   const [snap, setSnap] = useState<SupervisaoSnapshot | null>(null);
@@ -76,7 +109,6 @@ export default function SupervisaoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [procLimitByUser, setProcLimitByUser] = useState<Record<string, number>>({});
   const requestSeq=useRef(0);
 
   const isSupervisor = checkIfSupervisor(profile) || checkIfSuperAdmin(profile);
@@ -467,47 +499,7 @@ export default function SupervisaoPage() {
                               <span className="text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
                             </div>
                           </summary>
-                          <div className="px-3 pb-4 overflow-x-auto">
-                            <table className="w-full text-left min-w-[640px]">
-                              <thead>
-                                <tr className="text-[8px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/30">
-                                  <th className="px-3 py-2">Cliente</th>
-                                  <th className="px-3 py-2">Protocolo</th>
-                                  <th className="px-3 py-2">Status</th>
-                                  <th className="px-3 py-2">Último retorno</th>
-                                  <th className="px-3 py-2">Tribunal</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border/15">
-                                {(ug.processos || []).slice(0, procLimitByUser[ug.key] || 20).map((p: any) => (
-                                  <tr key={p.id || p.protocolo} className="text-[10px] hover:bg-secondary/10">
-                                    <td className="px-3 py-2 font-bold uppercase max-w-[180px] truncate">{p.cliente}</td>
-                                    <td className="px-3 py-2 font-mono text-[9px]">{p.protocolo}</td>
-                                    <td className="px-3 py-2">
-                                      <span className="text-[8px] font-black uppercase tracking-wide">{p.status}</span>
-                                    </td>
-                                    <td className="px-3 py-2 tabular-nums">{p.ultimoRetorno}</td>
-                                    <td className="px-3 py-2 truncate max-w-[100px]">{p.tribunal}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              {(ug.processos || []).length > (procLimitByUser[ug.key] || 20) && (
-                                <tfoot>
-                                  <tr>
-                                    <td colSpan={5} className="px-3 py-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => setProcLimitByUser((prev) => ({ ...prev, [ug.key]: (prev[ug.key] || 20) + 40 }))}
-                                        className="w-full text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg py-2 border border-dashed border-primary/30"
-                                      >
-                                        Ver mais processos ({ug.processos.length - (procLimitByUser[ug.key] || 20)} restantes)
-                                      </button>
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              )}
-                            </table>
-                          </div>
+                          <SupervisaoUserProcessTable processes={ug.processos||[]} userKey={String(ug.key)} />
                         </details>
                       ))
                     )}
