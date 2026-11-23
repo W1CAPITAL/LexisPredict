@@ -133,7 +133,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
   canViewTeam&&!trabalho?"trabalho interno":null,
   canViewTeam&&!teamReport?"produtividade da equipe":null,
   canViewTeam&&!desfechos?"desfechos":null,
-  !atividadesRegistradas?"atividades registradas":null,
+  atividadesRegistradas==null?"atividades registradas":null,
   canViewTeam&&!atividadesPorResponsavel?"atividades por responsável":null,
  ].filter((item):item is string=>Boolean(item));
  return <main data-lexis-report-page="executive" className="report-completo-shell min-h-screen px-4 py-7 text-foreground sm:px-8">
