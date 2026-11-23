@@ -944,7 +944,8 @@ const openAttendanceForGroup=(group:TaskGroup)=>{
     if (remoteSearch.active && filaFiltro!=='hoje') {
       return { focus: sortedAll, backlog: [], completed: [], totalPendingCount: pending.length };
     }
-    const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje || !somenteMeta ? pending.length : dailyMeta;
+    const metaCap = somenteMeta ? dailyMeta : pending.length;
+    const cap = filaFiltro === 'hoje' || filaFiltro === 'vencido' || soMeusHoje ? pending.length : metaCap;
     return { focus: pending.slice(0, cap), backlog: pending.slice(cap), completed: sortedAll.filter(g => contactedSet.has(String(g.cliente || '').trim().toUpperCase())), totalPendingCount: pending.length };
   }, [taskCases, remoteSearch.active, searchDebounced, officeFilter, lawyerFilter, sortPrazo, contatadosHoje, dailyMeta, filaFiltro, baHitDigits, soMeusHoje, somenteMeta]);
 
