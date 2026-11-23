@@ -57,6 +57,7 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   const vencidos=readFileSync(new URL('../components/vencidos/vencidos-panel.tsx',import.meta.url),'utf8');
   const supervisao=readFileSync(new URL('../app/supervisao/page.tsx',import.meta.url),'utf8');
   expect(processos).toContain('useAutoLoadMore');
+  expect(processos).toContain('useState(true)');
   expect(processos).not.toContain('const PAGE = props.query.trim().length >= 2 ? 200 : 10;');
   expect(tarefas).toContain('return <TarefasPageLegacy/>;');
   expect(tarefas).toContain('somenteMeta ? dailyMeta : pending.length');
