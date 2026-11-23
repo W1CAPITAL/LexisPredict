@@ -4,6 +4,7 @@ import {redirect} from "next/navigation";
 import {getUserContext,getSupabaseAdmin} from "@/lib/server-db";
 import {getReportAccess} from "@/lib/security/report-access";
 import {getHistoricoAtendimentosEmpresa,type AtendimentosHistorico} from "@/lib/historico-atendimentos";
+import {readDesktopRelatorio} from '@/lib/desktop-analytics-snapshot';
 import type {PeriodoRelatorio} from "@/lib/atendimento-semana";
 import {ReportSync} from "@/components/report/report-sync";
 import {AtendimentosEquipeDiarios} from "@/components/atendimentos/atendimentos-equipe-diarios";
@@ -49,18 +50,25 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
  const pathRelatorio=(p:string,escopo:boolean=somenteMinhaCarteira)=>
    `/report?periodo=${encodeURIComponent(p)}&escopo=${escopo?"meus":"empresa"}`;
  const db=await getSupabaseAdmin();
+ // O pacote local não leva service_role: agrega os KPIs em uma única RPC
+ // autenticada que resolve tenant/escopo no banco, sem ampliar privilégios.
+ const desktopReport=!process.env.SUPABASE_SERVICE_ROLE_KEY
+  ?await readDesktopRelatorio(db,empresaId,periodo,owner):null;
+ if(desktopReport&&canViewTeam&&(!desktopReport.equipe||!desktopReport.trabalho||!desktopReport.encerramentos))
+  throw new Error('Relatório de equipe incompleto. A sessão precisa de Supervisor ou Superadmin.');
+ const fromDesktop=(value:unknown)=>Promise.resolve({data:value,error:null});
  const [hermesCompany,hermesCases,hermesDiagnostics]=canViewTeam?await Promise.all([
   getHermesCompanyDaily(empresaId).catch(()=>null),getHermesCaseHealth(empresaId).catch(()=>[]),getHermesPortfolioDiagnostics(empresaId).catch(()=>null)
  ]):[null,[],null];
  const [historyResult,snapshotResult,meritoResult,retornoResult,closuresResult,trabalhoResult,teamResult,desfechosResult,atividadesRegistradasResult,atividadesPorResponsavelResult,identityResult]=await Promise.allSettled([
-  getHistoricoAtendimentosEmpresa(empresaId,periodo),
-  db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
-  db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
-  db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30}),
-  db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
-  db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  desktopReport?Promise.resolve(desktopReport.historico as AtendimentosHistorico):getHistoricoAtendimentosEmpresa(empresaId,periodo),
+  desktopReport?fromDesktop([desktopReport.portfolio]):db.rpc("lexis_portfolio_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  desktopReport?fromDesktop(desktopReport.merito):db.rpc("lexis_merito_snapshot",{p_empresa:empresaId,p_owner:owner}),
+  desktopReport?fromDesktop(desktopReport.retorno):db.rpc("lexis_retorno_snapshot",{p_empresa:empresaId,p_owner:owner,p_dias:30}),
+  desktopReport?fromDesktop(desktopReport.encerramentos):db.rpc("lexis_encerramentos_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  desktopReport?fromDesktop(desktopReport.trabalho):db.rpc("lexis_trabalho_interno_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  desktopReport?fromDesktop(desktopReport.equipe):db.rpc("lexis_relatorio_equipe_periodo",{p_empresa:empresaId,p_periodo:periodo}),
+  desktopReport?fromDesktop(desktopReport.desfechos):db.rpc("lexis_contagem_encerramento_snapshot",{p_empresa:empresaId,p_owner:owner}),
   getAtividadesRegistradasCount(empresaId,owner),
   canViewTeam?getAtividadesRegistradasPorResponsavel(empresaId):Promise.resolve(null),
   getReportIdentity()
