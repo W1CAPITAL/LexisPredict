@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server-db";
 import type { PeriodoRelatorio } from "@/lib/atendimento-semana";
+import {readDesktopHistorico} from '@/lib/desktop-analytics-snapshot';
 
 export type AtendimentosHistorico = {
  processos:number; eventos:number; tecnicoEventos:number;
@@ -22,6 +23,10 @@ export async function getHistoricoAtendimentosEmpresa(
  empresaId:string,periodo:PeriodoRelatorio="esta_semana"
 ):Promise<AtendimentosHistorico>{
  const db=await getSupabaseAdmin();
+ if(!process.env.SUPABASE_SERVICE_ROLE_KEY){
+  const data=await readDesktopHistorico(db,empresaId,periodo);
+  return data as unknown as AtendimentosHistorico;
+ }
  const {data,error}=await db.rpc("lexis_atividade_kpis_periodo",{p_empresa:empresaId,p_periodo:periodo});
  if(error)throw new Error("Falha na consulta do histórico: "+error.message);
  if(!data||typeof data!=="object"||!Array.isArray(data.dias))throw new Error("Histórico inválido");
