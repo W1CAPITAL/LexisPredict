@@ -34,7 +34,11 @@ export function useAutoLoadMore(
 
  useEffect(()=>{
   setVisibleCount(Math.min(safeTotal,safeInitial));
- },[safeTotal,safeInitial,resetKey]);
+ },[safeInitial,resetKey]);
+
+ useEffect(()=>{
+  setVisibleCount(current=>Math.min(safeTotal,Math.max(current,safeInitial)));
+ },[safeTotal,safeInitial]);
 
  useEffect(()=>{
   const target=sentinelRef.current;
