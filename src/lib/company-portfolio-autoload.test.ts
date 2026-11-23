@@ -56,6 +56,7 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   const tarefas=readFileSync(new URL('../app/tarefas/page.tsx',import.meta.url),'utf8');
   const vencidos=readFileSync(new URL('../components/vencidos/vencidos-panel.tsx',import.meta.url),'utf8');
   const supervisao=readFileSync(new URL('../app/supervisao/page.tsx',import.meta.url),'utf8');
+  const supervisaoActions=readFileSync(new URL('../app/actions/supervisao-actions.ts',import.meta.url),'utf8');
   expect(processos).toContain('useAutoLoadMore');
   expect(processos).toContain('useState(true)');
   expect(processos).not.toContain('const PAGE = props.query.trim().length >= 2 ? 200 : 10;');
@@ -64,7 +65,9 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   expect(tarefas).toContain('somenteMeta ? dailyMeta : pending.length');
   expect(tarefas).toContain('useAutoLoadMore');
   expect(tarefas).toContain('backlogSentinelRef');
+  expect(tarefas).toContain('somenteMeta,showBacklog].join("|")');
   expect(tarefas).not.toContain('Mostrar mais 24 do backlog');
+  expect(supervisaoActions).toContain('getStoredCasesForEmpresa(ctx.empresa_id,false,{companyOperational:true})');
   expect(vencidos).toContain('useAutoLoadMore');
   expect(supervisao).toContain('useAutoLoadMore');
   expect(supervisao).not.toContain('Ver mais processos (');
