@@ -51,6 +51,19 @@ function sourceError(error:unknown):{code:string,status:number|null}{
   return {code,status};
 }
 function futureTime(raw:any){return raw&&Date.parse(raw)>Date.now()}
+async function refreshPublicDataJudKey():Promise<string|null>{
+  // CNJ publishes a rotating public API key. Read only the official CNJ wiki.
+  try{
+    const response=await fetch("https://datajud-wiki.cnj.jus.br/api-publica/acesso/",{
+      headers:{Accept:"text/html"},signal:AbortSignal.timeout(8000),redirect:"error"
+    });
+    if(!response.ok)return null;
+    const html=(await response.text()).slice(0,300000);
+    const match=html.match(/Authorization:\\s*APIKey\\s+([A-Za-z0-9_+=/-]{30,})/i)||
+      html.match(/APIKey\\s+([A-Za-z0-9_+=/-]{30,})/i);
+    return match?.[1]||null;
+  }catch{return null}
+}
 async function pauseSource(source:"datajud"|"djen",status:number|null){
   const minutes=status===429?90:status===403?360:status===401?240:
     status&&status>=500?20:0;
@@ -93,12 +106,22 @@ async function runOne(claim:{empresa_id:string;processo_id:number}){
       errorCodes.datajud={code:"unsupported_court",checkedAt};
     }else{
       try{
-        const payload=await officialJson("https://api-publica.datajud.cnj.jus.br/api_publica_"+alias+"/_search",{
+        const datajudUrl="https://api-publica.datajud.cnj.jus.br/api_publica_"+alias+"/_search";
+        const queryBody=JSON.stringify({size:1,query:{match:{numeroProcesso:cnj}}});
+        const search=async(key:string)=>officialJson(datajudUrl,{
           method:"POST",
-          headers:{"Authorization":"APIKey "+DATAJUD_PUBLIC_KEY,
+          headers:{"Authorization":"APIKey "+key,
             "Content-Type":"application/json","Accept":"application/json"},
-          body:JSON.stringify({size:1,query:{match:{numeroProcesso:cnj}}})
+          body:queryBody
         });
+        let payload:any;
+        try{payload=await search(DATAJUD_PUBLIC_KEY)}
+        catch(error){
+          if(Number((error as any)?.status)!==401&&Number((error as any)?.status)!==403)throw error;
+          const fresh=await refreshPublicDataJudKey();
+          if(!fresh||fresh===DATAJUD_PUBLIC_KEY)throw error;
+          payload=await search(fresh);
+        }
         if(payload.timed_out===true)throw Error("invalid_datajud_timeout");
         datajud=normalizeDataJud(payload,cnj);
         freshDatajud=datajud.events;
@@ -158,6 +181,11 @@ Deno.serve(async(request:Request)=>{
   try{
     const accepted=await db("rpc/hermes_background_authorized","POST",{p_token:token});
     if(accepted!==true)return json({ok:false,error:"unauthorized"},403);
+    const control=await readOne("hermes_background_control?select=datajud_paused_until,djen_paused_until&id=eq.1&limit=1");
+    // Sem nenhuma fonte acessível, não consumir a fila e não sobrescrever
+    // evidências com falsos resultados "indisponíveis".
+    if(futureTime(control?.datajud_paused_until)&&futureTime(control?.djen_paused_until))
+      return json({ok:true,processed:0,paused:true,reason:"court_backoff"});
     const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",
       year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
     const claims=await db("rpc/hermes_claim_portfolio_scan_batch","POST",{
