@@ -126,7 +126,6 @@ import {  isCasoEncerrado, isBaixaTribunal  } from '@/lib/status-encerrado';
 import { suggestScripts, ScriptSuggestion } from '@/lib/script-processual/suggest';
 import { AiDraftPreview } from '@/components/ai/ai-draft-preview';
 import { gerarRascunhoEstrategico } from '@/ai/motor-despacho';
-import { resolveCaseScope } from '@/lib/roles';
 import { plainTextFromDjen, summarizeDjenKeywords, djenTextsRecentFirst, sortDjenComunicacoesRecentFirst } from '@/lib/djen';
 // djenTextsRecentFirst usado no rascunho;
 import { buildUnifiedTimeline } from '@/lib/timeline-normalize';
@@ -158,7 +157,7 @@ function TarefasPageLegacy() {
   const { canCopy, canExport, canScan, isViewer, profile } = useAdmin();
   const empresaId = String((profile as any)?.empresa_id || '');
   const authUserId = String((profile as any)?.auth_user_id || '');
-  const taskCaseScope = resolveCaseScope(profile as any);
+  const taskCaseScope = 'empresa' as const;
   const [mounted, setMounted] = useState(false);
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [editingTask,setEditingTask]=useState<LegalCase|null>(null);
