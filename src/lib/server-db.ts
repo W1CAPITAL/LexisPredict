@@ -347,6 +347,9 @@ export async function getStoredCasesPageForEmpresa(
         .select(columns)
         .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
+        // created_at may be identical for imported batches; id breaks ties so
+        // consecutive pages neither skip nor repeat processes.
+        .order('id', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (onlyAtivos) {
