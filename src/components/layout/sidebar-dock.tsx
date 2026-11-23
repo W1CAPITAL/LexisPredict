@@ -22,6 +22,7 @@ import { operatorRouteAllowed, canViewCompanyCaseList } from "@/lib/roles";
 import { CommercialTopbar } from "@/components/layout/commercial-topbar";
 import {loadExperiencePrefs} from '@/lib/experience-prefs';
 import {matchesAppRouteSearch} from '@/lib/app-route-search';
+import { getPrimaryNavigationLabel, selectPrimaryNavigationItems } from "@/lib/primary-navigation";
 
 const primary = [
   ["Painel", "/", LayoutDashboard],
@@ -119,17 +120,20 @@ export function SidebarDock() {
     );
   }, [role, isAdmin, isSupervisor, isSuperAdmin, plan, query]);
 
-  const main = filterNavByPlan(
-    primary.map(([label, href, icon]) => ({
-      label: href === "/processos" ? (canViewCompanyCaseList(profile as any) ? "Processos da Empresa" : "Processos") : label,
-      href,
-      icon,
-    })),
-    isSuperAdmin ? "maximo" : plan,
-  ).filter(
-    (item) =>
-      (item.href !== "/processos" || canViewCompanyCaseList(profile as any)) &&
-      (role !== "Operador" || operatorRouteAllowed(item.href)),
+  // Só expõe seis áreas de trabalho; autorização sempre antecede a seleção.
+  const main = selectPrimaryNavigationItems(
+    filterNavByPlan(
+      [...primary, ...more].map(([label, href, icon]) => ({
+        label: href === "/processos" ? "Processos da Empresa" : label,
+        href,
+        icon,
+      })),
+      isSuperAdmin ? "maximo" : plan,
+    ).filter(
+      (item) =>
+        (item.href !== "/processos" || canViewCompanyCaseList(profile as any)) &&
+        (role !== "Operador" || operatorRouteAllowed(item.href)),
+    ),
   );
 
   const isActive = (href: string) =>
@@ -176,7 +180,7 @@ export function SidebarDock() {
                 )}
               >
                 <Icon size={15} />
-                {item.label}
+                {getPrimaryNavigationLabel(item.href, item.label)}
               </Link>
             );
           })}
