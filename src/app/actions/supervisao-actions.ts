@@ -6,6 +6,7 @@
  */
 
 import { getReportIdentity } from '@/lib/report/report-identity';
+import {readDesktopSupervisao} from '@/lib/desktop-analytics-snapshot';
 import { getUserContext, getStoredCasesForEmpresa, getSupabaseAdmin } from '@/lib/server-db';
 import { periodBounds, labelPeriodo, type PeriodoRelatorio } from '@/lib/atendimento-semana';
 import { getHistoricoAtendimentosEmpresa,emptyHistorico,type AtendimentosHistorico } from '@/lib/historico-atendimentos';
@@ -161,13 +162,18 @@ export async function getSupervisaoSnapshotAction(
   if(!ctx.isSupervisor&&!ctx.isSuperAdmin)
     return {success:false,error:'Acesso restrito a Supervisor ou Superadmin.'};
   const db=await getSupabaseAdmin();
+  // Sem service_role no desktop, consultar uma RPC que identifica a empresa e
+  // exige Supervisor/Superadmin diretamente pelo JWT, nunca p_empresa do cliente.
+  const desktopSupervisao=!process.env.SUPABASE_SERVICE_ROLE_KEY
+   ?await readDesktopSupervisao(db,String(ctx.empresa_id),periodo):null;
+  const fromDesktop=(value:unknown)=>Promise.resolve({data:value,error:null});
   const hoje=new Date();
   const bounds=periodBounds(periodo,hoje);
   const toYmd=(date:Date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
   const [carteiraReq,atividadeReq,estadoReq,historicoReq,analisesReq,casosReq,usuariosReq,identityReq]=await Promise.allSettled([
-    db.rpc('lexis_supervisao_carteira_snapshot',{p_empresa:ctx.empresa_id}),
-    db.rpc('lexis_supervisao_atividade_snapshot',{p_empresa:ctx.empresa_id,p_periodo:periodo}),
-    db.rpc('lexis_supervisao_status_por_protocolo',{p_empresa:ctx.empresa_id}),
+    desktopSupervisao?fromDesktop(desktopSupervisao.carteira):db.rpc('lexis_supervisao_carteira_snapshot',{p_empresa:ctx.empresa_id}),
+    desktopSupervisao?fromDesktop(desktopSupervisao.atividade):db.rpc('lexis_supervisao_atividade_snapshot',{p_empresa:ctx.empresa_id,p_periodo:periodo}),
+    desktopSupervisao?fromDesktop(desktopSupervisao.status):db.rpc('lexis_supervisao_status_por_protocolo',{p_empresa:ctx.empresa_id}),
     getHistoricoAtendimentosEmpresa(ctx.empresa_id,periodo),
     getResumoAnalisesDaEmpresa(ctx.empresa_id,toYmd(bounds.start),toYmd(bounds.end)),
     getStoredCasesForEmpresa(ctx.empresa_id,false),
