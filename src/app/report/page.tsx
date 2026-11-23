@@ -124,6 +124,18 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
    {title:"Novidades",value:snapshot?.novidades},
    {title:"Baixas tribunal",value:snapshot?.baixas},
  ];
+ const reportWarnings=[
+  !hist?"histórico de atendimentos":null,
+  !snapshot?"indicadores da carteira":null,
+  !merito?"mérito":null,
+  !retorno?"retornos":null,
+  canViewTeam&&!encerramentos?"encerramentos":null,
+  canViewTeam&&!trabalho?"trabalho interno":null,
+  canViewTeam&&!teamReport?"produtividade da equipe":null,
+  canViewTeam&&!desfechos?"desfechos":null,
+  !atividadesRegistradas?"atividades registradas":null,
+  canViewTeam&&!atividadesPorResponsavel?"atividades por responsável":null,
+ ].filter((item):item is string=>Boolean(item));
  return <main data-lexis-report-page="executive" className="report-completo-shell min-h-screen px-4 py-7 text-foreground sm:px-8">
    <div className="mx-auto max-w-[1400px] space-y-6">
     <ReportExecutiveDashboard
@@ -153,11 +165,14 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
         edicoes:x.edicoes.processos,atividades:x.atividades.registrosTotal??null
       }))}
     />
-    {canViewTeam && <HermesPortfolioReport data={hermesDiagnostics}/>}
+    {reportWarnings.length>0&&<div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-foreground">
+      Alguns dados do relatório não foram carregados: {reportWarnings.join(", ")}. Os indicadores correspondentes ficam sem valor em vez de serem apresentados incorretamente como zero.
+    </div>}
+    {canViewTeam && <HermesPortfolioReport data={hermesDiagnostics}/>} 
     {canViewTeam && <HermesCompanyReport row={hermesCompany} cases={hermesCases}/>}
     {!canViewTeam && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground">Este relatório apresenta apenas a sua carteira. Dados individuais de outros colaboradores e relatórios consolidados são exclusivos da supervisão.</p>}
     {canViewTeam && <>
-    <details id="equipe" className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
+    <details id="equipe" open className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="cursor-pointer text-sm font-bold text-foreground">Abrir detalhamento individual da equipe e perguntas ao relatório</summary>
       <div className="mt-5 space-y-6">
     <TeamReport data={teamReport} currentUserId={ctx.auth_id}/>
@@ -184,7 +199,7 @@ export default async function ReportPage({searchParams}:{searchParams:Promise<{p
     />
       </div>
     </details>
-    <details className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
+    <details open className="group rounded-[1.5rem] border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-2 text-left marker:hidden">
         <div><h2 className="text-lg font-extrabold">Ver relatório completo e informações técnicas</h2><p className="mt-1 text-sm text-muted-foreground">Mérito judicial, produtividade por colaborador, encerramentos, auditorias e evolução da carteira — sem perder nenhum detalhe.</p></div>
         <span className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-primary group-open:bg-primary group-open:text-primary-foreground">Abrir / fechar</span>
