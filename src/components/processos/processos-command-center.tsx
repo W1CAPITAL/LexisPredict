@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+const AtendimentosProcessoHistorico = React.lazy(() => import("@/components/processos/historico-atendimentos-processo"));
 import Link from "next/link";
 import {
   Activity,
@@ -344,6 +345,7 @@ export function ProcessosCommandCenter(props: Props) {
   const [selectedId, setSelectedId] = React.useState("");
   const autoEditDone=React.useRef("");
   const [tab, setTab] = React.useState<DetailTab>("overview");
+  const [historicoOpen,setHistoricoOpen]=React.useState(false);
   const [tribunal, setTribunal] = React.useState("");
   const [classe, setClasse] = React.useState("");
   const [risco, setRisco] = React.useState("");
@@ -500,6 +502,7 @@ export function ProcessosCommandCenter(props: Props) {
   const selectedCnj=cnjDigits(selected?.protocolo);
   const officialCourtPortal=React.useMemo(()=>resolveOfficialCourtPortal(selectedCnj),[selectedCnj]);
   const selectedDbId=String(selected?.db_id||selected?.id||'');
+  React.useEffect(()=>setHistoricoOpen(false),[selectedDbId]);
   const historyCache=React.useRef(new Map<string,MovementResponse>());
   const [onlyCumprimento,setOnlyCumprimento]=React.useState(false);
   const [history,setHistory]=React.useState<MovementView>({
@@ -1069,6 +1072,17 @@ export function ProcessosCommandCenter(props: Props) {
                     <Info label="Último retorno" value={fmtDate(selected.ultimoRetorno)}/>
                     <Info label="Responsável" value={ownerName(selected, props.ownerNameByAuth)}/>
                   </Panel>
+                  <button type="button" aria-expanded={historicoOpen}
+                    onClick={()=>setHistoricoOpen(value=>!value)}
+                    className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-xs font-semibold text-foreground hover:bg-muted/60">
+                    Histórico de atendimentos
+                    <ChevronRight size={14} className={cn("transition-transform",historicoOpen&&"rotate-90")}/>
+                  </button>
+                  {historicoOpen && selected ? (
+                    <React.Suspense fallback={<p className="text-xs text-muted-foreground">Abrindo histórico…</p>}>
+                      <AtendimentosProcessoHistorico key={selectedDbId} processId={selectedDbId} cnj={selected.protocolo}/>
+                    </React.Suspense>
+                  ) : null}
                   {selectedMeritoPendente?.motivo ? (
                     <Panel title="Motivo da pendência de mérito · conferência 22/10/2026">
                       <div className="rounded-lg border border-amber-400/25 bg-amber-500/8 p-2">
