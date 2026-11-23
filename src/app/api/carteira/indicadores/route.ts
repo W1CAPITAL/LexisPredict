@@ -36,14 +36,19 @@ export async function GET(request: NextRequest) {
         { status: 503, headers }
       );
     }
+    const counts = [row.total, row.ativos, row.encerrados, row.vencidos].map(value =>
+      typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)) ? Number(value) : NaN
+    );
+    if (!counts.every(value => Number.isSafeInteger(value) && value >= 0)) {
+      return NextResponse.json(
+        { ok: false, error: "O banco retornou indicadores incompletos. Tente novamente." },
+        { status: 503, headers }
+      );
+    }
+    const [total, ativos, encerrados, vencidos] = counts;
     return NextResponse.json({
       ok: true,
-      indicadores: {
-        total: Number(row.total ?? 0),
-        ativos: Number(row.ativos ?? 0),
-        encerrados: Number(row.encerrados ?? 0),
-        vencidos: Number(row.vencidos ?? 0),
-      },
+      indicadores: { total, ativos, encerrados, vencidos },
       consultadoEm: new Date().toISOString(),
     }, { headers });
   } catch (error) {

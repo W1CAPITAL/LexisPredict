@@ -201,11 +201,17 @@ async function persistToDatabase(
     return { success: true, data: result.data };
   }
 
-  let result = await admin.from('processos').insert(withUpdated).select('*').maybeSingle();
+  let result = await admin.from('processos').insert(withUpdated).select('id').maybeSingle();
   if (result.error && /updated_at|schema cache|column .* does not exist/i.test(String(result.error.message))) {
-    result = await admin.from('processos').insert(payload).select('*').maybeSingle();
+    result = await admin.from('processos').insert(payload).select('id').maybeSingle();
+  }
+  if (result.error?.code === '23505' && result.error.message.includes('processos_protocolo_ref_empresa_unique')) {
+    return { success: false, message: 'Processo já cadastrado na carteira.' };
   }
   if (result.error) return { success: false, message: result.error.message };
+  if (result.data?.id == null) {
+    return { success: false, message: 'O banco não confirmou o cadastro. Atualize a carteira antes de tentar novamente.' };
+  }
   return { success: true, data: result.data };
 }
 
@@ -416,6 +422,10 @@ export async function saveOneCaseAction(caseData: LegalCase): Promise<{ success:
 
     const db = await persistToDatabase(empresa_id, processed, existing, auth_id || null, actorName);
     if (!db.success) return { success: false, message: db.message || 'Falha ao salvar.' };
+    if (db.data?.id != null) {
+      processed.id = String(db.data.id);
+      processed.db_id = processed.id;
+    }
 
     try {
       await logAuditoriaSistema({
