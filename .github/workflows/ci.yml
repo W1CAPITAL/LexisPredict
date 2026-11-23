@@ -33,6 +33,8 @@ jobs:
         run: pnpm run typecheck
       - name: Tests
         run: pnpm test
+      - name: Hermes autonomous Edge core regression tests
+        run: node --test supabase/functions/hermes-background/core.test.mjs
       - name: WA.Auto transport lifecycle tests
         run: |
           node --check workers/wa-local/index.mjs

@@ -47,6 +47,7 @@
     "services",
     "src/App.tsx",
     "src/InboundCaptacao.tsx",
-    "src/lib/data-provider/sync-engine.ts"
+    "src/lib/data-provider/sync-engine.ts",
+    "supabase/functions/hermes-background"
   ]
 }
