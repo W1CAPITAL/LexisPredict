@@ -35,5 +35,5 @@ export async function readDesktopRelatorio(db:RpcClient,tenant:string,periodo:Pe
   {p_periodo:periodo,p_owner:owner},['portfolio','historico','merito','retorno']);
 }
 export async function readDesktopSupervisao(db:RpcClient,tenant:string,periodo:Periodo='esta_semana'){
- return request(db,tenant,'lexis_desktop_supervisao_snapshot',{p_periodo:periodo},['carteira','atividade','status']);
+ return request(db,tenant,'lexis_desktop_supervisao_snapshot',{p_periodo:periodo},['carteira','atividade','status','analises']);
 }
