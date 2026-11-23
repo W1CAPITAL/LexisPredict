@@ -59,6 +59,7 @@ describe('carteira da empresa sem centenas de cliques',()=>{
   expect(processos).toContain('useAutoLoadMore');
   expect(processos).toContain('useState(true)');
   expect(processos).not.toContain('const PAGE = props.query.trim().length >= 2 ? 200 : 10;');
+  expect(processos).not.toContain('for (const c of props.items)');
   expect(tarefas).toContain('return <TarefasPageLegacy/>;');
   expect(tarefas).toContain('somenteMeta ? dailyMeta : pending.length');
   expect(tarefas).toContain('useAutoLoadMore');
